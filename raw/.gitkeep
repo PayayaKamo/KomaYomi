@@ -1,0 +1,3 @@
+# Keep this directory in Git.
+# Raw manga pages are copyrighted and must NOT be committed.
+# Expected layout: raw/<volume>/<language>/<chapter>/<page>.jpg

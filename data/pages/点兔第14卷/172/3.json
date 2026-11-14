@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "volume": "点兔第14卷",
+  "chapter": "172",
+  "pageIndex": 3,
+  "panels": [
+    {
+      "id": "p1",
+      "source": "auto",
+      "rect": {
+        "x": 0.4987,
+        "y": 0.0475,
+        "w": 0.4277,
+        "h": 0.231
+      }
+    },
+    {
+      "id": "p2",
+      "source": "auto",
+      "rect": {
+        "x": 0.0691,
+        "y": 0.0475,
+        "w": 0.4262,
+        "h": 0.231
+      }
+    },
+    {
+      "id": "p3",
+      "source": "auto",
+      "rect": {
+        "x": 0.4987,
+        "y": 0.2901,
+        "w": 0.4129,
+        "h": 0.2104
+      }
+    },
+    {
+      "id": "p4",
+      "source": "auto",
+      "rect": {
+        "x": 0.0691,
+        "y": 0.2901,
+        "w": 0.4129,
+        "h": 0.2083
+      }
+    },
+    {
+      "id": "p5",
+      "source": "auto",
+      "rect": {
+        "x": 0.4973,
+        "y": 0.5016,
+        "w": 0.4277,
+        "h": 0.2207
+      }
+    },
+    {
+      "id": "p6",
+      "source": "auto",
+      "rect": {
+        "x": 0.0676,
+        "y": 0.513,
+        "w": 0.4277,
+        "h": 0.2094
+      }
+    },
+    {
+      "id": "p7",
+      "source": "auto",
+      "rect": {
+        "x": 0.4973,
+        "y": 0.7338,
+        "w": 0.4129,
+        "h": 0.2321
+      }
+    },
+    {
+      "id": "p8",
+      "source": "auto",
+      "rect": {
+        "x": 0.0676,
+        "y": 0.7338,
+        "w": 0.4129,
+        "h": 0.2104
+      }
+    }
+  ],
+  "notes": [],
+  "offsets": {},
+  "alignMode": "page",
+  "panelOffsets": {},
+  "gridStep": 1,
+  "readingDirection": "rtl",
+  "updatedAt": "2026-11-14T19:46:13.209Z",
+  "detectorVersion": "xycut-1.3",
+  "detectedAt": "2026-11-14T19:46:12.480Z",
+  "detectSource": "auto",
+  "editCount": 1,
+  "lastEditedAt": "2026-11-14T19:46:13.209Z",
+  "lastEditSummary": "创建页面数据"
+}

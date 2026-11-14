@@ -1,0 +1,34 @@
+# Dependencies and build output
+node_modules/
+dist/
+dist-server/
+release/
+*.tsbuildinfo
+*.log
+
+# Runtime caches and generated deliverables
+data/cache/
+exports/
+.screenshots/
+.trae-html-share-packages/
+
+# Raw manga pages are copyrighted: never commit them.
+# Place your own material under raw/<volume>/<language>/<chapter>/
+raw/*
+!raw/.gitkeep
+
+# Local-only scratch data
+data/tmp/
+data/backups/
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local environment overrides
+.env
+.env.*
+!.env.example

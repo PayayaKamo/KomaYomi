@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "volume": "点兔第14卷",
+  "chapter": "174",
+  "pageIndex": 0,
+  "panels": [
+    {
+      "id": "p1",
+      "source": "auto",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 0.7243
+      }
+    },
+    {
+      "id": "p2",
+      "source": "auto",
+      "rect": {
+        "x": 0.5195,
+        "y": 0.7338,
+        "w": 0.4129,
+        "h": 0.2104
+      }
+    },
+    {
+      "id": "p3",
+      "source": "auto",
+      "rect": {
+        "x": 0.0899,
+        "y": 0.7338,
+        "w": 0.4129,
+        "h": 0.2104
+      }
+    }
+  ],
+  "notes": [],
+  "offsets": {},
+  "alignMode": "page",
+  "panelOffsets": {},
+  "gridStep": 1,
+  "readingDirection": "rtl",
+  "updatedAt": "2026-11-14T19:20:50.576Z"
+}

@@ -1,0 +1,423 @@
+﻿import path from 'node:path';
+import jpeg from 'jpeg-js';
+import { PNG } from 'pngjs';
+import type { DetectResult, PanelRect, ReadingDirection } from '../shared/types.ts';
+
+type Gray = { width: number; height: number; data: Uint8Array };
+
+/** 切格算法版本：写进每页 JSON，算法升级后可识别出旧结果 */
+export const DETECTOR_VERSION = 'xycut-1.3';
+
+/** 按文件头判断真实格式（素材里存在 .png 实际是 JPEG 的情况） */
+export function sniffFormat(buf: Buffer): 'png' | 'jpeg' | 'webp' | 'unknown' {
+  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  return 'unknown';
+}
+
+/** 快速读取图片尺寸（插件只需要宽高，避免为了拿尺寸把整张图解码一遍） */
+export function imageSize(buf: Buffer, filename: string): { width: number; height: number } {
+  const format = sniffFormat(buf);
+  if (format === 'png' && buf.length >= 24) {
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (format === 'jpeg') {
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) {
+        i++;
+        continue;
+      }
+      const marker = buf[i + 1];
+      if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7)) {
+        i += 2;
+        continue;
+      }
+      const len = buf.readUInt16BE(i + 2);
+      // SOF0..SOF15（排除 DHT/DAC 等）
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { width: buf.readUInt16BE(i + 7), height: buf.readUInt16BE(i + 5) };
+      }
+      i += 2 + len;
+    }
+  }
+  const decoded = decodeGray(buf, filename);
+  return { width: decoded.width, height: decoded.height };
+}
+
+/** 解码图片为灰度图（RGBA -> 亮度），失败时抛错 */
+export function decodeGray(buf: Buffer, filename: string): Gray {
+  const ext = path.extname(filename).toLowerCase();
+  let width = 0;
+  let height = 0;
+  let rgba: Uint8Array | Buffer;
+
+  const format = sniffFormat(buf);
+  const effective = format === 'unknown' ? (ext === '.png' ? 'png' : 'jpeg') : format;
+
+  if (effective === 'png') {
+    const png = PNG.sync.read(buf);
+    width = png.width;
+    height = png.height;
+    rgba = png.data;
+  } else if (effective === 'jpeg') {
+    const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true });
+    width = img.width;
+    height = img.height;
+    rgba = img.data as Uint8Array;
+  } else {
+    throw new Error(`暂不支持该图片格式（${format} / ${ext}）`);
+  }
+
+  const gray = new Uint8Array(width * height);
+  for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
+    gray[i] = (rgba[p] * 299 + rgba[p + 1] * 587 + rgba[p + 2] * 114) / 1000;
+  }
+  return { width, height, data: gray };
+}
+
+/** 按整数步长抽样缩小，返回缩小后的灰度图与缩放比 */
+function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
+  const step = Math.max(1, Math.ceil(Math.max(src.width, src.height) / maxDim));
+  if (step === 1) return { gray: src, scale: 1 };
+  const w = Math.floor(src.width / step);
+  const h = Math.floor(src.height / step);
+  const data = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = y * step;
+    for (let x = 0; x < w; x++) {
+      // 2x2 平均，降低抽样噪声
+      const sx = x * step;
+      let sum = 0;
+      let n = 0;
+      for (let dy = 0; dy < 2 && sy + dy < src.height; dy++) {
+        for (let dx = 0; dx < 2 && sx + dx < src.width; dx++) {
+          sum += src.data[(sy + dy) * src.width + sx + dx];
+          n++;
+        }
+      }
+      data[y * w + x] = sum / n;
+    }
+  }
+  return { gray: { width: w, height: h, data }, scale: step };
+}
+
+/** 采样图片亮度分位，自适应计算“白纸”阈值 */
+function whiteThreshold(gray: Gray): number {
+  const hist = new Uint32Array(256);
+  const total = gray.data.length;
+  const stride = Math.max(1, Math.floor(total / 40000));
+  let n = 0;
+  for (let i = 0; i < total; i += stride) {
+    hist[gray.data[i]]++;
+    n++;
+  }
+  let acc = 0;
+  let p95 = 255;
+  for (let v = 255; v >= 0; v--) {
+    acc += hist[v];
+    if (acc / n >= 0.05) {
+      p95 = v;
+      break;
+    }
+  }
+  return Math.min(250, Math.max(170, p95 - 16));
+}
+
+type Region = { x0: number; y0: number; x1: number; y1: number };
+
+/** 递归 XY-Cut：用整行/整列全白的分隔带切分，得到格子候选 */
+function xyCut(
+  gray: Gray,
+  isWhite: Uint8Array,
+  integral: Uint32Array,
+  iw: number,
+  region: Region,
+  out: Region[],
+  depth = 0,
+): void {
+  const W = gray.width;
+  const H = gray.height;
+
+  const sum = (x0: number, y0: number, x1: number, y1: number) =>
+    integral[y1 * iw + x1] - integral[y0 * iw + x1] - integral[y1 * iw + x0] + integral[y0 * iw + x0];
+
+  // 行/列是否整段全白（容忍极少数扫描噪点，否则一道细缝里一个脏点就会让整页无法切分）
+  const tolX = Math.max(4, Math.round((region.y1 - region.y0) * 0.03));
+  const tolY = Math.max(4, Math.round((region.x1 - region.x0) * 0.03));
+  const colWhite = (x: number, y0: number, y1: number) => sum(x, y0, x + 1, y1) >= y1 - y0 - tolX;
+  const rowWhite = (y: number, x0: number, x1: number) => sum(x0, y, x1, y + 1) >= x1 - x0 - tolY;
+
+  let { x0, y0, x1, y1 } = region;
+  if (x1 - x0 < 8 || y1 - y0 < 8) return;
+
+  // 1. 先收缩四周全白留白（限制收缩比例，避免吃掉整页）
+  const maxTrimX = Math.floor((x1 - x0) * 0.18);
+  const maxTrimY = Math.floor((y1 - y0) * 0.18);
+  let tx = 0;
+  while (tx < maxTrimX && x0 + 1 < x1 && colWhite(x0, y0, y1)) {
+    x0++;
+    tx++;
+  }
+  tx = 0;
+  while (tx < maxTrimX && x1 - 1 > x0 && colWhite(x1 - 1, y0, y1)) {
+    x1--;
+    tx++;
+  }
+  let ty = 0;
+  while (ty < maxTrimY && y0 + 1 < y1 && rowWhite(y0, x0, x1)) {
+    y0++;
+    ty++;
+  }
+  ty = 0;
+  while (ty < maxTrimY && y1 - 1 > y0 && rowWhite(y1 - 1, x0, x1)) {
+    y1--;
+    ty++;
+  }
+  if (x1 - x0 < 8 || y1 - y0 < 8) return;
+
+  // 2. 找内部全白分隔带（分隔带在原图上往往只有 5~8px，抽样后可能只剩 2px）
+  const minV = Math.max(3, Math.round(W * 0.004));
+  const minH = Math.max(3, Math.round(H * 0.004));
+
+  const vBands: [number, number][] = [];
+  let start = -1;
+  for (let x = x0; x < x1; x++) {
+    const w = colWhite(x, y0, y1);
+    if (w && start < 0) start = x;
+    if ((!w || x === x1 - 1) && start >= 0) {
+      const end = w ? x + 1 : x;
+      if (end - start >= minV && start > x0 + 2 && end < x1 - 2) vBands.push([start, end]);
+      start = -1;
+    }
+  }
+
+  if (vBands.length > 0) {
+    let cur = x0;
+    for (const [s, e] of vBands) {
+      xyCut(gray, isWhite, integral, iw, { x0: cur, y0, x1: s, y1 }, out, depth + 1);
+      cur = e;
+    }
+    xyCut(gray, isWhite, integral, iw, { x0: cur, y0, x1, y1 }, out, depth + 1);
+    return;
+  }
+
+  const hBands: [number, number][] = [];
+  start = -1;
+  for (let y = y0; y < y1; y++) {
+    const w = rowWhite(y, x0, x1);
+    if (w && start < 0) start = y;
+    if ((!w || y === y1 - 1) && start >= 0) {
+      const end = w ? y + 1 : y;
+      if (end - start >= minH && start > y0 + 2 && end < y1 - 2) hBands.push([start, end]);
+      start = -1;
+    }
+  }
+
+  if (hBands.length > 0) {
+    let cur = y0;
+    for (const [s, e] of hBands) {
+      xyCut(gray, isWhite, integral, iw, { x0, y0: cur, x1, y1: s }, out, depth + 1);
+      cur = e;
+    }
+    xyCut(gray, isWhite, integral, iw, { x0, y0: cur, x1, y1 }, out, depth + 1);
+    return;
+  }
+
+  // 3. 兜底：分隔白缝被溢出的对话气泡打断时，改用格子黑色边框线切分（至少两条平行边框线才认定是分格，避免把画面里的长直线当成边框）
+  if (depth < 12) {
+    const minRunX = Math.floor((x1 - x0) * 0.72);
+    const minRunY = Math.floor((y1 - y0) * 0.72);
+    const maxThickY = Math.max(2, Math.round((y1 - y0) * 0.014));
+    const maxThickX = Math.max(2, Math.round((x1 - x0) * 0.014));
+
+    const darkRowCuts = findLineCuts(gray, W, x0, x1, y0, y1, true, minRunX, maxThickY);
+    if (darkRowCuts.length >= 2) {
+      let cur = y0;
+      for (const cut of darkRowCuts) {
+        if (cut - cur > 6) xyCut(gray, isWhite, integral, iw, { x0, y0: cur, x1, y1: cut }, out, depth + 1);
+        cur = cut;
+      }
+      if (y1 - cur > 6) xyCut(gray, isWhite, integral, iw, { x0, y0: cur, x1, y1 }, out, depth + 1);
+      return;
+    }
+    const darkColCuts = findLineCuts(gray, W, x0, x1, y0, y1, false, minRunY, maxThickX);
+    if (darkColCuts.length >= 2) {
+      let cur = x0;
+      for (const cut of darkColCuts) {
+        if (cut - cur > 6) xyCut(gray, isWhite, integral, iw, { x0: cur, y0, x1: cut, y1 }, out, depth + 1);
+        cur = cut;
+      }
+      if (x1 - cur > 6) xyCut(gray, isWhite, integral, iw, { x0: cur, y0, x1, y1 }, out, depth + 1);
+      return;
+    }
+  }
+
+  out.push({ x0, y0, x1, y1 });
+}
+
+/** 在区域内寻找“细长的深色直线”（格子边框），返回切分位置 */
+function findLineCuts(
+  gray: Gray,
+  W: number,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+  horizontal: boolean,
+  minRun: number,
+  maxThick: number,
+): number[] {
+  const dark = (x: number, y: number) => gray.data[y * W + x] < 130;
+  const positions: number[] = [];
+  const len = horizontal ? y1 - y0 : x1 - x0;
+  const span = horizontal ? x1 - x0 : y1 - y0;
+  for (let i = 0; i < len; i++) {
+    let best = 0;
+    let cur = 0;
+    for (let j = 0; j < span; j++) {
+      const x = horizontal ? x0 + j : x0 + i;
+      const y = horizontal ? y0 + i : y0 + j;
+      if (dark(x, y)) {
+        cur++;
+        if (cur > best) best = cur;
+      } else cur = 0;
+    }
+    if (best >= minRun) positions.push(i);
+  }
+  // 连续行合并为一条线，取中心；过粗的不算边框线
+  const cuts: number[] = [];
+  let start = -1;
+  const flush = (end: number) => {
+    if (start >= 0 && end - start + 1 <= maxThick && start > 2 && end < len - 3) {
+      cuts.push(horizontal ? y0 + Math.round((start + end) / 2) : x0 + Math.round((start + end) / 2));
+    }
+    start = -1;
+  };
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i];
+    if (start < 0) start = p;
+    else if (p !== positions[i - 1] + 1) {
+      flush(positions[i - 1]);
+      start = p;
+    }
+  }
+  if (start >= 0) flush(positions[positions.length - 1]);
+  return cuts;
+}
+
+/** 检测一页的格子，返回归一化坐标（相对整页） */
+export function detectPanels(buf: Buffer, filename: string): DetectResult {
+  const t0 = Date.now();
+  const full = decodeGray(buf, filename);
+  const { gray, scale } = downsample(full, 1000);
+  const W = gray.width;
+  const H = gray.height;
+
+  const threshold = whiteThreshold(gray);
+  const isWhite = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) isWhite[i] = gray.data[i] >= threshold ? 1 : 0;
+
+  // 积分图（尺寸 (W+1)x(H+1)）
+  const iw = W + 1;
+  const integral = new Uint32Array((W + 1) * (H + 1));
+  for (let y = 0; y < H; y++) {
+    let rowSum = 0;
+    for (let x = 0; x < W; x++) {
+      rowSum += isWhite[y * W + x];
+      integral[(y + 1) * iw + (x + 1)] = integral[y * iw + (x + 1)] + rowSum;
+    }
+  }
+
+  const regions: Region[] = [];
+  xyCut(gray, isWhite, integral, iw, { x0: 0, y0: 0, x1: W, y1: H }, regions);
+
+  // 过滤：面积过小、或内部几乎没有墨迹（纯白）的区块
+  const pageArea = W * H;
+  const inkCount = (r: Region) => {
+    let ink = 0;
+    for (let y = r.y0; y < r.y1; y += 2) {
+      for (let x = r.x0; x < r.x1; x += 2) {
+        if (!isWhite[y * W + x]) ink++;
+      }
+    }
+    return ink / Math.max(1, Math.ceil((r.y1 - r.y0) / 2) * Math.ceil((r.x1 - r.x0) / 2));
+  };
+
+  const kept = regions.filter((r) => {
+    const area = (r.x1 - r.x0) * (r.y1 - r.y0);
+    if (area < pageArea * 0.006) return false;
+    if (inkCount(r) < 0.004) return false;
+    // 过滤扫描噪点/装饰线造成的细长条（真实漫画格不会出现极扁的横条）
+    const rw = (r.x1 - r.x0) / W;
+    const rh = (r.y1 - r.y0) / H;
+    if (Math.min(rw, rh) < 0.035 && Math.max(rw, rh) / Math.min(rw, rh) > 4) return false;
+    // 过滤贴边竖排「あらすじ」/作者旁注文字条：窄、长、贴着左右页边，长宽比很高。
+    // 它在 118 页样本里稳定复现（如 173/p5、176/p4、179/p6、181/p7、182/p5），不属于漫画分格。
+    const edge = r.x0 / W < 0.035 || r.x1 / W > 0.965;
+    if (edge && rw < 0.09 && rh > 0.18 && rh / rw >= 3.2) return false;
+    return true;
+  });
+
+  // 归一化 + 轻微外扩（把格子边框包含进来）
+  const pad = 0.002;
+  const panels: PanelRect[] = kept.map((r) => {
+    const x = Math.max(0, r.x0 / W - pad);
+    const y = Math.max(0, r.y0 / H - pad);
+    const w = Math.min(1 - x, (r.x1 - r.x0) / W + pad * 2);
+    const h = Math.min(1 - y, (r.y1 - r.y0) / H + pad * 2);
+    return { x: round4(x), y: round4(y), w: round4(w), h: round4(h) };
+  });
+
+  return {
+    width: full.width,
+    height: full.height,
+    panels: sortReadingOrder(panels, 'rtl'),
+    meta: { scale, threshold, ms: Date.now() - t0 },
+  };
+}
+
+const round4 = (n: number) => Math.round(n * 10000) / 10000;
+
+/** 按阅读顺序排序：rtl 行内右→左；ltr 行内左→右；ttb 列从右→左、列内上→下 */
+export function sortReadingOrder<T>(
+  items: T[],
+  dir: ReadingDirection,
+  getRect: (item: T) => PanelRect = (item) => item as unknown as PanelRect,
+): T[] {
+  const list = [...items];
+  const rects = list.map((item) => ({ item, rect: getRect(item) }));
+  if (dir === 'ttb') {
+    const medianW = median(rects.map((r) => r.rect.w)) || 0.2;
+    const rows: typeof rects[] = [];
+    for (const r of [...rects].sort((a, b) => b.rect.x + b.rect.w / 2 - (a.rect.x + a.rect.w / 2))) {
+      const cx = r.rect.x + r.rect.w / 2;
+      const group = rows.find((g) => Math.abs(g[0].rect.x + g[0].rect.w / 2 - cx) < medianW * 0.6);
+      if (group) group.push(r);
+      else rows.push([r]);
+    }
+    return rows.flatMap((g) => g.sort((a, b) => a.rect.y - b.rect.y).map((r) => r.item));
+  }
+  const medianH = median(rects.map((r) => r.rect.h)) || 0.2;
+  const rows: typeof rects[] = [];
+  const ySorted = [...rects].sort((a, b) => a.rect.y + a.rect.h / 2 - (b.rect.y + b.rect.h / 2));
+  for (const r of ySorted) {
+    const cy = r.rect.y + r.rect.h / 2;
+    const group = rows.find((g) => Math.abs(g[0].rect.y + g[0].rect.h / 2 - cy) < medianH * 0.6);
+    if (group) group.push(r);
+    else rows.push([r]);
+  }
+  return rows.flatMap((g) =>
+    g.sort((a, b) => (dir === 'rtl' ? b.rect.x - a.rect.x : a.rect.x - b.rect.x)).map((r) => r.item),
+  );
+}
+
+function median(nums: number[]): number {
+  if (!nums.length) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+
+
