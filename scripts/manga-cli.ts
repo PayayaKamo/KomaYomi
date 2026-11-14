@@ -16,7 +16,7 @@ import { createEmptyDoc, readPageDoc, writePageDoc } from '../server/storage.ts'
 import { listAlignPresets, listPanelTemplates, applyPanelTemplate } from '../server/presets.ts';
 import { expandLayout, listLayouts, resolveLayout } from '../server/layouts.ts';
 import { listPlugins, runPlugin } from '../server/plugins.ts';
-import type { PageDoc, Panel, PanelRect, ReadingDirection } from '../shared/types.ts';
+import type { PageDoc, Panel, PanelRect } from '../shared/types.ts';
 
 const root = process.cwd();
 const rawRoot = path.join(root, 'raw');

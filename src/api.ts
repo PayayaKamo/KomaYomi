@@ -4,6 +4,7 @@ import type {
   ExportConfig,
   ExportTemplate,
   Lang,
+  LayoutScope,
   LayoutTemplate,
   Library,
   PageDoc,
@@ -35,6 +36,50 @@ export type NotesIndex = {
   tags: { tag: string; count: number }[];
   sources: { domain: string; count: number }[];
   pages: number;
+};
+
+/* ---- 工程文件 .mnproj ---- */
+export type ProjectMode = 'reference' | 'packaged';
+export type ProjectConflict = 'overwrite' | 'merge' | 'skip';
+
+export type ProjectInspect = {
+  name?: string;
+  schemaVersion: number;
+  migratedFrom?: number;
+  appVersion: string;
+  storageMode: ProjectMode;
+  createdAt: string;
+  updatedAt: string;
+  size: number;
+  pages: number;
+  notes: number;
+  annotations: number;
+  volumes: string[];
+  chapters: number;
+  images: number;
+  templates: number;
+  presets: number;
+  conflicts: { name: string; kind: 'page' | 'template' | 'preset' | 'config' }[];
+  conflictCount: number;
+  missingAssets: { volume: string; chapter: string; pageIndex: number; lang: Lang; name: string }[];
+  warnings: string[];
+};
+
+export type ProjectImport = {
+  storageMode: ProjectMode;
+  restored: number;
+  merged: number;
+  skipped: number;
+  conflicts: number;
+  imagesWritten: number;
+  imagesPresent: number;
+  relinked: number;
+  missing: { volume: string; chapter: string; pageIndex: number; lang: Lang; name: string; reason: string }[];
+  snapshot: string | null;
+  projectBackup: string;
+  migratedFrom?: number;
+  warnings: string[];
+  library: Library;
 };
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -95,6 +140,32 @@ export const api = {
       '/api/backup/restore',
       json({ data }),
     ),
+
+  /* ---- 工程文件 .mnproj ---- */
+  exportProject: (input: { mode: ProjectMode; name?: string; notes?: string }) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      entries: number;
+      storageMode: ProjectMode;
+      name?: string;
+      manifest: {
+        schemaVersion: number;
+        appVersion: string;
+        storageMode: ProjectMode;
+        pageCount: number;
+        images: number;
+        volumes: string[];
+        notes?: { pages: number; noteCount: number; annotationCount: number; text?: string };
+      };
+      warnings: string[];
+    }>('/api/project/export', json(input)),
+
+  inspectProject: (data: string) => request<ProjectInspect>('/api/project/inspect', json({ data })),
+
+  importProject: (input: { data: string; conflict: ProjectConflict; relinkDir?: string }) =>
+    request<ProjectImport>('/api/project/import', json(input)),
 
   page: (volume: string, chapter: string, index: number) =>
     request<PageResponse>(
@@ -183,6 +254,62 @@ export const api = {
 
   applyLayout: (layoutId: string, volume: string, chapter?: string, pageIndices?: number[]) =>
     request<{ applied: number }>('/api/layouts/apply', json({ layoutId, volume, chapter, pageIndices })),
+
+  /* ---- 统一交换格式 .mntpl / .mnexp / .mnpage.json ---- */
+  exportLayoutFile: (layoutId: string) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      warnings: string[];
+      layout: Record<string, unknown>;
+    }>('/api/exchange/layout/export', json({ layoutId })),
+
+  importLayoutFile: (input: {
+    data: string;
+    volume: string;
+    chapter?: string;
+    pageIndex?: number;
+    scope?: LayoutScope;
+    name?: string;
+  }) =>
+    request<{ layout: LayoutTemplate; migratedFrom?: number; backup: string; warnings: string[] }>(
+      '/api/exchange/layout/import',
+      json(input),
+    ),
+
+  exportExportTemplateFile: (templateId: string) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      warnings: string[];
+      template: Record<string, unknown>;
+    }>('/api/exchange/export-template/export', json({ templateId })),
+
+  importExportTemplateFile: (data: string) =>
+    request<{ template: ExportTemplate; migratedFrom?: number; backup: string; warnings: string[] }>(
+      '/api/exchange/export-template/import',
+      json({ data }),
+    ),
+
+  exportPageFile: (input: { volume: string; chapter: string; pageIndex: number }) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      warnings: string[];
+      page: Record<string, unknown>;
+    }>('/api/exchange/page/export', json(input)),
+
+  importPageFile: (input: { data: string; volume?: string; chapter?: string; pageIndex?: number }) =>
+    request<{
+      doc: PageDoc;
+      migratedFrom?: number;
+      backup: string;
+      targetBackup: string | null;
+      warnings: string[];
+    }>('/api/exchange/page/import', json(input)),
 
   plugins: () =>
     request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),

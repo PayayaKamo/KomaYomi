@@ -5,6 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
+const PRODUCT_NAME = 'KomaYomi';
+
+// 产品更名为 KomaYomi，但沿用旧的 userData 目录（%APPDATA%/manga-memo），
+// 避免已有用户丢失数据目录配置。待迁移方案确定后再改名。
+app.setName(PRODUCT_NAME);
+app.setPath('userData', path.join(app.getPath('appData'), 'manga-memo'));
+
 const ROOT = path.resolve(__dirname, '..');
 const IS_DEV_RUN = Boolean(process.defaultApp); // 用 `electron .` 从源码启动
 let server = null;
@@ -44,7 +51,7 @@ function migrateAnnotations(from, to) {
       fs.cpSync(src, dst, { recursive: true, force: false, errorOnExist: false });
       copied += 1;
     } catch (err) {
-      console.error(`[manga-memo] 迁移 ${part} 失败：`, err);
+      console.error(`[komayomi] 迁移 ${part} 失败：`, err);
     }
   }
   return copied;
@@ -77,7 +84,7 @@ async function resolveDataRoot() {
     const { response } = await dialog.showMessageBox({
       type: 'question',
       title: '选择数据目录',
-      message: 'Manga Memo 需要一个目录来放漫画图片和标注',
+      message: 'KomaYomi 需要一个目录来放漫画图片和标注',
       detail:
         `默认目录：${fallback}\n\n` +
         '· 想把图片放在别处（例如已有的项目目录），选「选择已有目录」\n' +
@@ -115,7 +122,7 @@ async function createWindow() {
   const wanted = Number(process.env.MANGA_PORT) || 0;
   const started = await mod.startMangaServer(dataRoot, wanted, path.join(ROOT, 'dist'));
   server = started.server;
-  console.log(`[manga-memo] http://127.0.0.1:${started.port}  data=${dataRoot}`);
+  console.log(`[komayomi] http://127.0.0.1:${started.port}  data=${dataRoot}`);
 
   const win = new BrowserWindow({
     width: 1440,
@@ -123,7 +130,7 @@ async function createWindow() {
     minWidth: 960,
     minHeight: 640,
     backgroundColor: '#0c0e12',
-    title: 'Manga Memo',
+    title: PRODUCT_NAME,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -133,7 +140,7 @@ async function createWindow() {
   });
 
   win.setMenuBarVisibility(false);
-  win.setTitle(`Manga Memo — ${dataRoot}`);
+  win.setTitle(`${PRODUCT_NAME} — ${dataRoot}`);
 
   // 外部链接交给系统浏览器，避免在应用内打开
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -169,20 +176,23 @@ async function createWindow() {
         const image = await win.webContents.capturePage();
         const out = process.env.MANGA_SMOKE_SHOT || path.join(os.tmpdir(), 'manga-electron-smoke.png');
         fs.writeFileSync(out, image.toPNG());
-        console.log(`[manga-memo] smoke shot -> ${out}`);
+        console.log(`[komayomi] smoke shot -> ${out}`);
       } catch (err) {
-        console.error('[manga-memo] 截图失败', err);
+        console.error('[komayomi] 截图失败', err);
       }
       app.quit();
     }, smoke);
   }
 }
 
-app.whenReady().then(createWindow).catch((err) => {
-  console.error('启动失败：', err);
-  dialog.showErrorBox('启动失败', String(err));
-  app.quit();
-});
+app
+  .whenReady()
+  .then(createWindow)
+  .catch((err) => {
+    console.error('启动失败：', err);
+    dialog.showErrorBox('启动失败', String(err));
+    app.quit();
+  });
 
 // 渲染进程通过 preload 调用：选择本地文件夹（添加漫画 / 切换数据目录）
 ipcMain.handle('pick-folder', async (_event, title) => {

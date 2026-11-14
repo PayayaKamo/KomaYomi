@@ -40,6 +40,8 @@ function inline(input: string): string {
   s = s.replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>');
   s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
 
+  // NUL 用作行内代码的占位符，最后统一还原，故此处需要匹配控制字符。
+  // eslint-disable-next-line no-control-regex
   return s.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => codes[Number(i)] ?? '');
 }
 

@@ -90,6 +90,17 @@ export default function App() {
     setSelected((prev) => prev.filter((id) => doc.panels.some((p) => p.id === id)));
   }, [doc?.panels, doc]);
 
+  // 确认保存模式下还有待保存修改时，离开页面先拦一下；自动保存模式不干预
+  useEffect(() => {
+    if (!pageState.dirty || pageState.saveMode !== 'confirm') return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [pageState.dirty, pageState.saveMode]);
+
   const ordered = useMemo(() => (doc ? sortPanels(doc.panels, doc.readingDirection) : []), [doc]);
   const primaryId = selected[selected.length - 1];
   const primaryPanel = doc?.panels.find((p) => p.id === primaryId) ?? null;
@@ -137,13 +148,30 @@ export default function App() {
     [library, sel],
   );
 
+  // Destructured so the shortcut effect depends on the callbacks themselves
+  // instead of the whole pageState object (which changes on every keystroke of a note).
+  const undoPage = pageState.undo;
+  const redoPage = pageState.redo;
+
   // 键盘快捷键（输入框内不触发）：[ ] 翻页，P 分格，C 对照，S 侧栏，N 笔记，E 导出
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.ctrlKey || e.metaKey) {
+        const mod = e.key.toLowerCase();
+        if (mod === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) redoPage();
+          else undoPage();
+        } else if (mod === 'y') {
+          e.preventDefault();
+          redoPage();
+        }
+        return;
+      }
+      if (e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === '[') {
         e.preventDefault();
@@ -160,7 +188,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, goPage]);
+  }, [doc, goPage, undoPage, redoPage]);
 
   const availableLangs = page ? LANGUAGES.filter((l) => Boolean(page.files[l])) : [];
 
@@ -169,7 +197,9 @@ export default function App() {
     : pageState.saving
       ? '保存中…'
       : pageState.dirty
-        ? '待保存'
+        ? pageState.saveMode === 'confirm'
+          ? '未保存改动'
+          : '待保存'
         : '已保存';
 
   return (
@@ -193,7 +223,7 @@ export default function App() {
             ?
           </button>
           <div className="logo">
-            Manga&nbsp;Memo<span>漫画多语言对照</span>
+            KomaYomi<span>Manga Learner</span>
           </div>
           {sel && (
             <div className="crumb">
@@ -251,7 +281,14 @@ export default function App() {
       </header>
 
       <div className="body-area">
-        <Sidebar library={library} rootPath={rootPath} selection={sel} onOpen={setSel} onReload={loadLibrary} />
+        <Sidebar
+          library={library}
+          rootPath={rootPath}
+          selection={sel}
+          onOpen={setSel}
+          onReload={loadLibrary}
+          dirty={pageState.dirty}
+        />
 
         <main className="stage">
           {libError && <div className="banner error">图库读取失败：{libError}</div>}
@@ -272,6 +309,16 @@ export default function App() {
                 selected={selected}
                 setSelected={setSelected}
                 onReload={pageState.reload}
+                saveMode={pageState.saveMode}
+                setSaveMode={pageState.setSaveMode}
+                dirty={pageState.dirty}
+                saving={pageState.saving}
+                onCommit={() => void pageState.commit()}
+                onDiscard={pageState.discard}
+                canUndo={pageState.canUndo}
+                canRedo={pageState.canRedo}
+                onUndo={pageState.undo}
+                onRedo={pageState.redo}
               />
             ) : (
               <CompareTab

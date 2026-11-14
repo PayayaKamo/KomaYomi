@@ -209,6 +209,10 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [scrollTop, setScrollTop] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Reset the composer when the target panel/page changes. Keying on primitives
+  // avoids re-running this whenever an unrelated field of the page doc mutates.
+  const currentPanelId = panel?.id ?? null;
+  const currentPageKey = `${doc?.chapter ?? ''}|${doc?.pageIndex ?? -1}`;
   useEffect(() => {
     setScope(panel ? 'panel' : 'page');
     setText('');
@@ -218,7 +222,8 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     setSrcUrl('');
     setSrcTitle('');
     setSrcText('');
-  }, [panel?.id, doc?.pageIndex, doc?.chapter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPanelId, currentPageKey]);
 
   useEffect(() => {
     try {

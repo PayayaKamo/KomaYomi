@@ -1,0 +1,69 @@
+name: Bug report
+description: Report something that is broken or behaves unexpectedly
+title: '[Bug]: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search existing issues first.
+        Do **not** attach copyrighted manga pages or private notes unless they are necessary to reproduce the problem.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: A clear description of the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it happen?
+      options:
+        - Web app (`npm run dev`)
+        - Electron desktop (`npm run desktop`)
+        - Build / packaging
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: KomaYomi version / commit
+      placeholder: e.g. 0.1.0 or a commit SHA
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version, browser (if applicable).
+      placeholder: Windows 11, Node 22, Chrome 130
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Paste relevant console output, server logs, or screenshots.
+      render: shell
+    validations:
+      required: false

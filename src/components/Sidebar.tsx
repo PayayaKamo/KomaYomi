@@ -5,6 +5,8 @@ import type { Selection } from '../hooks/usePage';
 import { thumbUrl } from '../api';
 import { AddVolumeDialog, VolumeSettingsDialog } from './LibraryDialogs';
 import { DataToolsDialog } from './DataToolsDialog';
+import { ProjectDialog } from './ProjectDialog';
+import { ExchangeDialog } from './ExchangeDialog';
 
 type Props = {
   library: Library | null;
@@ -12,6 +14,8 @@ type Props = {
   selection: Selection | null;
   onOpen: (sel: Selection) => void;
   onReload: (library?: Library) => void;
+  /** 当前页面是否有未保存修改，工程导出/导入前提示 */
+  dirty: boolean;
 };
 
 function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
@@ -22,11 +26,13 @@ function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
   return null;
 }
 
-export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Props) {
+export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>(() => ({}));
   const [addOpen, setAddOpen] = useState(false);
   const [settings, setSettings] = useState<VolumeEntry | null>(null);
   const [dataOpen, setDataOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
@@ -41,7 +47,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
     return (
       <aside className="sidebar">
         <div className="sidebar-head">
-          <div className="brand">Manga Memo</div>
+          <div className="brand">KomaYomi</div>
           <div className="root-path">载入图库中…</div>
         </div>
       </aside>
@@ -52,7 +58,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
     return (
       <aside className="sidebar">
         <div className="sidebar-head">
-          <div className="brand">Manga Memo</div>
+          <div className="brand">KomaYomi</div>
         </div>
         <div className="sidebar-empty">
           没有在 <code>{rootPath || 'raw'}</code> 下找到任何卷目录。
@@ -146,8 +152,8 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
     <aside className="sidebar">
       <div className="sidebar-head">
         <div className="brand">
-          Manga Memo
-          <span className="brand-sub">多语言对照批注</span>
+          KomaYomi
+          <span className="brand-sub">Manga Learner</span>
         </div>
         <div className="root-path" title={rootPath}>
           {library.volumes.length} 卷 · {library.volumes.reduce((n, v) => n + v.chapters.length, 0)} 话
@@ -180,9 +186,27 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
       </div>
       <div className="sidebar-foot">
         <span>raw 只读</span>
-        <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title="备份 / 恢复 data/">
-          备份 / 恢复
-        </button>
+        <span className="sidebar-foot-actions">
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => setProjectOpen(true)}
+            title="工程文件：导出 / 导入 .mnproj"
+          >
+            工程文件…
+          </button>
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => setExchangeOpen(true)}
+            title="交换文件：.mntpl / .mnexp / .mnpage.json"
+          >
+            交换文件…
+          </button>
+          <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title="备份 / 恢复 data/">
+            备份 / 恢复
+          </button>
+        </span>
       </div>
 
       {addOpen && (
@@ -205,6 +229,21 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
         />
       )}
       {dataOpen && <DataToolsDialog onClose={() => setDataOpen(false)} onRestored={(lib) => onReload(lib)} />}
+      {projectOpen && (
+        <ProjectDialog
+          dirty={dirty}
+          onClose={() => setProjectOpen(false)}
+          onImported={(lib) => onReload(lib)}
+        />
+      )}
+      {exchangeOpen && (
+        <ExchangeDialog
+          dirty={dirty}
+          selection={selection}
+          onClose={() => setExchangeOpen(false)}
+          onChanged={() => onReload()}
+        />
+      )}
     </aside>
   );
 }

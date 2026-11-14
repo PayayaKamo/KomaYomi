@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-server/
+release/
+data/
+exports/
+raw/
+docs/
+.screenshots/
+.trae-html-share-packages/
+package-lock.json
+*.tsbuildinfo

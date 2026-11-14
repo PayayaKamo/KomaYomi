@@ -1,0 +1,10 @@
+# electron-builder 打包配置（预留；当前发布流程仍以源码运行为主）
+appId: com.payayakamo.komayomi
+productName: KomaYomi
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-server/**/*
+  - electron/**/*
+  - package.json

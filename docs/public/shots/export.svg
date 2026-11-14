@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-label="Export dialog screenshot placeholder">
+  <rect width="1280" height="800" fill="#0f1115"/>
+  <rect x="0" y="0" width="280" height="800" fill="#171a21"/>
+  <rect x="360" y="80" width="880" height="640" rx="12" fill="#171a21" stroke="#2d3441"/>
+  <rect x="392" y="112" width="220" height="18" rx="9" fill="#2a2f3a"/>
+  <g fill="#1d222b" stroke="#2d3441">
+    <rect x="392" y="160" width="816" height="120" rx="8"/>
+    <rect x="392" y="300" width="816" height="120" rx="8"/>
+    <rect x="392" y="440" width="816" height="120" rx="8"/>
+  </g>
+  <g fill="#c2410c" opacity="0.9">
+    <rect x="1040" y="650" width="168" height="40" rx="8"/>
+  </g>
+  <g fill="#2a2f3a">
+    <rect x="1032" y="176" width="140" height="24" rx="6"/>
+    <rect x="1032" y="316" width="140" height="24" rx="6"/>
+    <rect x="1032" y="456" width="140" height="24" rx="6"/>
+  </g>
+  <text x="640" y="790" fill="#8b93a1" font-family="system-ui, sans-serif" font-size="22" text-anchor="middle">Screenshot placeholder · Export dialog</text>
+</svg>

@@ -20,6 +20,7 @@ raw/*
 # Local-only scratch data
 data/tmp/
 data/backups/
+.tmp/
 
 # Editor / OS files
 .vscode/

@@ -10,6 +10,15 @@ import { listPlugins, runPlugin } from './plugins.ts';
 import { collectTagStats, createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
 import { exportChapter } from './export.ts';
 import { createBackupBuffer, inspectBackup, restoreBackup } from './backup.ts';
+import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
+import {
+  exportExportTemplate,
+  exportLayoutTemplate,
+  exportPage,
+  importExportTemplate,
+  importLayoutTemplate,
+  importPage,
+} from './exchange.ts';
 import { collectNotes } from './notes.ts';
 import { thumbnailFile } from './thumb.ts';
 import {
@@ -608,7 +617,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           const resp = await fetch(target, {
             signal: controller.signal,
             redirect: 'follow',
-            headers: { 'user-agent': 'Mozilla/5.0 MangaMemo/0.1' },
+            headers: { 'user-agent': 'Mozilla/5.0 KomaYomi/0.1' },
           });
           clearTimeout(timer);
           const text = (await resp.text()).slice(0, 200_000);
@@ -660,6 +669,168 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           ...result,
           library: createLibrary(rawRoot, dataRoot),
         });
+        return true;
+      }
+
+      /* ---------------- 工程文件 .mnproj ---------------- */
+      if (pathname === '/api/project/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { mode?: string; name?: string; notes?: string };
+        const result = createProjectBuffer({
+          rootDir,
+          storageMode: body.mode === 'packaged' ? 'packaged' : 'reference',
+          name: body.name,
+          notes: body.notes,
+        });
+        fs.mkdirSync(exportRoot, { recursive: true });
+        const file = `${projectFileName(body.name || `project-${new Date().toISOString().replace(/[:.]/g, '-')}`)}.mnproj`;
+        fs.writeFileSync(path.join(exportRoot, file), result.buffer);
+        sendJson(res, 200, {
+          file,
+          url: `/exports/${encodeURIComponent(file)}`,
+          size: result.buffer.length,
+          entries: result.entries,
+          storageMode: result.manifest.storageMode,
+          name: result.manifest.name,
+          manifest: {
+            schemaVersion: result.manifest.schemaVersion,
+            appVersion: result.manifest.appVersion,
+            storageMode: result.manifest.storageMode,
+            pageCount: result.manifest.inventory.pageCount,
+            images: result.manifest.inventory.images.length,
+            volumes: result.manifest.inventory.volumes.map((v) => v.volume),
+            notes: result.manifest.notes,
+          },
+          warnings: result.warnings,
+        });
+        return true;
+      }
+
+      if (pathname === '/api/project/inspect' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as { data?: string };
+        const buffer = Buffer.from(body.data ?? '', 'base64');
+        sendJson(res, 200, inspectProject({ rootDir, buffer }));
+        return true;
+      }
+
+      if (pathname === '/api/project/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as {
+          data?: string;
+          conflict?: string;
+          relinkDir?: string;
+        };
+        const buffer = Buffer.from(body.data ?? '', 'base64');
+        const result = importProject({
+          rootDir,
+          buffer,
+          conflict: body.conflict === 'merge' || body.conflict === 'skip' ? body.conflict : 'overwrite',
+          relinkDir: body.relinkDir,
+        });
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- 统一交换格式 .mntpl / .mnexp / .mnpage.json ---------------- */
+      if (pathname === '/api/exchange/layout/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { layoutId?: string; id?: string };
+        sendJson(
+          res,
+          200,
+          exportLayoutTemplate({
+            rootDir,
+            exportRoot,
+            layoutId: String(body.layoutId ?? body.id ?? ''),
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/layout/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 64 * 1024 * 1024)) as {
+          data?: string;
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+          scope?: 'volume' | 'chapter' | 'page';
+          name?: string;
+        };
+        sendJson(
+          res,
+          200,
+          importLayoutTemplate({
+            rootDir,
+            data: body.data,
+            volume: body.volume ?? '',
+            chapter: body.chapter,
+            pageIndex: body.pageIndex,
+            scope: body.scope,
+            name: body.name,
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/export-template/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { templateId?: string; id?: string };
+        sendJson(
+          res,
+          200,
+          exportExportTemplate({
+            rootDir,
+            exportRoot,
+            templateId: String(body.templateId ?? body.id ?? ''),
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/export-template/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 64 * 1024 * 1024)) as { data?: string };
+        sendJson(res, 200, importExportTemplate({ rootDir, data: body.data }));
+        return true;
+      }
+
+      if (pathname === '/api/exchange/page/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+        };
+        if (!body.volume || !body.chapter) {
+          sendJson(res, 400, { error: '缺少卷/话' });
+          return true;
+        }
+        sendJson(
+          res,
+          200,
+          exportPage({
+            rootDir,
+            exportRoot,
+            volume: body.volume,
+            chapter: body.chapter,
+            pageIndex: Number(body.pageIndex) || 0,
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/page/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 64 * 1024 * 1024)) as {
+          data?: string;
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+        };
+        sendJson(
+          res,
+          200,
+          importPage({
+            rootDir,
+            data: body.data,
+            volume: body.volume,
+            chapter: body.chapter,
+            pageIndex: body.pageIndex,
+          }),
+        );
         return true;
       }
 

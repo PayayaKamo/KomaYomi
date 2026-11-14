@@ -154,7 +154,6 @@ footer.doc{display:none}}
 
 export async function exportChapter({
   rootDir,
-  rawRoot,
   dataRoot,
   exportRoot,
   config,
@@ -348,7 +347,7 @@ export async function exportChapter({
     </div>
   </header>
   ${sections.join('\n')}
-  <footer class="doc">由 Manga Memo 导出 · 共 ${exported} 页</footer>
+  <footer class="doc">由 KomaYomi 导出 · 共 ${exported} 页</footer>
 </div>
 </body>
 </html>`;

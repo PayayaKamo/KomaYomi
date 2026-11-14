@@ -275,15 +275,15 @@ function writeExportTemplates(dataRoot: string, list: ExportTemplate[]) {
 
 export function saveExportTemplate(
   dataRoot: string,
-  input: { name?: string; config: Partial<ExportConfig> },
+  input: { id?: string; name?: string; createdAt?: string; config: Partial<ExportConfig> },
 ): ExportTemplate {
   const template: ExportTemplate = {
-    id: uid('ext'),
+    id: typeof input.id === 'string' && input.id.trim() ? input.id.trim() : uid('ext'),
     name: (input.name ?? '').trim() || '未命名导出模板',
-    createdAt: new Date().toISOString(),
+    createdAt: typeof input.createdAt === 'string' && input.createdAt ? input.createdAt : new Date().toISOString(),
     config: input.config ?? {},
   };
-  writeExportTemplates(dataRoot, [template, ...listExportTemplates(dataRoot)]);
+  writeExportTemplates(dataRoot, [template, ...listExportTemplates(dataRoot).filter((t) => t.id !== template.id)]);
   return template;
 }
 

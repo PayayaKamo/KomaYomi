@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Lang, PageDoc, PageEntry, Panel, PanelRect, PanelTemplate } from '../types';
 import { LANG_LABEL, LANGUAGES } from '../types';
-import { applyDrag, normalizeRect, sortPanels, uid, unionRects } from '../lib/geometry';
+import { applyDrag, clamp01, normalizeRect, sortPanels, uid, unionRects } from '../lib/geometry';
 import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
 
@@ -15,11 +15,114 @@ type Props = {
   selected: string[];
   setSelected: (ids: string[]) => void;
   onReload: () => void;
+  /** auto = 防抖自动保存；confirm = 需要 ✓ 或 Enter 才落盘 */
+  saveMode: 'auto' | 'confirm';
+  setSaveMode: (mode: 'auto' | 'confirm') => void;
+  dirty: boolean;
+  saving: boolean;
+  onCommit: () => void;
+  onDiscard: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 };
 
 const HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
-export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, setSelected, onReload }: Props) {
+/** Snapping distance in screen pixels while drawing a new panel. */
+const SNAP_PX = 6;
+/** Pointer travel below this is treated as a click, so double-click still works. */
+const CLICK_SLOP_PX = 3;
+/** A marquee must be at least this large in both screen pixels and normalized size. */
+const MIN_MARQUEE_PX = 8;
+const MIN_MARQUEE_NORM = 0.01;
+
+type Marquee = { rect: PanelRect; wPx: number; hPx: number };
+
+/** Snap a normalized value to the nearest candidate that is within SNAP_PX screen pixels. */
+function snapValue(value: number, candidates: number[], pxPerUnit: number): number {
+  let best = value;
+  let bestDist = SNAP_PX + 1;
+  for (const c of candidates) {
+    const dist = Math.abs(c - value) * pxPerUnit;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+  return bestDist <= SNAP_PX ? best : value;
+}
+
+/** Candidate lines: page edges/center plus every existing panel edge/center on one axis. */
+function snapCandidates(panels: Panel[], axis: 'x' | 'y'): number[] {
+  const values = [0, 0.5, 1];
+  for (const p of panels) {
+    const start = axis === 'x' ? p.rect.x : p.rect.y;
+    const size = axis === 'x' ? p.rect.w : p.rect.h;
+    values.push(start, start + size / 2, start + size);
+  }
+  return values;
+}
+
+/** Build a clamped marquee from the fixed anchor and the moving pointer (normalized coords). */
+function buildMarquee(
+  anchor: { x: number; y: number },
+  point: { x: number; y: number },
+  box: DOMRect,
+  panels: Panel[],
+  shift: boolean,
+  disableSnap: boolean,
+): Marquee {
+  let ax = anchor.x;
+  let ay = anchor.y;
+  let px = point.x;
+  let py = point.y;
+  if (!disableSnap) {
+    const xs = snapCandidates(panels, 'x');
+    const ys = snapCandidates(panels, 'y');
+    ax = snapValue(ax, xs, box.width);
+    ay = snapValue(ay, ys, box.height);
+    px = snapValue(px, xs, box.width);
+    py = snapValue(py, ys, box.height);
+  }
+  if (shift) {
+    // Keep the marquee square on screen (equal pixel sides) while preserving drag direction.
+    const dx = (px - ax) * box.width;
+    const dy = (py - ay) * box.height;
+    const size = Math.max(Math.abs(dx), Math.abs(dy));
+    px = ax + ((Math.sign(dx) || 1) * size) / box.width;
+    py = ay + ((Math.sign(dy) || 1) * size) / box.height;
+  }
+  px = clamp01(px);
+  py = clamp01(py);
+  const x = Math.min(ax, px);
+  const y = Math.min(ay, py);
+  const w = Math.abs(px - ax);
+  const h = Math.abs(py - ay);
+  return { rect: { x, y, w, h }, wPx: w * box.width, hPx: h * box.height };
+}
+
+export function PanelsTab({
+  doc,
+  page,
+  mutate,
+  detecting,
+  onDetect,
+  selected,
+  setSelected,
+  onReload,
+  saveMode,
+  setSaveMode,
+  dirty,
+  saving,
+  onCommit,
+  onDiscard,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+}: Props) {
   const availableLangs = useMemo(
     () => LANGUAGES.filter((l) => Boolean(page.files[l])),
     [page],
@@ -57,6 +160,15 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     sy: number;
     rect: DOMRect;
   } | null>(null);
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
+  const [marqueeActive, setMarqueeActive] = useState(false);
+  const marqueeStartRef = useRef<{
+    anchor: { x: number; y: number };
+    from: { x: number; y: number };
+    box: DOMRect;
+    moved: boolean;
+  } | null>(null);
+  const marqueeRectRef = useRef<Marquee | null>(null);
 
   useEffect(() => {
     setImgLoaded(false);
@@ -98,6 +210,54 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     };
   }, [dragging, mutate]);
 
+  useEffect(() => {
+    if (!marqueeActive) return;
+    const move = (e: PointerEvent) => {
+      const d = marqueeStartRef.current;
+      if (!d) return;
+      if (!d.moved && Math.hypot(e.clientX - d.from.x, e.clientY - d.from.y) < CLICK_SLOP_PX) return;
+      d.moved = true;
+      const point = {
+        x: clamp01((e.clientX - d.box.left) / d.box.width),
+        y: clamp01((e.clientY - d.box.top) / d.box.height),
+      };
+      const next = buildMarquee(d.anchor, point, d.box, doc.panels, e.shiftKey, e.altKey);
+      marqueeRectRef.current = next;
+      setMarquee(next);
+    };
+    const end = (commit: boolean) => {
+      const d = marqueeStartRef.current;
+      const m = marqueeRectRef.current;
+      marqueeStartRef.current = null;
+      marqueeRectRef.current = null;
+      setMarqueeActive(false);
+      setMarquee(null);
+      // A click without travel must not create anything, so double-click keeps working.
+      if (!commit || !d || !d.moved || !m) return;
+      if (m.rect.w < MIN_MARQUEE_NORM || m.rect.h < MIN_MARQUEE_NORM) return;
+      if (m.wPx < MIN_MARQUEE_PX || m.hPx < MIN_MARQUEE_PX) return;
+      const id = uid('p');
+      // One mutate call keeps undo/redo and confirm-save mode working like other edits.
+      mutate((doc2) => ({ ...doc2, panels: [...doc2.panels, { id, rect: m.rect, source: 'manual' }] }));
+      setSelected([id]);
+    };
+    const up = () => end(true);
+    const cancel = () => end(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') end(false);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [marqueeActive, doc.panels, mutate, setSelected]);
+
   const startDrag = (e: ReactPointerEvent, panel: Panel, handle: ResizeHandle) => {
     e.preventDefault();
     e.stopPropagation();
@@ -111,6 +271,29 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     }
     dragRef.current = { id: panel.id, handle, start: panel.rect, sx: e.clientX, sy: e.clientY, rect: el.getBoundingClientRect() };
     setDragging(true);
+  };
+
+  /** Pointer down on empty page area: clear selection and arm a drag-to-draw marquee. */
+  const startMarquee = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !e.isPrimary) return;
+    // Panels and handles stop propagation themselves; this guard keeps nested markers safe.
+    if ((e.target as HTMLElement).closest('.pbox')) return;
+    setSelected([]);
+    const el = shotRef.current;
+    if (!el || !imgLoaded) return;
+    const box = el.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    marqueeStartRef.current = {
+      anchor: {
+        x: clamp01((e.clientX - box.left) / box.width),
+        y: clamp01((e.clientY - box.top) / box.height),
+      },
+      from: { x: e.clientX, y: e.clientY },
+      box,
+      moved: false,
+    };
+    marqueeRectRef.current = null;
+    setMarqueeActive(true);
   };
 
   const addPanel = (center?: { x: number; y: number }) => {
@@ -272,6 +455,19 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
   const onKeyDown = (e: ReactKeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    // 确认模式下 Enter/Esc 对应 ✓/×；框选进行中时 Esc 留给取消框选
+    if (saveMode === 'confirm') {
+      if (e.key === 'Enter' && dirty) {
+        e.preventDefault();
+        onCommit();
+        return;
+      }
+      if (e.key === 'Escape' && dirty && !marqueeActive) {
+        e.preventDefault();
+        onDiscard();
+        return;
+      }
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected.length) {
       e.preventDefault();
       deleteSelected();
@@ -347,6 +543,45 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
           <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
             删除
           </button>
+        </div>
+
+        <div className="tb-group save-group">
+          <span className="tb-label">保存</span>
+          <div className="seg">
+            <button
+              type="button"
+              className={saveMode === 'auto' ? 'on' : ''}
+              onClick={() => setSaveMode('auto')}
+              title="改动后约 0.7 秒自动落盘"
+            >
+              自动
+            </button>
+            <button
+              type="button"
+              className={saveMode === 'confirm' ? 'on' : ''}
+              onClick={() => setSaveMode('confirm')}
+              title="点 ✓ 或按 Enter 才保存；× 或 Esc 放弃并回到上次保存"
+            >
+              确认
+            </button>
+          </div>
+          {saveMode === 'confirm' && dirty && <span className="unsaved-flag">未保存</span>}
+          <button type="button" className="btn icon" disabled={!canUndo} onClick={onUndo} title="撤销（Ctrl+Z）">
+            ↶
+          </button>
+          <button type="button" className="btn icon" disabled={!canRedo} onClick={onRedo} title="重做（Ctrl+Shift+Z）">
+            ↷
+          </button>
+          {saveMode === 'confirm' && dirty && (
+            <>
+              <button type="button" className="btn primary" onClick={onCommit} disabled={saving} title="保存改动（Enter）">
+                ✓
+              </button>
+              <button type="button" className="btn danger" onClick={onDiscard} title="放弃改动（Esc）">
+                ×
+              </button>
+            </>
+          )}
         </div>
 
         <div className="tb-group right">
@@ -507,7 +742,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
             <div
               className="shot"
               ref={shotRef}
-              onPointerDown={() => setSelected([])}
+              onPointerDown={startMarquee}
               onDoubleClick={(e) => {
                 if ((e.target as HTMLElement).closest('.pbox')) return;
                 const r = e.currentTarget.getBoundingClientRect();
@@ -548,10 +783,28 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
                     </div>
                   );
                 })}
+              {marquee && (
+                <div
+                  className="marquee"
+                  style={{
+                    left: `${marquee.rect.x * 100}%`,
+                    top: `${marquee.rect.y * 100}%`,
+                    width: `${marquee.rect.w * 100}%`,
+                    height: `${marquee.rect.h * 100}%`,
+                  }}
+                >
+                  <span className="marquee-label">
+                    {(marquee.rect.w * 100).toFixed(1)}% × {(marquee.rect.h * 100).toFixed(1)}%
+                    <i>
+                      {Math.round(marquee.wPx)} × {Math.round(marquee.hPx)} px
+                    </i>
+                  </span>
+                </div>
+              )}
             </div>
             {doc.panels.length === 0 && (
               <div className="stage-hint">
-                还没有格子。点「自动切格」自动识别，或「添加格子」手动补框；双击页面空白处也能加一格。
+                还没有格子。在页面空白处拖拽框出格子，或点「自动切格」自动识别；双击空白处可加一个默认格子。
               </div>
             )}
           </div>
@@ -562,6 +815,9 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
         <span>
           共 <b>{doc.panels.length}</b> 格
           {selected.length > 0 && ` · 已选 ${selected.length}`}
+        </span>
+        <span className="muted">
+          空白处拖拽框出格子 · Shift 正方形 · Alt 关闭吸附 · Esc 取消
         </span>
         <span className="muted">
           拖动框体移动，拖角点缩放；Ctrl/Shift 点选多格后可合并；Delete 删除

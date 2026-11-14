@@ -76,11 +76,6 @@ export function usePage(sel: Selection | null) {
     setHistoryState({ undo: undoStack.current.length, redo: redoStack.current.length });
   };
 
-  const setDoc = (doc: PageDoc | null) => {
-    docRef.current = doc;
-    setState((s) => ({ ...s, doc }));
-  };
-
   const clearTimer = () => {
     if (timer.current !== null) {
       window.clearTimeout(timer.current);

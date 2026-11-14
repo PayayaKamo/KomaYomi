@@ -29,6 +29,37 @@ type Props = {
 const sizeCache = new Map<string, { w: number; h: number }>();
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
+/**
+ * Returns the image pane under a viewport point, or null.
+ *
+ * Hit-testing by coordinates (instead of the event target) keeps the wheel
+ * behaviour identical over badges, masks and the pane border: anything inside
+ * the cell zooms, anything outside scrolls the page. `elementsFromPoint` also
+ * skips overlays that opt out with pointer-events: none.
+ */
+function paneAtPoint(x: number, y: number): HTMLElement | null {
+  for (const el of document.elementsFromPoint(x, y)) {
+    if (!(el instanceof HTMLElement)) continue;
+    const pane = el.closest('.lang-pane') as HTMLElement | null;
+    if (!pane || pane.dataset.hasImage !== '1') continue;
+    const r = pane.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return pane;
+  }
+  return null;
+}
+
+/* ---------- 拖动/缩放作用域 ---------- */
+type DragScope = 'page' | 'panel';
+const DRAG_SCOPE_KEY = 'manga-memo.drag-scope';
+
+function loadDragScope(): DragScope {
+  try {
+    return localStorage.getItem(DRAG_SCOPE_KEY) === 'panel' ? 'panel' : 'page';
+  } catch {
+    return 'page';
+  }
+}
+
 /* ---------- 语言遮蔽偏好（跨会话记住，导出不读取） ---------- */
 type MaskPrefs = {
   master: boolean;
@@ -145,17 +176,38 @@ export function CompareTab({
   const [maskPrefs, setMaskPrefs] = useState<MaskPrefs>(loadMaskPrefs);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [maskDefaultsOpen, setMaskDefaultsOpen] = useState(false);
+  // 默认作用域跨会话记住；当前页仍以 doc.alignMode 为准
+  const [scopePref, setScopePref] = useState<DragScope>(loadDragScope);
+  const [activeDrag, setActiveDrag] = useState<{ panelId: string; lang: Lang; scope: DragScope } | null>(null);
   const movedRef = useRef(false);
   const dragRef = useRef<{
     lang: Lang;
     panelId: string;
     mode: AlignMode;
+    scope: DragScope;
     sx: number;
     sy: number;
     rect: DOMRect;
     start: AlignOffset;
   } | null>(null);
   const [dragging, setDragging] = useState(false);
+
+  const scopeOfMode: DragScope = isPanelMode ? 'panel' : 'page';
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAG_SCOPE_KEY, scopePref);
+    } catch {
+      /* 隐私模式下忽略 */
+    }
+  }, [scopePref]);
+
+  // 打开新页时沿用上次选择的作用域（取点/网格这类特殊模式不覆盖）
+  useEffect(() => {
+    if (mode === 'anchors' || mode === 'grid') return;
+    if (mode !== scopePref) mutate((d) => ({ ...d, alignMode: scopePref }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.volume, doc.chapter, doc.pageIndex]);
 
   const availableLangs = useMemo(() => LANGUAGES.filter((l) => Boolean(page.files[l])), [page]);
   const baseLang = useMemo(() => langs.find((l) => page.files[l]) ?? langs[0] ?? 'ja', [langs, page.files]);
@@ -215,12 +267,15 @@ export function CompareTab({
   };
   useEffect(loadPresets, []);
 
-  const offsetOf = (lang: Lang, panel: Panel): AlignOffset =>
-    isPanelMode ? doc.panelOffsets?.[panel.id]?.[lang] ?? DEFAULT_OFFSET : doc.offsets[lang] ?? DEFAULT_OFFSET;
+  // 整页偏移与逐格偏移分开存：scope 决定读写哪一份，Alt 临时覆盖时不会污染另一份
+  const offsetOf = (lang: Lang, panel: Panel, scope: DragScope = scopeOfMode): AlignOffset =>
+    scope === 'panel'
+      ? doc.panelOffsets?.[panel.id]?.[lang] ?? DEFAULT_OFFSET
+      : doc.offsets[lang] ?? DEFAULT_OFFSET;
 
-  const setOffset = (lang: Lang, panel: Panel, next: AlignOffset) => {
+  const setOffset = (lang: Lang, panel: Panel, next: AlignOffset, scope: DragScope = scopeOfMode) => {
     mutate((d) =>
-      isPanelMode
+      scope === 'panel'
         ? {
             ...d,
             panelOffsets: {
@@ -247,7 +302,7 @@ export function CompareTab({
       }
       mutate((doc2) => {
         const panel = doc2.panels.find((p) => p.id === d.panelId);
-        const usePanel = d.mode === 'panel' || d.mode === 'anchors';
+        const usePanel = d.scope === 'panel';
         if (usePanel && panel) {
           return {
             ...doc2,
@@ -270,6 +325,7 @@ export function CompareTab({
         });
       }
       setDragging(false);
+      setActiveDrag(null);
       dragRef.current = null;
     };
     window.addEventListener('pointermove', move);
@@ -305,64 +361,66 @@ export function CompareTab({
       // 两次点击：参考点 → 目标点，直接算出目标语言需要的平移量
       const tx = (e.clientX - rect.left) / rect.width;
       const ty = (e.clientY - rect.top) / rect.height;
-      const current = offsetOf(lang, panel);
+      const current = offsetOf(lang, panel, 'panel');
       setOffset(lang, panel, {
         ...current,
         x: clamp(current.x + (pendingAnchor.x - tx), -2, 2),
         y: clamp(current.y + (pendingAnchor.y - ty), -2, 2),
-      });
+      }, 'panel');
       setDragLang(lang);
       setPendingAnchor(null);
       return;
     }
     e.preventDefault();
     movedRef.current = false;
+    // Alt 是临时覆盖：本次手势只改当前格，松手后回到原作用域
+    const scope: DragScope = e.altKey ? 'panel' : scopeOfMode;
     dragRef.current = {
       lang,
       panelId: panel.id,
       mode,
+      scope,
       sx: e.clientX,
       sy: e.clientY,
       rect,
-      start: offsetOf(lang, panel),
+      start: offsetOf(lang, panel, scope),
     };
+    setActiveDrag({ panelId: panel.id, lang, scope });
     setDragLang(lang);
     setDragging(true);
   };
 
-  const zoomBy = (lang: Lang, panel: Panel, deltaY: number) => {
-    const current = offsetOf(lang, panel);
+  const zoomBy = (lang: Lang, panel: Panel, deltaY: number, scope: DragScope = scopeOfMode) => {
+    const current = offsetOf(lang, panel, scope);
     const next = clamp(+(current.scale * (deltaY < 0 ? 1.06 : 0.94)).toFixed(3), 0.5, 3);
-    setOffset(lang, panel, { ...current, scale: next });
+    setOffset(lang, panel, { ...current, scale: next }, scope);
   };
 
-  // 滚轮缩放：只在真正悬停在某一语言的图格上时接管，其他位置让页面正常滚动。
-  // React 的 onWheel 在根节点上是 passive 的，无法阻止页面滚动，所以这里用原生非 passive 监听。
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // 滚轮缩放：只在指针真正落在某一语言的图格内时接管，其他位置让页面正常滚动。
+  // React 的 onWheel 在根节点上是 passive 的，无法阻止页面滚动，所以用原生非 passive 监听；
+  // 挂在 window 的捕获阶段，避免滚动容器或任何内层元素先消费事件造成「又缩放又滚动」。
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
   wheelRef.current = (e: WheelEvent) => {
-    const target = e.target as HTMLElement | null;
-    const paneEl = target?.closest('.lang-pane') as HTMLElement | null;
-    if (!paneEl || paneEl.dataset.hasImage !== '1') return;
+    if (!e.deltaY) return;
+    const paneEl = paneAtPoint(e.clientX, e.clientY);
+    if (!paneEl) return;
     const lang = paneEl.dataset.lang as Lang | undefined;
     const panel = doc.panels.find((p) => p.id === paneEl.dataset.panelId);
     if (!lang || !panel) return;
     e.preventDefault();
     e.stopPropagation();
-    zoomBy(lang, panel, e.deltaY);
+    // Alt+滚轮同样只缩放当前格，避免为了微调一格而改整栏
+    zoomBy(lang, panel, e.deltaY, e.altKey ? 'panel' : scopeOfMode);
   };
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
     const onWheel = (e: WheelEvent) => wheelRef.current(e);
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-    // 无分格时会提前 return，等到有分格后需要重新挂载监听
-  }, [doc.panels.length]);
+    window.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    return () => window.removeEventListener('wheel', onWheel, { capture: true });
+  }, []);
 
   const resetLang = (lang: Lang, panel?: Panel) => {
-    if (isPanelMode) {
+    if (scopeOfMode === 'panel') {
       if (!panel) return;
       mutate((d) => ({
         ...d,
@@ -373,10 +431,26 @@ export function CompareTab({
     mutate((d) => ({ ...d, offsets: { ...d.offsets, [lang]: DEFAULT_OFFSET } }));
   };
 
+  /** 清空本页所有格子的逐格偏移（不影响整页偏移） */
+  const resetAllPanelOffsets = () => {
+    setPendingAnchor(null);
+    mutate((d) => ({ ...d, panelOffsets: {} }));
+  };
+
+  /** 只清当前格的逐格偏移（不影响整页偏移与其他格） */
+  const resetCurrentPanelOffsets = () => {
+    const panel = doc.panels.find((p) => p.id === selected[0]) ?? ordered[0];
+    if (!panel) return;
+    mutate((d) => {
+      const next = { ...d.panelOffsets };
+      delete next[panel.id];
+      return { ...d, panelOffsets: next };
+    });
+  };
+
   const resetAll = () => {
     setPendingAnchor(null);
-    if (isPanelMode) mutate((d) => ({ ...d, panelOffsets: {} }));
-    else mutate((d) => ({ ...d, offsets: {} }));
+    mutate((d) => ({ ...d, offsets: {}, panelOffsets: {} }));
   };
 
   const toggleLang = (lang: Lang) => {
@@ -400,6 +474,8 @@ export function CompareTab({
 
   const changeMode = (next: AlignMode) => {
     setPendingAnchor(null);
+    // 整页/当前格是高频选择，记为下次打开页面时的默认作用域
+    if (next === 'page' || next === 'panel') setScopePref(next);
     mutate((d) => ({ ...d, alignMode: next }));
   };
 
@@ -455,7 +531,18 @@ export function CompareTab({
     loadPresets();
   };
 
-  const offsetsOf = (lang: Lang, panel: Panel): AlignOffset => offsetOf(lang, panel);
+  // 渲染时把两层偏移叠加：整页偏移打底，逐格偏移叠加在它之上，
+  // 这样 Alt 临时微调的格子在整页模式下也能立刻看到效果，而两份数据仍然分开存。
+  const offsetsOf = (lang: Lang, panel: Panel): AlignOffset => {
+    const base = doc.offsets[lang] ?? DEFAULT_OFFSET;
+    const extra = doc.panelOffsets?.[panel.id]?.[lang];
+    if (!extra) return base;
+    return {
+      x: base.x + extra.x,
+      y: base.y + extra.y,
+      scale: +(base.scale * extra.scale).toFixed(4),
+    };
+  };
 
   // 提前载入三种语言的页面尺寸，用于计算每个格子的真实长宽比
   const sizes: Record<Lang, { w: number; h: number } | null> = {
@@ -484,7 +571,9 @@ export function CompareTab({
     return (
       <div
         key={lang}
-        className={`lang-pane ${dragging && dragLang === lang ? 'dragging' : ''}`}
+        className={`lang-pane ${dragging && dragLang === lang ? 'dragging' : ''} ${
+          activeDrag?.panelId === panel.id && activeDrag.lang === lang && activeDrag.scope === 'panel' ? 'scope-target' : ''
+        }`}
         style={{ aspectRatio: aspect }}
         data-lang={lang}
         data-panel-id={panel.id}
@@ -535,7 +624,9 @@ export function CompareTab({
     const aspect = first ? paneAspect(first, panel) : 0.72;
     return (
       <div
-        className="lang-pane overlay"
+        className={`lang-pane overlay ${
+          activeDrag?.panelId === panel.id && activeDrag.scope === 'panel' ? 'scope-target' : ''
+        }`}
         style={{ aspectRatio: aspect }}
         data-lang={dragLang}
         data-panel-id={panel.id}
@@ -749,6 +840,31 @@ export function CompareTab({
           </button>
         </div>
 
+        <div className="tb-group scope-group">
+          <span className="tb-label">拖动/缩放</span>
+          <div className="seg scope-seg" title="切换默认作用域；按住 Alt 拖拽或滚轮可临时只调当前格">
+            <button
+              type="button"
+              className={scopeOfMode === 'page' ? 'on' : ''}
+              onClick={() => changeMode('page')}
+              title="拖动/缩放作用于该语言的整页"
+            >
+              整页
+            </button>
+            <button
+              type="button"
+              className={scopeOfMode === 'panel' ? 'on' : ''}
+              onClick={() => changeMode('panel')}
+              title="拖动/缩放只作用于当前格"
+            >
+              当前格
+            </button>
+          </div>
+          <span className="muted tiny alt-hint" title="Alt 是临时覆盖：松开即回到默认作用域">
+            Alt 临时当前格
+          </span>
+        </div>
+
         <div className="tb-group right">
           <span className="muted tiny">{READING_LABEL[doc.readingDirection]}</span>
           <button type="button" className="btn tiny" onClick={() => goTo(-1)}>
@@ -831,6 +947,24 @@ export function CompareTab({
                 onChange={(e) => applyNumeric({ scale: clamp(Number(e.target.value), 0.5, 3) })}
               />
             </label>
+            <span className="align-sep" />
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={resetAllPanelOffsets}
+              title="清空本页所有格子的逐格偏移，整页偏移不受影响"
+            >
+              重置本页所有格
+            </button>
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={resetCurrentPanelOffsets}
+              disabled={!panelForInput}
+              title="只清当前选中格的逐格偏移，其他格与整页偏移不受影响"
+            >
+              重置当前格
+            </button>
           </div>
 
           <div className="align-row">
@@ -925,7 +1059,7 @@ export function CompareTab({
         </div>
       )}
 
-      <div className="compare-scroll" ref={scrollRef}>
+      <div className="compare-scroll">
         {ordered.map((panel, idx) => {
           const isSel = selected.includes(panel.id);
           const notes = doc.notes.filter((n) => n.scope === 'panel' && n.panelId === panel.id);
@@ -933,7 +1067,9 @@ export function CompareTab({
             <article
               key={panel.id}
               id={`panel-${panel.id}`}
-              className={`panel-card ${isSel ? 'sel' : ''}`}
+              className={`panel-card ${isSel ? 'sel' : ''} ${
+                activeDrag?.panelId === panel.id && activeDrag.scope === 'page' ? 'scope-page' : ''
+              }`}
               onClick={() => setSelected([panel.id])}
             >
               <div className="panel-card-head">
