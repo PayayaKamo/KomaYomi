@@ -432,6 +432,7 @@ export const ja = {
   'export.pngSection': 'PNG を書き出し',
   'export.generating': '生成中…',
   'export.panelFirstHint': '先に左側でコマを選択してください',
+  'export.pngIncludeAnnotations': '注釈を含める（{count}）',
   'export.pngHint':
     'ページ全体/現在のコマは優先言語を使います。コラージュは選択した言語を並べます（コマを選択中ならそのコマだけ）。PNG はスライドや文書にそのまま貼れます。',
   'export.scopeHeading': '書き出し範囲',

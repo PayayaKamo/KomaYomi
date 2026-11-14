@@ -420,6 +420,7 @@ export const zh = {
   'export.pngSection': '导出 PNG',
   'export.generating': '生成中…',
   'export.panelFirstHint': '先在左侧选择一个格子',
+  'export.pngIncludeAnnotations': '包含标注（{count}）',
   'export.pngHint':
     '整页/单格用当前首选语言；拼图按所选语言并排（若选中格子则只拼该格）。PNG 直接插入 PPT / 文档。',
   'export.scopeHeading': '导出范围',

@@ -97,6 +97,7 @@ export function ExportDialog({
   // PNG 导出状态
   const [pngBusy, setPngBusy] = useState<string | null>(null);
   const [pngMsg, setPngMsg] = useState<string | null>(null);
+  const [pngIncludeAnn, setPngIncludeAnn] = useState(true);
 
   useEffect(() => {
     if (!open || !sel) return;
@@ -104,6 +105,8 @@ export function ExportDialog({
     setError(null);
     setScope('page');
     setPngMsg(null);
+    // Respect the page's annotation layer toggle so a hidden layer is not silently baked in.
+    setPngIncludeAnn(doc?.annotationsVisible !== false);
     setTplMsg(null);
     setCfg({
       ...DEFAULT_EXPORT_CONFIG,
@@ -119,7 +122,7 @@ export function ExportDialog({
       .exportTemplates()
       .then((res) => setTemplates(res.templates))
       .catch(() => setTemplates([]));
-  }, [open, sel, langs, doc?.offsets, t]);
+  }, [open, sel, langs, doc?.offsets, doc?.annotationsVisible, t]);
 
   useEffect(() => {
     if (!resizing) return;
@@ -194,6 +197,9 @@ export function ExportDialog({
         rect: mode === 'collage' ? panel?.rect ?? null : mode === 'panel' ? panel?.rect ?? null : null,
         mode,
         filenameBase: `${pngBase}-${label}`,
+        annotations: doc?.annotations ?? [],
+        includeAnnotations: pngIncludeAnn,
+        panels: doc?.panels ?? [],
       });
       setPngMsg(t('export.pngDone', { label }));
     } catch (err) {
@@ -458,6 +464,15 @@ export function ExportDialog({
                   {pngBusy === 'collage' ? t('export.generating') : t('export.pngCollageLabel')}
                 </button>
               </div>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={pngIncludeAnn}
+                  disabled={!doc?.annotations?.length}
+                  onChange={(e) => setPngIncludeAnn(e.target.checked)}
+                />
+                {t('export.pngIncludeAnnotations', { count: formatNumber(doc?.annotations?.length ?? 0) })}
+              </label>
               <p className="hint">{t('export.pngHint')}</p>
               {pngMsg && <div className="tpl-msg">{pngMsg}</div>}
             </section>

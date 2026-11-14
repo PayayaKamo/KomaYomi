@@ -1,4 +1,4 @@
-import type { Lang, PageEntry, PanelRect } from '../types';
+import type { Annotation, Lang, PageEntry, Panel, PanelRect } from '../types';
 import { langLabel, t } from '../i18n';
 
 export type PngMode = 'page' | 'panel' | 'collage';
@@ -14,6 +14,11 @@ export type PngExportOptions = {
   mode: PngMode;
   /** 文件名前缀，例如 `点兔第14卷-172-P1` */
   filenameBase: string;
+  /** 页面矢量标注；面板作用域的标注按 panels 里的 rect 映射回整页 */
+  annotations?: Annotation[];
+  /** 是否把标注烘焙进 PNG（关掉即为原图） */
+  includeAnnotations?: boolean;
+  panels?: Panel[];
 };
 
 /** 拼图布局常量（缩放前的逻辑像素） */
@@ -89,23 +94,194 @@ function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function renderPage(img: HTMLImageElement): HTMLCanvasElement {
+function renderPage(img: HTMLImageElement, draw?: AnnDraw): HTMLCanvasElement {
   const canvas = createCanvas(img.naturalWidth, img.naturalHeight);
-  get2d(canvas).drawImage(img, 0, 0);
+  const ctx = get2d(canvas);
+  ctx.drawImage(img, 0, 0);
+  if (draw?.annotations.length) {
+    drawAnnotations(ctx, draw, img, img.naturalWidth, img.naturalHeight);
+  }
   return canvas;
 }
 
-function renderPanel(img: HTMLImageElement, rect: PanelRect): HTMLCanvasElement {
+function renderPanel(img: HTMLImageElement, rect: PanelRect, draw?: AnnDraw): HTMLCanvasElement {
   const crop = cropRect(img, rect);
   const canvas = createCanvas(crop.sw, crop.sh);
-  get2d(canvas).drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+  const ctx = get2d(canvas);
+  ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+  if (draw?.annotations.length) {
+    // Annotations are authored in full-page pixels, so shift the origin to the crop.
+    ctx.save();
+    ctx.translate(-crop.sx, -crop.sy);
+    drawAnnotations(ctx, draw, img, img.naturalWidth, img.naturalHeight);
+    ctx.restore();
+  }
   return canvas;
+}
+
+type AnnDraw = { annotations: Annotation[]; panels: Panel[] };
+
+/** Panel rect that owns an annotation's normalized coordinates. */
+function scopeRect(a: Annotation, panels: Panel[]): PanelRect {
+  if (a.scope !== 'panel' || !a.panelId) return { x: 0, y: 0, w: 1, h: 1 };
+  return panels.find((p) => p.id === a.panelId)?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+}
+
+/** Convert normalized annotation points to source-image pixels. */
+function annotationPoints(a: Annotation, panels: Panel[], imageW: number, imageH: number) {
+  const scope = scopeRect(a, panels);
+  return a.points.map((p) => ({
+    x: (scope.x + p.x * scope.w) * imageW,
+    y: (scope.y + p.y * scope.h) * imageH,
+  }));
+}
+
+/**
+ * Redaction: sample the region at a reduced size and blow it back up with smoothing
+ * off. This bakes real pixelation into the PNG instead of the live backdrop blur.
+ */
+function drawMosaic(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  if (w < 1 || h < 1) return;
+  const block = Math.max(6, Math.round(Math.min(w, h) / 14));
+  const small = createCanvas(Math.max(1, Math.floor(w / block)), Math.max(1, Math.floor(h / block)));
+  get2d(small).drawImage(img, x, y, w, h, 0, 0, small.width, small.height);
+  const previous = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0, small.width, small.height, x, y, w, h);
+  ctx.imageSmoothingEnabled = previous;
+}
+
+/** Rasterize every mark in source-image pixel space; callers set the transform. */
+function drawAnnotations(
+  ctx: CanvasRenderingContext2D,
+  draw: AnnDraw,
+  img: HTMLImageElement,
+  imageW: number,
+  imageH: number,
+): void {
+  for (const a of draw.annotations) {
+    const pts = annotationPoints(a, draw.panels, imageW, imageH);
+    if (pts.length === 0) continue;
+    const color = a.color ?? '#e0453a';
+    const lineWidth = Math.max(1, (a.width ?? 0.0035) * imageW);
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    switch (a.kind) {
+      case 'arrow': {
+        if (pts.length < 2) break;
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(last.x, last.y);
+        ctx.stroke();
+        const angle = Math.atan2(last.y - first.y, last.x - first.x);
+        const size = Math.max(10, lineWidth * 4);
+        const spread = Math.PI / 7;
+        ctx.beginPath();
+        ctx.moveTo(last.x, last.y);
+        ctx.lineTo(last.x - size * Math.cos(angle - spread), last.y - size * Math.sin(angle - spread));
+        ctx.lineTo(last.x - size * Math.cos(angle + spread), last.y - size * Math.sin(angle + spread));
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+      case 'rect':
+        ctx.strokeRect(
+          Math.min(first.x, last.x),
+          Math.min(first.y, last.y),
+          Math.abs(last.x - first.x),
+          Math.abs(last.y - first.y),
+        );
+        break;
+      case 'ellipse':
+        ctx.beginPath();
+        ctx.ellipse(
+          (first.x + last.x) / 2,
+          (first.y + last.y) / 2,
+          Math.abs(last.x - first.x) / 2,
+          Math.abs(last.y - first.y) / 2,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.stroke();
+        break;
+      case 'highlight':
+        if (pts.length < 2) break;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = Math.max(6, lineWidth * 4);
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(last.x, last.y);
+        ctx.stroke();
+        break;
+      case 'pen':
+        if (pts.length < 2) break;
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        break;
+      case 'text': {
+        const fontSize = Math.max(10, (a.fontSize ?? 0.035) * imageH);
+        ctx.font = `600 ${fontSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+        ctx.lineWidth = Math.max(2, fontSize / 8);
+        // White halo keeps the text readable over dark screentones.
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.strokeText(a.text ?? '', first.x, first.y);
+        ctx.fillStyle = color;
+        ctx.fillText(a.text ?? '', first.x, first.y);
+        break;
+      }
+      case 'badge': {
+        const fontSize = Math.max(10, (a.fontSize ?? 0.035) * imageH);
+        const r = fontSize * 0.62;
+        ctx.beginPath();
+        ctx.arc(first.x, first.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = `700 ${fontSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(a.text ?? '1', first.x, first.y);
+        break;
+      }
+      case 'mosaic':
+        drawMosaic(
+          ctx,
+          img,
+          Math.min(first.x, last.x),
+          Math.min(first.y, last.y),
+          Math.abs(last.x - first.x),
+          Math.abs(last.y - first.y),
+        );
+        break;
+      default:
+        break;
+    }
+    ctx.restore();
+  }
 }
 
 async function renderCollage(
   page: PageEntry,
   langs: Lang[],
   rect?: PanelRect | null,
+  draw?: AnnDraw,
 ): Promise<HTMLCanvasElement> {
   const jobs = langs.flatMap((lang) => {
     const src = page.files[lang];
@@ -144,6 +320,19 @@ async function renderCollage(
   items.forEach((it, i) => {
     const w = widths[i];
     ctx.drawImage(it.img, it.crop.sx, it.crop.sy, it.crop.sw, it.crop.sh, x, PAD, w, targetH);
+    if (draw?.annotations.length) {
+      // Map full-page pixel coordinates into this language's slot, then clip so marks
+      // never bleed into the neighbouring column.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, PAD, w, targetH);
+      ctx.clip();
+      ctx.translate(x, PAD);
+      ctx.scale(w / it.crop.sw, targetH / it.crop.sh);
+      ctx.translate(-it.crop.sx, -it.crop.sy);
+      drawAnnotations(ctx, draw, it.img, it.img.naturalWidth, it.img.naturalHeight);
+      ctx.restore();
+    }
     // 底部标签带
     ctx.fillStyle = '#f2f2f2';
     ctx.fillRect(x, PAD + targetH, w, LABEL_H);
@@ -158,19 +347,25 @@ async function renderCollage(
 /** 导出并触发浏览器下载，出错时 reject(Error) */
 export async function exportPng(opts: PngExportOptions): Promise<void> {
   const { page, lang, langs, rect, mode, filenameBase } = opts;
+  // Callers pass annotations only when the user wants them baked in; an explicit
+  // false still wins, so "original image" is one checkbox away.
+  const draw =
+    opts.includeAnnotations !== false && opts.annotations?.length
+      ? { annotations: opts.annotations, panels: opts.panels ?? [] }
+      : undefined;
   let canvas: HTMLCanvasElement;
 
   if (mode === 'collage') {
-    canvas = await renderCollage(page, langs, rect);
+    canvas = await renderCollage(page, langs, rect, draw);
   } else {
     const src = page.files[lang];
     if (!src) throw new Error(t('png.missingImage', { lang: langLabel(lang) }));
     const img = await loadImage(src, lang);
     if (mode === 'panel') {
       if (!rect) throw new Error(t('png.panelRectRequired'));
-      canvas = renderPanel(img, rect);
+      canvas = renderPanel(img, rect, draw);
     } else {
-      canvas = renderPage(img);
+      canvas = renderPage(img, draw);
     }
   }
 

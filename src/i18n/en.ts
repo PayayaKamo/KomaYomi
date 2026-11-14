@@ -440,6 +440,7 @@ export const en = {
   'export.pngSection': 'Export PNG',
   'export.generating': 'Generating…',
   'export.panelFirstHint': 'Select a panel on the left first',
+  'export.pngIncludeAnnotations': 'Include annotations ({count})',
   'export.pngHint':
     'Whole page and current panel use the primary language; the collage lines up the selected languages (only the selected panel if one is selected). PNGs paste straight into slides or documents.',
   'export.scopeHeading': 'Export scope',
