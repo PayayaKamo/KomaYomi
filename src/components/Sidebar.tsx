@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { ChapterEntry, Lang, Library, PageEntry, VolumeEntry } from '../types';
-import { LANGUAGES, LANG_SHORT } from '../types';
+import { LANGUAGES, LANG_SHORT, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { thumbUrl } from '../api';
 import { AddVolumeDialog, VolumeSettingsDialog } from './LibraryDialogs';
 import { DataToolsDialog } from './DataToolsDialog';
 import { ProjectDialog } from './ProjectDialog';
 import { ExchangeDialog } from './ExchangeDialog';
+import { DirRulesDialog } from './DirRulesDialog';
 
 type Props = {
   library: Library | null;
@@ -33,6 +34,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   const [dataOpen, setDataOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [dirRulesOpen, setDirRulesOpen] = useState(false);
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
@@ -95,7 +97,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}
         >
           <span className={`chev ${isOpen ? 'open' : ''}`}>▸</span>
-          <span className="ch-name">第 {chapter.chapter} 话</span>
+          <span className="ch-name">{chapter.chapter === SINGLE_CHAPTER ? SINGLE_CHAPTER : `第 ${chapter.chapter} 话`}</span>
           <span className="ch-meta">
             {annotated > 0 && <span className="chip-mini ok">{annotated}</span>}
             {pageWarnings > 0 && (
@@ -203,6 +205,14 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           >
             交换文件…
           </button>
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => setDirRulesOpen(true)}
+            title="目录识别：声明式规则 + 实时预览 + 未识别文件"
+          >
+            目录识别…
+          </button>
           <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title="备份 / 恢复 data/">
             备份 / 恢复
           </button>
@@ -242,6 +252,12 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           selection={selection}
           onClose={() => setExchangeOpen(false)}
           onChanged={() => onReload()}
+        />
+      )}
+      {dirRulesOpen && (
+        <DirRulesDialog
+          onClose={() => setDirRulesOpen(false)}
+          onSaved={(lib) => onReload(lib)}
         />
       )}
     </aside>

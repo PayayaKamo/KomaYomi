@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createLibrary } from './library.ts';
+import { createLibrary, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
+import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import { addVolume, removeVolume, setVolumeDirs } from './libraryAdmin.ts';
 import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
@@ -161,6 +162,41 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
 
       if (pathname === '/api/library' && req.method === 'GET') {
         sendJson(res, 200, { library, root: rootDir });
+        return true;
+      }
+
+      /* ---------------- 目录识别规则（声明式 / 可预览） ---------------- */
+      if (pathname === '/api/dir-rules' && req.method === 'GET') {
+        const cfg = readLibraryConfig(dataRoot);
+        sendJson(res, 200, {
+          rules: cfg.rules?.length ? cfg.rules : DEFAULT_RULES,
+          defaults: DEFAULT_RULES,
+          customized: Boolean(cfg.rules?.length),
+          warning: library.scan.warning,
+        });
+        return true;
+      }
+
+      if (pathname === '/api/dir-rules' && req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as { rules?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        const input = Array.isArray(body.rules) ? body.rules : [];
+        if (!input.length) {
+          delete cfg.rules;
+          writeLibraryConfig(dataRoot, cfg);
+          sendJson(res, 200, { rules: DEFAULT_RULES, library: createLibrary(rawRoot, dataRoot) });
+          return true;
+        }
+        const rules = validateRules(input);
+        writeLibraryConfig(dataRoot, { ...cfg, rules });
+        sendJson(res, 200, { rules, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/library/preview' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { dir?: string; rules?: unknown };
+        const rules = Array.isArray(body.rules) && body.rules.length ? validateRules(body.rules) : undefined;
+        sendJson(res, 200, previewDirs(rawRoot, dataRoot, body.dir ?? '', rules));
         return true;
       }
 

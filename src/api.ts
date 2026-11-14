@@ -1,6 +1,8 @@
 import type {
   AlignPreset,
   DetectResult,
+  DirPreview,
+  DirRule,
   ExportConfig,
   ExportTemplate,
   Lang,
@@ -115,6 +117,20 @@ export const api = {
 
   saveVolumeDirs: (volume: string, dirs: Partial<Record<Lang, string | null>>) =>
     request<{ library: Library }>('/api/library/volume-config', json({ volume, dirs })),
+
+  /* ---- 目录识别规则 ---- */
+  dirRules: () =>
+    request<{ rules: DirRule[]; defaults: DirRule[]; customized: boolean; warning?: string }>('/api/dir-rules'),
+
+  saveDirRules: (rules: DirRule[]) =>
+    request<{ rules: DirRule[]; library: Library }>('/api/dir-rules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules }),
+    }),
+
+  previewLibrary: (input: { dir?: string; rules?: DirRule[] }) =>
+    request<DirPreview>('/api/library/preview', json(input)),
 
   fetchLinkTitle: (url: string) =>
     request<{ title: string; warning?: string }>('/api/link-title', json({ url })),

@@ -1,6 +1,9 @@
 export const LANGUAGES = ['ja', 'zh', 'en'] as const;
 export type Lang = (typeof LANGUAGES)[number];
 
+/** 规则没有 {chapter} 占位符时使用的章节名（单话结构） */
+export const SINGLE_CHAPTER = '全一话';
+
 export const LANG_LABEL: Record<Lang, string> = {
   ja: '日本語',
   zh: '中文',

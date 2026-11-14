@@ -1,14 +1,16 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
-import { LANGUAGES, LANG_LABEL } from '../shared/types.ts';
+import { LANGUAGES, LANG_LABEL, SINGLE_CHAPTER } from '../shared/types.ts';
 import type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry } from '../shared/types.ts';
+import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
+import type { DirRule, UnmatchedFile } from './dirRules.ts';
 
-export { LANGUAGES, LANG_LABEL };
-export type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry };
+export { LANGUAGES, LANG_LABEL, DEFAULT_RULES, SINGLE_CHAPTER };
+export type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry, DirRule };
 
-const IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 
-/** 常见语言目录命名变体（统一小写、空格/下划线转连字符后比较） */
+/** Common language folder spellings, compared after lowercase + space/underscore → dash. */
 const LANG_ALIASES: Record<Lang, string[]> = {
   ja: ['ja', 'jp', 'jpn', 'japanese', 'ja-jp', '日', '日本語', '日文'],
   zh: ['zh', 'zh-cn', 'zh-hans', 'zh-sg', 'cn', 'chs', 'zh-tw', 'zh-hk', 'zh-hant', 'cht', 'tw', 'hk', '中', '中文', '繁中', '简中'],
@@ -17,9 +19,11 @@ const LANG_ALIASES: Record<Lang, string[]> = {
 
 const normalizeDir = (name: string) => name.trim().toLowerCase().replace(/[\s_]+/g, '-');
 
-/** data/library.json：记录用户为每卷手动指定的语言目录 */
+/** data/library.json：语言目录映射与目录识别规则 */
 export type LibraryConfig = {
   volumes?: Record<string, { dirs?: Partial<Record<Lang, string>> }>;
+  /** Declarative scan rules, tried in order. Empty/absent means DEFAULT_RULES. */
+  rules?: DirRule[];
 };
 
 export function readLibraryConfig(dataRoot: string): LibraryConfig {
@@ -90,82 +94,215 @@ export function listDirs(dir: string): string[] {
   return out.sort(naturalCompare);
 }
 
-function listImageFiles(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((d) => d.isFile() && IMAGE_EXT.test(d.name))
-    .map((d) => d.name)
-    .sort(naturalCompare);
-}
-
-export function createLibrary(rawRoot: string, dataRoot: string): Library {
-  const volumes: VolumeEntry[] = [];
-  if (!fs.existsSync(rawRoot)) {
-    return { root: rawRoot, languages: [...LANGUAGES], volumes };
+/** 判断目录里（递归）是否有图片，避免把空目录当成待配置的卷 */
+function hasImages(dir: string, depth = 0): boolean {
+  if (depth > 8) return false;
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return false;
   }
-
-  const config = readLibraryConfig(dataRoot);
-  const volumeDirs = listDirs(rawRoot);
-
-  for (const volume of volumeDirs) {
-    const volumePath = path.join(rawRoot, volume);
-    const dirs = listDirs(volumePath);
-
-    // 先按用户在 data/library.json 里的指定，再按目录名变体自动猜测
-    const pinned = config.volumes?.[volume]?.dirs ?? {};
-    const langDirs: Partial<Record<Lang, string>> = {};
-    const usedDirs = new Set<string>();
-    for (const lang of LANGUAGES) {
-      const wanted = pinned[lang];
-      let dir: string | undefined;
-      if (wanted && dirs.includes(wanted)) dir = wanted;
-      else dir = dirs.find((d) => !usedDirs.has(d) && guessLang(d) === lang);
-      if (dir && !usedDirs.has(dir)) {
-        langDirs[lang] = dir;
-        usedDirs.add(dir);
+  for (const entry of entries) {
+    if (entry.isFile() && IMAGE_EXT.test(entry.name)) return true;
+  }
+  for (const entry of entries) {
+    let isDir = entry.isDirectory();
+    if (entry.isSymbolicLink()) {
+      try {
+        isDir = fs.statSync(path.join(dir, entry.name)).isDirectory();
+      } catch {
+        isDir = false;
       }
     }
-    const langsInVolume = LANGUAGES.filter((l) => langDirs[l]);
+    if (isDir && hasImages(path.join(dir, entry.name), depth + 1)) return true;
+  }
+  return false;
+}
 
-    const chapterSet = new Set<string>();
-    for (const lang of langsInVolume) {
-      for (const name of listDirs(path.join(volumePath, langDirs[lang]!))) chapterSet.add(name);
+/** 解析生效的规则；配置损坏时回退默认规则并把原因交给界面展示 */
+function activeRules(cfg: LibraryConfig): { rules: DirRule[]; warning?: string } {
+  const configured = cfg.rules?.filter((r) => r && r.pattern);
+  if (!configured?.length) return { rules: DEFAULT_RULES };
+  try {
+    return { rules: validateRules(configured) };
+  } catch (err) {
+    return {
+      rules: DEFAULT_RULES,
+      warning: `目录识别规则无效（${err instanceof Error ? err.message : String(err)}），已回退默认规则`,
+    };
+  }
+}
+
+export type DirPreview = {
+  dir: string;
+  rules: DirRule[];
+  hits: Record<string, number>;
+  matched: number;
+  unmatched: UnmatchedFile[];
+  unmatchedCount: number;
+  truncated: boolean;
+  tree: {
+    id: string;
+    dir: string;
+    languages: Lang[];
+    chapters: { chapter: string; pages: number; langs: Partial<Record<Lang, number>> }[];
+  }[];
+};
+
+/**
+ * 实时预览目录识别结果：不写库、不做标注检查，供界面在编辑规则时反复调用。
+ */
+export function previewDirs(
+  rawRoot: string,
+  dataRoot: string,
+  dir = '',
+  rulesOverride?: DirRule[],
+): DirPreview {
+  const config = readLibraryConfig(dataRoot);
+  let rules = rulesOverride;
+  if (rules?.length) rules = validateRules(rules);
+  else {
+    const resolved = activeRules(config);
+    rules = resolved.rules;
+  }
+  const pinned: Partial<Record<string, Partial<Record<Lang, string>>>> = {};
+  for (const [volume, entry] of Object.entries(config.volumes ?? {})) {
+    if (entry?.dirs) pinned[volume] = entry.dirs;
+  }
+  const safeDir = dir.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (safeDir.split('/').some((s) => s === '..')) throw new Error('目录不能包含 ..');
+
+  const scan = resolveFiles(rawRoot, rules, safeDir, pinned);
+  const byVolume = new Map<string, typeof scan.files>();
+  for (const row of scan.files) {
+    const list = byVolume.get(row.volumeId);
+    if (list) list.push(row);
+    else byVolume.set(row.volumeId, [row]);
+  }
+
+  const tree = [...byVolume.entries()]
+    .sort(([a], [b]) => naturalCompare(a, b))
+    .map(([id, rows]) => {
+      const languages = LANGUAGES.filter((lang) => rows.some((r) => r.lang === lang));
+      const chapters = [...new Set(rows.map((r) => r.chapter))].sort(naturalCompare).map((chapter) => {
+        const chapterRows = rows.filter((r) => r.chapter === chapter);
+        const langs: Partial<Record<Lang, number>> = {};
+        for (const lang of languages) {
+          langs[lang] = chapterRows.filter((r) => r.lang === lang).length;
+        }
+        return { chapter, pages: Math.max(0, ...Object.values(langs).map((n) => n ?? 0)), langs };
+      });
+      return { id, dir: rows[0].volumeRoot, languages, chapters };
+    });
+
+  return {
+    dir: safeDir,
+    rules,
+    hits: scan.hits,
+    matched: scan.files.length,
+    unmatched: scan.unmatched.slice(0, 200),
+    unmatchedCount: scan.unmatched.length,
+    truncated: scan.truncated,
+    tree,
+  };
+}
+
+export type LibraryScanInfo = {
+  rules: DirRule[];
+  unmatchedCount: number;
+  unmatched: UnmatchedFile[];
+  truncated: boolean;
+  warning?: string;
+};
+
+export type LibraryResult = Library & { scan: LibraryScanInfo };
+
+/**
+ * 构建图库：按 data/library.json 的规则扫描 raw，再把文件聚合为 卷 → 话 → 页。
+ * 语言目录的映射优先用用户显式指定，其次按目录名自动识别。
+ */
+export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult {
+  const empty: LibraryResult = {
+    root: rawRoot,
+    languages: [...LANGUAGES],
+    volumes: [],
+    scan: { rules: DEFAULT_RULES, unmatchedCount: 0, unmatched: [], truncated: false },
+  };
+  if (!fs.existsSync(rawRoot)) return empty;
+
+  const config = readLibraryConfig(dataRoot);
+  const { rules, warning } = activeRules(config);
+  const pinned: Partial<Record<string, Partial<Record<Lang, string>>>> = {};
+  for (const [volume, entry] of Object.entries(config.volumes ?? {})) {
+    if (entry?.dirs) pinned[volume] = entry.dirs;
+  }
+
+  const scan = resolveFiles(rawRoot, rules, '', pinned);
+  const rowsByVolume = new Map<string, typeof scan.files>();
+  for (const row of scan.files) {
+    const list = rowsByVolume.get(row.volumeId);
+    if (list) list.push(row);
+    else rowsByVolume.set(row.volumeId, [row]);
+  }
+
+  const volumes: VolumeEntry[] = [];
+
+  for (const [volumeId, rows] of rowsByVolume) {
+    const volumeRoot = rows[0].volumeRoot;
+    const volumePath = volumeRoot ? path.join(rawRoot, volumeRoot) : rawRoot;
+    const dirs = listDirs(volumePath);
+
+    const langDirs: Partial<Record<Lang, string>> = {};
+    for (const lang of LANGUAGES) {
+      const row = rows.find((r) => r.lang === lang);
+      if (row) langDirs[lang] = row.langDir;
     }
-    const chapterNames = [...chapterSet].sort(naturalCompare);
-    const chapters: ChapterEntry[] = [];
+    const langsInVolume = LANGUAGES.filter((l) => langDirs[l]);
     const volumeWarnings: string[] = [];
 
-    if (!langsInVolume.length) {
-      volumeWarnings.push('未识别到语言目录（支持 ja/jp/日、zh/zh-cn/tw、en/us 等），可在「卷设置」里手动指定');
-    }
-    const leftover = dirs.filter((d) => !usedDirs.has(d));
-    if (langsInVolume.length && leftover.length) {
+    const usedTopDirs = new Set(
+      Object.values(langDirs)
+        .filter((d): d is string => Boolean(d))
+        .map((d) => d.split('/')[0]),
+    );
+    const leftover = dirs.filter((d) => !usedTopDirs.has(d));
+    if (leftover.length) {
       volumeWarnings.push(`未识别的目录：${leftover.join('、')}（可在「卷设置」里指定语言）`);
     }
 
-    for (const chapter of chapterNames) {
-      const filesByLang: Partial<Record<Lang, string[]>> = {};
-      for (const lang of langsInVolume) {
-        filesByLang[lang] = listImageFiles(path.join(volumePath, langDirs[lang]!, chapter));
-      }
-      const counts = langsInVolume.map((l) => ({ lang: l, count: filesByLang[l]?.length ?? 0 }));
-      const maxPages = Math.max(...counts.map((c) => c.count), 0);
-      const chapterWarnings: string[] = [];
+    const chapterNames = [...new Set(rows.map((r) => r.chapter))].sort(naturalCompare);
+    const chapters: ChapterEntry[] = [];
 
-      const nonEmpty = counts.filter((c) => c.count > 0);
+    for (const chapter of chapterNames) {
+      const chapterRows = rows.filter((r) => r.chapter === chapter);
+      const countByLang = new Map<Lang, number>();
+      const filesByLang = new Map<Lang, { filename: string; file: string }[]>();
+
+      for (const lang of langsInVolume) {
+        const list = chapterRows
+          .filter((r) => r.lang === lang)
+          .map((r) => ({ filename: r.filename, file: r.file }))
+          .sort((a, b) => naturalCompare(a.filename, b.filename));
+        if (list.length) filesByLang.set(lang, list);
+        countByLang.set(lang, list.length);
+      }
+
+      const maxPages = Math.max(0, ...[...countByLang.values()]);
+      const chapterWarnings: string[] = [];
+      const nonEmpty = [...countByLang.entries()].filter(([, count]) => count > 0);
       if (nonEmpty.length > 1) {
-        const uniq = new Set(nonEmpty.map((c) => c.count));
+        const uniq = new Set(nonEmpty.map(([, count]) => count));
         if (uniq.size > 1) {
           chapterWarnings.push(
-            `各语言页数不一致：${nonEmpty.map((c) => `${LANG_LABEL[c.lang]} ${c.count} 页`).join(' / ')}（按序号配对，缺页会在页面上标注）`,
+            `各语言页数不一致：${nonEmpty.map(([lang, count]) => `${LANG_LABEL[lang]} ${count} 页`).join(' / ')}（按序号配对，缺页会在页面上标注）`,
           );
         }
       }
 
       // 同一语言内扩展名混用（例如 jpeg 与 png 交替）值得提示
       for (const lang of langsInVolume) {
-        const exts = new Set((filesByLang[lang] ?? []).map((n) => path.extname(n).toLowerCase()));
+        const exts = new Set((filesByLang.get(lang) ?? []).map((f) => path.extname(f.filename).toLowerCase()));
         if (exts.size > 1) {
           chapterWarnings.push(`${LANG_LABEL[lang]} 本话内扩展名不统一：${[...exts].join(' / ')}`);
         }
@@ -178,14 +315,14 @@ export function createLibrary(rawRoot: string, dataRoot: string): Library {
         const filenames: Partial<Record<Lang, string>> = {};
 
         for (const lang of langsInVolume) {
-          const list = filesByLang[lang] ?? [];
-          const name = list[i];
-          if (!name) {
+          const list = filesByLang.get(lang) ?? [];
+          const entry = list[i];
+          if (!entry) {
             warnings.push(`${LANG_LABEL[lang]} 缺第 ${i + 1} 页`);
             continue;
           }
-          filenames[lang] = name;
-          files[lang] = encodePath('raw', volume, langDirs[lang]!, chapter, name);
+          filenames[lang] = entry.filename;
+          files[lang] = encodePath(...entry.file.split('/'));
         }
 
         // 命名异常提示：页码前缀与序号不一致
@@ -203,16 +340,16 @@ export function createLibrary(rawRoot: string, dataRoot: string): Library {
           files,
           filenames,
           warnings,
-          annotated: fs.existsSync(path.join(dataRoot, 'pages', volume, chapter, `${i}.json`)),
+          annotated: fs.existsSync(path.join(dataRoot, 'pages', volumeId, chapter, `${i}.json`)),
         });
       }
 
-      chapters.push({ id: `${volume}/${chapter}`, volume, chapter, pages, warnings: chapterWarnings });
+      chapters.push({ id: `${volumeId}/${chapter}`, volume: volumeId, chapter, pages, warnings: chapterWarnings });
     }
 
     volumes.push({
-      id: volume,
-      title: volume,
+      id: volumeId,
+      title: volumeId,
       chapters,
       warnings: volumeWarnings,
       langDirs,
@@ -221,6 +358,34 @@ export function createLibrary(rawRoot: string, dataRoot: string): Library {
     });
   }
 
-  return { root: rawRoot, languages: [...LANGUAGES], volumes };
-}
+  // 有图片但一条规则都没识别到的顶层目录仍然列出来，否则用户无法进入「卷设置」修映射。
+  if (volumes.length === 0) {
+    for (const dir of listDirs(rawRoot)) {
+      if (!hasImages(path.join(rawRoot, dir))) continue;
+      volumes.push({
+        id: dir,
+        title: dir,
+        chapters: [],
+        warnings: ['未识别到语言目录或目录结构不符合任何识别规则，请检查「目录识别」规则或在此指定语言目录'],
+        langDirs: {},
+        languages: [],
+        dirs: listDirs(path.join(rawRoot, dir)),
+      });
+    }
+  }
 
+  volumes.sort((a, b) => naturalCompare(a.id, b.id));
+
+  return {
+    root: rawRoot,
+    languages: [...LANGUAGES],
+    volumes,
+    scan: {
+      rules,
+      unmatchedCount: scan.unmatched.length,
+      unmatched: scan.unmatched.slice(0, 30),
+      truncated: scan.truncated,
+      warning,
+    },
+  };
+}
