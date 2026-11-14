@@ -202,6 +202,9 @@ export const ja = {
   'notes.emptyPreview': '（空）',
   'notes.markdownHint':
     'Markdown：**太字**、*斜体*、- リスト、> 引用、``` コードブロック ```、| 表 |；Ctrl+Enter で保存',
+  'notes.imageHint': 'スクリーンショットを貼り付け／ドロップで添付できます',
+  'notes.addImages': '画像を追加',
+  'notes.removeImage': '画像を削除',
 
   /* ---- 共通操作 ---- */
   'common.save': '保存',

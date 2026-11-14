@@ -197,6 +197,9 @@ export const zh = {
   'notes.emptyPreview': '（空）',
   'notes.markdownHint':
     'Markdown：**加粗**、*斜体*、- 列表、> 引用、``` 代码块 ```、| 表格 |；Ctrl+Enter 保存',
+  'notes.imageHint': '粘贴或拖入截图即可附加到这条笔记',
+  'notes.addImages': '添加图片',
+  'notes.removeImage': '移除图片',
 
   /* ---- 通用操作 ---- */
   'common.save': '保存',

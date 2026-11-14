@@ -1,4 +1,4 @@
-import type { Note, NoteSource, Panel, PanelRect, ReadingDirection } from '../types';
+import type { Note, NoteImage, NoteSource, Panel, PanelRect, ReadingDirection } from '../types';
 import { formatDate } from '../i18n';
 
 export const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -104,9 +104,21 @@ export function newNote(
   text: string,
   tags: string[],
   source?: NoteSource,
+  /** Pasted/dropped screenshots; kept inline so the page JSON stays self-contained. */
+  images?: NoteImage[],
 ): Note {
   const now = new Date().toISOString();
-  return { id: uid('n'), scope, panelId, text, tags, source, createdAt: now, updatedAt: now };
+  return {
+    id: uid('n'),
+    scope,
+    panelId,
+    text,
+    tags,
+    source,
+    images: images?.length ? images : undefined,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 /** 从链接中取域名，用于快速区分资料来源 */

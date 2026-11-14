@@ -206,6 +206,9 @@ export const en = {
   'notes.emptyPreview': '(empty)',
   'notes.markdownHint':
     'Markdown: **bold**, *italic*, - list, > quote, ``` code block ```, | table |; Ctrl+Enter to save',
+  'notes.imageHint': 'Paste or drop screenshots here to attach them',
+  'notes.addImages': 'Add images',
+  'notes.removeImage': 'Remove image',
 
   /* ---- shared actions ---- */
   'common.save': 'Save',

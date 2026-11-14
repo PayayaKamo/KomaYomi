@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Note, NoteSource, PageDoc, Panel } from '../types';
+import type { ClipboardEvent, DragEvent } from 'react';
+import type { Note, NoteImage, NoteSource, PageDoc, Panel } from '../types';
 import type { Library } from '../types';
-import { newNote, sourceDomain } from '../lib/geometry';
+import { newNote, sourceDomain, uid } from '../lib/geometry';
 import { renderMarkdown } from '../../shared/markdown';
 import { api } from '../api';
 import type { NotesIndex } from '../api';
@@ -19,6 +20,65 @@ type Props = {
   onJump: (sel: Selection, panelId: string | null) => void;
   onClose?: () => void;
 };
+
+/* ---------------- 笔记贴图：粘贴/拖入的截图 ---------------- */
+
+/** Longest edge kept; bigger screenshots are downscaled so page JSON stays small. */
+const NOTE_IMAGE_MAX_EDGE = 1600;
+/** Small PNG/JPEG files are stored untouched; re-encoding them would only lose quality. */
+const NOTE_IMAGE_RAW_LIMIT = 400 * 1024;
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function decodeImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image decode failed'));
+    };
+    img.src = url;
+  });
+}
+
+/** Convert a clipboard/dropped file into a self-contained data URL. */
+async function fileToNoteImage(file: File): Promise<NoteImage | null> {
+  if (!file.type.startsWith('image/')) return null;
+  try {
+    if (file.size <= NOTE_IMAGE_RAW_LIMIT) {
+      return { id: uid('img'), name: file.name, dataUrl: await readAsDataUrl(file) };
+    }
+    const img = await decodeImage(file);
+    const scale = Math.min(1, NOTE_IMAGE_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // WebP keeps screenshots sharp with far smaller data URLs than PNG.
+    return { id: uid('img'), name: file.name, dataUrl: canvas.toDataURL('image/webp', 0.85) };
+  } catch {
+    return null;
+  }
+}
+
+function clipboardImageFiles(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  return [...data.files].filter((f) => f.type.startsWith('image/'));
+}
 
 /* ---------------- Markdown 编辑器：编辑 / 实时预览 ---------------- */
 
@@ -192,11 +252,12 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [tab, setTab] = useState<'page' | 'all'>('page');
   const [scope, setScope] = useState<'page' | 'panel'>('page');
   const [text, setText] = useState('');
+  const [images, setImages] = useState<NoteImage[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [filterSource, setFilterSource] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string; images: NoteImage[] } | null>(null);
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
 
   // 来源
@@ -235,6 +296,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   useEffect(() => {
     setScope(panel ? 'panel' : 'page');
     setText('');
+    setImages([]);
     setTags([]);
     setTagInput('');
     setSourceOpen(false);
@@ -338,12 +400,41 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     };
   };
 
+  const appendComposerImages = async (files: File[]) => {
+    const converted = await Promise.all(files.map(fileToNoteImage));
+    const usable = converted.filter((img): img is NoteImage => img !== null);
+    if (usable.length) setImages((prev) => [...prev, ...usable]);
+  };
+
+  const appendEditingImages = async (files: File[]) => {
+    const converted = await Promise.all(files.map(fileToNoteImage));
+    const usable = converted.filter((img): img is NoteImage => img !== null);
+    if (usable.length) setEditing((prev) => (prev ? { ...prev, images: [...prev.images, ...usable] } : prev));
+  };
+
+  const handlePasteImages = (e: ClipboardEvent, append: (files: File[]) => Promise<void>) => {
+    const files = clipboardImageFiles(e.clipboardData);
+    if (!files.length) return;
+    // Only swallow the paste when it actually carried images, so text still pastes normally.
+    e.preventDefault();
+    void append(files);
+  };
+
+  const handleDropImages = (e: DragEvent, append: (files: File[]) => Promise<void>) => {
+    const files = [...e.dataTransfer.files];
+    if (!files.length) return;
+    e.preventDefault();
+    void append(files);
+  };
+
   const submit = () => {
-    if (!doc || !text.trim()) return;
+    if (!doc) return;
+    if (!text.trim() && !images.length) return;
     if (scope === 'panel' && !panel) return;
-    const note = newNote(scope, scope === 'panel' && panel ? panel.id : null, text.trim(), tags, currentSource());
+    const note = newNote(scope, scope === 'panel' && panel ? panel.id : null, text.trim(), tags, currentSource(), images);
     mutate((d) => ({ ...d, notes: [...d.notes, note] }));
     setText('');
+    setImages([]);
     setTags([]);
     setTagInput('');
     setSrcUrl('');
@@ -361,7 +452,9 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     mutate((d) => ({
       ...d,
       notes: d.notes.map((n) =>
-        n.id === editing.id ? { ...n, text: editing.text, updatedAt: new Date().toISOString() } : n,
+        n.id === editing.id
+          ? { ...n, text: editing.text, images: editing.images.length ? editing.images : undefined, updatedAt: new Date().toISOString() }
+          : n,
       ),
     }));
     setEditing(null);
@@ -431,6 +524,28 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
   };
 
+  /** Thumbnails for a note. `onRemove` turns the strip into the editor variant. */
+  const imageStrip = (list: NoteImage[], onRemove?: (id: string) => void) => (
+    <div className={`note-images ${onRemove ? 'editable' : ''}`}>
+      {list.map((img) => (
+        <figure key={img.id}>
+          {onRemove ? (
+            <img src={img.dataUrl} alt={img.name} />
+          ) : (
+            <a href={img.dataUrl} target="_blank" rel="noreferrer noopener" title={img.name}>
+              <img src={img.dataUrl} alt={img.name} loading="lazy" />
+            </a>
+          )}
+          {onRemove && (
+            <button type="button" title={t('notes.removeImage')} onClick={() => onRemove(img.id)}>
+              ×
+            </button>
+          )}
+        </figure>
+      ))}
+    </div>
+  );
+
   const renderNote = (note: Note) => (
     <div className="note" key={note.id}>
       <div className="note-top">
@@ -450,13 +565,24 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         <span className="note-time">{formatDate(note.createdAt)}</span>
       </div>
       {editing?.id === note.id ? (
-        <div className="note-edit">
+        <div
+          className="note-edit"
+          onPaste={(e) => handlePasteImages(e, appendEditingImages)}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          }}
+          onDrop={(e) => handleDropImages(e, appendEditingImages)}
+        >
           <MarkdownEditor
             value={editing.text}
             onChange={(v) => setEditing({ ...editing, text: v })}
             onSubmit={saveEdit}
             placeholder={t('notes.markdownPlaceholder')}
           />
+          {editing.images.length > 0 &&
+            imageStrip(editing.images, (id) =>
+              setEditing((prev) => (prev ? { ...prev, images: prev.images.filter((i) => i.id !== id) } : prev)),
+            )}
           <div className="row-actions">
             <button type="button" className="btn tiny primary" onClick={saveEdit}>
               {t('common.save')}
@@ -471,6 +597,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
       ) : (
         <div className="note-text md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.text) }} />
       )}
+      {note.images?.length ? imageStrip(note.images) : null}
       {note.source && (note.source.url || note.source.title || note.source.text) && (
         <div className="note-src-line" title={note.source.url}>
           {note.source.url ? (
@@ -486,7 +613,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
       )}
       {editing?.id !== note.id && (
         <div className="note-actions">
-          <button type="button" onClick={() => setEditing({ id: note.id, text: note.text })}>
+          <button type="button" onClick={() => setEditing({ id: note.id, text: note.text, images: note.images ?? [] })}>
             {t('common.edit')}
           </button>
           <button
@@ -777,7 +904,14 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         </>
       ) : (
         <>
-          <div className="notes-compose">
+          <div
+            className="notes-compose"
+            onPaste={(e) => handlePasteImages(e, appendComposerImages)}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+            }}
+            onDrop={(e) => handleDropImages(e, appendComposerImages)}
+          >
             <div className="scope-toggle">
               <button type="button" className={scope === 'page' ? 'on' : ''} onClick={() => setScope('page')}>
                 {t('notes.wholePage')}
@@ -804,6 +938,24 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')
               }
             />
+            {images.length > 0 && imageStrip(images, (id) => setImages((prev) => prev.filter((i) => i.id !== id)))}
+            <div className="note-image-row">
+              <span className="muted tiny note-image-hint">{t('notes.imageHint')}</span>
+              <label className="btn tiny note-image-pick">
+                {t('notes.addImages')}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    const files = [...(e.target.files ?? [])];
+                    e.target.value = '';
+                    void appendComposerImages(files);
+                  }}
+                />
+              </label>
+            </div>
             <div className="source-editor">
               <button type="button" className={`link-btn ${sourceOpen ? 'on' : ''}`} onClick={() => setSourceOpen((v) => !v)}>
                 {sourceOpen
@@ -863,7 +1015,12 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 ))}
               </div>
             )}
-            <button type="button" className="btn primary block" onClick={submit} disabled={!text.trim()}>
+            <button
+              type="button"
+              className="btn primary block"
+              onClick={submit}
+              disabled={!text.trim() && !images.length}
+            >
               {t('notes.addNote')}
             </button>
             {scratchPanel}

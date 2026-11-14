@@ -1335,6 +1335,63 @@ code {
   word-break: break-word;
 }
 
+.note-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.note-images figure {
+  position: relative;
+  margin: 0;
+}
+
+.note-images img {
+  display: block;
+  max-width: 160px;
+  max-height: 120px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.note-images.editable img {
+  max-width: 120px;
+  max-height: 90px;
+}
+
+.note-images figure button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.note-image-hint {
+  flex: 1;
+  margin: 0;
+}
+
+.note-image-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+}
+
+.note-image-pick {
+  cursor: pointer;
+}
+
 .note-actions {
   display: flex;
   gap: 10px;

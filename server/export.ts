@@ -48,12 +48,19 @@ function notesHtml(notes: Note[], filterTags: string[]): string {
   if (!notes.length) return '';
   return notes
     .filter((n) => !filterTags.length || n.tags.some((t) => filterTags.includes(t)))
-    .map(
-      (n) => `<li class="note">
+    .map((n) => {
+      // Images live inline as data URLs, so the exported HTML stays a single portable
+      // artefact; non-image payloads are dropped rather than trusted.
+      const imgs = (n.images ?? [])
+        .filter((img) => img.dataUrl.startsWith('data:image/'))
+        .map((img) => `<img src="${img.dataUrl}" alt="${esc(img.name)}" loading="lazy">`)
+        .join('');
+      return `<li class="note">
         ${n.tags.length ? `<span class="tags">${n.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</span>` : ''}
         <div class="text md">${renderMarkdown(n.text)}</div>
-      </li>`,
-    )
+        ${imgs ? `<div class="note-images">${imgs}</div>` : ''}
+      </li>`;
+    })
     .join('');
 }
 
@@ -116,6 +123,8 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .notes-group ul{margin:0;padding-left:0;list-style:none}
 .note{padding:6px 0;border-top:1px dashed var(--line)}
 .note:first-child{border-top:0}
+.note-images{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;break-inside:avoid}
+.note-images img{max-width:100%;max-height:180px;border:1px solid var(--line);border-radius:4px}
 .tags{display:inline-flex;gap:4px;margin-right:6px;vertical-align:middle}
 .tag{background:#fdece3;color:#9a3412;border-radius:99px;padding:0 7px;font-size:11px}
 /* Markdown 笔记：导出后保留标题、列表、引用、代码与表格样式 */
