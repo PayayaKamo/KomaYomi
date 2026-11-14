@@ -23,6 +23,20 @@ import {
 import { collectNotes } from './notes.ts';
 import { thumbnailFile } from './thumb.ts';
 import {
+  cacheStats,
+  clearRemoteCache,
+  createProvider,
+  markSecrets,
+  readRemoteCache,
+  readStorageConfig,
+  remoteCachePath,
+  setSecret,
+  syncRemoteTree,
+  writeRemoteCache,
+  writeStorageConfig,
+} from './storageProviders.ts';
+import type { StorageConfig, StorageTarget } from './storageProviders.ts';
+import {
   applyPanelTemplate,
   deleteAlignPreset,
   deleteExportTemplate,
@@ -121,17 +135,58 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
   const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
 
+  /**
+   * Fetch a page image from the configured remote source into the local cache.
+   *
+   * The remote tree mirror stores zero-byte placeholders, so a page that exists but
+   * has no local bytes is treated as "not downloaded yet". Returning null means the
+   * page is genuinely absent; throwing means the remote is offline and the caller
+   * should surface a clear error instead of hanging.
+   */
+  const fetchRemote = async (rel: string): Promise<Buffer | null> => {
+    const source = readStorageConfig(dataRoot).rawSource;
+    if (!source || source.enabled === false) return null;
+    const ext = path.extname(rel) || '.jpg';
+    const cached = readRemoteCache(dataRoot, source.id, rel, ext);
+    if (cached) return cached;
+    const buf = await createProvider(dataRoot, source).read(rel);
+    writeRemoteCache(dataRoot, source.id, rel, ext, buf);
+    return buf;
+  };
+
+  const sendImageBuffer = (res: ServerResponse, buf: Buffer, cacheable: boolean) => {
+    res.setHeader('Content-Type', MIME[sniffFormat(buf)] ?? 'application/octet-stream');
+    res.setHeader('Cache-Control', cacheable ? 'public, max-age=86400' : 'no-cache');
+    res.end(buf);
+  };
+
   return async function handler(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     if (!req.url) return false;
     const url = new URL(req.url, 'http://localhost');
     const pathname = url.pathname;
 
     try {
-      // ---- 缩略图（带磁盘缓存） ----
+      // ---- 缩略图（带磁盘缓存；本地缺失时按需拉取远端原图） ----
       if (pathname === '/thumb') {
         const src = url.searchParams.get('src') ?? '';
         const w = Math.min(600, Math.max(80, Number(url.searchParams.get('w')) || 200));
-        const file = thumbnailFile(rawRoot, thumbRoot, src, w);
+        let file = thumbnailFile(rawRoot, thumbRoot, src, w);
+        if (!file) {
+          const rel = decodeURIComponent(src.replace(/^\/raw\//, ''));
+          try {
+            const buf = await fetchRemote(rel);
+            if (buf) {
+              const source = readStorageConfig(dataRoot).rawSource!;
+              const ext = path.extname(rel) || '.jpg';
+              const cached = remoteCachePath(dataRoot, source.id, rel, ext);
+              // thumbnailFile needs a real file, so point it at the cached original.
+              file = thumbnailFile(path.dirname(cached), thumbRoot, path.basename(cached), w);
+            }
+          } catch (err) {
+            sendJson(res, 502, { error: `缩略图获取失败：${err instanceof Error ? err.message : String(err)}` });
+            return true;
+          }
+        }
         if (!file) {
           sendJson(res, 404, { error: '缩略图源不存在' });
           return true;
@@ -142,15 +197,33 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      // ---- 原始图片（只读） ----
+      // ---- 原始图片（只读；本地优先，其次远端按需缓存） ----
       if (pathname.startsWith('/raw/')) {
         const rel = decodeURIComponent(pathname.slice('/raw/'.length));
         const file = safeResolve(rawRoot, rel);
-        if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-          sendJson(res, 404, { error: '图片不存在' });
+        let local = false;
+        try {
+          local = Boolean(file && fs.statSync(file).isFile() && fs.statSync(file).size > 0);
+        } catch {
+          local = false;
+        }
+        if (local) {
+          serveFile(res, file!);
           return true;
         }
-        serveFile(res, file);
+        try {
+          const buf = await fetchRemote(rel);
+          if (buf) {
+            sendImageBuffer(res, buf, true);
+            return true;
+          }
+        } catch (err) {
+          sendJson(res, 503, {
+            error: `远端素材暂不可用（${err instanceof Error ? err.message : String(err)}），已缓存的页仍可阅读`,
+          });
+          return true;
+        }
+        sendJson(res, 404, { error: '图片不存在' });
         return true;
       }
 
@@ -727,6 +800,110 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         sendJson(res, 200, {
           ...result,
           library: createLibrary(rawRoot, dataRoot),
+        });
+        return true;
+      }
+
+      /* ---------------- 存储提供者（本机 / 网络盘 / WebDAV） ---------------- */
+      if (pathname === '/api/storage' && req.method === 'GET') {
+        sendJson(res, 200, {
+          config: markSecrets(dataRoot, readStorageConfig(dataRoot)),
+          cache: cacheStats(dataRoot),
+        });
+        return true;
+      }
+
+      if (pathname === '/api/storage' && req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as {
+          config?: StorageConfig;
+          secrets?: Record<string, string | null>;
+        };
+        if (!body.config) {
+          sendJson(res, 400, { error: '缺少存储配置' });
+          return true;
+        }
+        // Passwords arrive separately and are encrypted; storage.json stays shareable.
+        for (const [id, secret] of Object.entries(body.secrets ?? {})) {
+          setSecret(dataRoot, id, secret || null);
+        }
+        const saved = writeStorageConfig(dataRoot, body.config);
+        sendJson(res, 200, { config: markSecrets(dataRoot, saved) });
+        return true;
+      }
+
+      if (pathname === '/api/storage/test' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { id?: string };
+        const cfg = readStorageConfig(dataRoot);
+        const targets = [cfg.rawSource, ...cfg.backups].filter((t): t is StorageTarget => Boolean(t));
+        const chosen = body.id ? targets.filter((t) => t.id === body.id) : targets;
+        const statuses = await Promise.all(
+          chosen.map((t) =>
+            createProvider(dataRoot, t, { mustExist: cfg.rawSource?.id === t.id }).status(),
+          ),
+        );
+        sendJson(res, 200, { statuses });
+        return true;
+      }
+
+      if (pathname === '/api/storage/sync' && req.method === 'POST') {
+        const source = readStorageConfig(dataRoot).rawSource;
+        if (!source?.enabled) {
+          sendJson(res, 400, { error: '尚未配置远端素材目录' });
+          return true;
+        }
+        const result = await syncRemoteTree(dataRoot, createProvider(dataRoot, source));
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/storage/cache/clear' && req.method === 'POST') {
+        sendJson(res, 200, { removed: clearRemoteCache(dataRoot), cache: cacheStats(dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/storage/ls' && req.method === 'GET') {
+        const id = url.searchParams.get('target') ?? '';
+        const cfg = readStorageConfig(dataRoot);
+        const target = [cfg.rawSource, ...cfg.backups].find((t) => t?.id === id);
+        if (!target) {
+          sendJson(res, 404, { error: '存储目标不存在' });
+          return true;
+        }
+        try {
+          const entries = await createProvider(dataRoot, target).list(url.searchParams.get('path') ?? '');
+          sendJson(res, 200, { entries });
+        } catch (err) {
+          sendJson(res, 503, { error: `无法列出目录：${err instanceof Error ? err.message : String(err)}` });
+        }
+        return true;
+      }
+
+      if (pathname === '/api/storage/backup' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { targetId?: string };
+        const { buffer, entries } = createBackupBuffer(dataRoot);
+        const name = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+        const target = body.targetId ? readStorageConfig(dataRoot).backups.find((t) => t.id === body.targetId) : undefined;
+        if (target) {
+          try {
+            await createProvider(dataRoot, target).write(`backups/${name}`, buffer);
+            sendJson(res, 200, {
+              file: `backups/${name}`,
+              target: target.name,
+              size: buffer.length,
+              entries,
+            });
+          } catch (err) {
+            sendJson(res, 503, { error: `备份上传失败：${err instanceof Error ? err.message : String(err)}` });
+          }
+          return true;
+        }
+        fs.mkdirSync(exportRoot, { recursive: true });
+        fs.writeFileSync(path.join(exportRoot, name), buffer);
+        sendJson(res, 200, {
+          file: name,
+          url: `/exports/${encodeURIComponent(name)}`,
+          size: buffer.length,
+          entries,
         });
         return true;
       }

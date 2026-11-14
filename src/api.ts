@@ -14,6 +14,9 @@ import type {
   PanelTemplate,
   PanelRect,
   ReadingDirection,
+  CacheStats,
+  StorageConfig,
+  StorageStatus,
 } from './types';
 
 export type NotesIndex = {
@@ -155,6 +158,34 @@ export const api = {
     request<{ restored: number; snapshot: string | null; warnings: string[]; library: Library }>(
       '/api/backup/restore',
       json({ data }),
+    ),
+
+  /* ---- 存储提供者：本机 / 网络盘 / WebDAV ---- */
+  storage: () => request<{ config: StorageConfig; cache: CacheStats }>('/api/storage'),
+
+  saveStorage: (config: StorageConfig, secrets?: Record<string, string | null>) =>
+    request<{ config: StorageConfig }>('/api/storage', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config, secrets }),
+    }),
+
+  testStorage: (id?: string) =>
+    request<{ statuses: StorageStatus[] }>('/api/storage/test', json({ id })),
+
+  syncStorage: () =>
+    request<{ files: number; dirs: number; skipped: number; truncated: boolean; syncedAt: string; library: Library }>(
+      '/api/storage/sync',
+      json({}),
+    ),
+
+  clearStorageCache: () =>
+    request<{ removed: number; cache: CacheStats }>('/api/storage/cache/clear', json({})),
+
+  backupToStorage: (targetId?: string) =>
+    request<{ file: string; target?: string; url?: string; size: number; entries: number }>(
+      '/api/storage/backup',
+      json({ targetId }),
     ),
 
   /* ---- 工程文件 .mnproj ---- */

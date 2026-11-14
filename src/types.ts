@@ -81,3 +81,37 @@ export type DirPreview = {
     chapters: { chapter: string; pages: number; langs: Partial<Record<Lang, number>> }[];
   }[];
 };
+
+/* ---- 存储提供者（本机 / 网络盘 / WebDAV） ---- */
+
+export type StorageKind = 'local' | 'network' | 'webdav';
+
+export type StorageTarget = {
+  id: string;
+  name: string;
+  kind: StorageKind;
+  path?: string;
+  url?: string;
+  username?: string;
+  hasSecret?: boolean;
+  enabled?: boolean;
+  readOnly?: boolean;
+};
+
+export type StorageConfig = {
+  version: 1;
+  rawSource?: StorageTarget;
+  backups: StorageTarget[];
+  cacheLimitMb: number;
+};
+
+export type StorageStatus = {
+  id: string;
+  kind: StorageKind;
+  online: boolean;
+  readOnly: boolean;
+  message: string;
+  checkedAt: string;
+};
+
+export type CacheStats = { bytes: number; files: number; limitMb: number };

@@ -239,8 +239,15 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
   }
 
   const scan = resolveFiles(rawRoot, rules, '', pinned);
+
+  // Remote libraries are mirrored as a placeholder tree (see storageProviders.ts).
+  // Scanning it with the same rules keeps 卷/话/页 grouping identical for local and
+  // remote pages; bytes are fetched lazily later, so this stays cheap.
+  const remoteRoot = path.join(dataRoot, 'cache', 'remote', 'tree');
+  const remoteScan = fs.existsSync(remoteRoot) ? resolveFiles(remoteRoot, rules, '', pinned) : null;
+
   const rowsByVolume = new Map<string, typeof scan.files>();
-  for (const row of scan.files) {
+  for (const row of [...scan.files, ...(remoteScan?.files ?? [])]) {
     const list = rowsByVolume.get(row.volumeId);
     if (list) list.push(row);
     else rowsByVolume.set(row.volumeId, [row]);
@@ -251,7 +258,11 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
   for (const [volumeId, rows] of rowsByVolume) {
     const volumeRoot = rows[0].volumeRoot;
     const volumePath = volumeRoot ? path.join(rawRoot, volumeRoot) : rawRoot;
-    const dirs = listDirs(volumePath);
+    // Remote-only volumes have no local folder; derive candidates from resolved rows
+    // so the language settings dialog still has something to offer.
+    const dirs = fs.existsSync(volumePath)
+      ? listDirs(volumePath)
+      : [...new Set(rows.map((r) => r.langDir.split('/')[0]).filter(Boolean))].sort(naturalCompare);
 
     const langDirs: Partial<Record<Lang, string>> = {};
     for (const lang of LANGUAGES) {
