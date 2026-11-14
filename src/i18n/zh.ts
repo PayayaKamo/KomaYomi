@@ -319,6 +319,8 @@ export const zh = {
   'compare.maskedBadge': '已遮蔽',
   'compare.clickReveal': '点击显示',
   'compare.resetCellLang': '复位该格该语言',
+  'compare.zoomIn': '放大',
+  'compare.zoomOut': '缩小',
   'compare.someMaskedTitle': '有些语言被遮蔽，点击显示',
   'compare.someMasked': '部分语言已遮蔽',
   'compare.overlayTag': '{langs} 叠加 · 正在对齐 {lang}',

@@ -36,6 +36,12 @@ export default function App() {
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
 
+  /** On phones/tablets the library is a drawer: picking a page should reveal the stage. */
+  const openSelection = useCallback((next: Selection) => {
+    setSel(next);
+    if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
+  }, []);
+
   // Keep the palette in sync with the stored preference and with OS changes when the
   // user picked "system". index.html already applied it before paint, so this only
   // matters for in-app switches and OS flips.
@@ -332,17 +338,26 @@ export default function App() {
           library={library}
           rootPath={rootPath}
           selection={sel}
-          onOpen={setSel}
+          onOpen={openSelection}
           onReload={loadLibrary}
           dirty={pageState.dirty}
         />
+        {sidebarOpen && (
+          <div
+            className="scrim"
+            onPointerDown={() => {
+              // The scrim only exists below 1024px; tapping it dismisses the drawer.
+              if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
+            }}
+          />
+        )}
 
         <main className="stage">
           {libError && <div className="banner error">{t('app.libraryError', { error: libError })}</div>}
           {pageState.error && <div className="banner error">{pageState.error}</div>}
 
           {!sel ? (
-            <Welcome library={library} onOpen={setSel} />
+            <Welcome library={library} onOpen={openSelection} />
           ) : pageState.loading ? (
             <div className="stage-loading">
               {t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}

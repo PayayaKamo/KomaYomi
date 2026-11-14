@@ -556,6 +556,13 @@ export function CompareTab({
     };
   };
 
+  /** Touch-friendly zoom without a wheel: two buttons on the pane badge. */
+  const nudgeZoom = (lang: Lang, panel: Panel, factor: number) => {
+    const current = offsetsOf(lang, panel);
+    const next = clamp(+(current.scale * factor).toFixed(3), 0.5, 3);
+    setOffset(lang, panel, { ...current, scale: next }, scopeOfMode);
+  };
+
   // 提前载入三种语言的页面尺寸，用于计算每个格子的真实长宽比
   const sizes: Record<Lang, { w: number; h: number } | null> = {
     ja: useImageSize(page.files.ja),
@@ -612,6 +619,22 @@ export function CompareTab({
         <span className="lang-tag">{LANG_SHORT[lang]}</span>
         <span className="pane-offset">
           Δ{Math.round(off.x * 100)},{Math.round(off.y * 100)} ×{off.scale.toFixed(2)}
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => nudgeZoom(lang, panel, 0.8)}
+            title={t('compare.zoomOut')}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => nudgeZoom(lang, panel, 1.25)}
+            title={t('compare.zoomIn')}
+          >
+            +
+          </button>
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}

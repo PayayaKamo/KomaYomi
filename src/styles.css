@@ -653,6 +653,7 @@ code {
 .compare-tab {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   outline: none;
@@ -677,6 +678,7 @@ code {
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
+  max-width: 100%;
 }
 
 .tb-group {
@@ -914,6 +916,7 @@ code {
   padding: 6px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
+  max-width: 100%;
 }
 
 .ann-tools {
@@ -1638,6 +1641,36 @@ code {
   padding: 0 2px;
 }
 
+/* Touch devices cannot hover, so keep the offset/zoom badge visible. */
+@media (pointer: coarse) {
+  .pane-offset {
+    opacity: 1;
+  }
+
+  .handle::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
+  }
+
+  .ann-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .ann-toolbar > * {
+    flex: 0 0 auto;
+  }
+
+  .ann-tools {
+    flex-wrap: nowrap;
+  }
+
+  .ann-hint {
+    display: none;
+  }
+}
+
 .pane-missing {
   font-size: 11px;
   color: var(--muted);
@@ -2261,6 +2294,11 @@ code {
   grid-template-columns: minmax(0, 1fr) 340px;
 }
 
+/* Only shown when the library becomes a drawer on narrow screens. */
+.scrim {
+  display: none;
+}
+
 /* 1280 及以下：批注栏改为抽屉，避免挤占漫画区 */
 @media (max-width: 1180px) {
   .app.show-notes .body-area,
@@ -2304,6 +2342,17 @@ code {
 
   .app.sidebar-closed .sidebar {
     display: none;
+  }
+
+  .scrim {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--topbar-h);
+    bottom: 0;
+    z-index: 34;
+    background: var(--overlay);
   }
 
   .lang-grid {
@@ -2447,6 +2496,15 @@ code {
 
   .stage-toolbar {
     gap: 6px 10px;
+  }
+
+  .ann-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .ann-toolbar > * {
+    flex: 0 0 auto;
   }
 
   .panel-card {

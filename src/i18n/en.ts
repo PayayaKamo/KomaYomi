@@ -333,6 +333,8 @@ export const en = {
   'compare.maskedBadge': 'masked',
   'compare.clickReveal': 'Click to reveal',
   'compare.resetCellLang': 'Reset this cell for this language',
+  'compare.zoomIn': 'Zoom in',
+  'compare.zoomOut': 'Zoom out',
   'compare.someMaskedTitle': 'Some languages are masked; click to reveal',
   'compare.someMasked': 'Some languages are masked',
   'compare.overlayTag': '{langs} overlay · aligning {lang}',

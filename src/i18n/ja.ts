@@ -327,6 +327,8 @@ export const ja = {
   'compare.maskedBadge': 'マスク中',
   'compare.clickReveal': 'クリックで表示',
   'compare.resetCellLang': 'このコマのこの言語をリセット',
+  'compare.zoomIn': '拡大',
+  'compare.zoomOut': '縮小',
   'compare.someMaskedTitle': '一部の言語がマスクされています。クリックで表示',
   'compare.someMasked': '一部の言語をマスク中',
   'compare.overlayTag': '{langs} 重ね表示 · {lang} を位置合わせ中',
