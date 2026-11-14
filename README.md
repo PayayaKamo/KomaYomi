@@ -9,11 +9,19 @@ without uploading your library anywhere.
 ## Features
 
 - **Parallel reading** — align pages across languages (`ja`, `zh`, `en`, …) and switch layouts on the fly.
-- **Panel & page annotation** — draw panel boxes, reuse layout templates, and edit page metadata.
-- **Notes that stay with the page** — scratchpad, translation notes, and context templates stored locally.
+- **Drag-to-draw panels** — drag a box over the page to create a panel with a live preview; boxes snap to
+  neighbours, `Shift` keeps them square, `Esc` cancels. Moving, resizing, undo and confirm-save behave as
+  before, and the same gesture works with a finger on touch screens.
+- **Annotation layer** — arrows, boxes, ellipses, highlights, freehand pen, text, badges and true mosaic,
+  either on the whole page or inside one panel. Toggle the layer per page and bake it into PNG exports
+  (or export a clean copy).
+- **Notes that stay with the page** — scratchpad, translation notes, and context templates stored locally;
+  paste, drop or pick screenshots into a note and they travel with HTML exports.
 - **Library management** — import volumes/chapters from a folder tree, detect missing languages, browse by volume.
 - **Import / export** — portable `.mnproj`, `.mntpl`, `.mnexp` and `.mnpage.json` formats with JSON Schemas.
 - **Desktop shell** — run as a local web app in your browser or inside the Electron window.
+- **Responsive UI & PWA** — English/Chinese/Japanese interface, light and dark palettes, drawer navigation
+  and touch zoom on phones and tablets; the web build is installable via its web manifest.
 - **Plugin hooks** — drop a small `.mjs` plugin to replace the built-in panel detector.
 
 ## Getting started
