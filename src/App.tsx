@@ -10,6 +10,8 @@ import { api } from './api';
 import { LANG_LABEL, READING_LABEL, LANGUAGES } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
 import { sortPanels } from './lib/geometry';
+import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
+import type { ThemeMode } from './theme';
 
 export default function App() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -26,6 +28,15 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
   const [helpOpen, setHelpOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
+
+  // Keep the palette in sync with the stored preference and with OS changes when the
+  // user picked "system". index.html already applied it before paint, so this only
+  // matters for in-app switches and OS flips.
+  useEffect(() => {
+    applyTheme(theme);
+    return watchSystemTheme(theme);
+  }, [theme]);
 
   const pageState = usePage(sel);
   const { doc, page } = pageState;
@@ -271,6 +282,21 @@ export default function App() {
               ))}
             </select>
           )}
+          <select
+            className="tb-select"
+            value={theme}
+            onChange={(e) => {
+              const next = e.target.value as ThemeMode;
+              setTheme(next);
+              saveThemeMode(next);
+            }}
+            title="界面主题（跟随系统 / 亮色 / 暗色）"
+            aria-label="界面主题"
+          >
+            <option value="system">跟随系统</option>
+            <option value="light">亮色</option>
+            <option value="dark">暗色</option>
+          </select>
           <button type="button" className={`btn ${notesOpen ? 'on' : ''}`} onClick={() => setNotesOpen((v) => !v)}>
             笔记
           </button>
