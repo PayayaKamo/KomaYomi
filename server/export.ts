@@ -15,8 +15,7 @@ import type {
   ReadingDirection,
 } from '../shared/types.ts';
 
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const num = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -73,7 +72,10 @@ function panelNotesGroup(doc: PageDoc, panelId: string, label: string, filterTag
 }
 
 function pageNotesGroup(doc: PageDoc, filterTags: string[]): string {
-  const html = notesHtml(doc.notes.filter((n) => n.scope === 'page'), filterTags);
+  const html = notesHtml(
+    doc.notes.filter((n) => n.scope === 'page'),
+    filterTags,
+  );
   return html ? `<div class="notes-group"><h3>整页批注</h3><ul>${html}</ul></div>` : '';
 }
 
@@ -161,13 +163,7 @@ header.doc{margin-bottom:20px}
 footer.doc{display:none}}
 `;
 
-export async function exportChapter({
-  rootDir,
-  dataRoot,
-  exportRoot,
-  config,
-  library,
-}: ExportArgs): Promise<{
+export async function exportChapter({ rootDir, dataRoot, exportRoot, config, library }: ExportArgs): Promise<{
   file: string;
   url: string;
   pages: number;

@@ -129,9 +129,7 @@ export default function App() {
   const primaryPanel = doc?.panels.find((p) => p.id === primaryId) ?? null;
   const primaryIndex = primaryPanel ? ordered.findIndex((p) => p.id === primaryPanel.id) : -1;
   const panelLabel =
-    primaryIndex >= 0
-      ? t('format.panel', { number: formatNumber(primaryIndex + 1) })
-      : t('notes.thisPanel');
+    primaryIndex >= 0 ? t('format.panel', { number: formatNumber(primaryIndex + 1) }) : t('notes.thisPanel');
 
   // 笔记总览跳转：先切页，等分格载入后再选中目标格，避免被“清理无效选择”逻辑吞掉
   useEffect(() => {
@@ -359,9 +357,7 @@ export default function App() {
           {!sel ? (
             <Welcome library={library} onOpen={openSelection} />
           ) : pageState.loading ? (
-            <div className="stage-loading">
-              {t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}
-            </div>
+            <div className="stage-loading">{t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}</div>
           ) : doc && page ? (
             view === 'panels' ? (
               <PanelsTab
@@ -433,9 +429,7 @@ export default function App() {
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
-      {sel && availableLangs.length === 0 && (
-        <div className="banner error floating">{t('app.noImages')}</div>
-      )}
+      {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 
       {availableLangs.length > 0 && availableLangs.length < 3 && sel && (
         <div className="banner info floating">

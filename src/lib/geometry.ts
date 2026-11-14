@@ -22,13 +22,7 @@ export function pointToNorm(el: HTMLElement, clientX: number, clientY: number): 
 
 export type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | 'move';
 
-export function applyDrag(
-  start: PanelRect,
-  handle: ResizeHandle,
-  dx: number,
-  dy: number,
-  minSize = 0.02,
-): PanelRect {
+export function applyDrag(start: PanelRect, handle: ResizeHandle, dx: number, dy: number, minSize = 0.02): PanelRect {
   let { x, y, w, h } = start;
   if (handle === 'move') {
     x = Math.min(1 - w, Math.max(0, x + dx));
@@ -91,9 +85,7 @@ export function sortPanels(panels: Panel[], dir: ReadingDirection): Panel[] {
     if (group) group.push(p);
     else rows.push([p]);
   }
-  return rows.flatMap((g) =>
-    [...g].sort((a, b) => (dir === 'rtl' ? b.rect.x - a.rect.x : a.rect.x - b.rect.x)),
-  );
+  return rows.flatMap((g) => [...g].sort((a, b) => (dir === 'rtl' ? b.rect.x - a.rect.x : a.rect.x - b.rect.x)));
 }
 
 export const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

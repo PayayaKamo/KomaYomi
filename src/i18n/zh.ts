@@ -80,8 +80,7 @@ export const zh = {
   'app.welcome.step2Title': '分格',
   'app.welcome.step2Desc': '首次打开自动检测格子，可拖拽边框、补框、删框、合并；结果自动保存到 data/pages。',
   'app.welcome.step3Title': '对照',
-  'app.welcome.step3Desc':
-    '1/2/3 语自由切换，同格并排；拖动各自画面即可对齐，偏移量随页面记住；支持半透明叠加。',
+  'app.welcome.step3Desc': '1/2/3 语自由切换，同格并排；拖动各自画面即可对齐，偏移量随页面记住；支持半透明叠加。',
   'app.welcome.step4Title': '批注与导出',
   'app.welcome.step4Desc': '页级/格级批注 + 标签，按标签筛选；一键导出左图右注的 HTML，版式可拖动调整。',
 
@@ -195,8 +194,7 @@ export const zh = {
   'notes.linkLabel': '↗ 链接',
   'notes.togglePreviewTitle': '切换编辑 / 预览',
   'notes.emptyPreview': '（空）',
-  'notes.markdownHint':
-    'Markdown：**加粗**、*斜体*、- 列表、> 引用、``` 代码块 ```、| 表格 |；Ctrl+Enter 保存',
+  'notes.markdownHint': 'Markdown：**加粗**、*斜体*、- 列表、> 引用、``` 代码块 ```、| 表格 |；Ctrl+Enter 保存',
   'notes.imageHint': '粘贴或拖入截图即可附加到这条笔记',
   'notes.addImages': '添加图片',
   'notes.removeImage': '移除图片',
@@ -287,10 +285,10 @@ export const zh = {
   'panels.defaultTemplateName': '{chapter} 第 {page} 页',
   'panels.gridLabel': '{rows}×{cols} 网格',
   'panels.replaceSame': '将用{label}替换当前 {count} 个格子。格子数量一致，格级批注会按阅读顺序迁移。继续？',
-  'panels.replaceDifferent': '将用{label}替换当前 {count} 个格子。格子数量不同，格级批注会被清除（整页批注保留）。继续？',
+  'panels.replaceDifferent':
+    '将用{label}替换当前 {count} 个格子。格子数量不同，格级批注会被清除（整页批注保留）。继续？',
   'panels.emptyPage': '这一页没有任何语言的图片',
-  'panels.stageHint':
-    '还没有格子。在页面空白处拖拽框出格子，或点「自动切格」自动识别；双击空白处可加一个默认格子。',
+  'panels.stageHint': '还没有格子。在页面空白处拖拽框出格子，或点「自动切格」自动识别；双击空白处可加一个默认格子。',
   'panels.statusTotalBefore': '共 ',
   'panels.statusTotalAfter': ' 格',
   'panels.statusSelected': ' · 已选 {count}',
@@ -426,8 +424,7 @@ export const zh = {
   'export.generating': '生成中…',
   'export.panelFirstHint': '先在左侧选择一个格子',
   'export.pngIncludeAnnotations': '包含标注（{count}）',
-  'export.pngHint':
-    '整页/单格用当前首选语言；拼图按所选语言并排（若选中格子则只拼该格）。PNG 直接插入 PPT / 文档。',
+  'export.pngHint': '整页/单格用当前首选语言；拼图按所选语言并排（若选中格子则只拼该格）。PNG 直接插入 PPT / 文档。',
   'export.scopeHeading': '导出范围',
   'export.onlyWithNotes': '只导出有笔记的页',
   'export.onlyWithNotesHint': '跳过没有笔记的页，适合整理学习笔记合集。',
@@ -466,8 +463,7 @@ export const zh = {
   'backup.backupFileLink': '备份文件',
   'backup.generatedAfter': '（{size}）',
   'backup.restoreSection': '从备份恢复',
-  'backup.restoreHint':
-    '恢复会覆盖 data/ 下同名文件，但不会删除备份中没有的页面；开始前会自动保存一份当前数据的快照。',
+  'backup.restoreHint': '恢复会覆盖 data/ 下同名文件，但不会删除备份中没有的页面；开始前会自动保存一份当前数据的快照。',
   'backup.chooseBackupFile': '选择备份文件…',
   'backup.confirmOverwrite': '确认覆盖？',
   'backup.containsSummary': '包含 {pages} 页数据、{notes} 条笔记、{templates} 个模板、{presets} 个预设',
@@ -479,8 +475,7 @@ export const zh = {
   'backup.restoredCount': '已恢复 {count} 个文件。',
   'backup.snapshotBeforeRestore': '恢复前快照：',
   'backup.remoteSection': '远端素材 / 网络存储',
-  'backup.remoteHint':
-    '页面按需读取并缓存在本地（缓存有上限），断网时已缓存的页仍可阅读；密码加密保存，不会写进备份。',
+  'backup.remoteHint': '页面按需读取并缓存在本地（缓存有上限），断网时已缓存的页仍可阅读；密码加密保存，不会写进备份。',
   'backup.loadingStorage': '读取存储设置…',
   'backup.testConnection': '测试连接',
   'backup.syncTree': '同步远端目录树',
@@ -556,8 +551,7 @@ export const zh = {
   /* ---- 交换文件 ---- */
   'exchange.title': '交换文件',
   'exchange.subtitle': '.mntpl 版式模板 · .mnexp 导出模板 · .mnpage.json 单页数据；导入前都会备份并校验',
-  'exchange.dirtyBanner':
-    '当前页面有未保存的修改。导出不会包含它们；单页导入会覆盖当前页。建议先按顶栏「保存」。',
+  'exchange.dirtyBanner': '当前页面有未保存的修改。导出不会包含它们；单页导入会覆盖当前页。建议先按顶栏「保存」。',
   'exchange.dirtyConfirm':
     '当前页面还有未保存的修改。\n\n{action}前建议先点保存，否则导出的不是最新内容，导入也可能覆盖未保存修改。\n\n仍要继续吗？',
   'exchange.exportLayoutAction': '导出 .mntpl',

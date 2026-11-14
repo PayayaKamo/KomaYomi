@@ -266,11 +266,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
       )}
       {dataOpen && <DataToolsDialog onClose={() => setDataOpen(false)} onRestored={(lib) => onReload(lib)} />}
       {projectOpen && (
-        <ProjectDialog
-          dirty={dirty}
-          onClose={() => setProjectOpen(false)}
-          onImported={(lib) => onReload(lib)}
-        />
+        <ProjectDialog dirty={dirty} onClose={() => setProjectOpen(false)} onImported={(lib) => onReload(lib)} />
       )}
       {exchangeOpen && (
         <ExchangeDialog
@@ -280,12 +276,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           onChanged={() => onReload()}
         />
       )}
-      {dirRulesOpen && (
-        <DirRulesDialog
-          onClose={() => setDirRulesOpen(false)}
-          onSaved={(lib) => onReload(lib)}
-        />
-      )}
+      {dirRulesOpen && <DirRulesDialog onClose={() => setDirRulesOpen(false)} onSaved={(lib) => onReload(lib)} />}
     </aside>
   );
 }

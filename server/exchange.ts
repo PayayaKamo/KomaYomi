@@ -2,12 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ExportConfig, ExportTemplate, LayoutScope, LayoutTemplate, PageDoc } from '../shared/types.ts';
-import {
-  CURRENT_SCHEMA_VERSION,
-  SCHEMA_URLS,
-  prepareExchange,
-  validateExchange,
-} from '../shared/format.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_URLS, prepareExchange, validateExchange } from '../shared/format.ts';
 import { readLayout, saveLayout } from './layouts.ts';
 import { listExportTemplates, saveExportTemplate } from './presets.ts';
 import { pageFilePath, readPageDoc, writePageDoc } from './storage.ts';
@@ -48,9 +43,8 @@ function writeBufferAtomic(file: string, data: Buffer) {
 function parsePayload(data: unknown, label: string): { value: unknown; text: string } {
   if (typeof data !== 'string' || !data.trim()) throw new Error(`没有收到${label}文件内容`);
   const trimmed = data.trim();
-  const text = trimmed.startsWith('{') || trimmed.startsWith('[')
-    ? trimmed
-    : Buffer.from(trimmed, 'base64').toString('utf8');
+  const text =
+    trimmed.startsWith('{') || trimmed.startsWith('[') ? trimmed : Buffer.from(trimmed, 'base64').toString('utf8');
   try {
     return { value: JSON.parse(text) as unknown, text };
   } catch {
@@ -73,12 +67,7 @@ function backupExchangeFile(dataRoot: string, extension: string, text: string): 
   return file;
 }
 
-function backupExistingPage(
-  dataRoot: string,
-  volume: string,
-  chapter: string,
-  pageIndex: number,
-): string | null {
+function backupExistingPage(dataRoot: string, volume: string, chapter: string, pageIndex: number): string | null {
   const source = pageFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(source)) return null;
   const dir = path.join(dataRoot, 'backups', 'pages');
@@ -208,10 +197,12 @@ export function exportExportTemplate(opts: {
   return { ...writeExportFile(opts.exportRoot, file, value), template: value };
 }
 
-export function importExportTemplate(opts: {
-  rootDir: string;
-  data: unknown;
-}): { template: ExportTemplate; migratedFrom?: number; backup: string; warnings: string[] } {
+export function importExportTemplate(opts: { rootDir: string; data: unknown }): {
+  template: ExportTemplate;
+  migratedFrom?: number;
+  backup: string;
+  warnings: string[];
+} {
   const parsed = parsePayload(opts.data, '导出模板');
   const source = Array.isArray(parsed.value)
     ? parsed.value.find(isRecord)

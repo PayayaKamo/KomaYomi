@@ -188,8 +188,5 @@ export function readingLabel(direction: string): string {
 
 export function useI18n() {
   const locale = useSyncExternalStore(subscribe, getLocaleSnapshot, getLocaleSnapshot);
-  return useMemo(
-    () => ({ t, locale, setLocale, formatDate, formatNumber, formatBytes }),
-    [locale],
-  );
+  return useMemo(() => ({ t, locale, setLocale, formatDate, formatNumber, formatBytes }), [locale]);
 }

@@ -12,7 +12,8 @@ export const DETECTOR_VERSION = 'xycut-1.3';
 export function sniffFormat(buf: Buffer): 'png' | 'jpeg' | 'webp' | 'unknown' {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
-  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP')
+    return 'webp';
   return 'unknown';
 }
 
@@ -390,7 +391,7 @@ export function sortReadingOrder<T>(
   const rects = list.map((item) => ({ item, rect: getRect(item) }));
   if (dir === 'ttb') {
     const medianW = median(rects.map((r) => r.rect.w)) || 0.2;
-    const rows: typeof rects[] = [];
+    const rows: (typeof rects)[] = [];
     for (const r of [...rects].sort((a, b) => b.rect.x + b.rect.w / 2 - (a.rect.x + a.rect.w / 2))) {
       const cx = r.rect.x + r.rect.w / 2;
       const group = rows.find((g) => Math.abs(g[0].rect.x + g[0].rect.w / 2 - cx) < medianW * 0.6);
@@ -400,7 +401,7 @@ export function sortReadingOrder<T>(
     return rows.flatMap((g) => g.sort((a, b) => a.rect.y - b.rect.y).map((r) => r.item));
   }
   const medianH = median(rects.map((r) => r.rect.h)) || 0.2;
-  const rows: typeof rects[] = [];
+  const rows: (typeof rects)[] = [];
   const ySorted = [...rects].sort((a, b) => a.rect.y + a.rect.h / 2 - (b.rect.y + b.rect.h / 2));
   for (const r of ySorted) {
     const cy = r.rect.y + r.rect.h / 2;
@@ -418,6 +419,3 @@ function median(nums: number[]): number {
   const s = [...nums].sort((a, b) => a - b);
   return s[Math.floor(s.length / 2)];
 }
-
-
-

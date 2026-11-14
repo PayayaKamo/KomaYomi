@@ -48,7 +48,15 @@ import {
   saveExportTemplate,
   savePanelTemplate,
 } from './presets.ts';
-import type { AlignPreset, ExportConfig, ExportTemplate, Library, PageDoc, PageEntry, PanelTemplate } from '../shared/types.ts';
+import type {
+  AlignPreset,
+  ExportConfig,
+  ExportTemplate,
+  Library,
+  PageDoc,
+  PageEntry,
+  PanelTemplate,
+} from '../shared/types.ts';
 
 const MIME: Record<string, string> = {
   png: 'image/png',
@@ -450,7 +458,8 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         let applied = 0;
         let droppedNotes = 0;
         for (const index of indices) {
-          const doc = readPageDoc(dataRoot, body.volume, body.chapter, index) ?? createEmptyDoc(body.volume, body.chapter, index);
+          const doc =
+            readPageDoc(dataRoot, body.volume, body.chapter, index) ?? createEmptyDoc(body.volume, body.chapter, index);
           const result = applyPanelTemplate(dataRoot, doc, body.templateId);
           if (result) {
             applied++;
@@ -503,7 +512,10 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           volume: body.volume,
           chapter: body.chapter,
           pageIndex: Number(body.pageIndex) || 0,
-          grid: captureLayout(doc.panels.map((p) => p.rect), Number(body.cols) || 2),
+          grid: captureLayout(
+            doc.panels.map((p) => p.rect),
+            Number(body.cols) || 2,
+          ),
         });
         sendJson(res, 200, { layout });
         return true;
@@ -837,9 +849,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const targets = [cfg.rawSource, ...cfg.backups].filter((t): t is StorageTarget => Boolean(t));
         const chosen = body.id ? targets.filter((t) => t.id === body.id) : targets;
         const statuses = await Promise.all(
-          chosen.map((t) =>
-            createProvider(dataRoot, t, { mustExist: cfg.rawSource?.id === t.id }).status(),
-          ),
+          chosen.map((t) => createProvider(dataRoot, t, { mustExist: cfg.rawSource?.id === t.id }).status()),
         );
         sendJson(res, 200, { statuses });
         return true;
@@ -882,7 +892,9 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const body = JSON.parse(await readBody(req)) as { targetId?: string };
         const { buffer, entries } = createBackupBuffer(dataRoot);
         const name = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
-        const target = body.targetId ? readStorageConfig(dataRoot).backups.find((t) => t.id === body.targetId) : undefined;
+        const target = body.targetId
+          ? readStorageConfig(dataRoot).backups.find((t) => t.id === body.targetId)
+          : undefined;
         if (target) {
           try {
             await createProvider(dataRoot, target).write(`backups/${name}`, buffer);

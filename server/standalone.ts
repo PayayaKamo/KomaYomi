@@ -46,13 +46,7 @@ if (!fs.existsSync(staticDir)) {
 const port = Number(process.env.PORT) || 3921;
 const host = process.env.HOST || '0.0.0.0';
 
-const { server } = await startMangaServer(
-  rootDir,
-  port,
-  staticDir,
-  { rawDir, dataDir, exportDir },
-  host,
-);
+const { server } = await startMangaServer(rootDir, port, staticDir, { rawDir, dataDir, exportDir }, host);
 
 log('info', `listening on http://${host}:${port}`);
 log('info', `raw=${rawDir}`);

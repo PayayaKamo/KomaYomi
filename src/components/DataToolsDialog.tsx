@@ -71,14 +71,17 @@ export function DataToolsDialog({ onClose, onRestored }: Props) {
     try {
       const target: StorageTarget = {
         ...draft.target,
-        name: draft.target.name.trim() || t(draft.role === 'raw' ? 'backup.defaultRawName' : 'backup.defaultBackupName'),
+        name:
+          draft.target.name.trim() || t(draft.role === 'raw' ? 'backup.defaultRawName' : 'backup.defaultBackupName'),
       };
       const config: StorageConfig = { ...storage.config, cacheLimitMb: cacheLimit };
       if (draft.role === 'raw') {
         config.rawSource = target;
       } else {
         const exists = config.backups.some((t) => t.id === target.id);
-        config.backups = exists ? config.backups.map((t) => (t.id === target.id ? target : t)) : [...config.backups, target];
+        config.backups = exists
+          ? config.backups.map((t) => (t.id === target.id ? target : t))
+          : [...config.backups, target];
       }
       const res = await api.saveStorage(config, draftSecret ? { [target.id]: draftSecret } : undefined);
       setStorage({ config: res.config, cache: storage.cache });
@@ -408,7 +411,12 @@ export function DataToolsDialog({ onClose, onRestored }: Props) {
                         <button type="button" className="btn" disabled={busy} onClick={() => void backupTo(target.id)}>
                           {t('backup.backupToTarget')}
                         </button>
-                        <button type="button" className="btn" disabled={busy} onClick={() => beginEdit('backup', target)}>
+                        <button
+                          type="button"
+                          className="btn"
+                          disabled={busy}
+                          onClick={() => beginEdit('backup', target)}
+                        >
                           {t('common.edit')}
                         </button>
                       </div>

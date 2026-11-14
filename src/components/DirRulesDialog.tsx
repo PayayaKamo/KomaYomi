@@ -163,10 +163,19 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
             {parsed.error && <div className="banner error">{parsed.error}</div>}
             {warning && <div className="banner warn">{warning}</div>}
             <div className="row-inline dirrules-actions">
-              <button type="button" className="btn tiny" onClick={() => setText(pretty([...(parsed.rules ?? []), exampleRule()]))}>
+              <button
+                type="button"
+                className="btn tiny"
+                onClick={() => setText(pretty([...(parsed.rules ?? []), exampleRule()]))}
+              >
                 {t('dirRules.insertExample')}
               </button>
-              <button type="button" className="btn tiny" onClick={() => setText(pretty(defaults))} disabled={!defaults.length}>
+              <button
+                type="button"
+                className="btn tiny"
+                onClick={() => setText(pretty(defaults))}
+                disabled={!defaults.length}
+              >
                 {t('dirRules.fillDefaults')}
               </button>
               <button type="button" className="btn tiny" onClick={() => void reset()} disabled={busy || !customized}>
@@ -220,9 +229,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
                           <span>{chapter.chapter}</span>
                           <span className="muted tiny">
                             {t('dirRules.chapterPages', { count: formatNumber(chapter.pages) })} ·{' '}
-                            {volume.languages
-                              .map((l) => `${LANG_SHORT[l]} ${chapter.langs[l] ?? 0}`)
-                              .join(' / ')}
+                            {volume.languages.map((l) => `${LANG_SHORT[l]} ${chapter.langs[l] ?? 0}`).join(' / ')}
                           </span>
                         </div>
                       ))}
@@ -248,9 +255,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
         </div>
 
         <footer className="modal-foot">
-          <span className="muted tiny">
-            {dirty ? t('dirRules.dirty') : t('dirRules.inSync')}
-          </span>
+          <span className="muted tiny">{dirty ? t('dirRules.dirty') : t('dirRules.inSync')}</span>
           <span className="spacer" />
           {error && <span className="dirrules-error">{error}</span>}
           {message && <span className="muted tiny">{message}</span>}

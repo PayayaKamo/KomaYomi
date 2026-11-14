@@ -16,8 +16,7 @@ import type {
 import { sortReadingOrder } from './detect.ts';
 import { writePageDoc } from './storage.ts';
 
-const uid = (prefix: string) =>
-  `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 const clamp01 = (n: unknown) => Math.min(1, Math.max(0, Number(n) || 0));
 

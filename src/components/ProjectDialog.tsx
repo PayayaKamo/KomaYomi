@@ -140,9 +140,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
           </button>
         </header>
         <div className="modal-body project-body">
-          {dirty && (
-            <div className="banner warn">{t('project.dirtyBanner')}</div>
-          )}
+          {dirty && <div className="banner warn">{t('project.dirtyBanner')}</div>}
 
           <section className="project-section">
             <h3>{t('project.saveSection')}</h3>
@@ -168,11 +166,19 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
             </div>
             <label className="field">
               <span>{t('project.nameLabel')}</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('project.namePlaceholder')} />
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('project.namePlaceholder')}
+              />
             </label>
             <label className="field">
               <span>{t('project.notesLabel')}</span>
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('project.notesPlaceholder')} />
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={t('project.notesPlaceholder')}
+              />
             </label>
             <button type="button" className="btn primary" disabled={busy} onClick={() => void runExport()}>
               {busy ? t('project.processing') : t('project.generateProject')}

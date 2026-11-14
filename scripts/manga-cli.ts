@@ -186,7 +186,8 @@ async function detectPage(
         warnings: plugin.warnings,
       };
     }
-    if (plugin.plugin) return { rects: [], source: 'auto', label: 'auto', warnings: [`插件 ${plugin.plugin} 失败：${plugin.error}`] };
+    if (plugin.plugin)
+      return { rects: [], source: 'auto', label: 'auto', warnings: [`插件 ${plugin.plugin} 失败：${plugin.error}`] };
   }
   const result = detectPanels(buf, file);
   return { rects: result.panels, source: 'auto', label: 'auto', warnings: [] };
@@ -267,7 +268,9 @@ function cmdLayouts() {
   const list = listLayouts(dataRoot);
   if (!list.length) return console.log('还没有版式模板（data/layouts/*.json）');
   for (const l of list) {
-    console.log(`${l.id}\t${l.name}\t${l.scope}\t${l.volume}${l.chapter ? '/' + l.chapter : ''}\t${l.grid.rows.length} 行 × ${l.grid.cols} 列`);
+    console.log(
+      `${l.id}\t${l.name}\t${l.scope}\t${l.volume}${l.chapter ? '/' + l.chapter : ''}\t${l.grid.rows.length} 行 × ${l.grid.cols} 列`,
+    );
   }
 }
 

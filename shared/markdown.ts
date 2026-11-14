@@ -12,11 +12,7 @@
  */
 
 export function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function inline(input: string): string {
@@ -85,9 +81,7 @@ function parseTable(lines: string[], start: number): { html: string; next: numbe
     i++;
   }
 
-  const th = head
-    .map((cell, idx) => `<th style="text-align:${aligns[idx] ?? 'left'}">${inline(cell)}</th>`)
-    .join('');
+  const th = head.map((cell, idx) => `<th style="text-align:${aligns[idx] ?? 'left'}">${inline(cell)}</th>`).join('');
   const body = rows
     .map(
       (row) =>

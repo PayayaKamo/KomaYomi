@@ -27,8 +27,7 @@ export const ja = {
   'app.libraryError': 'ライブラリの読み込みに失敗しました：{error}',
   'app.loadingPage': '{page}ページを読み込み中…',
   'app.noContent': '表示できる内容がありません',
-  'app.noImages':
-    'このページにはどの言語の画像もないため、編集できません。raw ディレクトリに素材を追加してください。',
+  'app.noImages': 'このページにはどの言語の画像もないため、編集できません。raw ディレクトリに素材を追加してください。',
   'app.missingLangs': '{langs} はこのページにありません。比較表示ではプレースホルダーを表示します。',
   'app.languageAria': '表示言語',
   'app.languageTitle': '表示言語（English / 中文 / 日本語）',
@@ -303,7 +302,8 @@ export const ja = {
   'panels.statusTotalAfter': 'コマ',
   'panels.statusSelected': ' · {count} 個選択',
   'panels.statusMarquee': '空白をドラッグしてコマを作成 · Shift で正方形 · Alt で吸着解除 · Esc でキャンセル',
-  'panels.statusEdit': '枠をドラッグで移動、角をドラッグでサイズ変更。Ctrl/Shift クリックで複数選択して結合。Delete で削除',
+  'panels.statusEdit':
+    '枠をドラッグで移動、角をドラッグでサイズ変更。Ctrl/Shift クリックで複数選択して結合。Delete で削除',
 
   /* ---- 対照読書 ---- */
   'compare.language': '言語',
@@ -384,7 +384,8 @@ export const ja = {
   'align.mode.panel': 'コマごとのオフセット',
   'align.mode.anchors': 'アンカー合わせ',
   'align.mode.grid': 'グリッド吸着',
-  'align.hint.page': 'どのコマをドラッグしてもページ全体が平行移動します。同じ版のスキャンが全体的にずれている場合に適しています',
+  'align.hint.page':
+    'どのコマをドラッグしてもページ全体が平行移動します。同じ版のスキャンが全体的にずれている場合に適しています',
   'align.hint.panel': 'コマごとに個別に位置合わせします。電子版と紙版でレイアウトが違う場合に適しています',
   'align.hint.anchors': '基準言語で特徴点をクリックし、対象言語で同じ位置をクリックするとオフセットを自動計算します',
   'align.hint.grid': 'ドラッグ時にグリッドのステップに吸着します。数値を揃えたいときに便利です',
@@ -620,12 +621,14 @@ export const ja = {
   'exchange.exportedLayout':
     '{file} を書き出しました（巻 / 話 / ページの紐付けを外したので、他の漫画にもインポートできます）。',
   'exchange.selectMntplFirst': '先に .mntpl ファイルを選択してください',
-  'exchange.layoutImported': 'レイアウトテンプレート「{name}」をインポートしました{applied}。元ファイルはバックアップ済みです。',
+  'exchange.layoutImported':
+    'レイアウトテンプレート「{name}」をインポートしました{applied}。元ファイルはバックアップ済みです。',
   'exchange.layoutImportedApplied': '、{count} ページに適用',
   'exchange.selectExportTplFirst': '先に書き出す書き出しテンプレートを選択してください',
   'exchange.exportedFile': '{file} を書き出しました。',
   'exchange.selectMnexpFirst': '先に .mnexp ファイルを選択してください',
-  'exchange.exportTplImported': '書き出しテンプレート「{name}」をインポートしました。元ファイルはバックアップ済みです。',
+  'exchange.exportTplImported':
+    '書き出しテンプレート「{name}」をインポートしました。元ファイルはバックアップ済みです。',
   'exchange.exportPageAction': '現在のページを書き出す',
   'exchange.selectPageToOverwrite': '先に左側で上書きするページを選択してください',
   'exchange.selectMnpageFirst': '先に .mnpage.json ファイルを選択してください',

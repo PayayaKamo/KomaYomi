@@ -137,8 +137,7 @@ export const api = {
   previewLibrary: (input: { dir?: string; rules?: DirRule[] }) =>
     request<DirPreview>('/api/library/preview', json(input)),
 
-  fetchLinkTitle: (url: string) =>
-    request<{ title: string; warning?: string }>('/api/link-title', json({ url })),
+  fetchLinkTitle: (url: string) => request<{ title: string; warning?: string }>('/api/link-title', json({ url })),
 
   /* ---- 备份 / 恢复 ---- */
   createBackup: () =>
@@ -172,8 +171,7 @@ export const api = {
       body: JSON.stringify({ config, secrets }),
     }),
 
-  testStorage: (id?: string) =>
-    request<{ statuses: StorageStatus[] }>('/api/storage/test', json({ id })),
+  testStorage: (id?: string) => request<{ statuses: StorageStatus[] }>('/api/storage/test', json({ id })),
 
   syncStorage: () =>
     request<{ files: number; dirs: number; skipped: number; truncated: boolean; syncedAt: string; library: Library }>(
@@ -181,8 +179,7 @@ export const api = {
       json({}),
     ),
 
-  clearStorageCache: () =>
-    request<{ removed: number; cache: CacheStats }>('/api/storage/cache/clear', json({})),
+  clearStorageCache: () => request<{ removed: number; cache: CacheStats }>('/api/storage/cache/clear', json({})),
 
   backupToStorage: (targetId?: string) =>
     request<{ file: string; target?: string; url?: string; size: number; entries: number }>(
@@ -233,7 +230,15 @@ export const api = {
 
   tags: () => request<{ tags: { tag: string; count: number }[] }>('/api/tags'),
 
-  notes: (filter: { q?: string; tag?: string; source?: string; volume?: string; chapter?: string; pageIndex?: number; limit?: number }) => {
+  notes: (filter: {
+    q?: string;
+    tag?: string;
+    source?: string;
+    volume?: string;
+    chapter?: string;
+    pageIndex?: number;
+    limit?: number;
+  }) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filter)) {
       if (value !== undefined && value !== '') params.set(key, String(value));
@@ -286,8 +291,7 @@ export const api = {
   /* ---- 声明式版式模板 ---- */
   layouts: () => request<{ layouts: LayoutTemplate[] }>('/api/layouts'),
 
-  saveLayout: (layout: Partial<LayoutTemplate>) =>
-    request<{ layout: LayoutTemplate }>('/api/layouts', json(layout)),
+  saveLayout: (layout: Partial<LayoutTemplate>) => request<{ layout: LayoutTemplate }>('/api/layouts', json(layout)),
 
   deleteLayout: (id: string) =>
     request<{ removed: boolean }>(`/api/layouts?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
@@ -360,8 +364,7 @@ export const api = {
       warnings: string[];
     }>('/api/exchange/page/import', json(input)),
 
-  plugins: () =>
-    request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
+  plugins: () => request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
 
   /* ---- 导出模板 ---- */
   exportTemplates: () => request<{ templates: ExportTemplate[] }>('/api/export-templates'),
@@ -377,4 +380,3 @@ export const api = {
 export function thumbUrl(rawUrl: string, width = 200): string {
   return `/thumb?src=${encodeURIComponent(rawUrl)}&w=${width}`;
 }
-

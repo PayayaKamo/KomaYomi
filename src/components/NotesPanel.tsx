@@ -135,10 +135,7 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
       wrap('*', t('notes.italicText'));
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      apply(
-        (sel) => `[${sel || t('notes.linkText')}](https://)`,
-        `[${t('notes.linkText')}](https://)`,
-      );
+      apply((sel) => `[${sel || t('notes.linkText')}](https://)`, `[${t('notes.linkText')}](https://)`);
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       onSubmit?.();
@@ -170,10 +167,7 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
           type="button"
           title={t('notes.linkTitle')}
           onClick={() =>
-            apply(
-              (sel) => `[${sel || t('notes.linkText')}](https://)`,
-              `[${t('notes.linkText')}](https://)`,
-            )
+            apply((sel) => `[${sel || t('notes.linkText')}](https://)`, `[${t('notes.linkText')}](https://)`)
           }
         >
           {t('notes.linkLabel')}
@@ -382,7 +376,9 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const panelNotes = panel ? notes.filter((n) => n.scope === 'panel' && n.panelId === panel.id) : [];
   const pageNotes = notes.filter((n) => n.scope === 'page');
   const shown = (list: Note[]) =>
-    list.filter((n) => (!filterTag || n.tags.includes(filterTag)) && (!filterSource || sourceDomain(n.source) === filterSource));
+    list.filter(
+      (n) => (!filterTag || n.tags.includes(filterTag)) && (!filterSource || sourceDomain(n.source) === filterSource),
+    );
 
   const addTag = (tag: string) => {
     const next = tag.trim();
@@ -431,7 +427,14 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     if (!doc) return;
     if (!text.trim() && !images.length) return;
     if (scope === 'panel' && !panel) return;
-    const note = newNote(scope, scope === 'panel' && panel ? panel.id : null, text.trim(), tags, currentSource(), images);
+    const note = newNote(
+      scope,
+      scope === 'panel' && panel ? panel.id : null,
+      text.trim(),
+      tags,
+      currentSource(),
+      images,
+    );
     mutate((d) => ({ ...d, notes: [...d.notes, note] }));
     setText('');
     setImages([]);
@@ -453,7 +456,12 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
       ...d,
       notes: d.notes.map((n) =>
         n.id === editing.id
-          ? { ...n, text: editing.text, images: editing.images.length ? editing.images : undefined, updatedAt: new Date().toISOString() }
+          ? {
+              ...n,
+              text: editing.text,
+              images: editing.images.length ? editing.images : undefined,
+              updatedAt: new Date().toISOString(),
+            }
           : n,
       ),
     }));
@@ -467,7 +475,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     try {
       const res = await api.fetchLinkTitle(srcUrl.trim());
       if (res.title) setSrcTitle(res.title);
-      setTitleMsg(res.title ? t('notes.titleFetched') : res.warning ?? t('notes.titleNotFound'));
+      setTitleMsg(res.title ? t('notes.titleFetched') : (res.warning ?? t('notes.titleNotFound')));
     } catch (err) {
       setTitleMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -641,7 +649,11 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   /* ---- 随手记面板（有页/无页都可用） ---- */
   const scratchPanel = (
     <div className="scratch">
-      <button type="button" className={`scratch-toggle ${scratchOpen ? 'on' : ''}`} onClick={() => setScratchOpen((v) => !v)}>
+      <button
+        type="button"
+        className={`scratch-toggle ${scratchOpen ? 'on' : ''}`}
+        onClick={() => setScratchOpen((v) => !v)}
+      >
         {t('notes.scratchTitle')} <em>{formatNumber(scratch.length)}</em>
       </button>
       {scratchOpen && (
@@ -669,10 +681,19 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 <button type="button" className="btn tiny" onClick={() => placeScratch(item, 'page')} disabled={!doc}>
                   {t('notes.scratchToPage')}
                 </button>
-                <button type="button" className="btn tiny" onClick={() => placeScratch(item, 'panel')} disabled={!panel}>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => placeScratch(item, 'panel')}
+                  disabled={!panel}
+                >
                   {t('notes.scratchToPanel')}
                 </button>
-                <button type="button" className="btn tiny" onClick={() => setScratch(scratch.filter((s) => s.id !== item.id))}>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => setScratch(scratch.filter((s) => s.id !== item.id))}
+                >
                   ×
                 </button>
               </div>
@@ -692,7 +713,11 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     const rows: FlatRow[] = [];
     for (const note of result.notes) {
       const key =
-        groupBy === 'chapter' ? `${note.volume}/${note.chapter}` : groupBy === 'tag' ? note.tags[0] ?? '' : note.domain || '';
+        groupBy === 'chapter'
+          ? `${note.volume}/${note.chapter}`
+          : groupBy === 'tag'
+            ? (note.tags[0] ?? '')
+            : note.domain || '';
       let header = headers.get(key);
       if (!header) {
         header =
@@ -733,7 +758,17 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         </div>
         <div className="notes-empty">{t('notes.emptyNoDoc')}</div>
         {scratchPanel}
-        {contextNotes && <ContextDialog notes={contextNotes} build={buildContext} onClose={() => setContextNotes(null)} template={template} setTemplate={setTemplate} copied={copied} onCopy={copyContext} />}
+        {contextNotes && (
+          <ContextDialog
+            notes={contextNotes}
+            build={buildContext}
+            onClose={() => setContextNotes(null)}
+            template={template}
+            setTemplate={setTemplate}
+            copied={copied}
+            onCopy={copyContext}
+          />
+        )}
       </aside>
     );
   }
@@ -807,11 +842,13 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
               />
               <select value={filterTag ?? ''} onChange={(e) => setFilterTag(e.target.value || null)}>
                 <option value="">{t('notes.allTags')}</option>
-                {(result?.tags.length ? result.tags.map((tag) => tag.tag) : allTags.map((tag) => tag.tag)).map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
+                {(result?.tags.length ? result.tags.map((tag) => tag.tag) : allTags.map((tag) => tag.tag)).map(
+                  (tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ),
+                )}
               </select>
               <select value={filterSource ?? ''} onChange={(e) => setFilterSource(e.target.value || null)}>
                 <option value="">{t('notes.allSources')}</option>
@@ -821,7 +858,12 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                   </option>
                 ))}
               </select>
-              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value === 'tag' ? 'tag' : e.target.value === 'source' ? 'source' : 'chapter')}>
+              <select
+                value={groupBy}
+                onChange={(e) =>
+                  setGroupBy(e.target.value === 'tag' ? 'tag' : e.target.value === 'source' ? 'source' : 'chapter')
+                }
+              >
                 <option value="chapter">{t('notes.groupByChapter')}</option>
                 <option value="tag">{t('notes.groupByTag')}</option>
                 <option value="source">{t('notes.groupBySource')}</option>
@@ -865,11 +907,17 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 }
                 const n = row.note;
                 return (
-                  <div className="note-hit" key={`${n.volume}/${n.chapter}/${n.pageIndex}/${n.id}`} style={{ top: index * ROW_H }}>
+                  <div
+                    className="note-hit"
+                    key={`${n.volume}/${n.chapter}/${n.pageIndex}/${n.id}`}
+                    style={{ top: index * ROW_H }}
+                  >
                     <button
                       type="button"
                       className="note-hit-jump"
-                      onClick={() => onJump({ volume: n.volume, chapter: n.chapter, pageIndex: n.pageIndex }, n.panelId)}
+                      onClick={() =>
+                        onJump({ volume: n.volume, chapter: n.chapter, pageIndex: n.pageIndex }, n.panelId)
+                      }
                       title={t('notes.jumpTitle')}
                     >
                       {n.panelNo
@@ -926,7 +974,12 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 {panel ? panelLabel : t('notes.thisPanel')}
               </button>
               <span className="spacer" />
-              <button type="button" className="btn tiny" onClick={() => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] })} disabled={!notes.length}>
+              <button
+                type="button"
+                className="btn tiny"
+                onClick={() => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] })}
+                disabled={!notes.length}
+              >
                 {t('notes.copyPageContext')}
               </button>
             </div>
@@ -934,9 +987,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
               value={text}
               onChange={setText}
               onSubmit={submit}
-              placeholder={
-                scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')
-              }
+              placeholder={scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')}
             />
             {images.length > 0 && imageStrip(images, (id) => setImages((prev) => prev.filter((i) => i.id !== id)))}
             <div className="note-image-row">
@@ -957,7 +1008,11 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
               </label>
             </div>
             <div className="source-editor">
-              <button type="button" className={`link-btn ${sourceOpen ? 'on' : ''}`} onClick={() => setSourceOpen((v) => !v)}>
+              <button
+                type="button"
+                className={`link-btn ${sourceOpen ? 'on' : ''}`}
+                onClick={() => setSourceOpen((v) => !v)}
+              >
                 {sourceOpen
                   ? t('notes.hideSource')
                   : currentSource()
@@ -967,13 +1022,30 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
               {sourceOpen && (
                 <>
                   <div className="row-inline">
-                    <input value={srcUrl} placeholder={t('notes.urlPlaceholder')} onChange={(e) => setSrcUrl(e.target.value)} />
-                    <button type="button" className="btn tiny" disabled={!srcUrl.trim() || titleBusy} onClick={() => void grabTitle()}>
+                    <input
+                      value={srcUrl}
+                      placeholder={t('notes.urlPlaceholder')}
+                      onChange={(e) => setSrcUrl(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      disabled={!srcUrl.trim() || titleBusy}
+                      onClick={() => void grabTitle()}
+                    >
                       {titleBusy ? t('notes.grabbingTitle') : t('notes.grabTitle')}
                     </button>
                   </div>
-                  <input value={srcTitle} placeholder={t('notes.titlePlaceholder')} onChange={(e) => setSrcTitle(e.target.value)} />
-                  <input value={srcText} placeholder={t('notes.sourceTextPlaceholder')} onChange={(e) => setSrcText(e.target.value)} />
+                  <input
+                    value={srcTitle}
+                    placeholder={t('notes.titlePlaceholder')}
+                    onChange={(e) => setSrcTitle(e.target.value)}
+                  />
+                  <input
+                    value={srcText}
+                    placeholder={t('notes.sourceTextPlaceholder')}
+                    onChange={(e) => setSrcText(e.target.value)}
+                  />
                   {titleMsg && <span className="muted tiny">{titleMsg}</span>}
                 </>
               )}
@@ -1050,7 +1122,11 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                   {panelLabel}
                   <span>{formatNumber(panelNotes.length)}</span>
                 </h4>
-                {shown(panelNotes).length ? shown(panelNotes).map(renderNote) : <div className="notes-hint">{t('notes.noPanelNotes')}</div>}
+                {shown(panelNotes).length ? (
+                  shown(panelNotes).map(renderNote)
+                ) : (
+                  <div className="notes-hint">{t('notes.noPanelNotes')}</div>
+                )}
               </section>
             )}
             <section className="notes-section">
@@ -1058,7 +1134,11 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 {t('notes.pageNotes')}
                 <span>{formatNumber(pageNotes.length)}</span>
               </h4>
-              {shown(pageNotes).length ? shown(pageNotes).map(renderNote) : <div className="notes-hint">{t('notes.noPageNotes')}</div>}
+              {shown(pageNotes).length ? (
+                shown(pageNotes).map(renderNote)
+              ) : (
+                <div className="notes-hint">{t('notes.noPageNotes')}</div>
+              )}
             </section>
           </div>
         </>

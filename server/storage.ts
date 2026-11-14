@@ -179,12 +179,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
   };
 }
 
-export function readPageDoc(
-  dataRoot: string,
-  volume: string,
-  chapter: string,
-  pageIndex: number,
-): PageDoc | null {
+export function readPageDoc(dataRoot: string, volume: string, chapter: string, pageIndex: number): PageDoc | null {
   const file = pageFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(file)) return null;
   try {
@@ -250,7 +245,8 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
 
   normalized.editCount = (prev?.editCount ?? 0) + 1;
   normalized.lastEditedAt = now;
-  normalized.lastEditSummary = meta?.summary ?? (meta?.detect ? `按 ${meta.detect.version} 切格` : summarize(prev, normalized));
+  normalized.lastEditSummary =
+    meta?.summary ?? (meta?.detect ? `按 ${meta.detect.version} 切格` : summarize(prev, normalized));
   normalized.updatedAt = now;
 
   const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);

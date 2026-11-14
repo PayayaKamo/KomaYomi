@@ -127,10 +127,7 @@ export function PanelsTab({
   onRedo,
 }: Props) {
   const { t } = useI18n();
-  const availableLangs = useMemo(
-    () => LANGUAGES.filter((l) => Boolean(page.files[l])),
-    [page],
-  );
+  const availableLangs = useMemo(() => LANGUAGES.filter((l) => Boolean(page.files[l])), [page]);
   const [refLang, setRefLang] = useState<Lang>(availableLangs[0] ?? 'ja');
   const [zoom, setZoom] = useState(1);
   const [showNumbers, setShowNumbers] = useState(true);
@@ -289,7 +286,14 @@ export function PanelsTab({
     } else if (!selected.includes(panel.id)) {
       setSelected([panel.id]);
     }
-    dragRef.current = { id: panel.id, handle, start: panel.rect, sx: e.clientX, sy: e.clientY, rect: el.getBoundingClientRect() };
+    dragRef.current = {
+      id: panel.id,
+      handle,
+      start: panel.rect,
+      sx: e.clientX,
+      sy: e.clientY,
+      rect: el.getBoundingClientRect(),
+    };
     setDragging(true);
   };
 
@@ -321,7 +325,12 @@ export function PanelsTab({
 
   const addPanel = (center?: { x: number; y: number }) => {
     const rect: PanelRect = center
-      ? { x: Math.max(0, Math.min(0.75, center.x - 0.125)), y: Math.max(0, Math.min(0.8, center.y - 0.075)), w: 0.25, h: 0.15 }
+      ? {
+          x: Math.max(0, Math.min(0.75, center.x - 0.125)),
+          y: Math.max(0, Math.min(0.8, center.y - 0.075)),
+          w: 0.25,
+          h: 0.15,
+        }
       : { x: 0.3, y: 0.4, w: 0.4, h: 0.2 };
     const id = uid('p');
     mutate((d) => ({ ...d, panels: [...d.panels, { id, rect, source: 'manual' }] }));
@@ -781,7 +790,12 @@ export function PanelsTab({
               value={tplName}
               onChange={(e) => setTplName(e.target.value)}
             />
-            <button type="button" className="btn tiny" onClick={() => void saveTemplate()} disabled={tplBusy || !doc.panels.length}>
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => void saveTemplate()}
+              disabled={tplBusy || !doc.panels.length}
+            >
               {t('panels.saveAsTemplate')}
             </button>
           </div>
@@ -794,13 +808,28 @@ export function PanelsTab({
                 </option>
               ))}
             </select>
-            <button type="button" className="btn tiny" onClick={() => void applyTemplate('page')} disabled={tplBusy || !selectedTpl}>
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => void applyTemplate('page')}
+              disabled={tplBusy || !selectedTpl}
+            >
               {t('panels.applyPage')}
             </button>
-            <button type="button" className="btn tiny" onClick={() => void applyTemplate('chapter')} disabled={tplBusy || !selectedTpl}>
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => void applyTemplate('chapter')}
+              disabled={tplBusy || !selectedTpl}
+            >
               {t('panels.applyChapter')}
             </button>
-            <button type="button" className="btn tiny danger" onClick={() => void deleteTemplate()} disabled={tplBusy || !selectedTpl}>
+            <button
+              type="button"
+              className="btn tiny danger"
+              onClick={() => void deleteTemplate()}
+              disabled={tplBusy || !selectedTpl}
+            >
               {t('panels.deleteTemplate')}
             </button>
             <span className="muted tiny">
@@ -947,11 +976,7 @@ export function PanelsTab({
                       {showNumbers && <em className="pnum">{numberMap.get(panel.id)}</em>}
                       {isSel &&
                         HANDLES.map((h) => (
-                          <span
-                            key={h}
-                            className={`handle h-${h}`}
-                            onPointerDown={(e) => startDrag(e, panel, h)}
-                          />
+                          <span key={h} className={`handle h-${h}`} onPointerDown={(e) => startDrag(e, panel, h)} />
                         ))}
                     </div>
                   );
@@ -975,9 +1000,7 @@ export function PanelsTab({
                 </div>
               )}
             </div>
-            {doc.panels.length === 0 && (
-              <div className="stage-hint">{t('panels.stageHint')}</div>
-            )}
+            {doc.panels.length === 0 && <div className="stage-hint">{t('panels.stageHint')}</div>}
           </div>
         )}
       </div>

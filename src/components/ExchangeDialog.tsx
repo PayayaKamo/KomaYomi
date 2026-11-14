@@ -90,11 +90,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
     }
   };
 
-  const pickFile = async (
-    file: File | undefined,
-    label: string,
-    set: (value: PendingFile | null) => void,
-  ) => {
+  const pickFile = async (file: File | undefined, label: string, set: (value: PendingFile | null) => void) => {
     if (!file) return;
     setBusy(true);
     setError(null);
@@ -144,9 +140,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
       if (applied) onChanged();
       return t('exchange.layoutImported', {
         name: res.layout.name,
-        applied: applyAfter
-          ? t('exchange.layoutImportedApplied', { count: formatNumber(applied) })
-          : '',
+        applied: applyAfter ? t('exchange.layoutImportedApplied', { count: formatNumber(applied) }) : '',
       });
     });
 
@@ -203,9 +197,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
       onChanged();
       return t('exchange.pageImported', {
         migrated:
-          res.migratedFrom !== undefined
-            ? t('exchange.pageImportedMigrated', { v: String(res.migratedFrom) })
-            : '',
+          res.migratedFrom !== undefined ? t('exchange.pageImportedMigrated', { v: String(res.migratedFrom) }) : '',
       });
     });
 
@@ -229,9 +221,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
           </button>
         </header>
         <div className="modal-body project-body">
-          {dirty && (
-            <div className="banner warn">{t('exchange.dirtyBanner')}</div>
-          )}
+          {dirty && <div className="banner warn">{t('exchange.dirtyBanner')}</div>}
 
           <section className="project-section">
             <h3>{t('exchange.layoutSection')}</h3>
@@ -273,15 +263,30 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                 <b>{layoutPending.fileName}</b>
                 <div className="radio-row">
                   <label>
-                    <input type="radio" name="bind-scope" checked={bindScope === 'volume'} onChange={() => setBindScope('volume')} />
+                    <input
+                      type="radio"
+                      name="bind-scope"
+                      checked={bindScope === 'volume'}
+                      onChange={() => setBindScope('volume')}
+                    />
                     {t('exchange.wholeVolume')}
                   </label>
                   <label>
-                    <input type="radio" name="bind-scope" checked={bindScope === 'chapter'} onChange={() => setBindScope('chapter')} />
+                    <input
+                      type="radio"
+                      name="bind-scope"
+                      checked={bindScope === 'chapter'}
+                      onChange={() => setBindScope('chapter')}
+                    />
                     {t('exchange.chapter')}
                   </label>
                   <label>
-                    <input type="radio" name="bind-scope" checked={bindScope === 'page'} onChange={() => setBindScope('page')} />
+                    <input
+                      type="radio"
+                      name="bind-scope"
+                      checked={bindScope === 'page'}
+                      onChange={() => setBindScope('page')}
+                    />
                     {t('exchange.page')}
                   </label>
                 </div>

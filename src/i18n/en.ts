@@ -60,8 +60,7 @@ export const en = {
   'app.help.alignTitle': 'Alignment modes',
   'app.help.alignDesc': 'Whole-page offset / per-panel offset / anchor alignment / grid snap',
   'app.help.anchorTitle': 'Anchor mode',
-  'app.help.anchorDesc':
-    'Click a feature point on the reference image, then the same point on the target image',
+  'app.help.anchorDesc': 'Click a feature point on the reference image, then the same point on the target image',
   'app.help.export': 'Export',
   'app.help.exportDefaultTitle': 'Default',
   'app.help.exportDefaultDesc': 'HTML plus a sibling .files image folder; double-click to open',
@@ -491,7 +490,8 @@ export const en = {
     'Restoring overwrites files with the same name under data/ but does not delete pages that are absent from the backup; a snapshot of the current data is saved first.',
   'backup.chooseBackupFile': 'Choose a backup file…',
   'backup.confirmOverwrite': 'Overwrite?',
-  'backup.containsSummary': 'Contains {pages} pages of data, {notes} notes, {templates} templates and {presets} presets',
+  'backup.containsSummary':
+    'Contains {pages} pages of data, {notes} notes, {templates} templates and {presets} presets',
   'backup.volumesInvolved': 'Volumes: {volumes}',
   'backup.none': '(none)',
   'backup.willOverwriteBefore': 'Will overwrite ',
@@ -598,7 +598,8 @@ export const en = {
   'exchange.chapterOptional': 'Chapter (optional)',
   'exchange.chapterPlaceholder': 'e.g. 172',
   'exchange.pageOrder': 'Page number (1-based)',
-  'exchange.applyAfterImport': 'Apply right after import (overwrites panels in the target range; the original pages are saved first)',
+  'exchange.applyAfterImport':
+    'Apply right after import (overwrites panels in the target range; the original pages are saved first)',
   'exchange.importAndBind': 'Import and bind',
   'exchange.importing': 'Importing…',
   'exchange.exportSection': 'Export templates .mnexp',
@@ -672,7 +673,8 @@ export const en = {
 
   /* ---- project file ---- */
   'project.title': 'Project file',
-  'project.subtitle': '.mnproj = zip + plain-text JSON; carries images, annotations, templates and language settings together',
+  'project.subtitle':
+    '.mnproj = zip + plain-text JSON; carries images, annotations, templates and language settings together',
   'project.dirtyBanner':
     'This page has unsaved changes. Exports will not include them and an import may overwrite them. Save from the top bar first.',
   'project.dirtyConfirm':
@@ -717,12 +719,13 @@ export const en = {
   'project.stillMissingBefore': 'Still missing ',
   'project.stillMissingAfter': ' images:',
   'project.moreMissing': ' and more',
-  'project.relinkTip': 'Put the original images into the relink folder, then import again with “Merge” to recover them.',
+  'project.relinkTip':
+    'Put the original images into the relink folder, then import again with “Merge” to recover them.',
   'project.snapshotBeforeImport': 'Snapshot before import: ',
   'project.projectBackup': 'Original project backup: ',
-  'project.footerHint': 'Reference mode does not copy images; after moving machines, recover them with the relink folder',
-  'project.browserNoPicker':
-    'A browser cannot open a folder picker; type the relink folder path directly',
+  'project.footerHint':
+    'Reference mode does not copy images; after moving machines, recover them with the relink folder',
+  'project.browserNoPicker': 'A browser cannot open a folder picker; type the relink folder path directly',
   'project.pickFolderTitle': 'Choose the original folder that holds the missing images',
 
   /* ---- API layer ---- */

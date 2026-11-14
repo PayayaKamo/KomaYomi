@@ -297,9 +297,7 @@ async function renderCollage(
   );
 
   const targetH = rect ? PANEL_HEIGHT : PAGE_HEIGHT;
-  const widths = items.map((it) =>
-    Math.max(1, Math.round((it.crop.sw / it.crop.sh) * targetH)),
-  );
+  const widths = items.map((it) => Math.max(1, Math.round((it.crop.sw / it.crop.sh) * targetH)));
   const contentW = widths.reduce((sum, w) => sum + w, 0) + GAP * (items.length - 1);
   const totalW = PAD * 2 + contentW;
   const totalH = PAD * 2 + targetH + LABEL_H;

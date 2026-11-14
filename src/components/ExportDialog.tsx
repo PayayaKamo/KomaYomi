@@ -67,18 +67,7 @@ function readLayout(): Partial<ExportConfig> | null {
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]/g, '_');
 
-export function ExportDialog({
-  open,
-  onClose,
-  doc,
-  page,
-  panel,
-  library,
-  sel,
-  langs,
-  tagStats,
-  rootPath,
-}: Props) {
+export function ExportDialog({ open, onClose, doc, page, panel, library, sel, langs, tagStats, rootPath }: Props) {
   const { t } = useI18n();
   const [cfg, setCfg] = useState<ExportConfig | null>(null);
   const [scope, setScope] = useState<'page' | 'chapter'>('page');
@@ -194,7 +183,7 @@ export function ExportDialog({
         page,
         lang: fileLang,
         langs: cfg.languages,
-        rect: mode === 'collage' ? panel?.rect ?? null : mode === 'panel' ? panel?.rect ?? null : null,
+        rect: mode === 'collage' ? (panel?.rect ?? null) : mode === 'panel' ? (panel?.rect ?? null) : null,
         mode,
         filenameBase: `${pngBase}-${label}`,
         annotations: doc?.annotations ?? [],
@@ -440,9 +429,7 @@ export function ExportDialog({
                 />
                 {t('export.showPanelBoxes')}
               </label>
-              <p className="hint">
-                {cfg.embedImages ? t('export.embedHintSingle') : t('export.embedHintFiles')}
-              </p>
+              <p className="hint">{cfg.embedImages ? t('export.embedHintSingle') : t('export.embedHintFiles')}</p>
             </section>
 
             <section>
@@ -460,7 +447,12 @@ export function ExportDialog({
                 >
                   {pngBusy === 'panel' ? t('export.generating') : t('export.pngPanelLabel')}
                 </button>
-                <button type="button" className="btn tiny" onClick={() => runPng('collage')} disabled={!page || !!pngBusy}>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => runPng('collage')}
+                  disabled={!page || !!pngBusy}
+                >
                   {pngBusy === 'collage' ? t('export.generating') : t('export.pngCollageLabel')}
                 </button>
               </div>
@@ -597,7 +589,9 @@ export function ExportDialog({
                       : { gap: `${cfg.columnGap / 2}px` }
                   }
                 >
-                  <div className="pv-page">{previewUrl ? <img src={previewUrl} alt="" /> : <span>{t('export.noImage')}</span>}</div>
+                  <div className="pv-page">
+                    {previewUrl ? <img src={previewUrl} alt="" /> : <span>{t('export.noImage')}</span>}
+                  </div>
                   <div className="pv-notes">
                     {pageNotes.length > 0 && (
                       <div className="pv-note-group">
@@ -654,9 +648,7 @@ export function ExportDialog({
                   <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
                     {t('export.downloadHtml')}
                   </a>
-                  {result.assetDir && (
-                    <span className="tiny muted">{t('export.filesNote')}</span>
-                  )}
+                  {result.assetDir && <span className="tiny muted">{t('export.filesNote')}</span>}
                 </div>
                 {result.warnings.length > 0 && (
                   <ul className="warn-list">

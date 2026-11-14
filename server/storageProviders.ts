@@ -352,11 +352,7 @@ function webdavProvider(target: StorageTarget, password?: string): StorageProvid
     return h;
   };
   const urlFor = (rel: string) =>
-    `${base}/${safeRel(rel)
-      .split('/')
-      .filter(Boolean)
-      .map(encodeURIComponent)
-      .join('/')}`;
+    `${base}/${safeRel(rel).split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
 
   const request = async (method: string, rel: string, body?: Buffer, depth?: string) => {
     const controller = new AbortController();
@@ -438,7 +434,10 @@ function cacheRoot(dataRoot: string) {
 
 /** Cached remote files are content-addressed by provider id + path. */
 export function remoteCachePath(dataRoot: string, targetId: string, rel: string, ext: string): string {
-  const hash = crypto.createHash('sha1').update(`${targetId}|${safeRel(rel)}`).digest('hex');
+  const hash = crypto
+    .createHash('sha1')
+    .update(`${targetId}|${safeRel(rel)}`)
+    .digest('hex');
   return path.join(cacheRoot(dataRoot), 'files', `${hash}${ext.toLowerCase()}`);
 }
 

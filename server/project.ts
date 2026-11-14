@@ -137,8 +137,7 @@ type ParsedProject = {
 
 /* ---------------- 通用工具 ---------------- */
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+const isRecord = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
 const sha1Hex = (buf: Buffer) => createHash('sha1').update(buf).digest('hex');
 
@@ -287,9 +286,7 @@ function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedF
   if (!isRecord(manifest.inventory)) throw new Error('工程文件缺少 inventory（卷话清单）');
   if (!Array.isArray(manifest.inventory.volumes)) manifest.inventory.volumes = [];
   if (!Array.isArray(manifest.inventory.images)) manifest.inventory.images = [];
-  manifest.inventory.images = manifest.inventory.images
-    .filter(isRecord)
-    .map((img) => normalizeImage(img));
+  manifest.inventory.images = manifest.inventory.images.filter(isRecord).map((img) => normalizeImage(img));
 
   if (!isRecord(manifest.language)) manifest.language = { volumes: {}, resolved: {} };
   if (!isRecord(manifest.language.volumes)) manifest.language.volumes = {};
@@ -464,7 +461,8 @@ function hasUnsafeName(name: string): boolean {
 function classifyEntry(name: string): { relDir: string; rel: string; kind: ProjectFileKind } | null {
   if (name === 'config/library.json') return { relDir: 'config', rel: 'library.json', kind: 'config' };
   if (name.startsWith('pages/')) return { relDir: 'pages', rel: name.slice('pages/'.length), kind: 'page' };
-  if (name.startsWith('templates/')) return { relDir: 'templates', rel: name.slice('templates/'.length), kind: 'template' };
+  if (name.startsWith('templates/'))
+    return { relDir: 'templates', rel: name.slice('templates/'.length), kind: 'template' };
   if (name.startsWith('presets/')) return { relDir: 'presets', rel: name.slice('presets/'.length), kind: 'preset' };
   return null;
 }
@@ -671,11 +669,7 @@ function rawImageTarget(rawRoot: string, image: ProjectImage, langDir: string): 
   return resolveInside(rawRoot, path.posix.join(volume, dir, chapter, name));
 }
 
-function findRelinkSource(
-  candidates: string[],
-  image: ProjectImage,
-  cache: Map<string, string>,
-): string | null {
+function findRelinkSource(candidates: string[], image: ProjectImage, cache: Map<string, string>): string | null {
   if (image.sha1) {
     for (const file of candidates) {
       if (hashFileCached(file, cache) === image.sha1) return file;
@@ -873,7 +867,8 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
         if (fs.existsSync(target)) {
           const existing = hashFileCached(target, hashCache);
           if (!image.sha1 || existing === image.sha1) imagesPresent++;
-          else warnings.push(`raw 里已存在同名但内容不同的图片，未覆盖：${image.volume}/${image.chapter}/${image.name}`);
+          else
+            warnings.push(`raw 里已存在同名但内容不同的图片，未覆盖：${image.volume}/${image.chapter}/${image.name}`);
           continue;
         }
         writeFileAtomic(target, fs.readFileSync(found));

@@ -17,8 +17,7 @@ const APP_FALLBACK_VERSION = '0.1.0';
 /** v0（早期试验版 manifest）：images 在顶层、字段叫 file、语言目录叫 langDirs */
 export function migrateManifestV0(raw: Record<string, unknown>): Record<string, unknown> {
   const topImages = Array.isArray(raw.images) ? raw.images : [];
-  const inventoryImages =
-    isRecord(raw.inventory) && Array.isArray(raw.inventory.images) ? raw.inventory.images : [];
+  const inventoryImages = isRecord(raw.inventory) && Array.isArray(raw.inventory.images) ? raw.inventory.images : [];
   const images = (topImages.length ? topImages : inventoryImages).filter(isRecord).map((img) => {
     const file = typeof img.path === 'string' ? img.path : typeof img.file === 'string' ? img.file : undefined;
     const pathValue = file ? file.replace(/\\/g, '/').replace(/^\/+/, '') : undefined;
@@ -27,12 +26,7 @@ export function migrateManifestV0(raw: Record<string, unknown>): Record<string, 
       chapter: String(img.chapter ?? ''),
       pageIndex: Number(img.pageIndex) || 0,
       lang: LANGUAGES.includes(img.lang as Lang) ? (img.lang as Lang) : 'ja',
-      name:
-        typeof img.name === 'string' && img.name
-          ? img.name
-          : pathValue
-            ? (pathValue.split('/').pop() ?? '')
-            : '',
+      name: typeof img.name === 'string' && img.name ? img.name : pathValue ? (pathValue.split('/').pop() ?? '') : '',
       sha1: typeof img.sha1 === 'string' ? img.sha1 : '',
       size: Number(img.size) || 0,
       path: pathValue,

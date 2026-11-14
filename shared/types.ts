@@ -137,15 +137,7 @@ export type PanelGroup = {
   number?: number;
 };
 
-export type AnnotationKind =
-  | 'arrow'
-  | 'rect'
-  | 'ellipse'
-  | 'highlight'
-  | 'text'
-  | 'badge'
-  | 'mosaic'
-  | 'pen';
+export type AnnotationKind = 'arrow' | 'rect' | 'ellipse' | 'highlight' | 'text' | 'badge' | 'mosaic' | 'pen';
 
 /** 矢量标注：坐标相对所属 scope 的框（页或格），0..1 */
 export type Annotation = {
@@ -282,9 +274,7 @@ export type PageResponse = {
   exists: boolean;
 };
 
-export type ExportBlock =
-  | { type: 'heading'; text: string }
-  | { type: 'paragraph'; text: string };
+export type ExportBlock = { type: 'heading'; text: string } | { type: 'paragraph'; text: string };
 
 export type ExportConfig = {
   template: 'two-column' | 'stack' | 'compare-wide';

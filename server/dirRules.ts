@@ -126,11 +126,13 @@ export function validateRules(rules: unknown): DirRule[] {
     const id = String(rule.id ?? '').trim() || `rule-${i + 1}`;
     if (seen.has(id)) throw new Error(`duplicate rule id "${id}"`);
     seen.add(id);
-    const extensions = (rule.extensions ?? []).map((e) => {
-      const clean = String(e).trim().toLowerCase();
-      if (!clean) return '';
-      return clean.startsWith('.') ? clean : `.${clean}`;
-    }).filter(Boolean);
+    const extensions = (rule.extensions ?? [])
+      .map((e) => {
+        const clean = String(e).trim().toLowerCase();
+        if (!clean) return '';
+        return clean.startsWith('.') ? clean : `.${clean}`;
+      })
+      .filter(Boolean);
     return {
       id,
       name: rule.name ? String(rule.name) : undefined,
@@ -143,13 +145,7 @@ export function validateRules(rules: unknown): DirRule[] {
   });
 }
 
-function matchPattern(
-  segments: string[],
-  pattern: PatternSegment[],
-  pi: number,
-  si: number,
-  acc: Match,
-): Match | null {
+function matchPattern(segments: string[], pattern: PatternSegment[], pi: number, si: number, acc: Match): Match | null {
   if (pi === pattern.length) {
     // A page placeholder is mandatory, so a full-length match is required.
     return si === segments.length ? acc : null;
@@ -217,14 +213,7 @@ const MAX_FILES = 50_000;
 /** Fallback volume label when a rule has neither {volume} nor {series}. */
 export const ROOT_VOLUME = '默认卷';
 
-function walk(
-  root: string,
-  rel: string,
-  ignore: Set<string>,
-  extensions: Set<string>,
-  out: string[],
-  depth = 0,
-): void {
+function walk(root: string, rel: string, ignore: Set<string>, extensions: Set<string>, out: string[], depth = 0): void {
   if (depth > 10 || out.length >= MAX_FILES) return;
   let entries: fs.Dirent[];
   try {
@@ -347,7 +336,8 @@ export function resolveFiles(
     const volumeRoot = volumePos >= 0 ? segments.slice(0, volumePos + 1).join('/') : '';
     const langStart = volumePos + 1;
     // Flat rules without a language segment have no language directory.
-    const langDir = langPos < 0 ? '' : langPos > langStart ? segments.slice(langStart, langPos + 1).join('/') : langSegment;
+    const langDir =
+      langPos < 0 ? '' : langPos > langStart ? segments.slice(langStart, langPos + 1).join('/') : langSegment;
 
     files.push({
       file,

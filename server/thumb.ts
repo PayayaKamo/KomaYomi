@@ -64,12 +64,7 @@ function resize(img: Decoded, targetW: number): Decoded {
  * 生成（或读取缓存）缩略图。缓存键包含源文件路径、mtime 与目标宽度，
  * 原图更新后会自动失效，不需要手动清理。
  */
-export function thumbnailFile(
-  rawRoot: string,
-  cacheRoot: string,
-  rawRelPath: string,
-  width: number,
-): string | null {
+export function thumbnailFile(rawRoot: string, cacheRoot: string, rawRelPath: string, width: number): string | null {
   const rel = decodeURIComponent(rawRelPath.replace(/^\/raw\//, ''));
   const src = path.resolve(rawRoot, rel);
   const guard = rawRoot.endsWith(path.sep) ? rawRoot : rawRoot + path.sep;

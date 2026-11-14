@@ -1,11 +1,6 @@
 import type { ExportTemplate, LayoutTemplate, PageDoc } from './types.ts';
 import { LANGUAGES } from './types.ts';
-import {
-  migrateExportTemplateV0,
-  migrateLayoutTemplateV0,
-  migrateManifestV0,
-  migratePageV0,
-} from './migrations.ts';
+import { migrateExportTemplateV0, migrateLayoutTemplateV0, migrateManifestV0, migratePageV0 } from './migrations.ts';
 
 /**
  * 统一交换格式：`$schema` + `schemaVersion` envelope，见 shared/schemas/*.json。
@@ -205,10 +200,7 @@ const marginSpec = object({ top: num(), right: num(), bottom: num(), left: num()
 const layoutCellSpec = object({ span: int({ min: 1 }) }, []);
 const layoutRowSpec = object({ height: num(), cells: array(layoutCellSpec, 1) }, ['cells']);
 const gridSpec = object({ cols: int({ min: 1, max: 12 }), rows: array(layoutRowSpec, 1) }, ['cols', 'rows']);
-const pageOverrideSpec = object(
-  { grid: gridSpec, margin: marginSpec, gap: num(), colWeights: array(num()) },
-  [],
-);
+const pageOverrideSpec = object({ grid: gridSpec, margin: marginSpec, gap: num(), colWeights: array(num()) }, []);
 
 const panelSpec = object(
   {
@@ -367,10 +359,7 @@ const exportTemplateSpec = object(
 );
 
 const langDirsSpec = record(str());
-const inventoryChapterSpec = object(
-  { chapter: str(), pages: int({ min: 0 }), images: int({ min: 0 }) },
-  ['chapter'],
-);
+const inventoryChapterSpec = object({ chapter: str(), pages: int({ min: 0 }), images: int({ min: 0 }) }, ['chapter']);
 const inventoryVolumeSpec = object(
   {
     volume: str({ minLength: 1 }),

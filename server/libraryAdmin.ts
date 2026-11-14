@@ -94,7 +94,11 @@ export function addVolume(rawRoot: string, sourcePath?: string, rawName?: string
 }
 
 /** 从图库移除：只删 junction，绝不删除真实目录里的图片 */
-export function removeVolume(rawRoot: string, dataRoot: string, volume: string): { removed: boolean; warnings: string[] } {
+export function removeVolume(
+  rawRoot: string,
+  dataRoot: string,
+  volume: string,
+): { removed: boolean; warnings: string[] } {
   const target = path.join(rawRoot, volume);
   const warnings: string[] = [];
   if (!fs.existsSync(target)) {

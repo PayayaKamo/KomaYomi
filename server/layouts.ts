@@ -35,12 +35,17 @@ function normalizeLayout(input: Partial<LayoutTemplate>): LayoutTemplate | null 
       input.readingDirection === 'ltr' || input.readingDirection === 'ttb' ? input.readingDirection : 'rtl',
     margin: { ...DEFAULT_MARGIN, ...(input.margin ?? {}) },
     gap: Math.min(0.08, Math.max(0, Number(input.gap ?? DEFAULT_GAP))),
-    colWeights: Array.isArray(input.colWeights) ? input.colWeights.map((n) => Math.max(0.01, Number(n) || 1)) : undefined,
+    colWeights: Array.isArray(input.colWeights)
+      ? input.colWeights.map((n) => Math.max(0.01, Number(n) || 1))
+      : undefined,
     grid: {
       cols,
       rows: grid.rows.map((r) => ({
         height: Math.max(0.01, Number(r?.height) || 1),
-        cells: Array.isArray(r?.cells) && r.cells.length ? r.cells.map((c) => ({ span: Math.max(1, Number(c?.span) || 1) })) : [{ span: cols }],
+        cells:
+          Array.isArray(r?.cells) && r.cells.length
+            ? r.cells.map((c) => ({ span: Math.max(1, Number(c?.span) || 1) }))
+            : [{ span: cols }],
       })),
     },
     pageOverrides: input.pageOverrides ?? undefined,
@@ -134,10 +139,7 @@ export function expandLayout(layout: LayoutTemplate, pageIndex: number): PanelRe
   const cols = l.grid.cols;
   const rows = l.grid.rows;
 
-  const weights =
-    l.colWeights && l.colWeights.length === cols
-      ? l.colWeights
-      : Array.from({ length: cols }, () => 1);
+  const weights = l.colWeights && l.colWeights.length === cols ? l.colWeights : Array.from({ length: cols }, () => 1);
   const weightTotal = weights.reduce((a, b) => a + b, 0);
 
   const contentW = Math.max(0.01, 1 - margin.left - margin.right);

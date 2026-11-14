@@ -58,7 +58,10 @@ const pageDir = (dataRoot: string) => path.join(dataRoot, 'pages');
 
 function listDirSafe(dir: string): string[] {
   try {
-    return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
   } catch {
     return [];
   }
@@ -84,9 +87,7 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
     if (filter.volume && volume !== filter.volume) continue;
     for (const chapter of listDirSafe(path.join(pageDir(dataRoot), volume))) {
       if (filter.chapter && chapter !== filter.chapter) continue;
-      const files = fs
-        .readdirSync(path.join(pageDir(dataRoot), volume, chapter))
-        .filter((f) => /^\d+\.json$/.test(f));
+      const files = fs.readdirSync(path.join(pageDir(dataRoot), volume, chapter)).filter((f) => /^\d+\.json$/.test(f));
       for (const file of files) {
         const pageIndex = Number(file.replace(/\.json$/, ''));
         if (filter.pageIndex != null && pageIndex !== filter.pageIndex) continue;
@@ -111,7 +112,7 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
             pageIndex,
             id: note.id,
             scope: note.scope,
-            panelId: note.scope === 'panel' ? note.panelId ?? null : null,
+            panelId: note.scope === 'panel' ? (note.panelId ?? null) : null,
             panelNo: panelNo > 0 ? panelNo : null,
             text: note.text,
             excerpt: markdownExcerpt(note.text, 140),
@@ -147,7 +148,9 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
     notes: notes.slice(0, limit),
     chapters: [...chapterCounts.values()],
     tags: [...tagCounts.entries()].map(([t, count]) => ({ tag: t, count })).sort((a, b) => b.count - a.count),
-    sources: [...sourceCounts.entries()].map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count),
+    sources: [...sourceCounts.entries()]
+      .map(([domain, count]) => ({ domain, count }))
+      .sort((a, b) => b.count - a.count),
     pages: pageCount,
   };
 }

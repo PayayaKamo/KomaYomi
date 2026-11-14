@@ -314,7 +314,13 @@ export function AnnotationLayer({
     return { x: clamp01((e.clientX - r.left) / r.width), y: clamp01((e.clientY - r.top) / r.height) };
   };
 
-  const createAnnotation = (kind: AnnotationKind, rect: PanelRect, panelId: string | null, points: Point[], text?: string) => {
+  const createAnnotation = (
+    kind: AnnotationKind,
+    rect: PanelRect,
+    panelId: string | null,
+    points: Point[],
+    text?: string,
+  ) => {
     const now = new Date().toISOString();
     const annotation: Annotation = {
       id: uid('a'),
@@ -339,7 +345,13 @@ export function AnnotationLayer({
     e.preventDefault();
     const page = pagePoint(e);
     if (tool === 'text' || tool === 'badge') {
-      setTextEdit({ kind: tool, rect: activeRect, panelId: activePanelId, point: toScope(page, activeRect), value: '' });
+      setTextEdit({
+        kind: tool,
+        rect: activeRect,
+        panelId: activePanelId,
+        point: toScope(page, activeRect),
+        value: '',
+      });
       return;
     }
     const start = toScope(page, activeRect);
@@ -474,7 +486,9 @@ export function AnnotationLayer({
               {/* Invisible fat stroke widens the hit area of thin shapes. */}
               {tool === 'select' && annotation.kind !== 'mosaic' && (
                 <polyline
-                  points={toPixels(annotation.points, rect, box).map((p) => `${p.x},${p.y}`).join(' ')}
+                  points={toPixels(annotation.points, rect, box)
+                    .map((p) => `${p.x},${p.y}`)
+                    .join(' ')}
                   fill="none"
                   stroke="transparent"
                   strokeWidth={Math.max(14, (annotation.width ?? DEFAULT_WIDTH) * box.w + 12)}

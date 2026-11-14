@@ -190,15 +190,18 @@ export function usePage(sel: Selection | null) {
     syncHistoryCounts();
   }, [scheduleSave]);
 
-  const setSaveMode = useCallback((mode: SaveMode) => {
-    const prevMode = saveModeRef.current;
-    saveModeRef.current = mode;
-    setSaveModeState(mode);
-    // 从确认模式切回自动模式时，把挂起的修改立即落盘，避免静默丢失
-    if (prevMode === 'confirm' && mode === 'auto' && pending.current) {
-      scheduleSave(pending.current);
-    }
-  }, [scheduleSave]);
+  const setSaveMode = useCallback(
+    (mode: SaveMode) => {
+      const prevMode = saveModeRef.current;
+      saveModeRef.current = mode;
+      setSaveModeState(mode);
+      // 从确认模式切回自动模式时，把挂起的修改立即落盘，避免静默丢失
+      if (prevMode === 'confirm' && mode === 'auto' && pending.current) {
+        scheduleSave(pending.current);
+      }
+    },
+    [scheduleSave],
+  );
 
   const detect = useCallback(
     async (lang?: string) => {

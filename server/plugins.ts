@@ -31,7 +31,12 @@ export type PluginPanelInfo = {
 export type PanelPlugin = {
   name?: string;
   match?: PluginMatch;
-  panels: (info: PluginPanelInfo) => PanelRect[] | { panels: PanelRect[]; warnings?: string[] } | Promise<PanelRect[] | { panels: PanelRect[]; warnings?: string[] }>;
+  panels: (
+    info: PluginPanelInfo,
+  ) =>
+    | PanelRect[]
+    | { panels: PanelRect[]; warnings?: string[] }
+    | Promise<PanelRect[] | { panels: PanelRect[]; warnings?: string[] }>;
 };
 
 export type PluginSummary = {
@@ -43,7 +48,10 @@ export type PluginSummary = {
 
 const PLUGIN_TIMEOUT = 2500;
 
-const pluginDirs = (rootDir: string, dataRoot: string) => [path.join(rootDir, 'plugins'), path.join(dataRoot, 'plugins')];
+const pluginDirs = (rootDir: string, dataRoot: string) => [
+  path.join(rootDir, 'plugins'),
+  path.join(dataRoot, 'plugins'),
+];
 
 function listPluginFiles(rootDir: string, dataRoot: string): string[] {
   const files: string[] = [];
@@ -124,8 +132,7 @@ export async function listPlugins(rootDir: string, dataRoot: string): Promise<Pl
 }
 
 export type PluginRunResult =
-  | { ok: true; panels: PanelRect[]; plugin: string; warnings: string[] }
-  | { ok: false; plugin?: string; error: string };
+  { ok: true; panels: PanelRect[]; plugin: string; warnings: string[] } | { ok: false; plugin?: string; error: string };
 
 /** Run the first matching plugin. Returns `ok:false` so callers can fall back. */
 export async function runPlugin(
@@ -150,10 +157,12 @@ export async function runPlugin(
     try {
       const result = await Promise.race([
         Promise.resolve(plugin.panels(info)),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('插件执行超时（2500ms）')), PLUGIN_TIMEOUT)),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('插件执行超时（2500ms）')), PLUGIN_TIMEOUT),
+        ),
       ]);
       const panels = normalizeRects(Array.isArray(result) ? result : result.panels);
-      const warnings = Array.isArray(result) ? [] : result.warnings ?? [];
+      const warnings = Array.isArray(result) ? [] : (result.warnings ?? []);
       if (!panels.length) return { ok: false, plugin: name, error: '插件没有返回任何格子' };
       return { ok: true, panels, plugin: name, warnings };
     } catch (err) {

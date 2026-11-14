@@ -99,7 +99,7 @@ function loadMaskPrefs(): MaskPrefs {
 }
 
 function useImageSize(url: string | undefined) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(url ? sizeCache.get(url) ?? null : null);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(url ? (sizeCache.get(url) ?? null) : null);
   useEffect(() => {
     if (!url) {
       setSize(null);
@@ -282,8 +282,8 @@ export function CompareTab({
   // 整页偏移与逐格偏移分开存：scope 决定读写哪一份，Alt 临时覆盖时不会污染另一份
   const offsetOf = (lang: Lang, panel: Panel, scope: DragScope = scopeOfMode): AlignOffset =>
     scope === 'panel'
-      ? doc.panelOffsets?.[panel.id]?.[lang] ?? DEFAULT_OFFSET
-      : doc.offsets[lang] ?? DEFAULT_OFFSET;
+      ? (doc.panelOffsets?.[panel.id]?.[lang] ?? DEFAULT_OFFSET)
+      : (doc.offsets[lang] ?? DEFAULT_OFFSET);
 
   const setOffset = (lang: Lang, panel: Panel, next: AlignOffset, scope: DragScope = scopeOfMode) => {
     mutate((d) =>
@@ -374,11 +374,16 @@ export function CompareTab({
       const tx = (e.clientX - rect.left) / rect.width;
       const ty = (e.clientY - rect.top) / rect.height;
       const current = offsetOf(lang, panel, 'panel');
-      setOffset(lang, panel, {
-        ...current,
-        x: clamp(current.x + (pendingAnchor.x - tx), -2, 2),
-        y: clamp(current.y + (pendingAnchor.y - ty), -2, 2),
-      }, 'panel');
+      setOffset(
+        lang,
+        panel,
+        {
+          ...current,
+          x: clamp(current.x + (pendingAnchor.x - tx), -2, 2),
+          y: clamp(current.y + (pendingAnchor.y - ty), -2, 2),
+        },
+        'panel',
+      );
       setDragLang(lang);
       setPendingAnchor(null);
       return;
@@ -591,7 +596,9 @@ export function CompareTab({
       <div
         key={lang}
         className={`lang-pane ${dragging && dragLang === lang ? 'dragging' : ''} ${
-          activeDrag?.panelId === panel.id && activeDrag.lang === lang && activeDrag.scope === 'panel' ? 'scope-target' : ''
+          activeDrag?.panelId === panel.id && activeDrag.lang === lang && activeDrag.scope === 'panel'
+            ? 'scope-target'
+            : ''
         }`}
         style={{ aspectRatio: aspect }}
         data-lang={lang}
@@ -781,9 +788,7 @@ export function CompareTab({
               <select
                 className="tb-select"
                 value={maskPrefs.style}
-                onChange={(e) =>
-                  setMaskPrefs((p) => ({ ...p, style: e.target.value === 'solid' ? 'solid' : 'blur' }))
-                }
+                onChange={(e) => setMaskPrefs((p) => ({ ...p, style: e.target.value === 'solid' ? 'solid' : 'blur' }))}
                 title={t('compare.maskStyle')}
               >
                 <option value="blur">{t('compare.maskStyleBlur')}</option>
@@ -1051,7 +1056,12 @@ export function CompareTab({
                 </option>
               ))}
             </select>
-            <button type="button" className="btn tiny" disabled={!presetId || presetBusy} onClick={() => applyPreset('page')}>
+            <button
+              type="button"
+              className="btn tiny"
+              disabled={!presetId || presetBusy}
+              onClick={() => applyPreset('page')}
+            >
               {t('compare.applyPresetPage')}
             </button>
             <button
@@ -1082,9 +1092,7 @@ export function CompareTab({
               <input
                 type="checkbox"
                 checked={maskPrefs.masked[l]}
-                onChange={() =>
-                  setMaskPrefs((p) => ({ ...p, masked: { ...p.masked, [l]: !p.masked[l] } }))
-                }
+                onChange={() => setMaskPrefs((p) => ({ ...p, masked: { ...p.masked, [l]: !p.masked[l] } }))}
               />
               {langLabel(l)}
             </label>

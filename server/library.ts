@@ -13,11 +13,32 @@ const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 /** Common language folder spellings, compared after lowercase + space/underscore → dash. */
 const LANG_ALIASES: Record<Lang, string[]> = {
   ja: ['ja', 'jp', 'jpn', 'japanese', 'ja-jp', '日', '日本語', '日文'],
-  zh: ['zh', 'zh-cn', 'zh-hans', 'zh-sg', 'cn', 'chs', 'zh-tw', 'zh-hk', 'zh-hant', 'cht', 'tw', 'hk', '中', '中文', '繁中', '简中'],
+  zh: [
+    'zh',
+    'zh-cn',
+    'zh-hans',
+    'zh-sg',
+    'cn',
+    'chs',
+    'zh-tw',
+    'zh-hk',
+    'zh-hant',
+    'cht',
+    'tw',
+    'hk',
+    '中',
+    '中文',
+    '繁中',
+    '简中',
+  ],
   en: ['en', 'en-us', 'en-gb', 'us', 'uk', 'eng', 'english', '英', '英文'],
 };
 
-const normalizeDir = (name: string) => name.trim().toLowerCase().replace(/[\s_]+/g, '-');
+const normalizeDir = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-');
 
 /** data/library.json：语言目录映射与目录识别规则 */
 export type LibraryConfig = {
@@ -153,12 +174,7 @@ export type DirPreview = {
 /**
  * 实时预览目录识别结果：不写库、不做标注检查，供界面在编辑规则时反复调用。
  */
-export function previewDirs(
-  rawRoot: string,
-  dataRoot: string,
-  dir = '',
-  rulesOverride?: DirRule[],
-): DirPreview {
+export function previewDirs(rawRoot: string, dataRoot: string, dir = '', rulesOverride?: DirRule[]): DirPreview {
   const config = readLibraryConfig(dataRoot);
   let rules = rulesOverride;
   if (rules?.length) rules = validateRules(rules);
