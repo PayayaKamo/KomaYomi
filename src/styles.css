@@ -905,6 +905,108 @@ code {
   color: var(--text-2);
 }
 
+/* annotation toolbar and overlay */
+.ann-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+.ann-tools {
+  display: flex;
+  gap: 3px;
+}
+
+.ann-tools .btn.icon {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+
+.ann-colors {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ann-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.ann-swatch.on {
+  border-color: var(--bg-2);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.ann-hint {
+  margin-left: auto;
+}
+
+/* The wrapper never intercepts events; only the SVG (drawing tools) or the text
+ * input opt back in, so panel editing keeps working while the layer is visible. */
+.ann-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ann-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.ann-svg.drawing {
+  cursor: crosshair;
+}
+
+.ann-mosaic {
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(6px) saturate(0.4);
+  -webkit-backdrop-filter: blur(6px) saturate(0.4);
+  background: rgba(120, 120, 120, 0.18);
+}
+
+.ann-input-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ann-input {
+  position: absolute;
+  pointer-events: auto;
+  transform: translate(0, 4px);
+  min-width: 90px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1.5px solid var(--accent);
+  border-radius: 5px;
+  outline: none;
+}
+
+/* Panel boxes stay visible but inert while a drawing tool owns the page. */
+.shot.ann-drawing .pbox {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
 .stage-hint {
   position: sticky;
   bottom: 10px;

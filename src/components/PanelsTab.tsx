@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Lang, PageDoc, PageEntry, Panel, PanelRect, PanelTemplate } from '../types';
 import { LANGUAGES } from '../types';
@@ -6,6 +6,8 @@ import { applyDrag, clamp01, normalizeRect, sortPanels, uid, unionRects } from '
 import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
 import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
+import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
+import type { AnnotationTool } from './AnnotationLayer';
 
 type Props = {
   doc: PageDoc;
@@ -144,6 +146,20 @@ export function PanelsTab({
   const [gridCols, setGridCols] = useState(2);
   const [gridGap, setGridGap] = useState(1.2);
   const [copied, setCopied] = useState(false);
+  const [annTool, setAnnTool] = useState<AnnotationTool>('select');
+  const [annSelected, setAnnSelected] = useState<string | null>(null);
+  const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
+
+  const annotations = doc.annotations ?? [];
+  // Older pages have no flag; annotations were visible by default before the toggle existed.
+  const annotationsVisible = doc.annotationsVisible !== false;
+
+  const applyAnnotations = useCallback(
+    (updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>) => {
+      mutate((current) => ({ ...current, annotations: updater(current.annotations ?? []) }));
+    },
+    [mutate],
+  );
 
   const loadTemplates = () => {
     api
@@ -174,6 +190,7 @@ export function PanelsTab({
 
   useEffect(() => {
     setImgLoaded(false);
+    setAnnSelected(null);
   }, [refLang, page.index]);
 
   useEffect(() => {
@@ -263,6 +280,7 @@ export function PanelsTab({
   const startDrag = (e: ReactPointerEvent, panel: Panel, handle: ResizeHandle) => {
     e.preventDefault();
     e.stopPropagation();
+    setAnnSelected(null);
     const el = shotRef.current;
     if (!el) return;
     const additive = e.ctrlKey || e.metaKey || e.shiftKey;
@@ -277,6 +295,9 @@ export function PanelsTab({
 
   /** Pointer down on empty page area: clear selection and arm a drag-to-draw marquee. */
   const startMarquee = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // Drawing tools own the page surface; leaving this armed would draw both at once.
+    if (annTool !== 'select') return;
+    setAnnSelected(null);
     if (e.button !== 0 || !e.isPrimary) return;
     // Panels and handles stop propagation themselves; this guard keeps nested markers safe.
     if ((e.target as HTMLElement).closest('.pbox')) return;
@@ -465,9 +486,39 @@ export function PanelsTab({
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const deleteAnnotation = () => {
+    if (!annSelected) return;
+    applyAnnotations((list) => list.filter((a) => a.id !== annSelected));
+    setAnnSelected(null);
+  };
+
+  const clearAnnotations = () => {
+    if (!annotations.length) return;
+    if (!window.confirm(t('ann.clearConfirm', { count: formatNumber(annotations.length) }))) return;
+    applyAnnotations(() => []);
+    setAnnSelected(null);
+  };
+
   const onKeyDown = (e: ReactKeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    // Annotation focus is more specific than page-level actions: Esc only leaves the
+    // annotation mode, and Delete only removes the selected annotation.
+    if (e.key === 'Escape' && annSelected) {
+      e.preventDefault();
+      setAnnSelected(null);
+      return;
+    }
+    if (e.key === 'Escape' && annTool !== 'select') {
+      e.preventDefault();
+      setAnnTool('select');
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && annSelected) {
+      e.preventDefault();
+      deleteAnnotation();
+      return;
+    }
     // 确认模式下 Enter/Esc 对应 ✓/×；框选进行中时 Esc 留给取消框选
     if (saveMode === 'confirm') {
       if (e.key === 'Enter' && dirty) {
@@ -764,16 +815,94 @@ export function PanelsTab({
         </div>
       )}
 
+      <div className="ann-toolbar">
+        <span className="tb-label">{t('ann.layer')}</span>
+        <button
+          type="button"
+          className={`btn tiny ${annotationsVisible ? 'on' : ''}`}
+          aria-pressed={annotationsVisible}
+          title={annotationsVisible ? t('ann.hide') : t('ann.show')}
+          onClick={() => {
+            mutate((current) => ({ ...current, annotationsVisible: !annotationsVisible }));
+            if (annotationsVisible) {
+              setAnnTool('select');
+              setAnnSelected(null);
+            }
+          }}
+        >
+          {annotationsVisible ? t('ann.on') : t('ann.off')}
+        </button>
+        <div className="ann-tools">
+          {ANNOTATION_TOOL_ORDER.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
+              title={t(ANNOTATION_TOOLS[item].labelKey)}
+              aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
+              aria-pressed={annTool === item}
+              disabled={!annotationsVisible}
+              onClick={() => {
+                setAnnTool(item);
+                // Keep a single selected panel: it decides whether new marks use page
+                // scope or panel scope. The text in the toolbar states which one.
+                setAnnSelected(null);
+              }}
+            >
+              {ANNOTATION_TOOLS[item].icon}
+            </button>
+          ))}
+        </div>
+        <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+          {ANNOTATION_COLORS.map((swatch) => (
+            <button
+              key={swatch}
+              type="button"
+              className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+              style={{ background: swatch }}
+              title={t('ann.color')}
+              aria-label={t('ann.color')}
+              onClick={() => {
+                setAnnColor(swatch);
+                // Changing a swatch recolours the selected annotation, which is the
+                // quickest way to fix a wrong colour without deleting the shape.
+                if (annSelected) {
+                  applyAnnotations((list) =>
+                    list.map((a) =>
+                      a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
+                    ),
+                  );
+                }
+              }}
+            />
+          ))}
+        </div>
+        <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
+          {t('ann.delete')}
+        </button>
+        <button type="button" className="btn tiny danger" onClick={clearAnnotations} disabled={!annotations.length}>
+          {t('ann.clear')}
+        </button>
+        <span className="muted tiny ann-hint">
+          {!annotationsVisible
+            ? t('ann.hiddenHint')
+            : singleSelected
+              ? t('ann.scopePanel', { n: formatNumber(numberMap.get(singleSelected.id) ?? 0) })
+              : t('ann.scopePage')}
+        </span>
+      </div>
+
       <div className="stage-scroll">
         {!url ? (
           <div className="stage-empty">{t('panels.emptyPage')}</div>
         ) : (
           <div className="canvas-wrap" style={{ width: `${zoom * 100}%` }}>
             <div
-              className="shot"
+              className={`shot ${annTool !== 'select' ? 'ann-drawing' : ''}`}
               ref={shotRef}
               onPointerDown={startMarquee}
               onDoubleClick={(e) => {
+                if (annTool !== 'select') return;
                 if ((e.target as HTMLElement).closest('.pbox')) return;
                 const r = e.currentTarget.getBoundingClientRect();
                 addPanel({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
@@ -785,6 +914,20 @@ export function PanelsTab({
                 draggable={false}
                 onLoad={() => setImgLoaded(true)}
               />
+              {imgLoaded && (
+                <AnnotationLayer
+                  annotations={annotations}
+                  visible={annotationsVisible}
+                  tool={annTool}
+                  color={annColor}
+                  width={0.0035}
+                  activePanel={singleSelected ?? null}
+                  panels={doc.panels}
+                  selectedId={annSelected}
+                  onSelect={setAnnSelected}
+                  onChange={applyAnnotations}
+                />
+              )}
               {imgLoaded &&
                 doc.panels.map((panel) => {
                   const isSel = selected.includes(panel.id);
