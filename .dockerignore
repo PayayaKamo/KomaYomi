@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-server
+release
+docs
+raw
+data
+exports
+.screenshots
+.tmp
+.trae-html-share-packages
+.git
+.github
+.husky
+*.log

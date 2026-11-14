@@ -102,13 +102,23 @@ function pageRange(input: unknown, total: number): number[] {
   return list.filter((n) => Number.isInteger(n) && n >= 0 && n < total);
 }
 
-export type MangaServerOptions = { rootDir: string };
+export type MangaServerOptions = {
+  /** Base workspace directory; any of the three data folders may be overridden below. */
+  rootDir: string;
+  rawDir?: string;
+  dataDir?: string;
+  exportDir?: string;
+};
 
-/** 所有本地接口（Vite 中间件与 Electron 内置服务器共用） */
-export function createMangaHandler({ rootDir }: MangaServerOptions) {
-  const rawRoot = path.join(rootDir, 'raw');
-  const dataRoot = path.join(rootDir, 'data');
-  const exportRoot = path.join(rootDir, 'exports');
+/**
+ * All local endpoints, shared by the Vite middleware, the Electron server and the
+ * Docker/standalone entry. Folder overrides let containers bind-mount raw/data/exports
+ * separately while the desktop app keeps the `rootDir/{raw,data,exports}` layout.
+ */
+export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: MangaServerOptions) {
+  const rawRoot = rawDir ? path.resolve(rawDir) : path.join(rootDir, 'raw');
+  const dataRoot = dataDir ? path.resolve(dataDir) : path.join(rootDir, 'data');
+  const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
 
   return async function handler(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -157,6 +167,19 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
       }
 
       if (!pathname.startsWith('/api/')) return false;
+
+      // Container healthcheck: cheap, no filesystem walk, reports mounted folders
+      // so a mis-mounted compose file is visible in `docker ps`/logs.
+      if (pathname === '/api/health') {
+        sendJson(res, 200, {
+          ok: true,
+          app: 'KomaYomi',
+          version: process.env.npm_package_version ?? '0.1.0',
+          dirs: { raw: rawRoot, data: dataRoot, exports: exportRoot },
+          uptime: Math.round(process.uptime()),
+        });
+        return true;
+      }
 
       const library = createLibrary(rawRoot, dataRoot);
 
@@ -897,13 +920,15 @@ const STATIC_MIME: Record<string, string> = {
   txt: 'text/plain; charset=utf-8',
 };
 
-/** 桌面端用：独立启动一个只提供本地接口的 HTTP 服务；传入 staticDir 时同时托管打包后的前端 */
+/** 桌面端 / Docker：独立启动一个只提供本地接口的 HTTP 服务；传入 staticDir 时同时托管打包后的前端 */
 export function startMangaServer(
   rootDir: string,
   port = 0,
   staticDir?: string,
+  overrides: Pick<MangaServerOptions, 'rawDir' | 'dataDir' | 'exportDir'> = {},
+  host = '127.0.0.1',
 ): Promise<{ server: http.Server; port: number }> {
-  const handler = createMangaHandler({ rootDir });
+  const handler = createMangaHandler({ rootDir, ...overrides });
 
   const serveStatic = (res: ServerResponse, pathname: string): boolean => {
     if (!staticDir) return false;
@@ -937,7 +962,7 @@ export function startMangaServer(
   });
   return new Promise((resolve, reject) => {
     server.on('error', reject);
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, host, () => {
       const addr = server.address();
       resolve({ server, port: typeof addr === 'object' && addr ? addr.port : port });
     });

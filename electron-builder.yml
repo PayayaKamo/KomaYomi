@@ -1,6 +1,13 @@
-# electron-builder 打包配置（预留；当前发布流程仍以源码运行为主）
+# electron-builder packaging.
+#
+#   npm run dist:win   → NSIS installer + portable exe in ./release
+#   npm run dist:dir   → unpacked app, useful to sanity-check the desktop build
+#
+# Data (raw/, data/, exports/) is NOT bundled: the app asks for a library folder on
+# first launch and remembers it in %APPDATA%/manga-memo/config.json.
 appId: com.payayakamo.komayomi
 productName: KomaYomi
+copyright: Copyright © 2026 PayayaKamo
 directories:
   output: release
 files:
@@ -8,3 +15,20 @@ files:
   - dist-server/**/*
   - electron/**/*
   - package.json
+# dist-server/*.mjs already bundles its dependencies, so no node_modules are shipped.
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  artifactName: ${productName}-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: KomaYomi
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

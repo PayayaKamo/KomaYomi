@@ -1,0 +1,35 @@
+# KomaYomi in Docker — meant for running on your own machine, not as a public service.
+#
+#   docker compose up --build
+#   open http://127.0.0.1:3921
+#
+# The three mounts below are the only places data lives; the container filesystem is
+# disposable. `./raw` is your manga folder, `./data` holds page JSON / presets /
+# templates, `./exports` receives HTML, PNG, backups and project archives.
+
+services:
+  koma-yomi:
+    build: .
+    image: koma-yomi:local
+    container_name: koma-yomi
+    ports:
+      - '3921:3921'
+    environment:
+      PORT: 3921
+      RAW_DIR: /data/raw
+      DATA_DIR: /data/annotations
+      EXPORT_DIR: /data/exports
+      MANGA_LOCALE: ${MANGA_LOCALE:-en}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Remote storage credentials are injected at runtime and never baked into the image.
+      WEBDAV_URL: ${WEBDAV_URL:-}
+      WEBDAV_USER: ${WEBDAV_USER:-}
+      WEBDAV_PASSWORD: ${WEBDAV_PASSWORD:-}
+    volumes:
+      # Manga pages: raw/<volume>/<language>/<chapter>/<page>.jpg
+      - ./raw:/data/raw
+      # Annotations: data/pages, data/presets, data/templates, data/library.json
+      - ./data:/data/annotations
+      # Exports and backups
+      - ./exports:/data/exports
+    restart: unless-stopped
