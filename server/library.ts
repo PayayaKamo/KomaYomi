@@ -333,7 +333,9 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
             continue;
           }
           filenames[lang] = entry.filename;
-          files[lang] = encodePath(...entry.file.split('/'));
+          // `ResolvedFile.file` is relative to the raw root, so the public URL needs the
+          // `raw/` prefix that the /raw handler (and remote fallback) expects.
+          files[lang] = encodePath('raw', ...entry.file.split('/'));
         }
 
         // 命名异常提示：页码前缀与序号不一致
