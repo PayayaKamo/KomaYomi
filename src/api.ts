@@ -18,6 +18,7 @@ import type {
   StorageConfig,
   StorageStatus,
 } from './types';
+import { t } from './i18n';
 
 export type NotesIndex = {
   total: number;
@@ -94,10 +95,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
-    throw new Error(`服务返回了非 JSON 内容：${text.slice(0, 120)}`);
+    throw new Error(t('api.nonJson', { text: text.slice(0, 120) }));
   }
   if (!res.ok) {
-    const message = (data as { error?: string } | null)?.error ?? `请求失败（${res.status}）`;
+    // Server-provided messages stay as-is; only our own fallback is localized.
+    const message = (data as { error?: string } | null)?.error ?? t('api.requestFailed', { status: res.status });
     throw new Error(message);
   }
   return data as T;

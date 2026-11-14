@@ -3,6 +3,7 @@ import type { ChapterEntry, Lang, Library, PageEntry, VolumeEntry } from '../typ
 import { LANGUAGES, LANG_SHORT, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { thumbUrl } from '../api';
+import { useI18n } from '../i18n';
 import { AddVolumeDialog, VolumeSettingsDialog } from './LibraryDialogs';
 import { DataToolsDialog } from './DataToolsDialog';
 import { ProjectDialog } from './ProjectDialog';
@@ -28,6 +29,7 @@ function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
 }
 
 export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty }: Props) {
+  const { t, formatNumber } = useI18n();
   const [open, setOpen] = useState<Record<string, boolean>>(() => ({}));
   const [addOpen, setAddOpen] = useState(false);
   const [settings, setSettings] = useState<VolumeEntry | null>(null);
@@ -50,7 +52,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
       <aside className="sidebar">
         <div className="sidebar-head">
           <div className="brand">KomaYomi</div>
-          <div className="root-path">载入图库中…</div>
+          <div className="root-path">{t('sidebar.loadingLibrary')}</div>
         </div>
       </aside>
     );
@@ -63,11 +65,15 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           <div className="brand">KomaYomi</div>
         </div>
         <div className="sidebar-empty">
-          没有在 <code>{rootPath || 'raw'}</code> 下找到任何卷目录。
+          {t('sidebar.emptyNoVolumesBefore')}
+          <code>{rootPath || 'raw'}</code>
+          {t('sidebar.emptyNoVolumesAfter')}
           <br />
-          请把图片按 <code>raw/卷名/ja/话号/01.jpg</code> 的层级放好，或直接添加漫画。
+          {t('sidebar.emptyHintBefore')}
+          <code>{t('sidebar.emptyHintExample')}</code>
+          {t('sidebar.emptyHintAfter')}
           <button type="button" className="btn primary block" onClick={() => setAddOpen(true)}>
-            ＋ 添加漫画
+            {t('sidebar.addManga')}
           </button>
         </div>
         {addOpen && (
@@ -97,9 +103,13 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}
         >
           <span className={`chev ${isOpen ? 'open' : ''}`}>▸</span>
-          <span className="ch-name">{chapter.chapter === SINGLE_CHAPTER ? SINGLE_CHAPTER : `第 ${chapter.chapter} 话`}</span>
+          <span className="ch-name">
+            {chapter.chapter === SINGLE_CHAPTER
+              ? t('sidebar.singleChapter')
+              : t('format.chapter', { chapter: chapter.chapter })}
+          </span>
           <span className="ch-meta">
-            {annotated > 0 && <span className="chip-mini ok">{annotated}</span>}
+            {annotated > 0 && <span className="chip-mini ok">{formatNumber(annotated)}</span>}
             {pageWarnings > 0 && (
               <span className="chip-mini warn" title={chapter.pages.flatMap((p) => p.warnings).join('\n')}>
                 !
@@ -128,15 +138,21 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
                     type="button"
                     key={page.index}
                     className={`thumb ${active ? 'active' : ''} ${file ? '' : 'missing'}`}
-                    title={`第 ${page.index + 1} 页${page.warnings.length ? '\n' + page.warnings.join('\n') : ''}`}
+                    title={`${t('format.page', { page: formatNumber(page.index + 1) })}${
+                      page.warnings.length ? '\n' + page.warnings.join('\n') : ''
+                    }`}
                     onClick={() => onOpen({ volume: volumeId, chapter: chapter.chapter, pageIndex: page.index })}
                   >
                     {file ? (
-                      <img src={thumbUrl(file.url, 200)} alt={`第 ${page.index + 1} 页`} loading="lazy" />
+                      <img
+                        src={thumbUrl(file.url, 200)}
+                        alt={t('format.page', { page: formatNumber(page.index + 1) })}
+                        loading="lazy"
+                      />
                     ) : (
-                      <span>缺图</span>
+                      <span>{t('sidebar.missingImage')}</span>
                     )}
-                    <em>{page.index + 1}</em>
+                    <em>{formatNumber(page.index + 1)}</em>
                     {page.warnings.length > 0 && <i className="thumb-warn">!</i>}
                     {page.annotated && <i className="thumb-dot" />}
                     {file && <b className="thumb-lang">{LANG_SHORT[file.lang]}</b>}
@@ -158,9 +174,17 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           <span className="brand-sub">Manga Learner</span>
         </div>
         <div className="root-path" title={rootPath}>
-          {library.volumes.length} 卷 · {library.volumes.reduce((n, v) => n + v.chapters.length, 0)} 话
-          <button type="button" className="btn tiny add-volume-btn" onClick={() => setAddOpen(true)} title="添加漫画目录">
-            ＋ 漫画
+          {t('format.volumesChapters', {
+            volumes: formatNumber(library.volumes.length),
+            chapters: formatNumber(library.volumes.reduce((n, v) => n + v.chapters.length, 0)),
+          })}
+          <button
+            type="button"
+            className="btn tiny add-volume-btn"
+            onClick={() => setAddOpen(true)}
+            title={t('sidebar.addMangaTitle')}
+          >
+            {t('sidebar.addMangaShort')}
           </button>
         </div>
       </div>
@@ -169,11 +193,13 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           <div className="volume" key={volume.id}>
             <div className="volume-title">
               <span>{volume.title}</span>
-              <span className="volume-langs">{volume.languages.map((l) => LANG_SHORT[l]).join(' · ') || '未配置'}</span>
+              <span className="volume-langs">
+                {volume.languages.map((l) => LANG_SHORT[l]).join(' · ') || t('sidebar.langsUnconfigured')}
+              </span>
               <button
                 type="button"
                 className="icon-btn volume-gear"
-                title="卷设置：语言目录"
+                title={t('sidebar.volumeSettingsTitle')}
                 onClick={() => setSettings(volume)}
               >
                 ⚙
@@ -187,34 +213,34 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         ))}
       </div>
       <div className="sidebar-foot">
-        <span>raw 只读</span>
+        <span>{t('sidebar.rawReadOnly')}</span>
         <span className="sidebar-foot-actions">
           <button
             type="button"
             className="btn tiny"
             onClick={() => setProjectOpen(true)}
-            title="工程文件：导出 / 导入 .mnproj"
+            title={t('sidebar.projectFileTitle')}
           >
-            工程文件…
+            {t('sidebar.projectFile')}
           </button>
           <button
             type="button"
             className="btn tiny"
             onClick={() => setExchangeOpen(true)}
-            title="交换文件：.mntpl / .mnexp / .mnpage.json"
+            title={t('sidebar.exchangeTitle')}
           >
-            交换文件…
+            {t('sidebar.exchange')}
           </button>
           <button
             type="button"
             className="btn tiny"
             onClick={() => setDirRulesOpen(true)}
-            title="目录识别：声明式规则 + 实时预览 + 未识别文件"
+            title={t('sidebar.dirRulesTitle')}
           >
-            目录识别…
+            {t('sidebar.dirRules')}
           </button>
-          <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title="备份 / 恢复 data/">
-            备份 / 恢复
+          <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title={t('sidebar.backupTitle')}>
+            {t('sidebar.backup')}
           </button>
         </span>
       </div>

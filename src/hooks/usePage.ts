@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { t } from '../i18n';
 import type { PageDoc, PageEntry } from '../types';
 
 export type Selection = { volume: string; chapter: string; pageIndex: number };
@@ -213,7 +214,12 @@ export function usePage(sel: Selection | null) {
           detectedAt: new Date().toISOString(),
           detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
         }));
-        setState((s) => ({ ...s, detecting: false, error: res.warnings?.length ? res.warnings.join('；') : null }));
+        // Detector warnings come from the server in their own language; join them for display.
+        setState((s) => ({
+          ...s,
+          detecting: false,
+          error: res.warnings?.length ? res.warnings.join(t('common.listSeparator')) : null,
+        }));
       } catch (err) {
         setState((s) => ({
           ...s,

@@ -1,4 +1,5 @@
 import type { Note, NoteSource, Panel, PanelRect, ReadingDirection } from '../types';
+import { formatDate } from '../i18n';
 
 export const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
@@ -118,10 +119,7 @@ export function sourceDomain(source?: NoteSource): string {
   }
 }
 
+/** Locale-aware note timestamp; kept as a named export for existing callers. */
 export function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(
-    d.getHours(),
-  ).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatDate(iso);
 }

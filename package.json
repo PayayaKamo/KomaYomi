@@ -30,6 +30,8 @@
     "dist:dir": "npm run build && npm run server:build && electron-builder --dir",
     "docker:build": "docker build -t koma-yomi:local .",
     "docker:up": "docker compose up --build",
+    "i18n:scan": "node scripts/scan-hardcoded-zh.mjs",
+    "i18n:scan:strict": "node scripts/scan-hardcoded-zh.mjs --strict",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

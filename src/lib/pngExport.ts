@@ -1,5 +1,5 @@
 import type { Lang, PageEntry, PanelRect } from '../types';
-import { LANG_LABEL } from '../types';
+import { langLabel, t } from '../i18n';
 
 export type PngMode = 'page' | 'panel' | 'collage';
 
@@ -32,7 +32,7 @@ function loadImage(src: string, lang: Lang): Promise<HTMLImageElement> {
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`加载${LANG_LABEL[lang]}图片失败：${src}`));
+    img.onerror = () => reject(new Error(t('png.loadImageFailed', { lang: langLabel(lang), src })));
     img.src = src;
   });
 }
@@ -62,7 +62,7 @@ function createCanvas(width: number, height: number): HTMLCanvasElement {
 
 function get2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('无法创建 Canvas 2D 上下文');
+  if (!ctx) throw new Error(t('png.canvasContext'));
   return ctx;
 }
 
@@ -70,7 +70,7 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new Error('导出 PNG 失败：canvas.toBlob 返回空'));
+      else reject(new Error(t('png.canvasEmpty')));
     }, 'image/png');
   });
 }
@@ -111,7 +111,7 @@ async function renderCollage(
     const src = page.files[lang];
     return src ? [{ lang, src }] : [];
   });
-  if (jobs.length === 0) throw new Error('没有可导出的图片');
+  if (jobs.length === 0) throw new Error(t('png.noImages'));
 
   const items = await Promise.all(
     jobs.map(async ({ lang, src }) => {
@@ -148,7 +148,7 @@ async function renderCollage(
     ctx.fillStyle = '#f2f2f2';
     ctx.fillRect(x, PAD + targetH, w, LABEL_H);
     ctx.fillStyle = '#000';
-    ctx.fillText(LANG_LABEL[it.lang], x + w / 2, PAD + targetH + LABEL_H / 2);
+    ctx.fillText(langLabel(it.lang), x + w / 2, PAD + targetH + LABEL_H / 2);
     x += w + GAP;
   });
 
@@ -164,10 +164,10 @@ export async function exportPng(opts: PngExportOptions): Promise<void> {
     canvas = await renderCollage(page, langs, rect);
   } else {
     const src = page.files[lang];
-    if (!src) throw new Error(`缺少${LANG_LABEL[lang]}图片，无法导出`);
+    if (!src) throw new Error(t('png.missingImage', { lang: langLabel(lang) }));
     const img = await loadImage(src, lang);
     if (mode === 'panel') {
-      if (!rect) throw new Error('格子导出需要提供 rect');
+      if (!rect) throw new Error(t('png.panelRectRequired'));
       canvas = renderPanel(img, rect);
     } else {
       canvas = renderPage(img);
