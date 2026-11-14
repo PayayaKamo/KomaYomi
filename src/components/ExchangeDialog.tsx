@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ExportTemplate, LayoutScope, LayoutTemplate } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { api } from '../api';
+import { formatNumber, t, useI18n } from '../i18n';
 
 type Props = {
   onClose: () => void;
@@ -19,7 +20,7 @@ const readFileBase64 = (file: File): Promise<string> =>
       const result = String(reader.result ?? '');
       resolve(result.slice(result.indexOf(',') + 1));
     };
-    reader.onerror = () => reject(reader.error ?? new Error('读取文件失败'));
+    reader.onerror = () => reject(reader.error ?? new Error(t('common.readFileFailed')));
     reader.readAsDataURL(file);
   });
 
@@ -32,6 +33,7 @@ const download = (url: string, file: string) => {
 
 /** 统一交换格式：.mntpl 版式模板 / .mnexp 导出模板 / .mnpage.json 单页数据 */
 export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) {
+  const { t } = useI18n();
   const [layouts, setLayouts] = useState<LayoutTemplate[]>([]);
   const [exportTemplates, setExportTemplates] = useState<ExportTemplate[]>([]);
   const [layoutId, setLayoutId] = useState('');
@@ -72,9 +74,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
 
   const confirmDirty = (action: string) => {
     if (!dirty) return true;
-    return window.confirm(
-      `当前页面还有未保存的修改。\n\n${action}前建议先点保存，否则导出的不是最新内容，导入也可能覆盖未保存修改。\n\n仍要继续吗？`,
-    );
+    return window.confirm(t('exchange.dirtyConfirm', { action }));
   };
 
   const run = async (action: () => Promise<string>) => {
@@ -101,7 +101,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
     setMessage(null);
     try {
       set({ data: await readFileBase64(file), fileName: file.name });
-      setMessage(`已选择${label}：${file.name}，确认后才会写入。`);
+      setMessage(t('exchange.pickedFile', { label, file: file.name }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -111,16 +111,16 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
 
   const exportLayout = () =>
     void run(async () => {
-      if (!layoutId) throw new Error('请先选择要导出的版式');
-      if (!confirmDirty('导出 .mntpl')) throw new Error('已取消');
+      if (!layoutId) throw new Error(t('exchange.selectLayoutFirst'));
+      if (!confirmDirty(t('exchange.exportLayoutAction'))) throw new Error(t('exchange.cancelled'));
       const res = await api.exportLayoutFile(layoutId);
       download(res.url, res.file);
-      return `已导出 ${res.file}（已移除卷 / 话 / 页绑定，可在其他漫画导入）。`;
+      return t('exchange.exportedLayout', { file: res.file });
     });
 
   const importLayout = () =>
     void run(async () => {
-      if (!layoutPending) throw new Error('请先选择 .mntpl 文件');
+      if (!layoutPending) throw new Error(t('exchange.selectMntplFirst'));
       const res = await api.importLayoutFile({
         data: layoutPending.data,
         volume: bindVolume.trim(),
@@ -142,42 +142,56 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
       setLayouts((prev) => [res.layout, ...prev.filter((item) => item.id !== res.layout.id)]);
       setLayoutId(res.layout.id);
       if (applied) onChanged();
-      return `已导入版式模板「${res.layout.name}」${applyAfter ? `，并套用到 ${applied} 页` : ''}。原始文件已备份。`;
+      return t('exchange.layoutImported', {
+        name: res.layout.name,
+        applied: applyAfter
+          ? t('exchange.layoutImportedApplied', { count: formatNumber(applied) })
+          : '',
+      });
     });
 
   const exportTemplate = () =>
     void run(async () => {
-      if (!templateId) throw new Error('请先选择要导出的导出模板');
+      if (!templateId) throw new Error(t('exchange.selectExportTplFirst'));
       const res = await api.exportExportTemplateFile(templateId);
       download(res.url, res.file);
-      return `已导出 ${res.file}。`;
+      return t('exchange.exportedFile', { file: res.file });
     });
 
   const importTemplate = () =>
     void run(async () => {
-      if (!exportPending) throw new Error('请先选择 .mnexp 文件');
+      if (!exportPending) throw new Error(t('exchange.selectMnexpFirst'));
       const res = await api.importExportTemplateFile(exportPending.data);
       setExportPending(null);
       setExportTemplates((prev) => [res.template, ...prev.filter((item) => item.id !== res.template.id)]);
       setTemplateId(res.template.id);
-      return `已导入导出模板「${res.template.name}」。原始文件已备份。`;
+      return t('exchange.exportTplImported', { name: res.template.name });
     });
 
   const exportPage = () =>
     void run(async () => {
-      if (!selection) throw new Error('请先在左侧选择一页');
-      if (!confirmDirty('导出当前页')) throw new Error('已取消');
+      if (!selection) throw new Error(t('exchange.pickPageFirst'));
+      if (!confirmDirty(t('exchange.exportPageAction'))) throw new Error(t('exchange.cancelled'));
       const res = await api.exportPageFile(selection);
       download(res.url, res.file);
-      return `已导出 ${res.file}。`;
+      return t('exchange.exportedFile', { file: res.file });
     });
 
   const importPageAction = () =>
     void run(async () => {
-      if (!selection) throw new Error('请先在左侧选择要覆盖的页');
-      if (!pagePending) throw new Error('请先选择 .mnpage.json 文件');
-      if (!window.confirm(`将用 ${pagePending.fileName} 覆盖当前页（${selection.volume}/${selection.chapter} 第 ${selection.pageIndex + 1} 页）的分格、笔记与标注。\n\n原页面会先备份，仍要继续吗？`)) {
-        throw new Error('已取消');
+      if (!selection) throw new Error(t('exchange.selectPageToOverwrite'));
+      if (!pagePending) throw new Error(t('exchange.selectMnpageFirst'));
+      if (
+        !window.confirm(
+          t('exchange.overwriteConfirm', {
+            file: pagePending.fileName,
+            volume: selection.volume,
+            chapter: selection.chapter,
+            page: formatNumber(selection.pageIndex + 1),
+          }),
+        )
+      ) {
+        throw new Error(t('exchange.cancelled'));
       }
       const res = await api.importPageFile({
         data: pagePending.data,
@@ -187,23 +201,28 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
       });
       setPagePending(null);
       onChanged();
-      return `已导入单页数据${res.migratedFrom !== undefined ? `（从 v${res.migratedFrom} 迁移）` : ''}，原页面已备份。`;
+      return t('exchange.pageImported', {
+        migrated:
+          res.migratedFrom !== undefined
+            ? t('exchange.pageImportedMigrated', { v: String(res.migratedFrom) })
+            : '',
+      });
     });
 
   const scopeHint =
     bindScope === 'volume'
-      ? '整卷（不写入 chapter / pageIndex）'
+      ? t('exchange.scopeVolume')
       : bindScope === 'chapter'
-        ? '绑定到指定话'
-        : '绑定到指定页';
+        ? t('exchange.scopeChapter')
+        : t('exchange.scopePage');
 
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal small">
         <header className="modal-head">
           <div>
-            <h2>交换文件</h2>
-            <p>.mntpl 版式模板 · .mnexp 导出模板 · .mnpage.json 单页数据；导入前都会备份并校验</p>
+            <h2>{t('exchange.title')}</h2>
+            <p>{t('exchange.subtitle')}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             ×
@@ -211,27 +230,25 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
         </header>
         <div className="modal-body project-body">
           {dirty && (
-            <div className="banner warn">
-              当前页面有未保存的修改。导出不会包含它们；单页导入会覆盖当前页。建议先按顶栏「保存」。
-            </div>
+            <div className="banner warn">{t('exchange.dirtyBanner')}</div>
           )}
 
           <section className="project-section">
-            <h3>版式模板 .mntpl</h3>
-            <p className="muted tiny">导出会自动移除卷 / 话 / 页绑定；导入时再绑定到当前漫画。</p>
+            <h3>{t('exchange.layoutSection')}</h3>
+            <p className="muted tiny">{t('exchange.layoutHint')}</p>
             <label className="field">
-              <span>现有版式</span>
+              <span>{t('exchange.existingLayouts')}</span>
               <div className="row-inline">
                 <select value={layoutId} onChange={(e) => setLayoutId(e.target.value)}>
-                  {layouts.length === 0 && <option value="">暂无版式模板</option>}
+                  {layouts.length === 0 && <option value="">{t('exchange.noLayouts')}</option>}
                   {layouts.map((layout) => (
                     <option key={layout.id} value={layout.id}>
-                      {layout.name}（{layout.volume}/{layout.chapter}）
+                      {layout.name} ({layout.volume}/{layout.chapter})
                     </option>
                   ))}
                 </select>
                 <button type="button" className="btn" disabled={busy || !layoutId} onClick={exportLayout}>
-                  导出 .mntpl
+                  {t('exchange.exportMntpl')}
                 </button>
               </div>
             </label>
@@ -244,11 +261,11 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.currentTarget.value = '';
-                void pickFile(file, '版式模板', setLayoutPending);
+                void pickFile(file, t('exchange.labelLayout'), setLayoutPending);
               }}
             />
             <button type="button" className="btn" disabled={busy} onClick={() => layoutInput.current?.click()}>
-              选择 .mntpl 文件…
+              {t('exchange.chooseMntpl')}
             </button>
 
             {layoutPending && (
@@ -257,33 +274,37 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                 <div className="radio-row">
                   <label>
                     <input type="radio" name="bind-scope" checked={bindScope === 'volume'} onChange={() => setBindScope('volume')} />
-                    整卷
+                    {t('exchange.wholeVolume')}
                   </label>
                   <label>
                     <input type="radio" name="bind-scope" checked={bindScope === 'chapter'} onChange={() => setBindScope('chapter')} />
-                    话
+                    {t('exchange.chapter')}
                   </label>
                   <label>
                     <input type="radio" name="bind-scope" checked={bindScope === 'page'} onChange={() => setBindScope('page')} />
-                    页
+                    {t('exchange.page')}
                   </label>
                 </div>
                 <label className="field">
-                  <span>绑定到卷</span>
-                  <input value={bindVolume} onChange={(e) => setBindVolume(e.target.value)} placeholder="例如 点兔第14卷" />
+                  <span>{t('exchange.bindVolume')}</span>
+                  <input
+                    value={bindVolume}
+                    onChange={(e) => setBindVolume(e.target.value)}
+                    placeholder={t('exchange.bindVolumePlaceholder')}
+                  />
                 </label>
                 <div className="row-inline">
                   <label className="field">
-                    <span>话（可选）</span>
+                    <span>{t('exchange.chapterOptional')}</span>
                     <input
                       value={bindChapter}
                       disabled={bindScope === 'volume'}
                       onChange={(e) => setBindChapter(e.target.value)}
-                      placeholder="例如 172"
+                      placeholder={t('exchange.chapterPlaceholder')}
                     />
                   </label>
                   <label className="field">
-                    <span>页序（1 起）</span>
+                    <span>{t('exchange.pageOrder')}</span>
                     <input
                       type="number"
                       min={1}
@@ -297,15 +318,15 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                 <label className="field">
                   <span>
                     <input type="checkbox" checked={applyAfter} onChange={(e) => setApplyAfter(e.target.checked)} />{' '}
-                    导入后立即套用（会覆盖目标范围的分格，套用前自动保存原页面）
+                    {t('exchange.applyAfterImport')}
                   </span>
                 </label>
                 <div className="row-inline">
                   <button type="button" className="btn" disabled={busy} onClick={() => setLayoutPending(null)}>
-                    取消
+                    {t('common.cancel')}
                   </button>
                   <button type="button" className="btn primary" disabled={busy} onClick={importLayout}>
-                    {busy ? '导入中…' : '导入并绑定'}
+                    {busy ? t('exchange.importing') : t('exchange.importAndBind')}
                   </button>
                 </div>
               </div>
@@ -313,13 +334,13 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
           </section>
 
           <section className="project-section">
-            <h3>导出模板 .mnexp</h3>
-            <p className="muted tiny">包含 HTML / PDF / PNG 的版式与样式配置，可导出后再导入。</p>
+            <h3>{t('exchange.exportSection')}</h3>
+            <p className="muted tiny">{t('exchange.exportHint')}</p>
             <label className="field">
-              <span>现有导出模板</span>
+              <span>{t('exchange.existingExportTemplates')}</span>
               <div className="row-inline">
                 <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-                  {exportTemplates.length === 0 && <option value="">暂无导出模板</option>}
+                  {exportTemplates.length === 0 && <option value="">{t('exchange.noExportTemplates')}</option>}
                   {exportTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name}
@@ -327,7 +348,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                   ))}
                 </select>
                 <button type="button" className="btn" disabled={busy || !templateId} onClick={exportTemplate}>
-                  导出 .mnexp
+                  {t('exchange.exportMnexp')}
                 </button>
               </div>
             </label>
@@ -340,11 +361,11 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.currentTarget.value = '';
-                void pickFile(file, '导出模板', setExportPending);
+                void pickFile(file, t('exchange.labelExport'), setExportPending);
               }}
             />
             <button type="button" className="btn" disabled={busy} onClick={() => exportInput.current?.click()}>
-              选择 .mnexp 文件…
+              {t('exchange.chooseMnexp')}
             </button>
 
             {exportPending && (
@@ -352,10 +373,10 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                 <b>{exportPending.fileName}</b>
                 <div className="row-inline">
                   <button type="button" className="btn" disabled={busy} onClick={() => setExportPending(null)}>
-                    取消
+                    {t('common.cancel')}
                   </button>
                   <button type="button" className="btn primary" disabled={busy} onClick={importTemplate}>
-                    {busy ? '导入中…' : '确认导入'}
+                    {busy ? t('exchange.importing') : t('exchange.confirmImport')}
                   </button>
                 </div>
               </div>
@@ -363,18 +384,20 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
           </section>
 
           <section className="project-section">
-            <h3>单页数据 .mnpage.json</h3>
-            <p className="muted tiny">
-              可读 JSON，包含分格、笔记、标签、分组、标注与对齐偏移。旧页面 JSON（没有 envelope）也能导入。
-            </p>
+            <h3>{t('exchange.pageSection')}</h3>
+            <p className="muted tiny">{t('exchange.pageHint')}</p>
             <p className="muted tiny">
               {selection
-                ? `当前页：${selection.volume} / ${selection.chapter} / 第 ${selection.pageIndex + 1} 页`
-                : '请先在左侧选择一页'}
+                ? t('exchange.currentPage', {
+                    volume: selection.volume,
+                    chapter: selection.chapter,
+                    page: formatNumber(selection.pageIndex + 1),
+                  })
+                : t('exchange.pickPageFirst')}
             </p>
             <div className="row-inline">
               <button type="button" className="btn" disabled={busy || !selection} onClick={exportPage}>
-                导出当前页
+                {t('exchange.exportCurrentPage')}
               </button>
               <button
                 type="button"
@@ -382,7 +405,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                 disabled={busy || !selection}
                 onClick={() => pageInput.current?.click()}
               >
-                选择页面 JSON…
+                {t('exchange.choosePageJson')}
               </button>
             </div>
             <input
@@ -393,7 +416,7 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.currentTarget.value = '';
-                void pickFile(file, '页面 JSON', setPagePending);
+                void pickFile(file, t('exchange.labelPage'), setPagePending);
               }}
             />
             {pagePending && (
@@ -401,10 +424,10 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
                 <b>{pagePending.fileName}</b>
                 <div className="row-inline">
                   <button type="button" className="btn" disabled={busy} onClick={() => setPagePending(null)}>
-                    取消
+                    {t('common.cancel')}
                   </button>
                   <button type="button" className="btn danger" disabled={busy} onClick={importPageAction}>
-                    {busy ? '导入中…' : '覆盖当前页'}
+                    {busy ? t('exchange.importing') : t('exchange.overwriteCurrentPage')}
                   </button>
                 </div>
               </div>
@@ -415,9 +438,9 @@ export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) 
           {error && <div className="banner error">{error}</div>}
         </div>
         <footer className="modal-foot">
-          <span className="muted tiny">校验失败会给出字段路径，不会写入半成品；原始文件备份在 data/backups/exchange/</span>
+          <span className="muted tiny">{t('exchange.footerHint')}</span>
           <button type="button" className="btn" onClick={onClose}>
-            关闭
+            {t('common.close')}
           </button>
         </footer>
       </div>

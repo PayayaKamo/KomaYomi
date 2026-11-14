@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Lang, PageDoc, PageEntry, Panel, PanelRect, PanelTemplate } from '../types';
-import { LANG_LABEL, LANGUAGES } from '../types';
+import { LANGUAGES } from '../types';
 import { applyDrag, clamp01, normalizeRect, sortPanels, uid, unionRects } from '../lib/geometry';
 import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
+import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
 
 type Props = {
   doc: PageDoc;
@@ -123,6 +124,7 @@ export function PanelsTab({
   onUndo,
   onRedo,
 }: Props) {
+  const { t } = useI18n();
   const availableLangs = useMemo(
     () => LANGUAGES.filter((l) => Boolean(page.files[l])),
     [page],
@@ -348,9 +350,10 @@ export function PanelsTab({
     if (
       doc.panels.length > 0 &&
       !window.confirm(
-        `将用${label}替换当前 ${doc.panels.length} 个格子。${
-          sameCount ? '格子数量一致，格级批注会按阅读顺序迁移。' : '格子数量不同，格级批注会被清除（整页批注保留）。'
-        }继续？`,
+        t(sameCount ? 'panels.replaceSame' : 'panels.replaceDifferent', {
+          count: formatNumber(doc.panels.length),
+          label,
+        }),
       )
     ) {
       return false;
@@ -384,7 +387,7 @@ export function PanelsTab({
         rects.push({ x: c * (w + gap), y: r * (h + gap), w, h });
       }
     }
-    replacePanels(rects, `${rows}×${cols} 网格`);
+    replacePanels(rects, t('panels.gridLabel', { rows: formatNumber(rows), cols: formatNumber(cols) }));
   };
 
   const saveTemplate = async () => {
@@ -392,7 +395,12 @@ export function PanelsTab({
     setTplBusy(true);
     try {
       const res = await api.savePanelTemplate({
-        name: tplName.trim() || `${doc.chapter} 第 ${doc.pageIndex + 1} 页`,
+        name:
+          tplName.trim() ||
+          t('panels.defaultTemplateName', {
+            chapter: doc.chapter,
+            page: formatNumber(doc.pageIndex + 1),
+          }),
         volume: doc.volume,
         chapter: doc.chapter,
         panels: doc.panels.map((p) => p.rect),
@@ -400,10 +408,10 @@ export function PanelsTab({
       });
       setTplName('');
       setSelectedTpl(res.template.id);
-      setTplMsg(`已保存模板「${res.template.name}」`);
+      setTplMsg(t('panels.templateSaved', { name: res.template.name }));
       loadTemplates();
     } catch (err) {
-      setTplMsg(err instanceof Error ? err.message : '保存模板失败');
+      setTplMsg(err instanceof Error ? err.message : t('panels.templateSaveFailed'));
     } finally {
       setTplBusy(false);
     }
@@ -411,7 +419,7 @@ export function PanelsTab({
 
   const applyTemplate = async (scope: 'page' | 'chapter') => {
     if (!selectedTpl) return;
-    if (scope === 'chapter' && !window.confirm('把该模板套用到整话？已有分格会被覆盖，格数相同的页面会迁移批注。')) return;
+    if (scope === 'chapter' && !window.confirm(t('panels.applyTemplateConfirm'))) return;
     setTplBusy(true);
     try {
       // 先把当前页未保存的编辑落盘，避免被模板覆盖后丢失
@@ -423,11 +431,16 @@ export function PanelsTab({
         scope === 'page' ? [doc.pageIndex] : undefined,
       );
       setTplMsg(
-        `已套用 ${res.applied} 页${res.droppedNotes ? `，清除格级批注 ${res.droppedNotes} 条` : ''}`,
+        res.droppedNotes
+          ? t('panels.templateAppliedWithDropped', {
+              pages: formatNumber(res.applied),
+              notes: formatNumber(res.droppedNotes),
+            })
+          : t('panels.templateApplied', { pages: formatNumber(res.applied) }),
       );
       onReload();
     } catch (err) {
-      setTplMsg(err instanceof Error ? err.message : '套用模板失败');
+      setTplMsg(err instanceof Error ? err.message : t('panels.templateApplyFailed'));
     } finally {
       setTplBusy(false);
     }
@@ -437,7 +450,7 @@ export function PanelsTab({
     if (!selectedTpl) return;
     await api.deletePanelTemplate(selectedTpl).catch(() => null);
     setSelectedTpl('');
-    setTplMsg('模板已删除');
+    setTplMsg(t('panels.templateDeleted'));
     loadTemplates();
   };
 
@@ -446,7 +459,7 @@ export function PanelsTab({
     try {
       await navigator.clipboard.writeText(rel);
     } catch {
-      window.prompt('复制该路径，用编辑器打开即可手改：', rel);
+      window.prompt(t('panels.copyPrompt'), rel);
     }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
@@ -501,83 +514,89 @@ export function PanelsTab({
 
       <div className="stage-toolbar">
         <div className="tb-group">
-          <label className="tb-label">底图</label>
+          <label className="tb-label">{t('panels.baseImage')}</label>
           <select value={refLang} onChange={(e) => setRefLang(e.target.value as Lang)} className="tb-select">
             {availableLangs.map((l) => (
               <option value={l} key={l}>
-                {LANG_LABEL[l]}
+                {langLabel(l)}
               </option>
             ))}
           </select>
         </div>
 
         <div className="tb-group detect-meta">
-          <span className="tb-label">切格</span>
-          <span className="chip-mini" title="生成这一页格子所用的算法版本与最近一次编辑">
-            {doc.detectorVersion ?? '旧数据'}
+          <span className="tb-label">{t('panels.detectLabel')}</span>
+          <span className="chip-mini" title={t('panels.detectorVersionTitle')}>
+            {doc.detectorVersion ?? t('panels.legacyData')}
           </span>
           <span className="muted tiny">
             {doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
-              ? '手动改过'
+              ? t('panels.manualEdited')
               : doc.detectSource === 'template'
-                ? '按模板'
+                ? t('panels.fromTemplate')
                 : doc.detectSource === 'plugin'
-                  ? '按插件'
-                  : '自动'}
-            {doc.editCount ? ` · 保存 ${doc.editCount} 次` : ''}
-            {doc.lastEditedAt ? ` · ${new Date(doc.lastEditedAt).toLocaleString()}` : ''}
+                  ? t('panels.fromPlugin')
+                  : t('panels.autoDetectSource')}
+            {doc.editCount ? t('panels.editCount', { count: formatNumber(doc.editCount) }) : ''}
+            {doc.lastEditedAt ? t('panels.lastEditedAt', { date: formatDate(doc.lastEditedAt) }) : ''}
             {doc.lastEditSummary ? ` · ${doc.lastEditSummary}` : ''}
           </span>
         </div>
 
         <div className="tb-group">
           <button type="button" className="btn" onClick={() => onDetect(refLang)} disabled={detecting || !url}>
-            {detecting ? '检测中…' : '自动切格'}
+            {detecting ? t('panels.detecting') : t('panels.autoSplit')}
           </button>
           <button type="button" className="btn" onClick={() => addPanel()} disabled={!imgLoaded}>
-            添加格子
+            {t('panels.addPanel')}
           </button>
           <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
-            合并 {selected.length >= 2 ? `(${selected.length})` : ''}
+            {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
           </button>
           <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
-            删除
+            {t('common.delete')}
           </button>
         </div>
 
         <div className="tb-group save-group">
-          <span className="tb-label">保存</span>
+          <span className="tb-label">{t('common.save')}</span>
           <div className="seg">
             <button
               type="button"
               className={saveMode === 'auto' ? 'on' : ''}
               onClick={() => setSaveMode('auto')}
-              title="改动后约 0.7 秒自动落盘"
+              title={t('panels.saveAutoTitle')}
             >
-              自动
+              {t('panels.saveAuto')}
             </button>
             <button
               type="button"
               className={saveMode === 'confirm' ? 'on' : ''}
               onClick={() => setSaveMode('confirm')}
-              title="点 ✓ 或按 Enter 才保存；× 或 Esc 放弃并回到上次保存"
+              title={t('panels.saveConfirmTitle')}
             >
-              确认
+              {t('panels.saveConfirm')}
             </button>
           </div>
-          {saveMode === 'confirm' && dirty && <span className="unsaved-flag">未保存</span>}
-          <button type="button" className="btn icon" disabled={!canUndo} onClick={onUndo} title="撤销（Ctrl+Z）">
+          {saveMode === 'confirm' && dirty && <span className="unsaved-flag">{t('panels.unsaved')}</span>}
+          <button type="button" className="btn icon" disabled={!canUndo} onClick={onUndo} title={t('panels.undoTitle')}>
             ↶
           </button>
-          <button type="button" className="btn icon" disabled={!canRedo} onClick={onRedo} title="重做（Ctrl+Shift+Z）">
+          <button type="button" className="btn icon" disabled={!canRedo} onClick={onRedo} title={t('panels.redoTitle')}>
             ↷
           </button>
           {saveMode === 'confirm' && dirty && (
             <>
-              <button type="button" className="btn primary" onClick={onCommit} disabled={saving} title="保存改动（Enter）">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={onCommit}
+                disabled={saving}
+                title={t('panels.commitTitle')}
+              >
                 ✓
               </button>
-              <button type="button" className="btn danger" onClick={onDiscard} title="放弃改动（Esc）">
+              <button type="button" className="btn danger" onClick={onDiscard} title={t('panels.discardTitle')}>
                 ×
               </button>
             </>
@@ -587,7 +606,7 @@ export function PanelsTab({
         <div className="tb-group right">
           <label className="tb-check">
             <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
-            编号
+            {t('panels.numbers')}
           </label>
           <div className="zoom">
             <button type="button" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}>
@@ -604,7 +623,7 @@ export function PanelsTab({
       <div className="stage-toolbar sub">
         {singleSelected && (
           <div className="tb-group rect-inputs">
-            <span className="tb-label">格子坐标</span>
+            <span className="tb-label">{t('panels.panelRect')}</span>
             <label className="num">
               X
               <input
@@ -626,7 +645,7 @@ export function PanelsTab({
               %
             </label>
             <label className="num">
-              宽
+              {t('panels.width')}
               <input
                 type="number"
                 step={0.1}
@@ -636,7 +655,7 @@ export function PanelsTab({
               %
             </label>
             <label className="num">
-              高
+              {t('panels.height')}
               <input
                 type="number"
                 step={0.1}
@@ -649,9 +668,9 @@ export function PanelsTab({
         )}
 
         <div className="tb-group">
-          <span className="tb-label">网格</span>
+          <span className="tb-label">{t('panels.grid')}</span>
           <label className="num">
-            行
+            {t('panels.rows')}
             <input
               type="number"
               min={1}
@@ -661,7 +680,7 @@ export function PanelsTab({
             />
           </label>
           <label className="num">
-            列
+            {t('panels.cols')}
             <input
               type="number"
               min={1}
@@ -671,7 +690,7 @@ export function PanelsTab({
             />
           </label>
           <label className="num">
-            间距
+            {t('panels.gap')}
             <input
               type="number"
               min={0}
@@ -683,16 +702,21 @@ export function PanelsTab({
             %
           </label>
           <button type="button" className="btn tiny" onClick={makeGrid}>
-            生成网格
+            {t('panels.makeGrid')}
           </button>
         </div>
 
         <div className="tb-group right">
           <button type="button" className={`btn tiny ${tplOpen ? 'on' : ''}`} onClick={() => setTplOpen((v) => !v)}>
-            分格模板 {templates.length ? `(${templates.length})` : ''}
+            {t('panels.templates')} {templates.length ? `(${formatNumber(templates.length)})` : ''}
           </button>
-          <button type="button" className="btn tiny" onClick={() => void copyJsonPath()} title="复制当前页标注 JSON 路径">
-            {copied ? '已复制路径' : '复制 JSON 路径'}
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => void copyJsonPath()}
+            title={t('panels.copyJsonPathTitle')}
+          >
+            {copied ? t('panels.copiedPath') : t('panels.copyJsonPath')}
           </button>
         </div>
       </div>
@@ -702,33 +726,39 @@ export function PanelsTab({
           <div className="tpl-row">
             <input
               className="preset-name"
-              placeholder="模板名称，例如「四格无缝隙」"
+              placeholder={t('panels.templateNamePlaceholder')}
               value={tplName}
               onChange={(e) => setTplName(e.target.value)}
             />
             <button type="button" className="btn tiny" onClick={() => void saveTemplate()} disabled={tplBusy || !doc.panels.length}>
-              把当前页存为模板
+              {t('panels.saveAsTemplate')}
             </button>
           </div>
           <div className="tpl-row">
             <select className="tb-select" value={selectedTpl} onChange={(e) => setSelectedTpl(e.target.value)}>
-              <option value="">选择模板…</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {t.panels.length} 格
+              <option value="">{t('panels.selectTemplate')}</option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name} · {t('panels.panelCount', { count: formatNumber(tpl.panels.length) })}
                 </option>
               ))}
             </select>
             <button type="button" className="btn tiny" onClick={() => void applyTemplate('page')} disabled={tplBusy || !selectedTpl}>
-              套用本页
+              {t('panels.applyPage')}
             </button>
             <button type="button" className="btn tiny" onClick={() => void applyTemplate('chapter')} disabled={tplBusy || !selectedTpl}>
-              套用整话
+              {t('panels.applyChapter')}
             </button>
             <button type="button" className="btn tiny danger" onClick={() => void deleteTemplate()} disabled={tplBusy || !selectedTpl}>
-              删除模板
+              {t('panels.deleteTemplate')}
             </button>
-            <span className="muted tiny">数据文件：data/pages/{doc.volume}/{doc.chapter}/{doc.pageIndex}.json</span>
+            <span className="muted tiny">
+              {t('panels.dataFile', {
+                volume: doc.volume,
+                chapter: doc.chapter,
+                page: String(doc.pageIndex),
+              })}
+            </span>
           </div>
           {tplMsg && <div className="tpl-msg">{tplMsg}</div>}
         </div>
@@ -736,7 +766,7 @@ export function PanelsTab({
 
       <div className="stage-scroll">
         {!url ? (
-          <div className="stage-empty">这一页没有任何语言的图片</div>
+          <div className="stage-empty">{t('panels.emptyPage')}</div>
         ) : (
           <div className="canvas-wrap" style={{ width: `${zoom * 100}%` }}>
             <div
@@ -751,7 +781,7 @@ export function PanelsTab({
             >
               <img
                 src={url}
-                alt={`第 ${doc.pageIndex + 1} 页`}
+                alt={t('format.page', { page: formatNumber(doc.pageIndex + 1) })}
                 draggable={false}
                 onLoad={() => setImgLoaded(true)}
               />
@@ -803,9 +833,7 @@ export function PanelsTab({
               )}
             </div>
             {doc.panels.length === 0 && (
-              <div className="stage-hint">
-                还没有格子。在页面空白处拖拽框出格子，或点「自动切格」自动识别；双击空白处可加一个默认格子。
-              </div>
+              <div className="stage-hint">{t('panels.stageHint')}</div>
             )}
           </div>
         )}
@@ -813,15 +841,13 @@ export function PanelsTab({
 
       <div className="stage-status">
         <span>
-          共 <b>{doc.panels.length}</b> 格
-          {selected.length > 0 && ` · 已选 ${selected.length}`}
+          {t('panels.statusTotalBefore')}
+          <b>{formatNumber(doc.panels.length)}</b>
+          {t('panels.statusTotalAfter')}
+          {selected.length > 0 && t('panels.statusSelected', { count: formatNumber(selected.length) })}
         </span>
-        <span className="muted">
-          空白处拖拽框出格子 · Shift 正方形 · Alt 关闭吸附 · Esc 取消
-        </span>
-        <span className="muted">
-          拖动框体移动，拖角点缩放；Ctrl/Shift 点选多格后可合并；Delete 删除
-        </span>
+        <span className="muted">{t('panels.statusMarquee')}</span>
+        <span className="muted">{t('panels.statusEdit')}</span>
       </div>
     </div>
   );

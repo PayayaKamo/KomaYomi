@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ExportConfig, ExportTemplate, Lang, Library, PageDoc, PageEntry, Panel } from '../types';
-import { DEFAULT_EXPORT_CONFIG, LANG_LABEL, LANGUAGES, LANG_SHORT } from '../types';
+import { DEFAULT_EXPORT_CONFIG, LANGUAGES, LANG_SHORT } from '../types';
 import { api } from '../api';
 import { sortPanels } from '../lib/geometry';
 import { exportPng } from '../lib/pngExport';
+import { formatNumber, langLabel, useI18n } from '../i18n';
+import type { MessageKey } from '../i18n';
 import type { Selection } from '../hooks/usePage';
 
 type Props = {
@@ -30,10 +32,10 @@ type ExportResult = {
   assetDir?: string;
 };
 
-const TEMPLATES: { id: ExportConfig['template']; name: string; desc: string }[] = [
-  { id: 'two-column', name: '左图右注', desc: '左侧漫画原图，右侧整页与分格批注' },
-  { id: 'stack', name: '上图下注', desc: '图片占满宽度，批注在下方展开' },
-  { id: 'compare-wide', name: '分格对照', desc: '逐格并排展示多种语言，附该格批注' },
+const TEMPLATE_IDS: { id: ExportConfig['template']; name: MessageKey; desc: MessageKey }[] = [
+  { id: 'two-column', name: 'export.templateTwoColumn', desc: 'export.templateTwoColumnDesc' },
+  { id: 'stack', name: 'export.templateStack', desc: 'export.templateStackDesc' },
+  { id: 'compare-wide', name: 'export.templateCompareWide', desc: 'export.templateCompareWideDesc' },
 ];
 
 const LAYOUT_KEY = 'manga-memo.export-layout';
@@ -77,6 +79,7 @@ export function ExportDialog({
   tagStats,
   rootPath,
 }: Props) {
+  const { t } = useI18n();
   const [cfg, setCfg] = useState<ExportConfig | null>(null);
   const [scope, setScope] = useState<'page' | 'chapter'>('page');
   const [busy, setBusy] = useState(false);
@@ -105,7 +108,7 @@ export function ExportDialog({
     setCfg({
       ...DEFAULT_EXPORT_CONFIG,
       ...(readLayout() ?? {}),
-      title: `${sel.chapter} 对照批注`,
+      title: t('export.defaultTitle', { chapter: sel.chapter }),
       volume: sel.volume,
       chapter: sel.chapter,
       pageIndices: [sel.pageIndex],
@@ -116,7 +119,7 @@ export function ExportDialog({
       .exportTemplates()
       .then((res) => setTemplates(res.templates))
       .catch(() => setTemplates([]));
-  }, [open, sel, langs, doc?.offsets]);
+  }, [open, sel, langs, doc?.offsets, t]);
 
   useEffect(() => {
     if (!resizing) return;
@@ -174,7 +177,12 @@ export function ExportDialog({
 
   const runPng = async (mode: 'page' | 'panel' | 'collage') => {
     if (!page) return;
-    const label = mode === 'page' ? '整页' : mode === 'panel' ? '单格' : '三语拼图';
+    const label =
+      mode === 'page'
+        ? t('export.pngPageLabel')
+        : mode === 'panel'
+          ? t('export.pngPanelLabel')
+          : t('export.pngCollageLabel');
     setPngBusy(mode);
     setPngMsg(null);
     try {
@@ -187,49 +195,49 @@ export function ExportDialog({
         mode,
         filenameBase: `${pngBase}-${label}`,
       });
-      setPngMsg(`已生成 ${label} PNG，请查看浏览器下载目录`);
+      setPngMsg(t('export.pngDone', { label }));
     } catch (err) {
-      setPngMsg(`PNG 导出失败：${err instanceof Error ? err.message : String(err)}`);
+      setPngMsg(t('export.pngFailed', { error: err instanceof Error ? err.message : String(err) }));
     } finally {
       setPngBusy(null);
     }
   };
 
   const saveTemplate = async () => {
-    const name = tplName.trim() || `${cfg.template} 模板`;
+    const name = tplName.trim() || t('export.defaultTemplateName', { template: cfg.template });
     try {
       const res = await api.saveExportTemplate(name, layoutOf(cfg));
       setTemplates((prev) => [res.template, ...prev]);
       setTplName('');
-      setTplMsg(`已保存模板「${name}」`);
+      setTplMsg(t('export.templateSaved', { name }));
     } catch (err) {
-      setTplMsg(`保存失败：${err instanceof Error ? err.message : String(err)}`);
+      setTplMsg(t('export.saveFailed', { error: err instanceof Error ? err.message : String(err) }));
     }
   };
 
-  const applyTemplate = (t: ExportTemplate) => {
-    patch({ ...t.config });
-    setTplMsg(`已套用模板「${t.name}」`);
+  const applyTemplate = (tpl: ExportTemplate) => {
+    patch({ ...tpl.config });
+    setTplMsg(t('export.templateApplied', { name: tpl.name }));
   };
 
-  const removeTemplate = async (t: ExportTemplate) => {
+  const removeTemplate = async (tpl: ExportTemplate) => {
     try {
-      await api.deleteExportTemplate(t.id);
-      setTemplates((prev) => prev.filter((x) => x.id !== t.id));
-      setTplMsg(`已删除「${t.name}」`);
+      await api.deleteExportTemplate(tpl.id);
+      setTemplates((prev) => prev.filter((x) => x.id !== tpl.id));
+      setTplMsg(t('export.templateDeleted', { name: tpl.name }));
     } catch (err) {
-      setTplMsg(`删除失败：${err instanceof Error ? err.message : String(err)}`);
+      setTplMsg(t('export.deleteFailed', { error: err instanceof Error ? err.message : String(err) }));
     }
   };
 
-  const exportTemplateFile = (t: ExportTemplate) => {
-    const blob = new Blob([JSON.stringify({ name: t.name, config: t.config }, null, 2)], {
+  const exportTemplateFile = (tpl: ExportTemplate) => {
+    const blob = new Blob([JSON.stringify({ name: tpl.name, config: tpl.config }, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${safeName(t.name)}.json`;
+    a.download = `${safeName(tpl.name)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -238,12 +246,12 @@ export function ExportDialog({
     try {
       const text = await file.text();
       const data = JSON.parse(text) as { name?: string; config?: Partial<ExportConfig> };
-      if (!data || typeof data !== 'object' || !data.config) throw new Error('文件里没有 config 字段');
+      if (!data || typeof data !== 'object' || !data.config) throw new Error(t('export.noConfigField'));
       const res = await api.saveExportTemplate(data.name || file.name.replace(/\.json$/i, ''), data.config);
       setTemplates((prev) => [res.template, ...prev]);
-      setTplMsg(`已导入模板「${res.template.name}」`);
+      setTplMsg(t('export.templateImported', { name: res.template.name }));
     } catch (err) {
-      setTplMsg(`导入失败：${err instanceof Error ? err.message : String(err)}`);
+      setTplMsg(t('export.importFailed', { error: err instanceof Error ? err.message : String(err) }));
     }
   };
 
@@ -276,9 +284,12 @@ export function ExportDialog({
       <div className="modal export-modal">
         <header className="modal-head">
           <div>
-            <h2>导出</h2>
+            <h2>{t('export.title')}</h2>
             <p>
-              {cfg.volume} · 第 {cfg.chapter} 话 · {scope === 'page' ? `第 ${sel.pageIndex + 1} 页` : '整话已标注页'}
+              {cfg.volume} · {t('format.chapter', { chapter: cfg.chapter })} ·{' '}
+              {scope === 'page'
+                ? t('format.page', { page: formatNumber(sel.pageIndex + 1) })
+                : t('export.subtitleChapterScope')}
             </p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
@@ -289,17 +300,17 @@ export function ExportDialog({
         <div className="export-body">
           <div className="export-form">
             <section>
-              <h3>版式模板</h3>
+              <h3>{t('export.layoutTemplates')}</h3>
               <div className="template-list">
-                {TEMPLATES.map((t) => (
+                {TEMPLATE_IDS.map((tpl) => (
                   <button
                     type="button"
-                    key={t.id}
-                    className={`template ${cfg.template === t.id ? 'on' : ''}`}
-                    onClick={() => patch({ template: t.id })}
+                    key={tpl.id}
+                    className={`template ${cfg.template === tpl.id ? 'on' : ''}`}
+                    onClick={() => patch({ template: tpl.id })}
                   >
-                    <b>{t.name}</b>
-                    <span>{t.desc}</span>
+                    <b>{t(tpl.name)}</b>
+                    <span>{t(tpl.desc)}</span>
                   </button>
                 ))}
               </div>
@@ -308,17 +319,17 @@ export function ExportDialog({
                 <div className="tpl-row">
                   <input
                     className="input"
-                    placeholder="自定义模板名"
+                    placeholder={t('export.customTemplatePlaceholder')}
                     value={tplName}
                     onChange={(e) => setTplName(e.target.value)}
                   />
                   <button type="button" className="btn tiny" onClick={saveTemplate}>
-                    保存当前版式
+                    {t('export.saveCurrentLayout')}
                   </button>
                 </div>
                 <div className="tpl-row">
                   <button type="button" className="btn tiny" onClick={() => fileRef.current?.click()}>
-                    导入 JSON
+                    {t('export.importJson')}
                   </button>
                   <input
                     ref={fileRef}
@@ -331,21 +342,21 @@ export function ExportDialog({
                       e.target.value = '';
                     }}
                   />
-                  <span className="tiny muted">模板存于 data/templates/export.json</span>
+                  <span className="tiny muted">{t('export.templateStoreHint')}</span>
                 </div>
                 {templates.length > 0 && (
                   <ul className="tpl-list">
-                    {templates.map((t) => (
-                      <li key={t.id}>
-                        <b>{t.name}</b>
-                        <button type="button" className="link-btn" onClick={() => applyTemplate(t)}>
-                          套用
+                    {templates.map((tpl) => (
+                      <li key={tpl.id}>
+                        <b>{tpl.name}</b>
+                        <button type="button" className="link-btn" onClick={() => applyTemplate(tpl)}>
+                          {t('export.apply')}
                         </button>
-                        <button type="button" className="link-btn" onClick={() => exportTemplateFile(t)}>
-                          导出
+                        <button type="button" className="link-btn" onClick={() => exportTemplateFile(tpl)}>
+                          {t('export.export')}
                         </button>
-                        <button type="button" className="link-btn danger" onClick={() => removeTemplate(t)}>
-                          删除
+                        <button type="button" className="link-btn danger" onClick={() => removeTemplate(tpl)}>
+                          {t('common.delete')}
                         </button>
                       </li>
                     ))}
@@ -356,24 +367,24 @@ export function ExportDialog({
             </section>
 
             <section>
-              <h3>标题</h3>
+              <h3>{t('export.titleSection')}</h3>
               <input className="input" value={cfg.title} onChange={(e) => patch({ title: e.target.value })} />
             </section>
 
             <section>
-              <h3>范围</h3>
+              <h3>{t('export.scopeSection')}</h3>
               <div className="seg">
                 <button type="button" className={scope === 'page' ? 'on' : ''} onClick={() => setScope('page')}>
-                  当前页
+                  {t('export.currentPage')}
                 </button>
                 <button type="button" className={scope === 'chapter' ? 'on' : ''} onClick={() => setScope('chapter')}>
-                  整话（{chapterInfo?.pages.length ?? 0} 页）
+                  {t('export.wholeChapter', { count: formatNumber(chapterInfo?.pages.length ?? 0) })}
                 </button>
               </div>
             </section>
 
             <section>
-              <h3>语言</h3>
+              <h3>{t('export.languageSection')}</h3>
               <div className="lang-chips">
                 {LANGUAGES.map((l) => (
                   <button
@@ -389,21 +400,23 @@ export function ExportDialog({
                     }
                     disabled={cfg.languages.length === 1 && cfg.languages.includes(l)}
                   >
-                    {LANG_SHORT[l]} {LANG_LABEL[l]}
+                    {LANG_SHORT[l]} {langLabel(l)}
                   </button>
                 ))}
               </div>
             </section>
 
             <section>
-              <h3>图片方式</h3>
+              <h3>{t('export.imageMode')}</h3>
               <label className="tb-check">
                 <input
                   type="checkbox"
                   checked={!cfg.embedImages}
                   onChange={(e) => patch({ embedImages: !e.target.checked })}
                 />
-                图片放同名 <code>.files</code> 目录（默认，体积小、加载快）
+                {t('export.imageFilesBefore')}
+                <code>.files</code>
+                {t('export.imageFilesAfter')}
               </label>
               <label className="tb-check">
                 <input
@@ -411,7 +424,7 @@ export function ExportDialog({
                   checked={cfg.embedImages}
                   onChange={(e) => patch({ embedImages: e.target.checked })}
                 />
-                打包成单文件（内嵌图片，外发分享用）
+                {t('export.singleFileOption')}
               </label>
               <label className="tb-check">
                 <input
@@ -419,57 +432,53 @@ export function ExportDialog({
                   checked={cfg.showPanelBoxes}
                   onChange={(e) => patch({ showPanelBoxes: e.target.checked })}
                 />
-                在原图上标出格子边框
+                {t('export.showPanelBoxes')}
               </label>
               <p className="hint">
-                {cfg.embedImages
-                  ? '单文件可直接双击打开，但整话可能几十 MB，生成较慢。'
-                  : 'HTML 与 .files 目录需一起拷贝；通过本应用或任意静态服务器打开即可看到图。'}
+                {cfg.embedImages ? t('export.embedHintSingle') : t('export.embedHintFiles')}
               </p>
             </section>
 
             <section>
-              <h3>导出 PNG</h3>
+              <h3>{t('export.pngSection')}</h3>
               <div className="png-row">
                 <button type="button" className="btn tiny" onClick={() => runPng('page')} disabled={!page || !!pngBusy}>
-                  {pngBusy === 'page' ? '生成中…' : '整页'}
+                  {pngBusy === 'page' ? t('export.generating') : t('export.pngPageLabel')}
                 </button>
                 <button
                   type="button"
                   className="btn tiny"
                   onClick={() => runPng('panel')}
                   disabled={!page || !panel || !!pngBusy}
-                  title={panel ? '' : '先在左侧选择一个格子'}
+                  title={panel ? '' : t('export.panelFirstHint')}
                 >
-                  {pngBusy === 'panel' ? '生成中…' : '当前格'}
+                  {pngBusy === 'panel' ? t('export.generating') : t('export.pngPanelLabel')}
                 </button>
                 <button type="button" className="btn tiny" onClick={() => runPng('collage')} disabled={!page || !!pngBusy}>
-                  {pngBusy === 'collage' ? '生成中…' : '三语拼图'}
+                  {pngBusy === 'collage' ? t('export.generating') : t('export.pngCollageLabel')}
                 </button>
               </div>
-              <p className="hint">
-                整页/单格用当前首选语言；拼图按所选语言并排（若选中格子则只拼该格）。PNG 直接插入 PPT / 文档。
-              </p>
+              <p className="hint">{t('export.pngHint')}</p>
               {pngMsg && <div className="tpl-msg">{pngMsg}</div>}
             </section>
 
             <section>
-              <h3>导出范围</h3>
+              <h3>{t('export.scopeHeading')}</h3>
               <label className="check-row">
                 <input
                   type="checkbox"
                   checked={Boolean(cfg.onlyWithNotes)}
                   onChange={(e) => patch({ onlyWithNotes: e.target.checked })}
                 />
-                只导出有笔记的页
+                {t('export.onlyWithNotes')}
               </label>
-              <p className="hint">跳过没有笔记的页，适合整理学习笔记合集。</p>
+              <p className="hint">{t('export.onlyWithNotesHint')}</p>
             </section>
 
             <section>
-              <h3>版式</h3>
+              <h3>{t('export.layoutSection')}</h3>
               <label className="slider-row">
-                <span>图栏宽度</span>
+                <span>{t('export.imageWidth')}</span>
                 <input
                   type="range"
                   min={28}
@@ -480,7 +489,7 @@ export function ExportDialog({
                 <em>{cfg.pageWidthRatio}%</em>
               </label>
               <label className="slider-row">
-                <span>栏目间距</span>
+                <span>{t('export.columnGap')}</span>
                 <input
                   type="range"
                   min={0}
@@ -491,7 +500,7 @@ export function ExportDialog({
                 <em>{cfg.columnGap}px</em>
               </label>
               <label className="slider-row">
-                <span>字号</span>
+                <span>{t('export.fontSize')}</span>
                 <input
                   type="range"
                   min={0.8}
@@ -504,7 +513,7 @@ export function ExportDialog({
               </label>
               {cfg.template === 'compare-wide' && (
                 <label className="slider-row">
-                  <span>每行列数</span>
+                  <span>{t('export.columnsPerRow')}</span>
                   <input
                     type="range"
                     min={1}
@@ -512,36 +521,36 @@ export function ExportDialog({
                     value={cfg.columns}
                     onChange={(e) => patch({ columns: Number(e.target.value) })}
                   />
-                  <em>{cfg.columns} 列</em>
+                  <em>{t('export.columnCount', { count: formatNumber(cfg.columns) })}</em>
                 </label>
               )}
-              <p className="hint">版式会自动记住；拖动右侧预览里的分隔线也能调图栏宽度。</p>
+              <p className="hint">{t('export.layoutHint')}</p>
             </section>
 
             {tagStats.length > 0 && (
               <section>
-                <h3>只导出含这些标签的批注</h3>
+                <h3>{t('export.tagFilterHeading')}</h3>
                 <div className="tag-cloud">
-                  {tagStats.map((t) => (
+                  {tagStats.map((tag) => (
                     <button
                       type="button"
-                      key={t.tag}
-                      className={`tag ${cfg.noteFilterTags.includes(t.tag) ? 'on' : ''}`}
+                      key={tag.tag}
+                      className={`tag ${cfg.noteFilterTags.includes(tag.tag) ? 'on' : ''}`}
                       onClick={() =>
                         patch({
-                          noteFilterTags: cfg.noteFilterTags.includes(t.tag)
-                            ? cfg.noteFilterTags.filter((x) => x !== t.tag)
-                            : [...cfg.noteFilterTags, t.tag],
+                          noteFilterTags: cfg.noteFilterTags.includes(tag.tag)
+                            ? cfg.noteFilterTags.filter((x) => x !== tag.tag)
+                            : [...cfg.noteFilterTags, tag.tag],
                         })
                       }
                     >
-                      {t.tag} <em>{t.count}</em>
+                      {tag.tag} <em>{formatNumber(tag.count)}</em>
                     </button>
                   ))}
                 </div>
                 {cfg.noteFilterTags.length > 0 && (
                   <button type="button" className="link-btn" onClick={() => patch({ noteFilterTags: [] })}>
-                    清除筛选
+                    {t('export.clearFilters')}
                   </button>
                 )}
               </section>
@@ -549,20 +558,20 @@ export function ExportDialog({
           </div>
 
           <div className="export-preview-wrap">
-            <div className="preview-label">版式预览（可拖动分隔线）</div>
+            <div className="preview-label">{t('export.previewLabel')}</div>
             <div className="export-preview" ref={previewRef}>
               <div className="pv-title">{cfg.title}</div>
               {cfg.template === 'compare-wide' ? (
                 <div className="pv-compare">
                   {ordered.slice(0, 3).map((p, i) => (
                     <div className="pv-row" key={p.id}>
-                      <span>第 {i + 1} 格</span>
+                      <span>{t('format.panel', { number: formatNumber(i + 1) })}</span>
                       <div className="pv-crops" style={{ gridTemplateColumns: `repeat(${cfg.languages.length},1fr)` }}>
                         {cfg.languages.map((l) => renderCrop(p, l))}
                       </div>
                     </div>
                   ))}
-                  {!ordered.length && <div className="pv-empty">本页还没有分格</div>}
+                  {!ordered.length && <div className="pv-empty">{t('export.previewEmptyPanels')}</div>}
                 </div>
               ) : (
                 <div
@@ -573,11 +582,11 @@ export function ExportDialog({
                       : { gap: `${cfg.columnGap / 2}px` }
                   }
                 >
-                  <div className="pv-page">{previewUrl ? <img src={previewUrl} alt="" /> : <span>无图片</span>}</div>
+                  <div className="pv-page">{previewUrl ? <img src={previewUrl} alt="" /> : <span>{t('export.noImage')}</span>}</div>
                   <div className="pv-notes">
                     {pageNotes.length > 0 && (
                       <div className="pv-note-group">
-                        <h4>整页批注</h4>
+                        <h4>{t('export.pageNotes')}</h4>
                         {pageNotes.map((n) => (
                           <p key={n.id}>{n.text}</p>
                         ))}
@@ -588,7 +597,7 @@ export function ExportDialog({
                       if (!notes.length) return null;
                       return (
                         <div className="pv-note-group" key={p.id}>
-                          <h4>第 {i + 1} 格</h4>
+                          <h4>{t('format.panel', { number: formatNumber(i + 1) })}</h4>
                           {notes.map((n) => (
                             <p key={n.id}>{n.text}</p>
                           ))}
@@ -596,7 +605,7 @@ export function ExportDialog({
                       );
                     })}
                     {!pageNotes.length && !doc?.notes.some((n) => n.scope === 'panel') && (
-                      <div className="pv-empty">暂无批注内容</div>
+                      <div className="pv-empty">{t('export.previewEmptyNotes')}</div>
                     )}
                   </div>
                 </div>
@@ -606,7 +615,7 @@ export function ExportDialog({
                   className="pv-handle"
                   style={{ left: `${cfg.pageWidthRatio}%` }}
                   onPointerDown={() => setResizing(true)}
-                  title="拖动调整图栏宽度"
+                  title={t('export.dragHandleTitle')}
                 />
               )}
             </div>
@@ -614,22 +623,24 @@ export function ExportDialog({
             {result && (
               <div className="export-result">
                 <div>
-                  已导出 {result.pages} 页 → <code>{result.file}</code>
+                  {t('export.exportedPages', { pages: formatNumber(result.pages) })} <code>{result.file}</code>
                 </div>
                 <div className="tiny muted">
                   {result.imageMode === 'embed'
-                    ? '图片已内嵌，单文件即可分享'
-                    : `图片目录：${rootPath ? `${rootPath}\\exports\\` : 'exports/'}${result.assetDir ?? ''}`}
+                    ? t('export.imagesEmbedded')
+                    : t('export.imageDir', {
+                        path: `${rootPath ? `${rootPath}\\exports\\` : 'exports/'}${result.assetDir ?? ''}`,
+                      })}
                 </div>
                 <div className="row-actions">
                   <a className="btn primary" href={result.url} target="_blank" rel="noreferrer">
-                    打开 HTML
+                    {t('export.openHtml')}
                   </a>
                   <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
-                    下载 HTML
+                    {t('export.downloadHtml')}
                   </a>
                   {result.assetDir && (
-                    <span className="tiny muted">（.files 目录需一并拷贝）</span>
+                    <span className="tiny muted">{t('export.filesNote')}</span>
                   )}
                 </div>
                 {result.warnings.length > 0 && (
@@ -646,13 +657,13 @@ export function ExportDialog({
         </div>
 
         <footer className="modal-foot">
-          <span className="muted tiny">输出到项目 exports/ 目录，HTML 可直接在浏览器打开</span>
+          <span className="muted tiny">{t('export.footerHint')}</span>
           <div className="row-actions">
             <button type="button" className="btn" onClick={onClose}>
-              关闭
+              {t('common.close')}
             </button>
             <button type="button" className="btn primary" onClick={generate} disabled={busy}>
-              {busy ? '生成中…' : '生成 HTML'}
+              {busy ? t('export.generating') : t('export.generateHtml')}
             </button>
           </div>
         </footer>

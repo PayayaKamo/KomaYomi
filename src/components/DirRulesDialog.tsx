@@ -2,18 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DirPreview, DirRule, Lang, Library } from '../types';
 import { LANG_SHORT } from '../types';
 import { api } from '../api';
+import { formatNumber, t, useI18n } from '../i18n';
 
 type Props = {
   onClose: () => void;
   onSaved: (library: Library) => void;
 };
 
-const EXAMPLE_RULE: DirRule = {
+const exampleRule = (): DirRule => ({
   id: 'series-volume-chapter-language-page',
-  name: '系列 / 卷 / 话 / 语言 / 页',
+  name: t('dirRules.exampleRuleName'),
   pattern: '{series}/{volume}/{chapter}/{language}/{page}',
   ignore: ['_extras'],
-};
+});
 
 const pretty = (rules: DirRule[]) => JSON.stringify(rules, null, 2);
 
@@ -23,6 +24,7 @@ const pretty = (rules: DirRule[]) => JSON.stringify(rules, null, 2);
  * 同时用实时预览 + 未识别清单把「为什么没扫出来」讲清楚。
  */
 export function DirRulesDialog({ onClose, onSaved }: Props) {
+  const { t } = useI18n();
   const [text, setText] = useState('');
   const [original, setOriginal] = useState('');
   const [defaults, setDefaults] = useState<DirRule[]>([]);
@@ -50,15 +52,15 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
   }, []);
 
   const parsed = useMemo<{ rules?: DirRule[]; error?: string }>(() => {
-    if (!text.trim()) return { error: '规则不能为空' };
+    if (!text.trim()) return { error: t('dirRules.empty') };
     try {
       const value = JSON.parse(text) as unknown;
-      if (!Array.isArray(value) || !value.length) return { error: '规则需要是非空数组' };
+      if (!Array.isArray(value) || !value.length) return { error: t('dirRules.notArray') };
       return { rules: value as DirRule[] };
     } catch (err) {
-      return { error: `JSON 语法错误：${err instanceof Error ? err.message : String(err)}` };
+      return { error: t('dirRules.jsonError', { error: err instanceof Error ? err.message : String(err) }) };
     }
-  }, [text]);
+  }, [text, t]);
 
   // 规则或目录一变就重新预览（防抖），改完无需保存即可看到效果。
   useEffect(() => {
@@ -86,7 +88,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
 
   const save = async () => {
     if (!parsed.rules) {
-      setError(parsed.error ?? '规则无效');
+      setError(parsed.error ?? t('dirRules.invalid'));
       return;
     }
     setBusy(true);
@@ -98,7 +100,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
       setOriginal(pretty(res.rules));
       setCustomized(true);
       onSaved(res.library);
-      setMessage('规则已保存，图库已按新规则重新扫描');
+      setMessage(t('dirRules.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -116,7 +118,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
       setOriginal(pretty(res.rules));
       setCustomized(false);
       onSaved(res.library);
-      setMessage('已恢复默认规则');
+      setMessage(t('dirRules.resetDone'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -131,10 +133,11 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
       <div className="modal">
         <header className="modal-head">
           <div>
-            <h2>目录识别规则</h2>
+            <h2>{t('dirRules.title')}</h2>
             <p>
-              用占位符描述页文件路径：{'{series}'} {'{volume}'} {'{chapter}'} {'{language}'} {'{page}'}
-              ；按顺序尝试，第一个命中的规则生效
+              {t('dirRules.introBefore')}
+              {'{series}'} {'{volume}'} {'{chapter}'} {'{language}'} {'{page}'}
+              {t('dirRules.introAfter')}
             </p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
@@ -145,7 +148,11 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
         <div className="dirrules-body">
           <section className="dirrules-col">
             <div className="field">
-              <span>规则（JSON 数组，可加 {'{chapter}?'} 表示可选段）</span>
+              <span>
+                {t('dirRules.rulesLabelBefore')}
+                {'{chapter}?'}
+                {t('dirRules.rulesLabelAfter')}
+              </span>
               <textarea
                 className="dirrules-editor"
                 spellCheck={false}
@@ -156,20 +163,20 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
             {parsed.error && <div className="banner error">{parsed.error}</div>}
             {warning && <div className="banner warn">{warning}</div>}
             <div className="row-inline dirrules-actions">
-              <button type="button" className="btn tiny" onClick={() => setText(pretty([...(parsed.rules ?? []), EXAMPLE_RULE]))}>
-                ＋ 插入示例规则
+              <button type="button" className="btn tiny" onClick={() => setText(pretty([...(parsed.rules ?? []), exampleRule()]))}>
+                {t('dirRules.insertExample')}
               </button>
               <button type="button" className="btn tiny" onClick={() => setText(pretty(defaults))} disabled={!defaults.length}>
-                填入默认规则
+                {t('dirRules.fillDefaults')}
               </button>
               <button type="button" className="btn tiny" onClick={() => void reset()} disabled={busy || !customized}>
-                恢复默认
+                {t('dirRules.restoreDefaults')}
               </button>
             </div>
             <p className="muted tiny">
-              可用占位符：series / volume / chapter / language / page；<code>*</code> 匹配任意一段；
-              ignore 里的目录名会被跳过；extensions 可自定义扩展名。语言目录仍按 ja/jp/日、zh/cn/tw、en/us 等自动识别，
-              认不出的在「卷设置」里手动指定。
+              {t('dirRules.helpBefore')}
+              <code>*</code>
+              {t('dirRules.helpAfterStar')}
             </p>
           </section>
 
@@ -177,7 +184,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
             <div className="row-inline">
               <input
                 value={dir}
-                placeholder="只预览某个子目录（留空 = 整个 raw）"
+                placeholder={t('dirRules.previewDirPlaceholder')}
                 onChange={(e) => setDir(e.target.value)}
               />
             </div>
@@ -185,12 +192,16 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
             {preview && (
               <>
                 <div className="dirrules-summary">
-                  命中 {preview.matched} 个文件 · {preview.tree.length} 卷
-                  {preview.unmatchedCount > 0 && ` · ${preview.unmatchedCount} 个未识别`}
-                  {preview.truncated && ' · 文件过多，结果已截断'}
+                  {t('dirRules.summary', {
+                    files: formatNumber(preview.matched),
+                    volumes: formatNumber(preview.tree.length),
+                  })}
+                  {preview.unmatchedCount > 0 &&
+                    t('dirRules.summaryUnmatched', { count: formatNumber(preview.unmatchedCount) })}
+                  {preview.truncated && t('dirRules.summaryTruncated')}
                 </div>
                 <div className="dirrules-tree">
-                  {preview.tree.length === 0 && <div className="muted tiny">没有匹配到任何页文件</div>}
+                  {preview.tree.length === 0 && <div className="muted tiny">{t('dirRules.noPages')}</div>}
                   {preview.tree.map((volume) => (
                     <div className="dirrules-volume" key={volume.id}>
                       <div className="dirrules-volume-head">
@@ -208,7 +219,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
                         <div className="dirrules-chapter" key={chapter.chapter}>
                           <span>{chapter.chapter}</span>
                           <span className="muted tiny">
-                            {chapter.pages} 页 ·{' '}
+                            {t('dirRules.chapterPages', { count: formatNumber(chapter.pages) })} ·{' '}
                             {volume.languages
                               .map((l) => `${LANG_SHORT[l]} ${chapter.langs[l] ?? 0}`)
                               .join(' / ')}
@@ -220,7 +231,9 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
                 </div>
                 {preview.unmatched.length > 0 && (
                   <div className="dirrules-unmatched">
-                    <div className="dirrules-unmatched-head">未识别文件（前 {preview.unmatched.length} 条）</div>
+                    <div className="dirrules-unmatched-head">
+                      {t('dirRules.unmatchedHeading', { count: formatNumber(preview.unmatched.length) })}
+                    </div>
                     {preview.unmatched.map((item) => (
                       <div className="dirrules-unmatched-row" key={item.file}>
                         <code>{item.file}</code>
@@ -236,16 +249,16 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
 
         <footer className="modal-foot">
           <span className="muted tiny">
-            {dirty ? '有未保存的规则修改（预览已生效）' : '规则与应用配置一致'}
+            {dirty ? t('dirRules.dirty') : t('dirRules.inSync')}
           </span>
           <span className="spacer" />
           {error && <span className="dirrules-error">{error}</span>}
           {message && <span className="muted tiny">{message}</span>}
           <button type="button" className="btn" onClick={onClose}>
-            关闭
+            {t('common.close')}
           </button>
           <button type="button" className="btn primary" disabled={busy || !parsed.rules} onClick={() => void save()}>
-            {busy ? '保存中…' : '保存规则'}
+            {busy ? t('dirRules.saving') : t('dirRules.saveRules')}
           </button>
         </footer>
       </div>

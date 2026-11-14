@@ -1,17 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { AlignMode, AlignOffset, AlignPreset, Lang, PageDoc, PageEntry, Panel } from '../types';
-import {
-  ALIGN_MODE_HINT,
-  ALIGN_MODE_LABEL,
-  DEFAULT_OFFSET,
-  LANG_LABEL,
-  LANG_SHORT,
-  LANGUAGES,
-  READING_LABEL,
-} from '../types';
+import { DEFAULT_OFFSET, LANG_SHORT, LANGUAGES } from '../types';
 import { sortPanels } from '../lib/geometry';
 import { api } from '../api';
+import { langLabel, readingLabel, useI18n } from '../i18n';
+import type { MessageKey } from '../i18n';
 
 type Props = {
   doc: PageDoc;
@@ -28,6 +22,22 @@ type Props = {
 
 const sizeCache = new Map<string, { w: number; h: number }>();
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+
+const ALIGN_MODES: AlignMode[] = ['page', 'panel', 'anchors', 'grid'];
+
+const ALIGN_MODE_KEY: Record<AlignMode, MessageKey> = {
+  page: 'align.mode.page',
+  panel: 'align.mode.panel',
+  anchors: 'align.mode.anchors',
+  grid: 'align.mode.grid',
+};
+
+const ALIGN_HINT_KEY: Record<AlignMode, MessageKey> = {
+  page: 'align.hint.page',
+  panel: 'align.hint.panel',
+  anchors: 'align.hint.anchors',
+  grid: 'align.hint.grid',
+};
 
 /**
  * Returns the image pane under a viewport point, or null.
@@ -159,8 +169,10 @@ export function CompareTab({
   overlay,
   setOverlay,
 }: Props) {
+  const { t, formatNumber } = useI18n();
   const ordered = useMemo(() => sortPanels(doc.panels, doc.readingDirection), [doc.panels, doc.readingDirection]);
   const mode: AlignMode = doc.alignMode ?? 'page';
+  const alignModeLabel = (m: AlignMode) => t(ALIGN_MODE_KEY[m]);
   const isPanelMode = mode === 'panel' || mode === 'anchors';
   const [dragLang, setDragLang] = useState<Lang>(langs[0] ?? 'ja');
   const [opacities, setOpacities] = useState<Record<Lang, number>>({ ja: 1, zh: 0.55, en: 0.45 });
@@ -564,7 +576,7 @@ export function CompareTab({
       return (
         <div className="lang-pane empty" key={lang} style={{ aspectRatio: aspect }}>
           <span className="lang-tag">{LANG_SHORT[lang]}</span>
-          <div className="pane-missing">本页缺少{LANG_LABEL[lang]}图片</div>
+          <div className="pane-missing">{t('compare.missingLangImage', { lang: langLabel(lang) })}</div>
         </div>
       );
     }
@@ -584,7 +596,7 @@ export function CompareTab({
         {isHidden(panel.id, lang) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
-            title={`${LANG_LABEL[lang]} 已遮蔽：点击显示，再点画面可遮回`}
+            title={t('compare.maskTitle', { lang: langLabel(lang) })}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -592,8 +604,8 @@ export function CompareTab({
             }}
           >
             <span>
-              {LANG_SHORT[lang]} 已遮蔽
-              <em>点击显示</em>
+              {LANG_SHORT[lang]} {t('compare.maskedBadge')}
+              <em>{t('compare.clickReveal')}</em>
             </span>
           </div>
         )}
@@ -604,7 +616,7 @@ export function CompareTab({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => resetLang(lang, panel)}
-            title="复位该格该语言"
+            title={t('compare.resetCellLang')}
           >
             ⟲
           </button>
@@ -651,7 +663,7 @@ export function CompareTab({
         {langs.some((l) => isHidden(panel.id, l)) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
-            title="有些语言被遮蔽，点击显示"
+            title={t('compare.someMaskedTitle')}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -663,13 +675,16 @@ export function CompareTab({
             }}
           >
             <span>
-              部分语言已遮蔽
-              <em>点击显示</em>
+              {t('compare.someMasked')}
+              <em>{t('compare.clickReveal')}</em>
             </span>
           </div>
         )}
         <span className="lang-tag">
-          {langs.map((l) => LANG_SHORT[l]).join(' + ')} 叠加 · 正在对齐 {LANG_SHORT[dragLang]}
+          {t('compare.overlayTag', {
+            langs: langs.map((l) => LANG_SHORT[l]).join(' + '),
+            lang: LANG_SHORT[dragLang],
+          })}
         </span>
       </div>
     );
@@ -678,8 +693,8 @@ export function CompareTab({
   if (!doc.panels.length) {
     return (
       <div className="compare-empty">
-        <p>这一页还没有格子。</p>
-        <p className="muted">先到「分格」里自动检测或手动框选，再进行对照阅读。</p>
+        <p>{t('compare.emptyPanels')}</p>
+        <p className="muted">{t('compare.emptyHint')}</p>
       </div>
     );
   }
@@ -688,7 +703,7 @@ export function CompareTab({
     <div className="compare-tab">
       <div className="stage-toolbar">
         <div className="tb-group">
-          <span className="tb-label">语言</span>
+          <span className="tb-label">{t('compare.language')}</span>
           <div className="lang-chips">
             {LANGUAGES.map((l) => {
               const disabled = !availableLangs.includes(l);
@@ -699,7 +714,7 @@ export function CompareTab({
                   className={`lang-chip ${langs.includes(l) ? 'on' : ''}`}
                   onClick={() => toggleLang(l)}
                   disabled={disabled}
-                  title={disabled ? '本页缺少该语言' : LANG_LABEL[l]}
+                  title={disabled ? t('compare.langMissing') : langLabel(l)}
                 >
                   {LANG_SHORT[l]}
                 </button>
@@ -709,7 +724,7 @@ export function CompareTab({
         </div>
 
         <div className="tb-group mask-group">
-          <span className="tb-label">遮蔽</span>
+          <span className="tb-label">{t('compare.mask')}</span>
           <button
             type="button"
             className={`btn tiny ${maskPrefs.master ? 'on' : ''}`}
@@ -717,9 +732,9 @@ export function CompareTab({
               setMaskPrefs((p) => ({ ...p, master: !p.master }));
               setRevealed({});
             }}
-            title="开启后按下方语言分别遮蔽；H 全部遮住，Shift+H 全部显示"
+            title={t('compare.maskToggleTitle')}
           >
-            {maskPrefs.master ? '开' : '关'}
+            {maskPrefs.master ? t('compare.maskOn') : t('compare.maskOff')}
           </button>
           {maskPrefs.master &&
             availableLangs.map((l) => (
@@ -728,7 +743,11 @@ export function CompareTab({
                 key={l}
                 className={`lang-chip ${maskPrefs.masked[l] ? 'on' : ''}`}
                 onClick={() => toggleMaskLang(l)}
-                title={`${LANG_LABEL[l]}：${maskPrefs.masked[l] ? '遮蔽（点击可临时显示）' : '不遮蔽'}`}
+                title={
+                  maskPrefs.masked[l]
+                    ? t('compare.maskLangTitleMasked', { lang: langLabel(l) })
+                    : t('compare.maskLangTitleVisible', { lang: langLabel(l) })
+                }
               >
                 {LANG_SHORT[l]}
                 <i className="mask-icon">{maskPrefs.masked[l] ? '◐' : '◯'}</i>
@@ -742,29 +761,34 @@ export function CompareTab({
                 onChange={(e) =>
                   setMaskPrefs((p) => ({ ...p, style: e.target.value === 'solid' ? 'solid' : 'blur' }))
                 }
-                title="遮蔽样式"
+                title={t('compare.maskStyle')}
               >
-                <option value="blur">模糊</option>
-                <option value="solid">色块</option>
+                <option value="blur">{t('compare.maskStyleBlur')}</option>
+                <option value="solid">{t('compare.maskStyleSolid')}</option>
               </select>
-              <button type="button" className="btn tiny" onClick={() => setRevealed({})} title="全部遮住（H）">
-                全遮
+              <button
+                type="button"
+                className="btn tiny"
+                onClick={() => setRevealed({})}
+                title={t('compare.maskAllTitle')}
+              >
+                {t('compare.maskAll')}
               </button>
               <button
                 type="button"
                 className="btn tiny"
                 onClick={() => setMaskPrefs((p) => ({ ...p, master: false }))}
-                title="全部显示（Shift+H）"
+                title={t('compare.maskNoneTitle')}
               >
-                全显
+                {t('compare.maskNone')}
               </button>
               <button
                 type="button"
                 className={`btn tiny ${maskDefaultsOpen ? 'on' : ''}`}
                 onClick={() => setMaskDefaultsOpen((v) => !v)}
-                title="设置默认遮蔽哪些语言（跨会话记住）"
+                title={t('compare.maskDefaultsTitle')}
               >
-                默认…
+                {t('compare.maskDefaults')}
               </button>
             </>
           )}
@@ -773,19 +797,19 @@ export function CompareTab({
         <div className="tb-group">
           <div className="seg">
             <button type="button" className={!overlay ? 'on' : ''} onClick={() => setOverlay(false)}>
-              并排
+              {t('compare.sideBySide')}
             </button>
             <button type="button" className={overlay ? 'on' : ''} onClick={() => setOverlay(true)}>
-              叠加
+              {t('compare.overlay')}
             </button>
           </div>
           {overlay && (
             <>
               <label className="tb-check">
                 <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} />
-                正片叠底
+                {t('compare.multiply')}
               </label>
-              <span className="muted tiny">对齐对象</span>
+              <span className="muted tiny">{t('compare.alignTarget')}</span>
               <div className="lang-chips">
                 {langs.map((l) => (
                   <button
@@ -803,16 +827,16 @@ export function CompareTab({
         </div>
 
         <div className="tb-group align-mode">
-          <span className="tb-label">对齐</span>
+          <span className="tb-label">{t('compare.align')}</span>
           <select
             className={`tb-select mode mode-${mode}`}
             value={mode}
             onChange={(e) => changeMode(e.target.value as AlignMode)}
-            title={ALIGN_MODE_HINT[mode]}
+            title={t(ALIGN_HINT_KEY[mode])}
           >
-            {(Object.keys(ALIGN_MODE_LABEL) as AlignMode[]).map((m) => (
+            {ALIGN_MODES.map((m) => (
               <option key={m} value={m}>
-                {ALIGN_MODE_LABEL[m]}
+                {alignModeLabel(m)}
               </option>
             ))}
           </select>
@@ -821,7 +845,7 @@ export function CompareTab({
               className="tb-select"
               value={doc.gridStep ?? 1}
               onChange={(e) => mutate((d) => ({ ...d, gridStep: Number(e.target.value) }))}
-              title="吸附步长"
+              title={t('compare.snapStep')}
             >
               {[0.5, 1, 2, 5].map((s) => (
                 <option key={s} value={s}>
@@ -834,47 +858,47 @@ export function CompareTab({
             type="button"
             className={`btn tiny ${alignOpen ? 'on' : ''}`}
             onClick={() => setAlignOpen((v) => !v)}
-            title="对齐数值、预设与批量套用"
+            title={t('compare.alignSettingsTitle')}
           >
-            对齐设置
+            {t('compare.alignSettings')}
           </button>
         </div>
 
         <div className="tb-group scope-group">
-          <span className="tb-label">拖动/缩放</span>
-          <div className="seg scope-seg" title="切换默认作用域；按住 Alt 拖拽或滚轮可临时只调当前格">
+          <span className="tb-label">{t('compare.dragZoom')}</span>
+          <div className="seg scope-seg" title={t('compare.scopeTitle')}>
             <button
               type="button"
               className={scopeOfMode === 'page' ? 'on' : ''}
               onClick={() => changeMode('page')}
-              title="拖动/缩放作用于该语言的整页"
+              title={t('compare.scopePageTitle')}
             >
-              整页
+              {t('compare.scopePage')}
             </button>
             <button
               type="button"
               className={scopeOfMode === 'panel' ? 'on' : ''}
               onClick={() => changeMode('panel')}
-              title="拖动/缩放只作用于当前格"
+              title={t('compare.scopePanelTitle')}
             >
-              当前格
+              {t('compare.scopePanel')}
             </button>
           </div>
-          <span className="muted tiny alt-hint" title="Alt 是临时覆盖：松开即回到默认作用域">
-            Alt 临时当前格
+          <span className="muted tiny alt-hint" title={t('compare.altHintTitle')}>
+            {t('compare.altHint')}
           </span>
         </div>
 
         <div className="tb-group right">
-          <span className="muted tiny">{READING_LABEL[doc.readingDirection]}</span>
+          <span className="muted tiny">{readingLabel(doc.readingDirection)}</span>
           <button type="button" className="btn tiny" onClick={() => goTo(-1)}>
-            上一格
+            {t('compare.prevPanel')}
           </button>
           <button type="button" className="btn tiny" onClick={() => goTo(1)}>
-            下一格
+            {t('compare.nextPanel')}
           </button>
           <button type="button" className="btn tiny" onClick={resetAll}>
-            全部复位
+            {t('compare.resetAll')}
           </button>
         </div>
       </div>
@@ -882,16 +906,16 @@ export function CompareTab({
       {alignOpen && (
         <div className="align-box">
           <div className="align-hint">
-            <b>{ALIGN_MODE_LABEL[mode]}</b>
-            <span>{ALIGN_MODE_HINT[mode]}</span>
+            <b>{alignModeLabel(mode)}</b>
+            <span>{t(ALIGN_HINT_KEY[mode])}</span>
             {mode === 'anchors' && (
               <span className="anchor-tip">
                 {pendingAnchor
-                  ? `参考点已取（${LANG_SHORT[pendingAnchor.lang]}），请在另一种语言点同一位置`
-                  : `参考语言：${LANG_SHORT[baseLang]}，先在任一格点特征点`}
+                  ? t('compare.anchorPending', { lang: LANG_SHORT[pendingAnchor.lang] })
+                  : t('compare.anchorWaiting', { lang: LANG_SHORT[baseLang] })}
                 {pendingAnchor && (
                   <button type="button" className="btn tiny" onClick={() => setPendingAnchor(null)}>
-                    取消取点
+                    {t('compare.cancelAnchor')}
                   </button>
                 )}
               </span>
@@ -899,7 +923,7 @@ export function CompareTab({
           </div>
 
           <div className="align-row">
-            <span className="tb-label">对象</span>
+            <span className="tb-label">{t('compare.target')}</span>
             <div className="lang-chips">
               {langs.map((l) => (
                 <button
@@ -914,7 +938,11 @@ export function CompareTab({
               ))}
             </div>
             <span className="muted tiny">
-              {isPanelMode ? `作用于第 ${ordered.findIndex((p) => p.id === panelForInput?.id) + 1 || 1} 格` : '作用于整页'}
+              {isPanelMode
+                ? t('compare.appliesPanel', {
+                    number: formatNumber(ordered.findIndex((p) => p.id === panelForInput?.id) + 1 || 1),
+                  })
+                : t('compare.appliesPage')}
             </span>
             <label className="num">
               X
@@ -937,7 +965,7 @@ export function CompareTab({
               %
             </label>
             <label className="num">
-              缩放
+              {t('compare.scale')}
               <input
                 type="number"
                 step={0.01}
@@ -952,25 +980,25 @@ export function CompareTab({
               type="button"
               className="btn tiny"
               onClick={resetAllPanelOffsets}
-              title="清空本页所有格子的逐格偏移，整页偏移不受影响"
+              title={t('compare.resetAllPanelsTitle')}
             >
-              重置本页所有格
+              {t('compare.resetAllPanels')}
             </button>
             <button
               type="button"
               className="btn tiny"
               onClick={resetCurrentPanelOffsets}
               disabled={!panelForInput}
-              title="只清当前选中格的逐格偏移，其他格与整页偏移不受影响"
+              title={t('compare.resetCurrentPanelTitle')}
             >
-              重置当前格
+              {t('compare.resetCurrentPanel')}
             </button>
           </div>
 
           <div className="align-row">
             <input
               className="preset-name"
-              placeholder="预设名称，例如「纸质版扫描」"
+              placeholder={t('compare.presetNamePlaceholder')}
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
             />
@@ -980,7 +1008,7 @@ export function CompareTab({
               disabled={!presetName.trim() || presetBusy}
               onClick={() => savePreset('page')}
             >
-              存为页预设
+              {t('compare.savePresetPage')}
             </button>
             <button
               type="button"
@@ -988,19 +1016,20 @@ export function CompareTab({
               disabled={!presetName.trim() || presetBusy}
               onClick={() => savePreset('chapter')}
             >
-              存为话预设
+              {t('compare.savePresetChapter')}
             </button>
             <span className="align-sep" />
             <select className="tb-select" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
-              <option value="">选择预设…</option>
+              <option value="">{t('compare.selectPreset')}</option>
               {presets.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} · {ALIGN_MODE_LABEL[p.mode]} · {p.scope === 'chapter' ? '话' : '页'}
+                  {p.name} · {alignModeLabel(p.mode)} ·{' '}
+                  {p.scope === 'chapter' ? t('compare.presetScopeChapter') : t('compare.presetScopePage')}
                 </option>
               ))}
             </select>
             <button type="button" className="btn tiny" disabled={!presetId || presetBusy} onClick={() => applyPreset('page')}>
-              套用本页
+              {t('compare.applyPresetPage')}
             </button>
             <button
               type="button"
@@ -1008,7 +1037,7 @@ export function CompareTab({
               disabled={!presetId || presetBusy}
               onClick={() => applyPreset('chapter')}
             >
-              套用整话
+              {t('compare.applyPresetChapter')}
             </button>
             <button
               type="button"
@@ -1016,7 +1045,7 @@ export function CompareTab({
               disabled={!presetId || presetBusy}
               onClick={() => void deletePreset()}
             >
-              删除
+              {t('common.delete')}
             </button>
           </div>
         </div>
@@ -1024,7 +1053,7 @@ export function CompareTab({
 
       {maskDefaultsOpen && (
         <div className="mask-defaults">
-          <b>默认遮蔽</b>
+          <b>{t('compare.maskDefaultsHeading')}</b>
           {LANGUAGES.map((l) => (
             <label key={l}>
               <input
@@ -1034,10 +1063,10 @@ export function CompareTab({
                   setMaskPrefs((p) => ({ ...p, masked: { ...p.masked, [l]: !p.masked[l] } }))
                 }
               />
-              {LANG_LABEL[l]}
+              {langLabel(l)}
             </label>
           ))}
-          <span className="muted tiny">勾选的语言在开启遮蔽时默认盖住；偏好会自动保存，导出永远不带遮罩。</span>
+          <span className="muted tiny">{t('compare.maskDefaultsHint')}</span>
         </div>
       )}
 
@@ -1073,13 +1102,15 @@ export function CompareTab({
               onClick={() => setSelected([panel.id])}
             >
               <div className="panel-card-head">
-                <b>第 {idx + 1} 格</b>
+                <b>{t('format.panel', { number: formatNumber(idx + 1) })}</b>
                 <span className="muted tiny">
                   x {Math.round(panel.rect.x * 100)}% · y {Math.round(panel.rect.y * 100)}% ·{' '}
                   {Math.round(panel.rect.w * 100)}% × {Math.round(panel.rect.h * 100)}%
                 </span>
                 <span className="spacer" />
-                {notes.length > 0 && <span className="chip">{notes.length} 条批注</span>}
+                {notes.length > 0 && (
+                  <span className="chip">{t('compare.noteCount', { count: formatNumber(notes.length) })}</span>
+                )}
               </div>
 
               {overlay ? (

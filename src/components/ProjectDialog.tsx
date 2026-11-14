@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { Library } from '../types';
 import { api } from '../api';
 import type { ProjectConflict, ProjectInspect, ProjectMode } from '../api';
+import { formatBytes, formatNumber, t, useI18n } from '../i18n';
 
 type Props = {
   onClose: () => void;
@@ -10,8 +11,6 @@ type Props = {
   dirty: boolean;
 };
 
-const kb = (n: number) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`);
-
 function readFileBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -19,7 +18,7 @@ function readFileBase64(file: File): Promise<string> {
       const result = String(reader.result ?? '');
       resolve(result.slice(result.indexOf(',') + 1));
     };
-    reader.onerror = () => reject(reader.error ?? new Error('读取文件失败'));
+    reader.onerror = () => reject(reader.error ?? new Error(t('common.readFileFailed')));
     reader.readAsDataURL(file);
   });
 }
@@ -28,6 +27,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** 工程文件 .mnproj：另存为工程（引用 / 打包）与打开工程（检查 → 导入） */
 export function ProjectDialog({ onClose, onImported, dirty }: Props) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<ProjectMode>('reference');
   const [name, setName] = useState(`komayomi-${today()}`);
   const [notes, setNotes] = useState('');
@@ -50,13 +50,11 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
 
   const confirmDirty = (action: string) => {
     if (!dirty) return true;
-    return window.confirm(
-      `当前页面还有未保存的修改（顶栏显示「待保存」）。\n\n${action}前建议先点保存，否则这些修改不会写入工程文件，导入时也可能被覆盖。\n\n仍要继续吗？`,
-    );
+    return window.confirm(t('project.dirtyConfirm', { action }));
   };
 
   const runExport = async () => {
-    if (!confirmDirty('导出工程')) return;
+    if (!confirmDirty(t('project.exportAction'))) return;
     setBusy(true);
     setError(null);
     setExported(null);
@@ -93,7 +91,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
 
   const runImport = async () => {
     if (!pending) return;
-    if (!confirmDirty('导入工程')) return;
+    if (!confirmDirty(t('project.importAction'))) return;
     setBusy(true);
     setError(null);
     try {
@@ -122,10 +120,10 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
 
   const pickRelink = async () => {
     if (!window.mangaDesktop) {
-      setError('浏览器里无法弹出文件夹选择框，请直接填写补链目录路径');
+      setError(t('project.browserNoPicker'));
       return;
     }
-    const dir = await window.mangaDesktop.pickFolder('选择缺失图片所在的原始文件夹');
+    const dir = await window.mangaDesktop.pickFolder(t('project.pickFolderTitle'));
     if (dir) setRelinkDir(dir);
   };
 
@@ -134,8 +132,8 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
       <div className="modal small">
         <header className="modal-head">
           <div>
-            <h2>工程文件</h2>
-            <p>.mnproj = 压缩包 + 纯文本 JSON，可把图片、批注、模板与语言设置一起带走</p>
+            <h2>{t('project.title')}</h2>
+            <p>{t('project.subtitle')}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             ×
@@ -143,13 +141,11 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
         </header>
         <div className="modal-body project-body">
           {dirty && (
-            <div className="banner warn">
-              当前页面有未保存的修改。导出不会包含这些修改；导入可能覆盖它们。建议先按顶栏「保存」。
-            </div>
+            <div className="banner warn">{t('project.dirtyBanner')}</div>
           )}
 
           <section className="project-section">
-            <h3>另存为工程</h3>
+            <h3>{t('project.saveSection')}</h3>
             <div className="radio-row">
               <label>
                 <input
@@ -158,7 +154,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                   checked={mode === 'reference'}
                   onChange={() => setMode('reference')}
                 />
-                引用模式（只记路径与哈希，体积小）
+                {t('project.referenceMode')}
               </label>
               <label>
                 <input
@@ -167,33 +163,37 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                   checked={mode === 'packaged'}
                   onChange={() => setMode('packaged')}
                 />
-                打包模式（内嵌图片，可独立分发）
+                {t('project.packagedMode')}
               </label>
             </div>
             <label className="field">
-              <span>工程名称</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如 点兔第14卷-批注" />
+              <span>{t('project.nameLabel')}</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('project.namePlaceholder')} />
             </label>
             <label className="field">
-              <span>备注（可选）</span>
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="写进 manifest 的说明" />
+              <span>{t('project.notesLabel')}</span>
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t('project.notesPlaceholder')} />
             </label>
             <button type="button" className="btn primary" disabled={busy} onClick={() => void runExport()}>
-              {busy ? '处理中…' : '生成并下载 .mnproj'}
+              {busy ? t('project.processing') : t('project.generateProject')}
             </button>
             {exported && (
               <p className="muted tiny">
-                已生成 <a href={exported.url} download={exported.file}>{exported.file}</a>（{kb(exported.size)}，
-                含 {exported.images} 张图片）
+                {t('project.generatedBefore')}
+                <a href={exported.url} download={exported.file}>
+                  {exported.file}
+                </a>
+                {t('project.generatedAfter', {
+                  size: formatBytes(exported.size),
+                  images: formatNumber(exported.images),
+                })}
               </p>
             )}
           </section>
 
           <section className="project-section">
-            <h3>打开工程</h3>
-            <p className="muted tiny">
-              导入前会自动把当前 data/ 快照到 exports/，并备份原始工程文件到 data/backups/projects/。
-            </p>
+            <h3>{t('project.openSection')}</h3>
+            <p className="muted tiny">{t('project.openHint')}</p>
             <input
               ref={inputRef}
               type="file"
@@ -202,7 +202,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
               onChange={(e) => void pick(e.target.files?.[0])}
             />
             <button type="button" className="btn" disabled={busy} onClick={() => inputRef.current?.click()}>
-              选择工程文件…
+              {t('project.chooseProject')}
             </button>
 
             {pending && (
@@ -210,22 +210,36 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                 <b>{pending.fileName}</b>
                 <ul className="project-summary">
                   <li>
-                    {pending.info.storageMode === 'packaged' ? '打包模式' : '引用模式'} · schema {pending.info.schemaVersion}
-                    {pending.info.migratedFrom !== undefined && `（将从 v${pending.info.migratedFrom} 迁移）`}
+                    {pending.info.storageMode === 'packaged' ? t('project.modePackaged') : t('project.modeReference')} ·
+                    schema {pending.info.schemaVersion}
+                    {pending.info.migratedFrom !== undefined &&
+                      t('project.migrateFrom', { v: String(pending.info.migratedFrom) })}
                   </li>
                   <li>
-                    {pending.info.volumes.length} 卷 / {pending.info.chapters} 话 / {pending.info.pages} 页数据 ·{' '}
-                    {pending.info.notes} 条笔记 · {pending.info.annotations} 个标注
+                    {t('project.summaryCounts', {
+                      volumes: formatNumber(pending.info.volumes.length),
+                      chapters: formatNumber(pending.info.chapters),
+                      pages: formatNumber(pending.info.pages),
+                      notes: formatNumber(pending.info.notes),
+                      annotations: formatNumber(pending.info.annotations),
+                    })}
                   </li>
                   <li>
-                    {pending.info.images} 张图片 · {pending.info.templates} 个模板 · {pending.info.presets} 个预设
+                    {t('project.summaryAssets', {
+                      images: formatNumber(pending.info.images),
+                      templates: formatNumber(pending.info.templates),
+                      presets: formatNumber(pending.info.presets),
+                    })}
                   </li>
                   <li>
-                    冲突 <b>{pending.info.conflictCount}</b> 个文件
+                    {t('project.conflictsBefore')}
+                    <b>{formatNumber(pending.info.conflictCount)}</b>
+                    {t('project.conflictsAfter')}
                     {pending.info.missingAssets.length > 0 && (
                       <>
-                        {' '}
-                        · 缺失图片 <b>{pending.info.missingAssets.length}</b> 张
+                        {t('project.missingBefore')}
+                        <b>{formatNumber(pending.info.missingAssets.length)}</b>
+                        {t('project.missingAfter')}
                       </>
                     )}
                   </li>
@@ -239,7 +253,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                       checked={conflict === 'overwrite'}
                       onChange={() => setConflict('overwrite')}
                     />
-                    覆盖
+                    {t('project.overwrite')}
                   </label>
                   <label>
                     <input
@@ -248,7 +262,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                       checked={conflict === 'merge'}
                       onChange={() => setConflict('merge')}
                     />
-                    合并（保留现有分格/标注，笔记按 id 合并）
+                    {t('project.merge')}
                   </label>
                   <label>
                     <input
@@ -257,30 +271,30 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                       checked={conflict === 'skip'}
                       onChange={() => setConflict('skip')}
                     />
-                    跳过
+                    {t('project.skip')}
                   </label>
                 </div>
 
                 <label className="field">
-                  <span>补链目录（可选，仅引用模式缺失图片时使用）</span>
+                  <span>{t('project.relinkLabel')}</span>
                   <div className="row-inline">
                     <input
                       value={relinkDir}
-                      placeholder="缺失图片所在的原始文件夹，例如 D:/Comics/点兔第14卷"
+                      placeholder={t('project.relinkPlaceholder')}
                       onChange={(e) => setRelinkDir(e.target.value)}
                     />
                     <button type="button" className="btn" disabled={busy} onClick={() => void pickRelink()}>
-                      选择…
+                      {t('project.choose')}
                     </button>
                   </div>
                 </label>
 
                 <div className="row-inline">
                   <button type="button" className="btn" disabled={busy} onClick={() => setPending(null)}>
-                    取消
+                    {t('common.cancel')}
                   </button>
                   <button type="button" className="btn danger" disabled={busy} onClick={() => void runImport()}>
-                    {busy ? '导入中…' : '确认导入'}
+                    {busy ? t('project.importing') : t('project.confirmImport')}
                   </button>
                 </div>
               </div>
@@ -288,31 +302,39 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
 
             {done && (
               <div className="banner info">
-                已导入：恢复 {done.restored} 个文件，合并 {done.merged} 个，跳过 {done.skipped} 个
-                {done.relinked > 0 && `，补链 ${done.relinked} 张图片`}。
+                {t('project.doneSummary', {
+                  restored: formatNumber(done.restored),
+                  merged: formatNumber(done.merged),
+                  skipped: formatNumber(done.skipped),
+                })}
+                {done.relinked > 0 && t('project.doneRelinked', { count: formatNumber(done.relinked) })}.
                 {done.missing.length > 0 && (
                   <>
                     <br />
-                    仍有 <b>{done.missing.length}</b> 张图片缺失：
+                    {t('project.stillMissingBefore')}
+                    <b>{formatNumber(done.missing.length)}</b>
+                    {t('project.stillMissingAfter')}
                     {done.missing
                       .slice(0, 5)
                       .map((m) => `${m.volume}/${m.chapter}/${m.name}`)
-                      .join('、')}
-                    {done.missing.length > 5 && ' 等'}
+                      .join(t('common.listSeparator'))}
+                    {done.missing.length > 5 && t('project.moreMissing')}
                     <br />
-                    把原始图片放到补链目录后，用「合并」再导入一次即可找回。
+                    {t('project.relinkTip')}
                   </>
                 )}
                 {done.snapshot && (
                   <>
                     <br />
-                    导入前快照：<code>{done.snapshot}</code>
+                    {t('project.snapshotBeforeImport')}
+                    <code>{done.snapshot}</code>
                   </>
                 )}
                 {done.projectBackup && (
                   <>
                     <br />
-                    原工程备份：<code>{done.projectBackup}</code>
+                    {t('project.projectBackup')}
+                    <code>{done.projectBackup}</code>
                   </>
                 )}
               </div>
@@ -322,9 +344,9 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
           {error && <div className="banner error">{error}</div>}
         </div>
         <footer className="modal-foot">
-          <span className="muted tiny">引用模式不复制图片，换机器后可用补链目录找回</span>
+          <span className="muted tiny">{t('project.footerHint')}</span>
           <button type="button" className="btn" onClick={onClose}>
-            关闭
+            {t('common.close')}
           </button>
         </footer>
       </div>
