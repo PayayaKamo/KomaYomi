@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { CrumbNav } from './components/CrumbNav';
 import { PanelsTab } from './components/PanelsTab';
@@ -63,21 +63,48 @@ export default function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
+  /** Latest page state, read by the navigation guards declared below. */
+  const pageRef = useRef<ReturnType<typeof usePage> | null>(null);
+
+  /**
+   * Confirm mode promises that nothing is written until ✓ is pressed, so leaving a page
+   * asks first instead of quietly saving behind the user's back. Resolves true when the
+   * caller may navigate.
+   */
+  const confirmLeave = useCallback(async (): Promise<boolean> => {
+    const cur = pageRef.current;
+    if (!cur || !cur.dirty || cur.saveMode !== 'confirm') return true;
+    if (!window.confirm(t('app.leaveUnsaved'))) return false;
+    await cur.commit();
+    return true;
+  }, [t]);
+  const confirmLeaveRef = useRef(confirmLeave);
+  /** The hash that matches what is on screen, used to undo a refused deep-link jump. */
+  const hashRef = useRef(location.hash);
 
   /** On phones/tablets the library is a drawer: picking a page should reveal the stage. */
-  const openSelection = useCallback((next: Selection) => {
-    setSel(next);
-    if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
-  }, []);
+  const openSelection = useCallback(
+    (next: Selection) => {
+      void confirmLeave().then((ok) => {
+        if (!ok) return;
+        setSel(next);
+        if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
+      });
+    },
+    [confirmLeave],
+  );
 
   /** The topbar logo goes back to the library landing view. */
   const goHome = useCallback(() => {
-    setSel(null);
-    setSelected([]);
-    setView('panels');
-    setSidebarOpen(true);
-    history.replaceState(null, '', `${location.pathname}${location.search}`);
-  }, []);
+    void confirmLeave().then((ok) => {
+      if (!ok) return;
+      setSel(null);
+      setSelected([]);
+      setView('panels');
+      setSidebarOpen(true);
+      history.replaceState(null, '', `${location.pathname}${location.search}`);
+    });
+  }, [confirmLeave]);
 
   // Keep the palette in sync with the stored preference and with OS changes when the
   // user picked "system". index.html already applied it before paint, so this only
@@ -110,12 +137,18 @@ export default function App() {
       const [volume, chapter, pageNo, mode] = raw.split('/');
       if (!volume || !chapter) return;
       const n = Math.max(1, Number.parseInt(pageNo ?? '1', 10) || 1);
-      if (mode === 'compare' || mode === 'panels' || mode === 'scroll') setView(mode);
-      setSel((prev) =>
-        prev && prev.volume === volume && prev.chapter === chapter && prev.pageIndex === n - 1
-          ? prev
-          : { volume, chapter, pageIndex: n - 1 },
-      );
+      const target = { volume, chapter, pageIndex: n - 1 };
+      void confirmLeaveRef.current().then((ok) => {
+        if (!ok) {
+          // Refused: put the URL back so it keeps matching the page still on screen.
+          history.replaceState(null, '', hashRef.current || `${location.pathname}${location.search}`);
+          return;
+        }
+        if (mode === 'compare' || mode === 'panels' || mode === 'scroll') setView(mode);
+        setSel((prev) =>
+          prev && prev.volume === volume && prev.chapter === chapter && prev.pageIndex === n - 1 ? prev : target,
+        );
+      });
     };
     readHash();
     window.addEventListener('hashchange', readHash);
@@ -125,6 +158,7 @@ export default function App() {
   useEffect(() => {
     if (!sel) return;
     const next = `#/${encodeURIComponent(sel.volume)}/${encodeURIComponent(sel.chapter)}/${sel.pageIndex + 1}/${view}`;
+    hashRef.current = next;
     if (location.hash !== next) history.replaceState(null, '', next);
   }, [sel, view]);
 
@@ -174,6 +208,12 @@ export default function App() {
     setSelected((prev) => prev.filter((id) => doc.panels.some((p) => p.id === id)));
   }, [doc?.panels, doc]);
 
+  // Navigation guards read the freshest page state without re-creating the callbacks.
+  useEffect(() => {
+    pageRef.current = pageState;
+    confirmLeaveRef.current = confirmLeave;
+  }, [pageState, confirmLeave]);
+
   // In confirm mode, warn before leaving with pending edits; autosave mode needs no guard.
   useEffect(() => {
     if (!pageState.dirty || pageState.saveMode !== 'confirm') return;
@@ -205,11 +245,17 @@ export default function App() {
     }
   }, [doc, pendingPanel]);
 
-  const jumpTo = useCallback((sel2: Selection, panelId: string | null) => {
-    setSel(sel2);
-    setPendingPanel(panelId);
-    if (panelId) setView('compare');
-  }, []);
+  const jumpTo = useCallback(
+    (sel2: Selection, panelId: string | null) => {
+      void confirmLeave().then((ok) => {
+        if (!ok) return;
+        setSel(sel2);
+        setPendingPanel(panelId);
+        if (panelId) setView('compare');
+      });
+    },
+    [confirmLeave],
+  );
 
   const changeDirection = (dir: ReadingDirection) => pageState.mutate((d) => ({ ...d, readingDirection: dir }));
 
@@ -226,19 +272,21 @@ export default function App() {
       const position = body.findIndex((p) => p.index === sel.pageIndex);
       const nextPosition = position + delta;
       if (position >= 0 && nextPosition >= 0 && nextPosition < body.length) {
-        setSel({ ...sel, pageIndex: body[nextPosition].index });
+        const next = { ...sel, pageIndex: body[nextPosition].index };
+        void confirmLeave().then((ok) => ok && setSel(next));
         return;
       }
       const nextChapter = vol.chapters[ci + (delta > 0 ? 1 : -1)];
       const nextBody = nextChapter?.pages.filter((p) => !p.excluded) ?? [];
       if (!nextChapter || !nextBody.length) return;
-      setSel({
+      const next = {
         volume: sel.volume,
         chapter: nextChapter.chapter,
         pageIndex: delta > 0 ? nextBody[0].index : nextBody[nextBody.length - 1].index,
-      });
+      };
+      void confirmLeave().then((ok) => ok && setSel(next));
     },
-    [library, sel],
+    [library, sel, confirmLeave],
   );
 
   // Destructured so the shortcut effect depends on the callbacks themselves
@@ -322,6 +370,10 @@ export default function App() {
 
   /** Scrolling only moves the page cursor; the volume/chapter stay put. */
   const pickScrollPage = useCallback((index: number) => {
+    const cur = pageRef.current;
+    // Scrolling must not open a dialog every tick: with unsaved confirm-mode edits the
+    // cursor waits until the page is saved (✓) or discarded (×).
+    if (cur && cur.dirty && cur.saveMode === 'confirm') return;
     setSel((prev) => (prev && prev.pageIndex !== index ? { ...prev, pageIndex: index } : prev));
   }, []);
 

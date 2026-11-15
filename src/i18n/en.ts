@@ -25,6 +25,8 @@ export const en = {
   'app.saveUnsaved': 'Unsaved changes',
   'app.savePending': 'Pending save',
   'app.saveSaved': 'Saved',
+  'app.leaveUnsaved':
+    'This page has unsaved changes. Save them before switching pages? Cancel stays here; use × to discard.',
   'app.readingOrderTitle': 'Reading order (affects panel numbering and compare sorting)',
   'app.themeTitle': 'UI theme (system / light / dark)',
   'app.themeAria': 'UI theme',

@@ -24,6 +24,8 @@ export const ja = {
   'app.saveUnsaved': '未保存の変更',
   'app.savePending': '保存待ち',
   'app.saveSaved': '保存済み',
+  'app.leaveUnsaved':
+    'このページに未保存の変更があります。移動する前に保存しますか？キャンセルでこのページに留まります（× で破棄）。',
   'app.readingOrderTitle': '読み順（コマ番号と比較の並び順に影響）',
   'app.themeTitle': '表示テーマ（システム / ライト / ダーク）',
   'app.themeAria': '表示テーマ',

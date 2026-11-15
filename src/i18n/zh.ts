@@ -25,6 +25,7 @@ export const zh = {
   'app.saveUnsaved': '未保存改动',
   'app.savePending': '待保存',
   'app.saveSaved': '已保存',
+  'app.leaveUnsaved': '本页有未保存的改动。切换页面前要保存吗？选“取消”留在本页，可点 × 放弃修改。',
   'app.readingOrderTitle': '阅读顺序（影响格子编号与对照排序）',
   'app.themeTitle': '界面主题（跟随系统 / 亮色 / 暗色）',
   'app.themeAria': '界面主题',

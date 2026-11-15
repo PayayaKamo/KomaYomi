@@ -269,12 +269,9 @@ export function usePage(sel: Selection | null) {
     const key = `${sel.volume}|${sel.chapter}|${sel.pageIndex}`;
     lastKey.current = key;
     let cancelled = false;
-    // In confirm mode, flush pending edits before leaving so switching pages cannot lose them silently.
-    if (pending.current && saveModeRef.current === 'confirm' && undoStack.current.length) {
-      const leaving = pending.current;
-      pending.current = null;
-      void api.savePage(leaving).catch(() => enqueueOutbox(leaving));
-    }
+    // Confirm mode never writes without ✓. Leaving with unsaved edits is resolved by the
+    // navigation guard in App (save or stay); anything still pending is dropped here.
+    if (saveModeRef.current === 'confirm') pending.current = null;
     undoStack.current = [];
     redoStack.current = [];
     syncHistoryCounts();
