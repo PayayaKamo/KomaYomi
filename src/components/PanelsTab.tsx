@@ -728,8 +728,8 @@ export function PanelsTab({
         </div>
       )}
 
-      <div className="stage-toolbar">
-        <div className="tb-group">
+      <div className="stage-toolbar panels-toolbar">
+        <div className="tb-group tb-base">
           <label className="tb-label">{t('panels.baseImage')}</label>
           <select value={refLang} onChange={(e) => setRefLang(e.target.value as Lang)} className="tb-select">
             {availableLangs.map((l) => (
@@ -740,26 +740,8 @@ export function PanelsTab({
           </select>
         </div>
 
-        <div className="tb-group detect-meta">
-          <span className="tb-label">{t('panels.detectLabel')}</span>
-          <span className="chip-mini" title={t('panels.detectorVersionTitle')}>
-            {doc.detectorVersion ?? t('panels.legacyData')}
-          </span>
-          <span className="muted tiny">
-            {doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
-              ? t('panels.manualEdited')
-              : doc.detectSource === 'template'
-                ? t('panels.fromTemplate')
-                : doc.detectSource === 'plugin'
-                  ? t('panels.fromPlugin')
-                  : t('panels.autoDetectSource')}
-            {doc.editCount ? t('panels.editCount', { count: formatNumber(doc.editCount) }) : ''}
-            {doc.lastEditedAt ? t('panels.lastEditedAt', { date: formatDate(doc.lastEditedAt) }) : ''}
-            {doc.lastEditSummary ? ` · ${doc.lastEditSummary}` : ''}
-          </span>
-        </div>
-
-        <div className="tb-group">
+        <div className="tb-group tb-split">
+          <span className="tb-label tb-group-label">{t('panels.grpSplit')}</span>
           <button type="button" className="btn" onClick={() => onDetect(refLang)} disabled={detecting || !url}>
             {detecting ? t('panels.detecting') : t('panels.autoSplit')}
           </button>
@@ -777,8 +759,8 @@ export function PanelsTab({
           </button>
         </div>
 
-        <div className="tb-group save-group">
-          <span className="tb-label">{t('common.save')}</span>
+        <div className="tb-group save-group tb-edit">
+          <span className="tb-label tb-group-label">{t('panels.grpEdit')}</span>
           <div className="seg">
             <button
               type="button"
@@ -822,10 +804,33 @@ export function PanelsTab({
           )}
         </div>
 
-        <div className="tb-group right">
-          <label className="tb-check">
+        {/* Detection details are a status strip, not a control: keep them off the
+            primary row so wrapping never leaves the view group alone. */}
+        <div className="tb-break" aria-hidden="true" />
+        <div className="tb-group detect-meta">
+          <span className="tb-label">{t('panels.detectLabel')}</span>
+          <span className="chip-mini" title={t('panels.detectorVersionTitle')}>
+            {doc.detectorVersion ?? t('panels.legacyData')}
+          </span>
+          <span className="muted tiny">
+            {doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
+              ? t('panels.manualEdited')
+              : doc.detectSource === 'template'
+                ? t('panels.fromTemplate')
+                : doc.detectSource === 'plugin'
+                  ? t('panels.fromPlugin')
+                  : t('panels.autoDetectSource')}
+            {doc.editCount ? t('panels.editCount', { count: formatNumber(doc.editCount) }) : ''}
+            {doc.lastEditedAt ? t('panels.lastEditedAt', { date: formatDate(doc.lastEditedAt) }) : ''}
+            {doc.lastEditSummary ? ` · ${doc.lastEditSummary}` : ''}
+          </span>
+        </div>
+
+        <div className="tb-group right tb-view">
+          <span className="tb-label tb-group-label">{t('panels.grpView')}</span>
+          <label className="tb-check" title={t('panels.numbers')}>
             <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
-            {t('panels.numbers')}
+            <span className="tb-num-text">{t('panels.numbers')}</span>
           </label>
           <div className="zoom">
             <button type="button" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}>

@@ -1415,6 +1415,77 @@ body.pane-resizing * {
   gap: 6px;
 }
 
+/* Panel workspace toolbar: three functional groups split by hairlines, with the view
+   controls pinned right so a wrapped row never ends with a single stray switch. */
+.panels-toolbar .tb-group + .tb-group {
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.panels-toolbar .tb-group-label {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.panels-toolbar .tb-base .tb-label {
+  white-space: nowrap;
+}
+
+.panels-toolbar .tb-break {
+  display: none;
+}
+
+.panels-toolbar .detect-meta {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.panels-toolbar .detect-meta .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panels-toolbar .tb-view {
+  margin-left: auto;
+}
+
+@media (max-width: 1024px) {
+  .panels-toolbar .tb-group-label {
+    display: none;
+  }
+
+  .panels-toolbar .tb-group + .tb-group {
+    padding-left: 10px;
+  }
+
+  /* Force the status strip onto the second row so it wraps together with the view
+     group instead of pushing the view group onto a row of its own. */
+  .panels-toolbar .tb-break {
+    display: block;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .panels-toolbar .detect-meta {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .panels-toolbar {
+    gap: 8px 10px;
+  }
+
+  /* The checkbox stays as the icon; the tooltip carries the label. */
+  .panels-toolbar .tb-num-text {
+    display: none;
+  }
+}
+
 .tb-group.right {
   margin-left: auto;
 }
