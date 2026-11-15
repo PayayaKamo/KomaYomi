@@ -44,7 +44,7 @@ const normalizeDir = (name: string) =>
     .toLowerCase()
     .replace(/[\s_]+/g, '-');
 
-/** data/library.json：语言目录映射与目录识别规则 */
+/** data/library.json: language directory mapping and directory recognition rules. */
 export type LibraryConfig = {
   $schema?: string;
   schemaVersion?: number;
@@ -86,7 +86,7 @@ export function writeLibraryConfig(dataRoot: string, cfg: LibraryConfig): void {
   writeStoredFile(file, 'mnconfig', preserveUnknown(readRawRecord(file), cfg));
 }
 
-/** 猜测目录名对应哪门语言 */
+/** Guess which language a directory name refers to. */
 export function guessLang(dirName: string): Lang | null {
   const key = normalizeDir(dirName);
   for (const lang of LANGUAGES) {
@@ -95,7 +95,7 @@ export function guessLang(dirName: string): Lang | null {
   return null;
 }
 
-/** 目录内图片按文件名自然排序：数字段按数值比较 */
+/** Natural sort for page images in a directory: numeric segments compare by value. */
 export function naturalCompare(a: string, b: string): number {
   const re = /(\d+)|(\D+)/g;
   const ax = a.match(re) ?? [];
@@ -120,7 +120,7 @@ export function encodePath(...segments: string[]): string {
   return '/' + segments.map((s) => encodeURIComponent(s)).join('/');
 }
 
-/** 列出目录（把 junction / 目录软链也当作目录，方便「添加漫画」时挂载外部文件夹） */
+/** List directories (junctions and directory symlinks included, so external folders can be mounted when adding manga). */
 export function listDirs(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   const out: string[] = [];
@@ -133,13 +133,13 @@ export function listDirs(dir: string): string[] {
     try {
       if (fs.statSync(path.join(dir, entry.name)).isDirectory()) out.push(entry.name);
     } catch {
-      /* 断链的软链接忽略 */
+      /* Ignore broken symlinks. */
     }
   }
   return out.sort(naturalCompare);
 }
 
-/** 判断目录里（递归）是否有图片，避免把空目录当成待配置的卷 */
+/** Whether a directory contains images (recursively), so empty dirs aren't treated as volumes to configure. */
 function hasImages(dir: string, depth = 0): boolean {
   if (depth > 8) return false;
   let entries: fs.Dirent[];
@@ -165,7 +165,7 @@ function hasImages(dir: string, depth = 0): boolean {
   return false;
 }
 
-/** 解析生效的规则；配置损坏时回退默认规则并把原因交给界面展示 */
+/** Resolve the effective rules; on a corrupt config fall back to defaults and surface the reason to the UI. */
 function activeRules(cfg: LibraryConfig): { rules: DirRule[]; warning?: string } {
   const configured = cfg.rules?.filter((r) => r && r.pattern);
   if (!configured?.length) return { rules: DEFAULT_RULES };
@@ -198,7 +198,7 @@ export type DirPreview = {
 };
 
 /**
- * 实时预览目录识别结果：不写库、不做标注检查，供界面在编辑规则时反复调用。
+ * Preview directory recognition live: no writes and no annotation checks, so the UI can call it repeatedly while editing rules.
  */
 export function previewDirs(rawRoot: string, dataRoot: string, dir = '', rulesOverride?: DirRule[]): DirPreview {
   const config = readLibraryConfig(dataRoot);
@@ -261,8 +261,8 @@ export type LibraryScanInfo = {
 export type LibraryResult = Library & { scan: LibraryScanInfo };
 
 /**
- * 构建图库：按 data/library.json 的规则扫描 raw，再把文件聚合为 卷 → 话 → 页。
- * 语言目录的映射优先用用户显式指定，其次按目录名自动识别。
+ * Build the library: scan raw with the rules from data/library.json, then group files into volume → chapter → page.
+ * Language directories use the user's explicit mapping first, then guesses from the directory name.
  */
 export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult {
   const config = readLibraryConfig(dataRoot);
@@ -285,7 +285,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
   const scan = resolveFiles(rawRoot, rules, '', pinned);
 
   // Remote libraries are mirrored as a placeholder tree (see storageProviders.ts).
-  // Scanning it with the same rules keeps 卷/话/页 grouping identical for local and
+  // Scanning it with the same rules keeps volume/chapter/page grouping identical for local and
   // remote pages; bytes are fetched lazily later, so this stays cheap.
   const remoteRoot = path.join(dataRoot, 'cache', 'remote', 'tree');
   const remoteScan = fs.existsSync(remoteRoot) ? resolveFiles(remoteRoot, rules, '', pinned) : null;
@@ -357,7 +357,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         }
       }
 
-      // 同一语言内扩展名混用（例如 jpeg 与 png 交替）值得提示
+      // Mixed extensions within one language (e.g. jpeg alternating with png) are worth a warning.
       for (const lang of langsInVolume) {
         const exts = new Set((filesByLang.get(lang) ?? []).map((f) => path.extname(f.filename).toLowerCase()));
         if (exts.size > 1) {
@@ -384,7 +384,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
           files[lang] = encodePath('raw', ...entry.file.split('/'));
         }
 
-        // 命名异常提示：页码前缀与序号不一致
+        // Naming warning: the page-number prefix disagrees with the sequence.
         for (const lang of langsInVolume) {
           const name = filenames[lang];
           if (!name) continue;
@@ -417,7 +417,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
     });
   }
 
-  // 有图片但一条规则都没识别到的顶层目录仍然列出来，否则用户无法进入「卷设置」修映射。
+  // Keep top-level dirs that contain images but matched no rule; otherwise users can't open Volume settings to fix the mapping.
   if (volumes.length === 0) {
     for (const dir of listDirs(rawRoot)) {
       if (!hasImages(path.join(rawRoot, dir))) continue;

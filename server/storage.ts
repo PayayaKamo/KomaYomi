@@ -136,6 +136,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
       name: typeof g.name === 'string' ? g.name : '',
       panelIds: Array.isArray(g.panelIds) ? g.panelIds.filter((id) => typeof id === 'string' && panelIds.has(id)) : [],
       number: Number.isFinite(g.number) ? Number(g.number) : undefined,
+      color: typeof g.color === 'string' && /^#[0-9a-f]{6}$/i.test(g.color) ? g.color : undefined,
     }))
     .filter((g) => g.panelIds.length > 0);
 
@@ -198,9 +199,9 @@ export function readPageDoc(dataRoot: string, volume: string, chapter: string, p
 }
 
 export type WriteMeta = {
-  /** 覆盖自动计算的变更摘要 */
+  /** Overrides the auto-computed change summary. */
   summary?: string;
-  /** 本次是切格结果：记录算法版本与来源 */
+  /** This write is a detection result: record the algorithm version and source. */
   detect?: { version: string; source: NonNullable<PageDoc['detectSource']>; lang?: string };
   /** Why this save happened; stored on the cross-session version snapshot. */
   source?: HistorySource;
@@ -211,7 +212,7 @@ export type WriteMeta = {
 const rectKey = (p: Panel) =>
   `${p.id}:${p.rect.x.toFixed(4)},${p.rect.y.toFixed(4)},${p.rect.w.toFixed(4)},${p.rect.h.toFixed(4)}`;
 
-/** 轻量变更摘要：只回答「这次改了什么」，不做逐字段审计 */
+/** Lightweight change summary: answers "what changed", not a field-by-field audit. */
 function summarize(prev: PageDoc | null, next: PageDoc): string {
   if (!prev) return t('HISTORY_CREATED');
   const parts: string[] = [];
@@ -254,7 +255,7 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
     normalized.detectedAt = now;
     normalized.detectSource = meta.detect.source;
   } else if (prev) {
-    // 客户端可能没带元信息：沿用磁盘上的，避免一保存就丢
+    // The client may omit metadata: reuse the on-disk values so a save doesn't drop them.
     normalized.detectorVersion = normalized.detectorVersion ?? prev.detectorVersion;
     normalized.detectedAt = normalized.detectedAt ?? prev.detectedAt;
     normalized.detectSource = normalized.detectSource ?? prev.detectSource;
@@ -287,7 +288,7 @@ export function ensureOffset(doc: PageDoc, lang: Lang): AlignOffset {
   return doc.offsets[lang] ?? DEFAULT_OFFSET;
 }
 
-/** 扫描所有标注文件，统计标签使用情况 */
+/** Scan all annotation files and tally tag usage. */
 export function collectTagStats(dataRoot: string): { tag: string; count: number }[] {
   const pagesDir = path.join(dataRoot, 'pages');
   const counts = new Map<string, number>();
@@ -304,7 +305,7 @@ export function collectTagStats(dataRoot: string): { tag: string; count: number 
             for (const tag of note.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
           }
         } catch {
-          /* 单个损坏文件不影响整体 */
+          /* One corrupt file doesn't affect the rest. */
         }
       }
     }

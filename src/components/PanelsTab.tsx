@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { Lang, PageDoc, PageEntry, Panel, PanelRect, PanelTemplate } from '../types';
+import type { Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
 import { LANGUAGES } from '../types';
-import { applyDrag, clamp01, normalizeRect, sortPanels, uid, unionRects } from '../lib/geometry';
+import {
+  applyDrag,
+  applyGroupOrder,
+  clamp01,
+  normalizeGroupOrder,
+  normalizeRect,
+  sortPanels,
+  uid,
+  unionRects,
+} from '../lib/geometry';
 import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
 import type { HistorySource } from '../api';
@@ -19,7 +28,7 @@ type Props = {
   selected: string[];
   setSelected: (ids: string[]) => void;
   onReload: () => void;
-  /** auto = 防抖自动保存；confirm = 需要 ✓ 或 Enter 才落盘 */
+  /** auto = debounced autosave; confirm = only saves via ✓ or Enter. */
   saveMode: 'auto' | 'confirm';
   setSaveMode: (mode: 'auto' | 'confirm') => void;
   dirty: boolean;
@@ -147,10 +156,30 @@ export function PanelsTab({
   const [annTool, setAnnTool] = useState<AnnotationTool>('select');
   const [annSelected, setAnnSelected] = useState<string | null>(null);
   const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
+  const [groupsOpen, setGroupsOpen] = useState(true);
+
+  /**
+   * The panel workspace keeps annotation tools collapsed by default so box selection
+   * stays unobstructed. Compare view has its own independent switch.
+   */
+  const [annOpen, setAnnOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('manga-memo.panels-ann') === 'on';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('manga-memo.panels-ann', annOpen ? 'on' : 'off');
+    } catch {
+      /* private mode */
+    }
+  }, [annOpen]);
 
   const annotations = doc.annotations ?? [];
   // Older pages have no flag; annotations were visible by default before the toggle existed.
-  const annotationsVisible = doc.annotationsVisible !== false;
+  const annotationsVisible = doc.annotationsVisible !== false && annOpen;
 
   const applyAnnotations = useCallback(
     (updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>) => {
@@ -196,7 +225,10 @@ export function PanelsTab({
     if (!availableLangs.includes(refLang)) setRefLang(availableLangs[0] ?? 'ja');
   }, [availableLangs, refLang]);
 
-  const ordered = useMemo(() => sortPanels(doc.panels, doc.readingDirection), [doc.panels, doc.readingDirection]);
+  const ordered = useMemo(
+    () => applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups),
+    [doc.panels, doc.readingDirection, doc.groups],
+  );
   const numberMap = useMemo(() => {
     const m = new Map<string, number>();
     ordered.forEach((p, i) => m.set(p.id, i + 1));
@@ -345,6 +377,9 @@ export function PanelsTab({
       ...d,
       panels: d.panels.filter((p) => !selected.includes(p.id)),
       notes: d.notes.filter((n) => !(n.scope === 'panel' && n.panelId && selected.includes(n.panelId))),
+      groups: (d.groups ?? [])
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !selected.includes(id)) }))
+        .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([]);
   };
@@ -360,8 +395,126 @@ export function PanelsTab({
       notes: d.notes.map((n) =>
         n.scope === 'panel' && n.panelId && selected.includes(n.panelId) ? { ...n, panelId: id } : n,
       ),
+      groups: (d.groups ?? [])
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((pid) => !selected.includes(pid)) }))
+        .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([id]);
+  };
+
+  /* ---------------- groups ---------------- */
+
+  const groupColors = ['#e11d48', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#64748b'];
+
+  const groupColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const group of doc.groups ?? []) {
+      if (!group.color) continue;
+      for (const id of group.panelIds) if (!map.has(id)) map.set(id, group.color);
+    }
+    return map;
+  }, [doc.groups]);
+
+  const createGroup = () => {
+    const ids = ordered.filter((panel) => selected.includes(panel.id)).map((panel) => panel.id);
+    if (!ids.length) return;
+    const gid = uid('grp');
+    mutate((d) => {
+      // Grouping takes the panels out of any earlier group, so groups never overlap.
+      const kept = (d.groups ?? [])
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !ids.includes(id)) }))
+        .filter((g) => g.panelIds.length > 0);
+      return {
+        ...d,
+        groups: [
+          ...kept,
+          {
+            id: gid,
+            name: t('groups.defaultName', { n: formatNumber(kept.length + 1) }),
+            panelIds: ids,
+            color: groupColors[kept.length % groupColors.length],
+          },
+        ],
+      };
+    });
+    setSelected([]);
+  };
+
+  const patchGroup = (id: string, patch: Partial<PanelGroup>) => {
+    mutate((d) => ({ ...d, groups: (d.groups ?? []).map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
+  };
+
+  const removeFromGroup = (gid: string, pid: string) => {
+    mutate((d) => ({
+      ...d,
+      groups: (d.groups ?? [])
+        .map((g) => (g.id === gid ? { ...g, panelIds: g.panelIds.filter((id) => id !== pid) } : g))
+        .filter((g) => g.panelIds.length > 0),
+    }));
+  };
+
+  const dragChip = useRef<{ gid: string; index: number } | null>(null);
+
+  const dropChip = (gid: string, target: number) => {
+    const drag = dragChip.current;
+    dragChip.current = null;
+    if (!drag || drag.gid !== gid || drag.index === target) return;
+    mutate((d) => ({
+      ...d,
+      groups: (d.groups ?? []).map((g) => {
+        if (g.id !== gid) return g;
+        const ids = [...g.panelIds];
+        const [moved] = ids.splice(drag.index, 1);
+        ids.splice(target, 0, moved);
+        return { ...g, panelIds: ids };
+      }),
+    }));
+  };
+
+  const mergeGroupUp = (index: number) => {
+    if (index <= 0) return;
+    mutate((d) => {
+      const groups = [...(d.groups ?? [])];
+      const target = groups[index - 1];
+      const source = groups[index];
+      if (!target || !source) return d;
+      groups[index - 1] = { ...target, panelIds: [...target.panelIds, ...source.panelIds] };
+      groups.splice(index, 1);
+      return { ...d, groups };
+    });
+  };
+
+  const splitGroup = (id: string) => {
+    mutate((d) => {
+      const groups = d.groups ?? [];
+      const index = groups.findIndex((g) => g.id === id);
+      if (index < 0 || groups[index].panelIds.length < 2) return d;
+      const source = groups[index];
+      const pieces: PanelGroup[] = source.panelIds.map((pid, i) => ({
+        id: uid('grp'),
+        name: `${source.name || t('groups.defaultName', { n: formatNumber(index + 1) })} · ${i + 1}`,
+        panelIds: [pid],
+        color: source.color,
+      }));
+      const next = [...groups];
+      next.splice(index, 1, ...pieces);
+      return { ...d, groups: next };
+    });
+  };
+
+  const deleteGroup = (id: string) => {
+    // Removing a group never removes panels.
+    mutate((d) => ({ ...d, groups: (d.groups ?? []).filter((g) => g.id !== id) }));
+  };
+
+  const sortByGroup = () => {
+    mutate((d) => ({
+      ...d,
+      groups: normalizeGroupOrder(
+        d.groups ?? [],
+        ordered.map((panel) => panel.id),
+      ),
+    }));
   };
 
   const singleSelected = doc.panels.find((p) => p.id === selected[0]);
@@ -392,7 +545,7 @@ export function PanelsTab({
     }
     mutate((d) => {
       if (!sameCount) {
-        return { ...d, panels, notes: d.notes.filter((n) => n.scope !== 'panel') };
+        return { ...d, panels, notes: d.notes.filter((n) => n.scope !== 'panel'), groups: [] };
       }
       const map = new Map(oldOrder.map((p, i) => [p.id, panels[i].id]));
       return {
@@ -401,6 +554,7 @@ export function PanelsTab({
         notes: d.notes.map((n) =>
           n.scope === 'panel' && n.panelId && map.has(n.panelId) ? { ...n, panelId: map.get(n.panelId)! } : n,
         ),
+        groups: [],
       };
     });
     setSelected([panels[0].id]);
@@ -454,7 +608,7 @@ export function PanelsTab({
     if (scope === 'chapter' && !window.confirm(t('panels.applyTemplateConfirm'))) return;
     setTplBusy(true);
     try {
-      // 先把当前页未保存的编辑落盘，避免被模板覆盖后丢失
+      // Flush unsaved edits first so applying a template cannot silently drop them.
       await api.savePage(doc);
       const res = await api.applyPanelTemplate(
         selectedTpl,
@@ -530,7 +684,7 @@ export function PanelsTab({
       deleteAnnotation();
       return;
     }
-    // 确认模式下 Enter/Esc 对应 ✓/×；框选进行中时 Esc 留给取消框选
+    // In confirm mode Enter/Esc map to ✓/×; while marquee-selecting, Esc cancels the selection instead.
     if (saveMode === 'confirm') {
       if (e.key === 'Enter' && dirty) {
         e.preventDefault();
@@ -614,6 +768,9 @@ export function PanelsTab({
           </button>
           <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
             {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
+          </button>
+          <button type="button" className="btn" onClick={createGroup} disabled={!selected.length}>
+            {t('groups.create')} {selected.length ? `(${formatNumber(selected.length)})` : ''}
           </button>
           <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
             {t('common.delete')}
@@ -847,80 +1004,201 @@ export function PanelsTab({
       )}
 
       <div className="ann-toolbar">
-        <span className="tb-label">{t('ann.layer')}</span>
         <button
           type="button"
-          className={`btn tiny ${annotationsVisible ? 'on' : ''}`}
-          aria-pressed={annotationsVisible}
-          title={annotationsVisible ? t('ann.hide') : t('ann.show')}
+          className="btn tiny"
+          aria-expanded={annOpen}
+          title={t('ann.toggleTools')}
           onClick={() => {
-            mutate((current) => ({ ...current, annotationsVisible: !annotationsVisible }));
-            if (annotationsVisible) {
+            setAnnOpen(!annOpen);
+            if (annOpen) {
               setAnnTool('select');
               setAnnSelected(null);
             }
           }}
         >
-          {annotationsVisible ? t('ann.on') : t('ann.off')}
+          {annOpen ? '▾' : '▸'} {t('ann.layer')}
         </button>
-        <div className="ann-tools">
-          {ANNOTATION_TOOL_ORDER.map((item) => (
+        {annOpen && (
+          <>
             <button
-              key={item}
               type="button"
-              className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
-              title={t(ANNOTATION_TOOLS[item].labelKey)}
-              aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
-              aria-pressed={annTool === item}
-              disabled={!annotationsVisible}
+              className={`btn tiny ${annotationsVisible ? 'on' : ''}`}
+              aria-pressed={annotationsVisible}
+              title={annotationsVisible ? t('ann.hide') : t('ann.show')}
               onClick={() => {
-                setAnnTool(item);
-                // Keep a single selected panel: it decides whether new marks use page
-                // scope or panel scope. The text in the toolbar states which one.
-                setAnnSelected(null);
-              }}
-            >
-              {ANNOTATION_TOOLS[item].icon}
-            </button>
-          ))}
-        </div>
-        <div className="ann-colors" role="group" aria-label={t('ann.color')}>
-          {ANNOTATION_COLORS.map((swatch) => (
-            <button
-              key={swatch}
-              type="button"
-              className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
-              style={{ background: swatch }}
-              title={t('ann.color')}
-              aria-label={t('ann.color')}
-              onClick={() => {
-                setAnnColor(swatch);
-                // Changing a swatch recolours the selected annotation, which is the
-                // quickest way to fix a wrong colour without deleting the shape.
-                if (annSelected) {
-                  applyAnnotations((list) =>
-                    list.map((a) =>
-                      a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
-                    ),
-                  );
+                mutate((current) => ({ ...current, annotationsVisible: !annotationsVisible }));
+                if (annotationsVisible) {
+                  setAnnTool('select');
+                  setAnnSelected(null);
                 }
               }}
-            />
-          ))}
+            >
+              {annotationsVisible ? t('ann.on') : t('ann.off')}
+            </button>
+            <div className="ann-tools">
+              {ANNOTATION_TOOL_ORDER.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
+                  title={t(ANNOTATION_TOOLS[item].labelKey)}
+                  aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
+                  aria-pressed={annTool === item}
+                  disabled={!annotationsVisible}
+                  onClick={() => {
+                    setAnnTool(item);
+                    // Keep a single selected panel: it decides whether new marks use page
+                    // scope or panel scope. The text in the toolbar states which one.
+                    setAnnSelected(null);
+                  }}
+                >
+                  {ANNOTATION_TOOLS[item].icon}
+                </button>
+              ))}
+            </div>
+            <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+              {ANNOTATION_COLORS.map((swatch) => (
+                <button
+                  key={swatch}
+                  type="button"
+                  className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+                  style={{ background: swatch }}
+                  title={t('ann.color')}
+                  aria-label={t('ann.color')}
+                  onClick={() => {
+                    setAnnColor(swatch);
+                    // Changing a swatch recolours the selected annotation, which is the
+                    // quickest way to fix a wrong colour without deleting the shape.
+                    if (annSelected) {
+                      applyAnnotations((list) =>
+                        list.map((a) =>
+                          a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
+                        ),
+                      );
+                    }
+                  }}
+                />
+              ))}
+            </div>
+            <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
+              {t('ann.delete')}
+            </button>
+            <button type="button" className="btn tiny danger" onClick={clearAnnotations} disabled={!annotations.length}>
+              {t('ann.clear')}
+            </button>
+            <span className="muted tiny ann-hint">
+              {!annotationsVisible
+                ? t('ann.hiddenHint')
+                : singleSelected
+                  ? t('ann.scopePanel', { n: formatNumber(numberMap.get(singleSelected.id) ?? 0) })
+                  : t('ann.scopePage')}
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="groups-panel">
+        <div className="groups-head">
+          <button
+            type="button"
+            className="btn tiny"
+            aria-expanded={groupsOpen}
+            title={t('groups.toggle')}
+            onClick={() => setGroupsOpen(!groupsOpen)}
+          >
+            {groupsOpen ? '▾' : '▸'} {t('groups.title', { n: formatNumber((doc.groups ?? []).length) })}
+          </button>
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={sortByGroup}
+            disabled={(doc.groups ?? []).length < 1}
+            title={t('groups.sortHint')}
+          >
+            {t('groups.sort')}
+          </button>
         </div>
-        <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
-          {t('ann.delete')}
-        </button>
-        <button type="button" className="btn tiny danger" onClick={clearAnnotations} disabled={!annotations.length}>
-          {t('ann.clear')}
-        </button>
-        <span className="muted tiny ann-hint">
-          {!annotationsVisible
-            ? t('ann.hiddenHint')
-            : singleSelected
-              ? t('ann.scopePanel', { n: formatNumber(numberMap.get(singleSelected.id) ?? 0) })
-              : t('ann.scopePage')}
-        </span>
+        {groupsOpen &&
+          ((doc.groups ?? []).length ? (
+            <div className="group-list">
+              {(doc.groups ?? []).map((group, index) => (
+                <div className="group-row" key={group.id}>
+                  <input
+                    type="color"
+                    className="group-color"
+                    value={group.color ?? groupColors[index % groupColors.length]}
+                    title={t('groups.color')}
+                    aria-label={t('groups.color')}
+                    onChange={(e) => patchGroup(group.id, { color: e.target.value })}
+                  />
+                  <input
+                    className="group-name"
+                    value={group.name ?? ''}
+                    placeholder={t('groups.namePlaceholder')}
+                    aria-label={t('groups.name')}
+                    onChange={(e) => patchGroup(group.id, { name: e.target.value })}
+                  />
+                  <div className="group-chips">
+                    {group.panelIds.map((pid, chipIndex) => (
+                      <div
+                        key={pid}
+                        className="group-chip"
+                        draggable
+                        title={t('groups.chipHint')}
+                        onDragStart={() => {
+                          dragChip.current = { gid: group.id, index: chipIndex };
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => dropChip(group.id, chipIndex)}
+                      >
+                        <span className="group-chip-num">{formatNumber(numberMap.get(pid) ?? 0)}</span>
+                        <button
+                          type="button"
+                          className="group-chip-x"
+                          title={t('groups.removePanel')}
+                          aria-label={t('groups.removePanel')}
+                          onClick={() => removeFromGroup(group.id, pid)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="group-actions">
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      title={t('groups.merge')}
+                      onClick={() => mergeGroupUp(index)}
+                      disabled={index === 0}
+                    >
+                      {t('groups.merge')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      title={t('groups.split')}
+                      onClick={() => splitGroup(group.id)}
+                      disabled={group.panelIds.length < 2}
+                    >
+                      {t('groups.split')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn tiny danger"
+                      title={t('groups.deleteHint')}
+                      onClick={() => deleteGroup(group.id)}
+                    >
+                      {t('groups.delete')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="muted tiny groups-empty">{t('groups.empty')}</div>
+          ))}
       </div>
 
       <div className="stage-scroll">
@@ -965,12 +1243,13 @@ export function PanelsTab({
                   return (
                     <div
                       key={panel.id}
-                      className={`pbox ${isSel ? 'sel' : ''}`}
+                      className={`pbox ${isSel ? 'sel' : ''} ${groupColorMap.has(panel.id) ? 'grouped' : ''}`}
                       style={{
                         left: `${panel.rect.x * 100}%`,
                         top: `${panel.rect.y * 100}%`,
                         width: `${panel.rect.w * 100}%`,
                         height: `${panel.rect.h * 100}%`,
+                        borderColor: groupColorMap.get(panel.id),
                       }}
                       onPointerDown={(e) => startDrag(e, panel, 'move')}
                       onDoubleClick={(e) => e.stopPropagation()}

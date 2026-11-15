@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ExportConfig, ExportTemplate, Lang, Library, PageDoc, PageEntry, Panel } from '../types';
 import { DEFAULT_EXPORT_CONFIG, LANGUAGES, LANG_SHORT } from '../types';
 import { api } from '../api';
-import { sortPanels } from '../lib/geometry';
+import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { exportPng } from '../lib/pngExport';
 import { formatNumber, langLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
@@ -13,13 +13,13 @@ type Props = {
   onClose: () => void;
   doc: PageDoc | null;
   page: PageEntry | null;
-  /** 当前选中的格子，用于「导出当前格」PNG */
+  /** Panel currently selected, used by the "export current panel" PNG action. */
   panel: Panel | null;
   library: Library | null;
   sel: Selection | null;
   langs: Lang[];
   tagStats: { tag: string; count: number }[];
-  /** 项目根目录，展示导出文件的绝对路径 */
+  /** Project root, shown so the exported file's absolute path can be displayed. */
   rootPath: string;
 };
 
@@ -40,7 +40,7 @@ const TEMPLATE_IDS: { id: ExportConfig['template']; name: MessageKey; desc: Mess
 
 const LAYOUT_KEY = 'manga-memo.export-layout';
 
-/** 只把版式相关的字段挑出来，供模板保存与本地记忆使用 */
+/** Keep only layout-related fields for template saving and local memory. */
 function layoutOf(c: ExportConfig): Partial<ExportConfig> {
   return {
     template: c.template,
@@ -251,7 +251,7 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
   };
 
   const previewUrl = page?.files[cfg.languages.find((l) => page?.files[l]) ?? 'ja'] ?? '';
-  const ordered = doc ? sortPanels(doc.panels, doc.readingDirection) : [];
+  const ordered = doc ? applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups) : [];
   const pageNotes = doc?.notes.filter((n) => n.scope === 'page') ?? [];
 
   const renderCrop = (p: Panel, lang: Lang) => {

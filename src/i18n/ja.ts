@@ -4,7 +4,7 @@
 import type { MessageKey } from './en';
 
 export const ja = {
-  /* ---- アプリ全体 ---- */
+  /* ---- app shell ---- */
   'app.tagline': '漫画を読んで、言語を学ぶ。',
   'app.brandHome': 'ライブラリに戻る',
   'app.toggleSidebarTitle': 'ライブラリサイドバーの表示/非表示（S）',
@@ -25,7 +25,7 @@ export const ja = {
   'app.themeSystem': 'システム',
   'app.themeLight': 'ライト',
   'app.themeDark': 'ダーク',
-  /* ---- ファイルメニュー ---- */
+  /* ---- file menu ---- */
   'file.menu': 'ファイル',
   'file.menuTitle': 'ファイルメニュー（Ctrl+O でプロジェクトを開く）',
   'file.groupNew': '新規 / ライブラリを開く',
@@ -104,7 +104,7 @@ export const ja = {
   'history.source.restore': '復元',
   'history.source.detect': '自動検出',
 
-  /* ---- ヘルプ ---- */
+  /* ---- help dialog ---- */
   'app.help.heading': 'ショートカットと操作',
   'app.help.subtitle': '入力欄では単キーのショートカットは無効です',
   'app.help.global': '全体',
@@ -141,7 +141,7 @@ export const ja = {
   'app.help.footer': 'データはプロジェクトの data/ に保存され、まとめてバックアップできます',
   'app.help.close': 'わかりました',
 
-  /* ---- ウェルカム画面 ---- */
+  /* ---- welcome screen ---- */
   'app.welcome.title': 'マンガの多言語比較読みと注釈',
   'app.welcome.desc':
     'ページごとにコマを自動検出し、コマ単位で 日本語 / 中文 / English を並べて読み、長期的な注釈を残して、共有できる HTML 比較稿に書き出します。',
@@ -159,7 +159,7 @@ export const ja = {
   'app.welcome.step4Desc':
     'ページ単位/コマ単位の注釈とタグ。タグで絞り込め、画像左・注釈右の HTML をワンクリックで書き出し、レイアウトはドラッグで調整できます。',
 
-  /* ---- サイドバー ---- */
+  /* ---- sidebar ---- */
   'sidebar.loadingLibrary': 'ライブラリを読み込み中…',
   'sidebar.emptyNoVolumesBefore': '',
   'sidebar.emptyNoVolumesAfter': ' の下に巻フォルダが見つかりません。',
@@ -183,7 +183,7 @@ export const ja = {
   'sidebar.backup': 'バックアップ / 復元',
   'sidebar.backupTitle': 'data/ のバックアップ / 復元',
 
-  /* ---- ノートパネル ---- */
+  /* ---- notes panel ---- */
   'notes.title': '学習ノート',
   'notes.tabPage': 'このページ',
   'notes.tabAll': '一覧 / 検索',
@@ -287,7 +287,7 @@ export const ja = {
   'notes.addImages': '画像を追加',
   'notes.removeImage': '画像を削除',
 
-  /* ---- 共通操作 ---- */
+  /* ---- shared actions ---- */
   'common.save': '保存',
   'common.cancel': 'キャンセル',
   'common.close': '閉じる',
@@ -296,28 +296,28 @@ export const ja = {
   'common.listSeparator': '；',
   'common.readFileFailed': 'ファイルの読み込みに失敗しました',
 
-  /* ---- 整形された断片 ---- */
+  /* ---- formatted fragments ---- */
   'format.chapter': '第{chapter}話',
   'format.page': '{page}ページ',
   'format.panel': '{number}コマ目',
   'format.volumesChapters': '{volumes} 巻 · {chapters} 話',
 
-  /* ---- 言語名 ---- */
+  /* ---- language names ---- */
   'lang.ja': '日本語',
   'lang.zh': '中国語',
   'lang.en': '英語',
 
-  /* ---- 読み方向 ---- */
+  /* ---- reading directions ---- */
   'reading.rtl': '右から左 · 上から下',
   'reading.ltr': '左から右 · 上から下',
   'reading.ttb': '右から左 · 縦書き',
 
-  /* ---- 言語切り替え（各言語の自称、全 locale 共通） ---- */
+  /* ---- locale switcher (autonyms, identical in every locale) ---- */
   'locale.en': 'English',
   'locale.zh': '中文',
   'locale.ja': '日本語',
 
-  /* ---- コマ分割 ---- */
+  /* ---- panels tab ---- */
   'panels.baseImage': '下地画像',
   'panels.detectLabel': 'コマ分割',
   'panels.detectorVersionTitle': 'このページのコマ検出に使ったアルゴリズムのバージョンと最後の編集',
@@ -387,7 +387,7 @@ export const ja = {
   'panels.statusEdit':
     '枠をドラッグで移動、角をドラッグでサイズ変更。Ctrl/Shift クリックで複数選択して結合。Delete で削除',
 
-  /* ---- 対照読書 ---- */
+  /* ---- compare tab ---- */
   'compare.language': '言語',
   'compare.missingLangImage': 'このページには{lang}の画像がありません',
   'compare.mask': 'マスク',
@@ -463,7 +463,7 @@ export const ja = {
     'チェックした言語はマスクをオンにしたとき既定で隠れます。設定は自動保存され、書き出しにマスクは含まれません。',
   'compare.noteCount': '{count} 件の注釈',
 
-  /* ---- 位置合わせモード ---- */
+  /* ---- alignment modes ---- */
   'align.mode.page': 'ページ全体のオフセット',
   'align.mode.panel': 'コマごとのオフセット',
   'align.mode.anchors': 'アンカー合わせ',
@@ -474,7 +474,7 @@ export const ja = {
   'align.hint.anchors': '基準言語で特徴点をクリックし、対象言語で同じ位置をクリックするとオフセットを自動計算します',
   'align.hint.grid': 'ドラッグ時にグリッドのステップに吸着します。数値を揃えたいときに便利です',
 
-  /* ---- 書き出しダイアログ ---- */
+  /* ---- export dialog ---- */
   'export.templateTwoColumn': '左画像・右注釈',
   'export.templateTwoColumnDesc': '左に漫画の原画、右にページとコマの注釈',
   'export.templateStack': '上画像・下注釈',
@@ -553,7 +553,7 @@ export const ja = {
   'export.footerHint': 'プロジェクトの exports/ に出力します。HTML はブラウザで直接開けます',
   'export.generateHtml': 'HTML を生成',
 
-  /* ---- バックアップと復元 ---- */
+  /* ---- backup & restore ---- */
   'backup.title': 'バックアップと復元',
   'backup.subtitle': 'data/ の注釈・テンプレート・プリセットをまとめます。サムネイルキャッシュは含みません',
   'backup.exportSection': 'バックアップを書き出す',
@@ -622,7 +622,7 @@ export const ja = {
   'backup.offline': 'オフライン',
   'backup.statusReadOnly': '（読み取り専用）',
 
-  /* ---- フォルダ判定ルール ---- */
+  /* ---- folder rules ---- */
   'dirRules.title': 'フォルダ判定ルール',
   'dirRules.introBefore': 'ページファイルのパスをプレースホルダーで記述します：',
   'dirRules.introAfter': '。上から順に試し、最初に一致したルールが使われます',
@@ -653,7 +653,7 @@ export const ja = {
   'dirRules.saving': '保存中…',
   'dirRules.saveRules': 'ルールを保存',
 
-  /* ---- ファイル交換 ---- */
+  /* ---- exchange files ---- */
   'exchange.title': 'ファイル交換',
   'exchange.subtitle':
     '.mntpl レイアウトテンプレート · .mnexp 書き出しテンプレート · .mnpage.json 単一ページデータ。インポート前に必ずバックアップと検証を行います',
@@ -724,7 +724,7 @@ export const ja = {
   'exchange.scopeChapter': '指定した話に紐付け',
   'exchange.scopePage': '指定したページに紐付け',
 
-  /* ---- 漫画を追加 ---- */
+  /* ---- add manga ---- */
   'addVolume.title': '漫画を追加',
   'addVolume.subtitle': '言語フォルダを含むフォルダを選ぶか、raw 配下の新しいフォルダを使います',
   'addVolume.folderPath': 'フォルダパス',
@@ -741,7 +741,7 @@ export const ja = {
     'ブラウザではフォルダ選択ダイアログを開けません。フォルダパスを直接入力してください。デスクトップ版では「フォルダを選択」を押せます',
   'addVolume.pickFolderTitle': '漫画フォルダを選択（ja/zh/en などの言語フォルダが入っている必要があります）',
 
-  /* ---- 巻の設定 ---- */
+  /* ---- volume settings ---- */
   'volumeSettings.title': '巻の設定 · {title}',
   'volumeSettings.subtitle': 'どのサブフォルダがどの言語かを指定します。空欄なら自動判定',
   'volumeSettings.autoOption': '使用しない / 自動',
@@ -751,7 +751,7 @@ export const ja = {
     '「{title}」をライブラリから削除しますか？\n\nraw 配下のフォルダリンクだけを削除し、元フォルダの画像は削除しません。保存済みの注釈は残ります。',
   'volumeSettings.saving': '保存中…',
 
-  /* ---- プロジェクトファイル ---- */
+  /* ---- project file ---- */
   'project.title': 'プロジェクトファイル',
   'project.subtitle':
     '.mnproj = 圧縮ファイル + プレーンテキスト JSON。画像、注釈、テンプレート、言語設定をまとめて持ち運べます',
@@ -807,11 +807,11 @@ export const ja = {
     'ブラウザではフォルダ選択ダイアログを開けません。再リンク先フォルダのパスを直接入力してください',
   'project.pickFolderTitle': '不足画像のある元のフォルダを選択',
 
-  /* ---- API 層 ---- */
+  /* ---- API layer ---- */
   'api.nonJson': 'サーバーが JSON 以外の内容を返しました：{text}',
   'api.requestFailed': 'リクエストに失敗しました（{status}）',
 
-  /* ---- 注釈 ---- */
+  /* ---- annotations ---- */
   'ann.layer': '注釈',
   'ann.show': '注釈レイヤーを表示',
   'ann.hide': '注釈レイヤーを隠す',
@@ -835,8 +835,33 @@ export const ja = {
   'ann.tool.text': 'テキスト',
   'ann.tool.badge': '番号バッジ',
   'ann.tool.mosaic': 'モザイク',
+  'ann.toggleTools': '注釈ツールの表示を切り替え',
+  'ann.sharedHint': 'ページ / コマの適用範囲はコマ編集と共通です',
+  'ann.laneHint': '{lang} 列に描画中',
+  'ann.compareDefault': '比較ビューでは注釈は既定でオンです',
 
-  /* ---- PNG 書き出し ---- */
+  /* ---- グループ ---- */
+  'groups.title': 'グループ（{n}）',
+  'groups.toggle': 'グループパネルの表示を切り替え',
+  'groups.create': 'グループ化',
+  'groups.defaultName': 'グループ {n}',
+  'groups.name': 'グループ名',
+  'groups.namePlaceholder': 'グループ名',
+  'groups.color': 'グループの色',
+  'groups.chipHint': 'ドラッグでグループ内の順序を変更',
+  'groups.removePanel': 'グループから外す',
+  'groups.merge': '前のグループに統合',
+  'groups.split': '分割',
+  'groups.delete': '削除',
+  'groups.deleteHint': 'グループだけを削除し、コマは残します',
+  'groups.sort': 'グループ順に整列',
+  'groups.sortHint': '各グループ先頭コマの読む順で並べ替えます',
+  'groups.empty': 'コマを範囲選択して「グループ化」を押してください',
+
+  /* ---- shared toolbar ---- */
+  'toolbar.more': 'その他',
+
+  /* ---- PNG export ---- */
   'png.loadImageFailed': '{lang}の画像を読み込めませんでした：{src}',
   'png.noImages': '書き出せる画像がありません',
   'png.missingImage': '{lang}の画像がないため、書き出せません',
@@ -844,7 +869,7 @@ export const ja = {
   'png.canvasEmpty': 'PNG の書き出しに失敗しました：canvas.toBlob が空を返しました',
   'png.panelRectRequired': 'コマの書き出しには rect が必要です',
 
-  /* ---- このアプリについて ---- */
+  /* ---- about dialog ---- */
   'about.title': 'KomaYomi について',
   'about.openTitle': 'KomaYomi について：バージョン・ライセンス・謝辞',
   'about.version': 'バージョン',

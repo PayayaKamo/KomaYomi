@@ -16,7 +16,7 @@ type Props = {
   selection: Selection | null;
   onOpen: (sel: Selection) => void;
   onReload: (library?: Library) => void;
-  /** 当前页面是否有未保存修改，工程导出/导入前提示 */
+  /** Whether the current page has unsaved edits; warned before project export/import. */
   dirty: boolean;
 };
 
@@ -101,7 +101,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
-  // 当前话自动展开
+  // Auto-expand the active chapter.
   const expanded = useMemo(() => {
     const base = { ...open };
     if (activeChapterKey) base[activeChapterKey] = base[activeChapterKey] ?? true;
@@ -250,9 +250,24 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         {library.volumes.map((volume) => (
           <div className="volume" key={volume.id}>
             <div className="volume-title">
-              <span>{volume.title}</span>
-              <span className="volume-langs">
-                {volume.languages.map((l) => LANG_SHORT[l]).join(' · ') || t('sidebar.langsUnconfigured')}
+              <span className="volume-name" title={volume.title}>
+                {volume.title}
+              </span>
+              <span
+                className="volume-langs"
+                title={volume.languages.length ? volume.languages.map((l) => LANG_SHORT[l]).join(' · ') : undefined}
+              >
+                {volume.languages.length ? (
+                  <>
+                    {volume.languages
+                      .slice(0, 2)
+                      .map((l) => LANG_SHORT[l])
+                      .join(' · ')}
+                    {volume.languages.length > 2 && <b className="volume-langs-more">+{volume.languages.length - 2}</b>}
+                  </>
+                ) : (
+                  t('sidebar.langsUnconfigured')
+                )}
               </span>
               <button
                 type="button"
@@ -262,10 +277,12 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
               >
                 ⚙
               </button>
-              {volume.warnings.map((w) => (
-                <em key={w}>{w}</em>
-              ))}
             </div>
+            {volume.warnings.map((w) => (
+              <em className="volume-warn" key={w}>
+                {w}
+              </em>
+            ))}
             {volume.chapters.map((chapter) => renderChapter(volume.id, chapter))}
           </div>
         ))}

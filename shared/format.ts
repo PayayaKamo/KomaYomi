@@ -3,9 +3,9 @@ import { LANGUAGES } from './types.ts';
 import { migrateExportTemplateV0, migrateLayoutTemplateV0, migrateManifestV0, migratePageV0 } from './migrations.ts';
 
 /**
- * 统一交换格式：`$schema` + `schemaVersion` envelope，见 shared/schemas/*.json。
- * 这里的小校验器不依赖任何 npm 包，只校验「运行时必须存在的字段」，
- * 错误会带精确路径，例如 `manifest.volumes[2].chapters: required`。
+ * Unified exchange format: a `$schema` + `schemaVersion` envelope, see shared/schemas/*.json.
+ * This small validator has no npm dependencies and only checks fields required at runtime;
+ * errors carry exact paths, e.g. `manifest.volumes[2].chapters: required`.
  */
 
 export const SCHEMA_BASE = 'https://manga-memo.dev/schemas/';
@@ -217,7 +217,7 @@ function validateSpec(value: unknown, spec: Spec, path: string, errors: string[]
   }
 }
 
-/* ---------------- 各格式的字段表 ---------------- */
+/* ---------------- Field tables per format ---------------- */
 
 const offsetSpec = object({ x: num(), y: num(), scale: num() });
 const rectSpec = object({ x: num(), y: num(), w: num(), h: num() });
@@ -261,6 +261,7 @@ const groupSpec = object(
     name: str(),
     panelIds: array(str()),
     number: int({ min: 1 }),
+    color: str(),
   },
   ['id', 'panelIds'],
 );
@@ -594,7 +595,7 @@ const SPECS: Record<ExchangeKind, Spec> = {
   mnhistory: historySpec,
 };
 
-/** 只做校验，不迁移。返回的 errors 直接带字段路径。 */
+/** Validation only, no migration. Errors carry field paths. */
 export function validateExchange(kind: ExchangeKind, value: unknown): ValidationResult {
   const errors: string[] = [];
   validateSpec(value, SPECS[kind], kind === 'mnproj' ? 'manifest' : '', errors);
@@ -606,7 +607,7 @@ export function assertExchange(kind: ExchangeKind, value: unknown, label = FORMA
   if (!result.ok) throw new Error(`${label}格式不正确：${result.errors.join('；')}`);
 }
 
-/** 未来版本直接拒绝；缺省 version 视为 v0（旧文件）。 */
+/** Reject future versions outright; a missing version is treated as v0 (legacy file). */
 export function checkSchemaVersion(kind: ExchangeKind, declared: unknown): number {
   if (declared === undefined || declared === null) return 0;
   if (typeof declared !== 'number' || !Number.isInteger(declared) || declared < 0) {
@@ -670,8 +671,8 @@ function finalizeEnvelope(kind: ExchangeKind, value: Record<string, unknown>): R
 }
 
 /**
- * 未知字段透传：读入旧文件时保留我们还不认识的字段，写回时不会丢。
- * 数组按 `id` 合并元素，其余数组原样取新值（顺序与删除语义由新数据决定）。
+ * Pass unknown fields through: fields we do not recognize yet survive a read/write round trip.
+ * Arrays are merged by `id`; other arrays take the new value as-is (order and deletion follow the new data).
  */
 export function preserveUnknown<T>(previous: unknown, next: T): T {
   if (!isRecord(previous) || !isRecord(next)) return next;
@@ -707,9 +708,9 @@ function mergeById(prev: unknown[], next: unknown[]): unknown[] {
 }
 
 /**
- * 解析 → 版本检查 → 迁移链 → 补齐 envelope → 全量校验。
- * 任何一步失败都会抛错，不会返回半成品，调用方因此可以「先校验再写盘」。
- * `strict: false` 用于读取自有数据文件：只做版本迁移，不因字段缺失拒绝整份文件。
+ * Parse → version check → migration chain → fill the envelope → full validation.
+ * Any failed step throws instead of returning a partial result, so callers can validate before writing.
+ * `strict: false` is for our own data files: migrate the version but don't reject a file over missing fields.
  */
 export function prepareExchange(
   kind: ExchangeKind,
@@ -742,7 +743,7 @@ export function prepareExchange(
   };
 }
 
-/** 通过 `$schema` / `kind` / 关键字段猜测格式，供导入时给出更友好的提示。 */
+/** Guess the format from `$schema` / `kind` / key fields to give a friendlier import hint. */
 export function detectExchangeKind(value: unknown): ExchangeKind | null {
   if (!isRecord(value)) return null;
   const schema = typeof value.$schema === 'string' ? value.$schema : '';
@@ -757,7 +758,7 @@ export function detectExchangeKind(value: unknown): ExchangeKind | null {
   return null;
 }
 
-/** 把校验失败信息压缩成一行，便于 UI 直接展示。 */
+/** Squash validation errors into one line for direct display in the UI. */
 export function formatErrors(errors: string[], limit = 8): string {
   if (!errors.length) return '';
   const head = errors.slice(0, limit).join('；');

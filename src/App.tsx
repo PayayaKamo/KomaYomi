@@ -17,7 +17,7 @@ import type { Lang, Library, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
 import type { CSSProperties } from 'react';
-import { sortPanels } from './lib/geometry';
+import { applyGroupOrder, sortPanels } from './lib/geometry';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
 
@@ -90,7 +90,7 @@ export default function App() {
   const pageState = usePage(sel);
   const { doc, page } = pageState;
 
-  // hash 深链：#/<卷>/<话>/<页(1 起)>，便于直接打开与分享
+  // Hash deep link: #/<volume>/<chapter>/<page (1-based)>, for direct opening and sharing.
   useEffect(() => {
     const readHash = () => {
       const raw = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
@@ -151,7 +151,7 @@ export default function App() {
     loadTags();
   }, [loadLibrary, loadTags]);
 
-  // 页面首次落盘后刷新图库角标
+  // Refresh the gallery badge once the page is first written to disk.
   useEffect(() => {
     if (pageState.exists) loadLibrary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,7 +162,7 @@ export default function App() {
     setSelected((prev) => prev.filter((id) => doc.panels.some((p) => p.id === id)));
   }, [doc?.panels, doc]);
 
-  // 确认保存模式下还有待保存修改时，离开页面先拦一下；自动保存模式不干预
+  // In confirm mode, warn before leaving with pending edits; autosave mode needs no guard.
   useEffect(() => {
     if (!pageState.dirty || pageState.saveMode !== 'confirm') return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -173,14 +173,18 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [pageState.dirty, pageState.saveMode]);
 
-  const ordered = useMemo(() => (doc ? sortPanels(doc.panels, doc.readingDirection) : []), [doc]);
+  const ordered = useMemo(
+    () => (doc ? applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups) : []),
+    [doc],
+  );
   const primaryId = selected[selected.length - 1];
   const primaryPanel = doc?.panels.find((p) => p.id === primaryId) ?? null;
   const primaryIndex = primaryPanel ? ordered.findIndex((p) => p.id === primaryPanel.id) : -1;
   const panelLabel =
     primaryIndex >= 0 ? t('format.panel', { number: formatNumber(primaryIndex + 1) }) : t('notes.thisPanel');
 
-  // 笔记总览跳转：先切页，等分格载入后再选中目标格，避免被“清理无效选择”逻辑吞掉
+  // Notes-overview jump: switch page first, then select the target panel once panels load,
+  // so the "prune invalid selection" effect cannot swallow the selection.
   useEffect(() => {
     if (!doc || !pendingPanel) return;
     if (doc.panels.some((p) => p.id === pendingPanel)) {
@@ -226,7 +230,8 @@ export default function App() {
   const undoPage = pageState.undo;
   const redoPage = pageState.redo;
 
-  // 键盘快捷键（输入框内不触发）：[ ] 翻页，P 分格，C 对照，S 侧栏，N 笔记，E 导出
+  // Keyboard shortcuts (ignored while an input has focus): [ ] page, P panels, C compare,
+  // S sidebar, N notes, E export.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;

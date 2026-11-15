@@ -17,12 +17,12 @@ type Props = {
   mutate: (fn: (doc: PageDoc) => PageDoc) => void;
   tagStats: { tag: string; count: number }[];
   library: Library | null;
-  /** 跳到某页的某格（总览/搜索命中后使用） */
+  /** Jump to a panel on some page (used by overview/search hits). */
   onJump: (sel: Selection, panelId: string | null) => void;
   onClose?: () => void;
 };
 
-/* ---------------- 笔记贴图：粘贴/拖入的截图 ---------------- */
+/* ---------------- Note images: pasted/dropped screenshots ---------------- */
 
 /** Longest edge kept; bigger screenshots are downscaled so page JSON stays small. */
 const NOTE_IMAGE_MAX_EDGE = 1600;
@@ -81,7 +81,7 @@ function clipboardImageFiles(data: DataTransfer | null): File[] {
   return [...data.files].filter((f) => f.type.startsWith('image/'));
 }
 
-/* ---------------- Markdown 编辑器：编辑 / 分栏 / 预览 ---------------- */
+/* ---------------- Markdown editor: edit / split / preview ---------------- */
 
 type NoteViewMode = 'edit' | 'split' | 'preview';
 const NOTE_MODE_KEY = 'manga-memo.notes-mode';
@@ -279,7 +279,7 @@ function NoteBody({ text }: { text: string }) {
   );
 }
 
-/* ---------------- 随手记暂存 ---------------- */
+/* ---------------- Scratchpad draft ---------------- */
 
 type ScratchItem = { id: string; text: string; createdAt: string };
 const SCRATCH_KEY = 'manga-memo.scratchpad';
@@ -294,7 +294,7 @@ function loadScratch(): ScratchItem[] {
   }
 }
 
-/* ---------------- 复制给大模型的上下文 ---------------- */
+/* ---------------- Context copied for an LLM ---------------- */
 
 const TEMPLATE_KEY = 'manga-memo.context-template';
 
@@ -306,7 +306,7 @@ function loadTemplate(fallback: string): string {
   }
 }
 
-/* ---------------- 笔记面板 ---------------- */
+/* ---------------- Notes panel ---------------- */
 
 const ROW_H = 96;
 
@@ -330,7 +330,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [editing, setEditing] = useState<{ id: string; text: string; images: NoteImage[] } | null>(null);
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
 
-  // 来源
+  // Source
   const [sourceOpen, setSourceOpen] = useState(false);
   const [srcUrl, setSrcUrl] = useState('');
   const [srcTitle, setSrcTitle] = useState('');
@@ -338,17 +338,17 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [titleBusy, setTitleBusy] = useState(false);
   const [titleMsg, setTitleMsg] = useState<string | null>(null);
 
-  // 随手记
+  // Scratchpad
   const [scratch, setScratch] = useState<ScratchItem[]>(loadScratch);
   const [scratchDraft, setScratchDraft] = useState('');
   const [scratchOpen, setScratchOpen] = useState(false);
 
-  // 复制上下文
+  // Copy context
   const [contextNotes, setContextNotes] = useState<{ notes: Note[]; single?: Note } | null>(null);
   const [template, setTemplate] = useState(() => loadTemplate(t('notes.contextTemplateDefault')));
   const [copied, setCopied] = useState(false);
 
-  // 总览 / 搜索
+  // Overview / search
   const [query, setQuery] = useState('');
   const [fVolume, setFVolume] = useState('');
   const [fChapter, setFChapter] = useState('');
@@ -380,7 +380,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     try {
       localStorage.setItem(SCRATCH_KEY, JSON.stringify(scratch));
     } catch {
-      /* 忽略隐私模式 */
+      /* Ignore in private mode. */
     }
   }, [scratch]);
   useEffect(() => {
@@ -391,7 +391,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
   }, [template]);
 
-  // 粘贴/输入正文时自动识别第一个 URL（标题抓取仍是可选的按钮）
+  // Auto-detect the first URL while pasting/typing body text (fetching the title stays an optional button).
   useEffect(() => {
     if (srcUrl) return;
     const match = text.match(/https?:\/\/[^\s)>\]]+/);
@@ -401,7 +401,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
   }, [text, srcUrl]);
 
-  // 搜索（300ms 防抖），并随当前文档变化刷新总览
+  // Search (300ms debounce) and refresh the overview when the current document changes.
   useEffect(() => {
     if (tab !== 'all') return;
     let alive = true;
@@ -722,7 +722,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     </div>
   );
 
-  /* ---- 随手记面板（有页/无页都可用） ---- */
+  /* ---- Scratchpad panel (usable with or without a page) ---- */
   const scratchPanel = (
     <div className="scratch">
       <button
@@ -780,7 +780,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     </div>
   );
 
-  /* ---- 总览：按话 / 标签 / 来源聚合 + 虚拟滚动 ---- */
+  /* ---- Overview: grouped by chapter / tag / source, with virtual scrolling ---- */
   // Keep localized labels out of the memo so a locale switch re-renders them,
   // while grouping itself only depends on the search result.
   const flat = useMemo<FlatRow[]>(() => {
@@ -1235,7 +1235,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   );
 }
 
-/** 把本页所有笔记合成一个“上下文”请求；单条笔记时由调用方直接传入 */
+/** Merge all notes on this page into one "context" request; for a single note the caller passes it directly. */
 function panelNoteSource(_panelNotes: Note[], pageNotes: Note[]): Note {
   return {
     id: 'context-all',

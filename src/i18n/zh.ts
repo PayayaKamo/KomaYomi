@@ -5,7 +5,7 @@
 import type { MessageKey } from './en';
 
 export const zh = {
-  /* ---- 应用外壳 ---- */
+  /* ---- app shell ---- */
   'app.tagline': '读漫画，学语言。',
   'app.brandHome': '返回图库',
   'app.toggleSidebarTitle': '显示/隐藏图库侧栏（S）',
@@ -26,7 +26,7 @@ export const zh = {
   'app.themeSystem': '跟随系统',
   'app.themeLight': '亮色',
   'app.themeDark': '暗色',
-  /* ---- 文件菜单 ---- */
+  /* ---- file menu ---- */
   'file.menu': '文件',
   'file.menuTitle': '文件菜单（Ctrl+O 打开工程）',
   'file.groupNew': '新建 / 打开库',
@@ -105,7 +105,7 @@ export const zh = {
   'history.source.restore': '恢复',
   'history.source.detect': '自动切格',
 
-  /* ---- 帮助弹窗 ---- */
+  /* ---- help dialog ---- */
   'app.help.heading': '快捷键与操作',
   'app.help.subtitle': '在输入框内不会触发单键快捷键',
   'app.help.global': '全局',
@@ -142,7 +142,7 @@ export const zh = {
   'app.help.footer': '数据保存在项目 data/ 目录，可整体备份',
   'app.help.close': '知道了',
 
-  /* ---- 欢迎页 ---- */
+  /* ---- welcome screen ---- */
   'app.welcome.title': '漫画多语言对照阅读与批注',
   'app.welcome.desc':
     '逐页自动切格，按格并排对照 日本語 / 中文 / English，记录长期批注，最后导出成可分享的 HTML 对照稿。',
@@ -156,7 +156,7 @@ export const zh = {
   'app.welcome.step4Title': '批注与导出',
   'app.welcome.step4Desc': '页级/格级批注 + 标签，按标签筛选；一键导出左图右注的 HTML，版式可拖动调整。',
 
-  /* ---- 侧栏 ---- */
+  /* ---- sidebar ---- */
   'sidebar.loadingLibrary': '载入图库中…',
   'sidebar.emptyNoVolumesBefore': '没有在 ',
   'sidebar.emptyNoVolumesAfter': ' 下找到任何卷目录。',
@@ -180,7 +180,7 @@ export const zh = {
   'sidebar.backup': '备份 / 恢复',
   'sidebar.backupTitle': '备份 / 恢复 data/',
 
-  /* ---- 笔记面板 ---- */
+  /* ---- notes panel ---- */
   'notes.title': '学习笔记',
   'notes.tabPage': '本页',
   'notes.tabAll': '总览 / 搜索',
@@ -281,7 +281,7 @@ export const zh = {
   'notes.addImages': '添加图片',
   'notes.removeImage': '移除图片',
 
-  /* ---- 通用操作 ---- */
+  /* ---- shared actions ---- */
   'common.save': '保存',
   'common.cancel': '取消',
   'common.close': '关闭',
@@ -290,28 +290,28 @@ export const zh = {
   'common.listSeparator': '；',
   'common.readFileFailed': '读取文件失败',
 
-  /* ---- 格式化片段 ---- */
+  /* ---- formatted fragments ---- */
   'format.chapter': '第 {chapter} 话',
   'format.page': '第 {page} 页',
   'format.panel': '第 {number} 格',
   'format.volumesChapters': '{volumes} 卷 · {chapters} 话',
 
-  /* ---- 语言名称 ---- */
+  /* ---- language names ---- */
   'lang.ja': '日语',
   'lang.zh': '中文',
   'lang.en': '英语',
 
-  /* ---- 阅读方向 ---- */
+  /* ---- reading directions ---- */
   'reading.rtl': '从右到左 · 从上到下',
   'reading.ltr': '从左到右 · 从上到下',
   'reading.ttb': '从右到左 · 竖排',
 
-  /* ---- 语言切换（各语言自称，各 locale 相同） ---- */
+  /* ---- locale switcher (autonyms, identical in every locale) ---- */
   'locale.en': 'English',
   'locale.zh': '中文',
   'locale.ja': '日本語',
 
-  /* ---- 分格面板 ---- */
+  /* ---- panels tab ---- */
   'panels.baseImage': '底图',
   'panels.detectLabel': '切格',
   'panels.detectorVersionTitle': '生成这一页格子所用的算法版本与最近一次编辑',
@@ -451,7 +451,7 @@ export const zh = {
   'compare.maskDefaultsHint': '勾选的语言在开启遮蔽时默认盖住；偏好会自动保存，导出永远不带遮罩。',
   'compare.noteCount': '{count} 条批注',
 
-  /* ---- 对齐模式 ---- */
+  /* ---- alignment modes ---- */
   'align.mode.page': '整页偏移',
   'align.mode.panel': '逐格偏移',
   'align.mode.anchors': '锚点对齐',
@@ -461,7 +461,7 @@ export const zh = {
   'align.hint.anchors': '先在参考语言上点一个特征点，再在目标语言上点同一位置，自动算偏移',
   'align.hint.grid': '拖动时按网格步长吸附，适合需要整齐数值的场景',
 
-  /* ---- 导出弹窗 ---- */
+  /* ---- export dialog ---- */
   'export.templateTwoColumn': '左图右注',
   'export.templateTwoColumnDesc': '左侧漫画原图，右侧整页与分格批注',
   'export.templateStack': '上图下注',
@@ -536,7 +536,7 @@ export const zh = {
   'export.footerHint': '输出到项目 exports/ 目录，HTML 可直接在浏览器打开',
   'export.generateHtml': '生成 HTML',
 
-  /* ---- 备份与恢复 ---- */
+  /* ---- backup & restore ---- */
   'backup.title': '备份与恢复',
   'backup.subtitle': '把 data/ 里的标注、模板、预设打包；缩略图缓存不包含在内',
   'backup.exportSection': '导出备份',
@@ -801,6 +801,31 @@ export const zh = {
   'ann.tool.text': '文字',
   'ann.tool.badge': '编号圆标',
   'ann.tool.mosaic': '马赛克',
+  'ann.toggleTools': '展开或收起标注工具',
+  'ann.sharedHint': '页 / 格作用域与切格工作台共用',
+  'ann.laneHint': '正在 {lang} 栏绘制',
+  'ann.compareDefault': '对照视图默认开启标注',
+
+  /* ---- 分组 ---- */
+  'groups.title': '分组（{n}）',
+  'groups.toggle': '展开或收起分组面板',
+  'groups.create': '成组',
+  'groups.defaultName': '组 {n}',
+  'groups.name': '组名',
+  'groups.namePlaceholder': '组名',
+  'groups.color': '组颜色',
+  'groups.chipHint': '拖动调整组内顺序',
+  'groups.removePanel': '移出分组',
+  'groups.merge': '并入上一组',
+  'groups.split': '拆分',
+  'groups.delete': '删除',
+  'groups.deleteHint': '只删除分组，格子保留',
+  'groups.sort': '按组排序',
+  'groups.sortHint': '按每组首个格子的阅读顺序整理分组',
+  'groups.empty': '先框选格子，再点「成组」',
+
+  /* ---- 通用工具栏 ---- */
+  'toolbar.more': '更多',
 
   /* ---- PNG 导出 ---- */
   'png.loadImageFailed': '加载{lang}图片失败：{src}',

@@ -43,7 +43,7 @@ export type {
   VolumeEntry,
 } from '../shared/types';
 
-/* ---- 目录识别规则（前端展示用，服务端同名类型是数据来源） ---- */
+/* ---- Directory recognition rules (frontend view; the same-named server type is the source) ---- */
 
 export type DirRule = {
   id: string;
@@ -82,7 +82,7 @@ export type DirPreview = {
   }[];
 };
 
-/* ---- 存储提供者（本机 / 网络盘 / WebDAV） ---- */
+/* ---- Storage providers (local / network drive / WebDAV) ---- */
 
 export type StorageKind = 'local' | 'network' | 'webdav';
 

@@ -11,7 +11,7 @@ type AddProps = {
   initialPath?: string;
 };
 
-/** 添加漫画：选择本地文件夹（桌面端）或手动填路径；也可以只在 raw 下建一个空目录 */
+/** Add manga: pick a local folder (desktop) or type a path; an empty directory under raw works too. */
 export function AddVolumeDialog({ onClose, onDone, initialPath = '' }: AddProps) {
   const { t } = useI18n();
   const [pathValue, setPathValue] = useState(initialPath);
@@ -115,7 +115,7 @@ type SettingsProps = {
   onDone: (library: Library) => void;
 };
 
-/** 卷设置：把卷下的实际目录指定给某门语言；语言不齐也可以只配 1–2 种 */
+/** Volume settings: map actual directories under the volume to languages; 1–2 languages is fine. */
 export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps) {
   const { t } = useI18n();
   const [choice, setChoice] = useState<Record<Lang, string>>({

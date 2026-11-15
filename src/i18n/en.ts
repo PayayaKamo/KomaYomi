@@ -840,6 +840,31 @@ export const en = {
   'ann.tool.text': 'Text',
   'ann.tool.badge': 'Number badge',
   'ann.tool.mosaic': 'Mosaic',
+  'ann.toggleTools': 'Show or hide annotation tools',
+  'ann.sharedHint': 'Page / panel scope is shared with the panel workspace',
+  'ann.laneHint': 'Drawing in the {lang} column',
+  'ann.compareDefault': 'Annotations are on by default in compare view',
+
+  /* ---- panel groups ---- */
+  'groups.title': 'Groups ({n})',
+  'groups.toggle': 'Show or hide groups',
+  'groups.create': 'Group',
+  'groups.defaultName': 'Group {n}',
+  'groups.name': 'Group name',
+  'groups.namePlaceholder': 'Group name',
+  'groups.color': 'Group color',
+  'groups.chipHint': 'Drag to reorder inside the group',
+  'groups.removePanel': 'Remove from group',
+  'groups.merge': 'Merge up',
+  'groups.split': 'Split',
+  'groups.delete': 'Delete',
+  'groups.deleteHint': 'Delete the group only; its panels stay',
+  'groups.sort': 'Sort by group',
+  'groups.sortHint': 'Group order follows each group’s first panel in reading order',
+  'groups.empty': 'Select panels, then press “Group” to create one',
+
+  /* ---- shared toolbar ---- */
+  'toolbar.more': 'More',
 
   /* ---- PNG export ---- */
   'png.loadImageFailed': 'Failed to load the {lang} image: {src}',

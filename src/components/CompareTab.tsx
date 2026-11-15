@@ -2,16 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { AlignMode, AlignOffset, AlignPreset, Lang, PageDoc, PageEntry, Panel } from '../types';
 import { DEFAULT_OFFSET, LANG_SHORT, LANGUAGES } from '../types';
-import { sortPanels } from '../lib/geometry';
+import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { api } from '../api';
+import type { HistorySource } from '../api';
 import { langLabel, readingLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { AnnotationOverlay } from './AnnotationOverlay';
+import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
+import type { AnnotationTool } from './AnnotationLayer';
 
 type Props = {
   doc: PageDoc;
   page: PageEntry;
-  mutate: (fn: (doc: PageDoc) => PageDoc) => void;
+  mutate: (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean; source?: HistorySource }) => void;
   reload: () => void;
   selected: string[];
   setSelected: (ids: string[]) => void;
@@ -19,6 +22,10 @@ type Props = {
   setLangs: (langs: Lang[]) => void;
   overlay: boolean;
   setOverlay: (v: boolean) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 };
 
 const sizeCache = new Map<string, { w: number; h: number }>();
@@ -191,9 +198,16 @@ export function CompareTab({
   setLangs,
   overlay,
   setOverlay,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }: Props) {
   const { t, formatNumber } = useI18n();
-  const ordered = useMemo(() => sortPanels(doc.panels, doc.readingDirection), [doc.panels, doc.readingDirection]);
+  const ordered = useMemo(
+    () => applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups),
+    [doc.panels, doc.readingDirection, doc.groups],
+  );
   const mode: AlignMode = doc.alignMode ?? 'page';
   const alignModeLabel = (m: AlignMode) => t(ALIGN_MODE_KEY[m]);
   const isPanelMode = mode === 'panel' || mode === 'anchors';
@@ -237,6 +251,56 @@ export function CompareTab({
     start: AlignOffset;
   } | null>(null);
   const [dragging, setDragging] = useState(false);
+
+  /**
+   * Compare view is the main annotation surface: it opens with the layer enabled.
+   * The panel workspace keeps its own switch (defaults to off) and both persist apart.
+   */
+  const [annOn, setAnnOn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('manga-memo.compare-ann') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('manga-memo.compare-ann', annOn ? 'on' : 'off');
+    } catch {
+      /* private mode */
+    }
+  }, [annOn]);
+  const [annTool, setAnnTool] = useState<AnnotationTool>('select');
+  const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
+  const [annSelected, setAnnSelected] = useState<string | null>(null);
+  const [annScope, setAnnScope] = useState<'page' | 'panel'>('page');
+  /** Lane that receives new marks in side-by-side mode; highlighted in the grid. */
+  const [annLang, setAnnLang] = useState<Lang>(langs[0] ?? 'ja');
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  useEffect(() => {
+    if (!activeLangs.includes(annLang)) setAnnLang(activeLangs[0] ?? 'ja');
+  }, [activeLangs, annLang]);
+
+  const annotations = doc.annotations ?? [];
+  const annotationsVisible = doc.annotationsVisible !== false && annOn;
+  const applyAnnotations = (
+    updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>,
+  ) => {
+    // Same source tag as the panel workspace, so history labels read the same.
+    mutate((current) => ({ ...current, annotations: updater(current.annotations ?? []) }), { source: 'annotation' });
+  };
+  const deleteAnnotation = () => {
+    if (!annSelected) return;
+    applyAnnotations((list) => list.filter((a) => a.id !== annSelected));
+    setAnnSelected(null);
+  };
+  const clearAnnotations = () => {
+    if (!annotations.length) return;
+    if (!window.confirm(t('ann.clearConfirm', { count: formatNumber(annotations.length) }))) return;
+    applyAnnotations(() => []);
+    setAnnSelected(null);
+  };
 
   const scopeOfMode: DragScope = isPanelMode ? 'panel' : 'page';
 

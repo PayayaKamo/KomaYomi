@@ -72,7 +72,7 @@ function normalizePanelOffsets(input: unknown): Record<string, Partial<Record<La
   return out;
 }
 
-/* ---------------- 分格模板 ---------------- */
+/* ---------------- Panel templates ---------------- */
 
 const panelTemplateDir = (dataRoot: string) => path.join(dataRoot, 'templates', 'panels');
 
@@ -87,7 +87,7 @@ export function listPanelTemplates(dataRoot: string): PanelTemplate[] {
       if (!stored) continue;
       list.push({ ...stored.data, panels: normalizeRects(stored.data.panels) });
     } catch {
-      /* 单个坏文件忽略 */
+      /* Ignore individual broken files. */
     }
   }
   return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -138,8 +138,9 @@ export function deletePanelTemplate(dataRoot: string, id: string): boolean {
 }
 
 /**
- * 把模板套用到一页并落盘。
- * 格子数量与原页一致时，按阅读顺序把旧批注迁移到新格子；不一致则丢弃格级批注（整页批注保留）。
+ * Apply a template to one page and write it.
+ * When panel counts match, panel-scoped notes move with their panels in reading order; otherwise
+ * panel notes are dropped (page-scoped notes are kept).
  */
 export function applyPanelTemplate(
   dataRoot: string,
@@ -174,11 +175,11 @@ export function applyPanelTemplate(
   return { doc: writePageDoc(dataRoot, next, { source: 'template' }), droppedNotes };
 }
 
-/* ---------------- 对齐预设 ---------------- */
+/* ---------------- Alignment presets ---------------- */
 
-/** 每个预设一个可读 JSON 文件，便于手动编辑与版本管理 */
+/** One readable JSON file per preset, easy to edit by hand and version-control. */
 const alignPresetDir = (dataRoot: string) => path.join(dataRoot, 'presets', 'align');
-/** 旧版本把全部预设堆在一个数组文件里，保留只读兼容并按需迁移 */
+/** Older builds kept all presets in one array file; keep read-only compatibility and migrate on demand. */
 const legacyAlignPresetFile = (dataRoot: string) => path.join(dataRoot, 'presets', 'align.json');
 
 function normalizePreset(p: AlignPreset): AlignPreset {
@@ -206,7 +207,7 @@ export function listAlignPresets(dataRoot: string): AlignPreset[] {
         const stored = readStoredFile<AlignPreset>(path.join(dir, file), 'mnalign');
         if (stored && typeof stored.data.id === 'string') out.push(normalizePreset(stored.data));
       } catch {
-        /* 单个坏文件忽略 */
+        /* Ignore individual broken files. */
       }
     }
   }
@@ -223,10 +224,10 @@ export function listAlignPresets(dataRoot: string): AlignPreset[] {
         writeAlignPresetFile(dataRoot, preset);
         out.push(preset);
       }
-      // 迁移完把旧文件改名留档，避免重复导入
+      // After migrating, rename the old file for the record so it is not imported twice.
       fs.renameSync(legacy, path.join(dataRoot, 'presets', 'align.legacy.json'));
     } catch {
-      /* 旧文件损坏时忽略 */
+      /* Ignore a corrupt legacy file. */
     }
   }
 
@@ -262,7 +263,7 @@ export function deleteAlignPreset(dataRoot: string, id: string): boolean {
   return true;
 }
 
-/* ---------------- 导出模板 ---------------- */
+/* ---------------- Export templates ---------------- */
 
 const exportTemplateFile = (dataRoot: string) => path.join(dataRoot, 'templates', 'export.json');
 

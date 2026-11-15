@@ -19,9 +19,9 @@ const exampleRule = (): DirRule => ({
 const pretty = (rules: DirRule[]) => JSON.stringify(rules, null, 2);
 
 /**
- * 目录识别：用声明式规则描述「页文件」在磁盘上的层级，实时预览解析结果。
- * 设计上把规则当作纯文本 JSON 编辑，避免为每种结构做一套表单，
- * 同时用实时预览 + 未识别清单把「为什么没扫出来」讲清楚。
+ * Directory recognition: declarative rules describe where page files sit on disk, with a live preview.
+ * Rules stay editable as plain JSON text instead of per-structure forms, and the preview plus the
+ * unmatched list explain why a file was not picked up.
  */
 export function DirRulesDialog({ onClose, onSaved }: Props) {
   const { t } = useI18n();
@@ -62,7 +62,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
     }
   }, [text, t]);
 
-  // 规则或目录一变就重新预览（防抖），改完无需保存即可看到效果。
+  // Re-run the preview (debounced) whenever the rules or directory change, so edits show without saving.
   useEffect(() => {
     if (!parsed.rules) {
       setPreviewError(parsed.error ?? null);

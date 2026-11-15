@@ -20,7 +20,7 @@ function readFileBase64(file: File): Promise<string> {
   });
 }
 
-/** 一键备份 / 恢复：恢复前先展示将覆盖什么，并自动留下恢复前快照 */
+/** One-click backup / restore: preview what will be overwritten and keep a pre-restore snapshot. */
 export function DataToolsDialog({ onClose, onRestored }: Props) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);

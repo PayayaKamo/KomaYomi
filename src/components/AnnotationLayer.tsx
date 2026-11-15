@@ -88,6 +88,11 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onChange: (updater: (list: Annotation[]) => Annotation[]) => void;
+  /**
+   * Page region shown by this layer. Defaults to the whole page; the compare view
+   * passes one panel crop, so the same normalized annotations stay in sync.
+   */
+  viewport?: PanelRect;
 };
 
 function panelRect(panels: Panel[], id: string | null): PanelRect {
@@ -100,11 +105,11 @@ function toScope(p: Point, rect: PanelRect): Point {
   return { x: clamp01((p.x - rect.x) / rect.w), y: clamp01((p.y - rect.y) / rect.h) };
 }
 
-/** Scope-relative points to overlay pixels. */
-function toPixels(points: Point[], rect: PanelRect, box: Box): Point[] {
+/** Scope-relative points to overlay pixels, cropped to the visible viewport. */
+function toPixels(points: Point[], rect: PanelRect, box: Box, viewport: PanelRect = PAGE_RECT): Point[] {
   return points.map((p) => ({
-    x: (rect.x + p.x * rect.w) * box.w,
-    y: (rect.y + p.y * rect.h) * box.h,
+    x: ((rect.x + p.x * rect.w - viewport.x) / viewport.w) * box.w,
+    y: ((rect.y + p.y * rect.h - viewport.y) / viewport.h) * box.h,
   }));
 }
 
@@ -116,11 +121,17 @@ function arrowHead(a: Point, b: Point, size: number): string {
   return `${b.x},${b.y} ${p1.x},${p1.y} ${p2.x},${p2.y}`;
 }
 
-function renderShape(shape: Shape, rect: PanelRect, box: Box, extraClass = ''): ReactNode {
-  const pts = toPixels(shape.points, rect, box);
+function renderShape(
+  shape: Shape,
+  rect: PanelRect,
+  box: Box,
+  extraClass = '',
+  viewport: PanelRect = PAGE_RECT,
+): ReactNode {
+  const pts = toPixels(shape.points, rect, box, viewport);
   const color = shape.color ?? ANNOTATION_COLORS[0];
-  const sw = Math.max(1, (shape.width ?? DEFAULT_WIDTH) * box.w);
-  const fontSize = Math.max(10, (shape.fontSize ?? DEFAULT_FONT) * box.h);
+  const sw = Math.max(1, ((shape.width ?? DEFAULT_WIDTH) * box.w) / viewport.w);
+  const fontSize = Math.max(10, ((shape.fontSize ?? DEFAULT_FONT) * box.h) / viewport.h);
 
   if (pts.length === 0) return null;
   const first = pts[0];
@@ -244,8 +255,14 @@ function renderShape(shape: Shape, rect: PanelRect, box: Box, extraClass = ''): 
 }
 
 /** Dashed selection frame around one shape, padded a few screen pixels. */
-function selectionFrame(shape: Shape, rect: PanelRect, box: Box, color: string): ReactNode {
-  const pts = toPixels(shape.points, rect, box);
+function selectionFrame(
+  shape: Shape,
+  rect: PanelRect,
+  box: Box,
+  color: string,
+  viewport: PanelRect = PAGE_RECT,
+): ReactNode {
+  const pts = toPixels(shape.points, rect, box, viewport);
   if (pts.length === 0) return null;
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
@@ -280,6 +297,7 @@ export function AnnotationLayer({
   selectedId,
   onSelect,
   onChange,
+  viewport = PAGE_RECT,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState<Box>({ w: 0, h: 0 });
@@ -311,7 +329,11 @@ export function AnnotationLayer({
     if (!el) return { x: 0, y: 0 };
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height) return { x: 0, y: 0 };
-    return { x: clamp01((e.clientX - r.left) / r.width), y: clamp01((e.clientY - r.top) / r.height) };
+    // Screen fractions map back into page space, so the same layer works over a crop.
+    return {
+      x: viewport.x + clamp01((e.clientX - r.left) / r.width) * viewport.w,
+      y: viewport.y + clamp01((e.clientY - r.top) / r.height) * viewport.h,
+    };
   };
 
   const createAnnotation = (
@@ -486,22 +508,22 @@ export function AnnotationLayer({
               {/* Invisible fat stroke widens the hit area of thin shapes. */}
               {tool === 'select' && annotation.kind !== 'mosaic' && (
                 <polyline
-                  points={toPixels(annotation.points, rect, box)
+                  points={toPixels(annotation.points, rect, box, viewport)
                     .map((p) => `${p.x},${p.y}`)
                     .join(' ')}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={Math.max(14, (annotation.width ?? DEFAULT_WIDTH) * box.w + 12)}
+                  strokeWidth={Math.max(14, ((annotation.width ?? DEFAULT_WIDTH) * box.w) / viewport.w + 12)}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               )}
-              {renderShape(annotation, rect, box)}
-              {selected && selectionFrame(annotation, rect, box, annotation.color ?? color)}
+              {renderShape(annotation, rect, box, '', viewport)}
+              {selected && selectionFrame(annotation, rect, box, annotation.color ?? color, viewport)}
             </g>
           );
         })}
-        {draft && renderShape({ ...draft, color, width }, draft.rect, box, 'draft')}
+        {draft && renderShape({ ...draft, color, width }, draft.rect, box, 'draft', viewport)}
         {textEdit && (
           <foreignObject x={0} y={0} width={box.w} height={box.h}>
             <div className="ann-input-wrap">
@@ -511,8 +533,8 @@ export function AnnotationLayer({
                 value={textEdit.value}
                 placeholder={textEdit.kind === 'badge' ? t('ann.badgePrompt') : t('ann.textPrompt')}
                 style={{
-                  left: `${(textEdit.rect.x + textEdit.point.x * textEdit.rect.w) * box.w}px`,
-                  top: `${(textEdit.rect.y + textEdit.point.y * textEdit.rect.h) * box.h}px`,
+                  left: `${((textEdit.rect.x + textEdit.point.x * textEdit.rect.w - viewport.x) / viewport.w) * box.w}px`,
+                  top: `${((textEdit.rect.y + textEdit.point.y * textEdit.rect.h - viewport.y) / viewport.h) * box.h}px`,
                   borderColor: color,
                 }}
                 onChange={(e) => setTextEdit((prev) => (prev ? { ...prev, value: e.target.value } : prev))}

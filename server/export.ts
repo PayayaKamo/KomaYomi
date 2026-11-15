@@ -3,6 +3,7 @@ import path from 'node:path';
 import { decodeGray, sortReadingOrder } from './detect.ts';
 import { readPageDoc } from './storage.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
+import { applyGroupOrder } from '../shared/panelOrder.ts';
 import type {
   AlignOffset,
   Annotation,
@@ -383,7 +384,10 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
       images[lang] = { lang, url: src, width, height };
     }
 
-    const ordered = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
+    const ordered = applyGroupOrder(
+      sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect),
+      doc.groups,
+    );
     direction = direction ?? doc.readingDirection;
     const labels = new Map<Panel, string>();
     ordered.forEach((p, i) => labels.set(p, t('EXPORT_PANEL_NO', { n: i + 1 })));

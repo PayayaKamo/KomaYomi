@@ -11,8 +11,8 @@ import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
 
 /**
- * .mntpl / .mnexp / .mnpage.json 的导入导出。
- * 原则：解析 → 校验 → 迁移 → 备份原文件 → 原子写入；任何一步失败都不会留下半成品。
+ * Import/export for .mntpl / .mnexp / .mnpage.json.
+ * Order: parse → validate → migrate → back up the original → atomic write; a failure never leaves partial output.
  */
 
 const sha1Hex = (data: Buffer) => createHash('sha1').update(data).digest('hex');

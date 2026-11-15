@@ -59,7 +59,7 @@ export function inspectBackup(dataRoot: string, buffer: Buffer) {
           const doc = JSON.parse(entry.data.toString('utf8')) as { notes?: unknown[] };
           notes += Array.isArray(doc.notes) ? doc.notes.length : 0;
         } catch {
-          /* 坏 JSON 不计批注数 */
+          /* Malformed JSON: don't count its notes. */
         }
       }
     } else if (rel.startsWith('templates/')) {

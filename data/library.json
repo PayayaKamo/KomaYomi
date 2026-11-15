@@ -7,5 +7,6 @@
   ],
   "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
   "schemaVersion": 1,
-  "kind": "mnconfig"
+  "kind": "mnconfig",
+  "appVersion": "0.1.0"
 }

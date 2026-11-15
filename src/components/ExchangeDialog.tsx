@@ -31,7 +31,7 @@ const download = (url: string, file: string) => {
   a.click();
 };
 
-/** 统一交换格式：.mntpl 版式模板 / .mnexp 导出模板 / .mnpage.json 单页数据 */
+/** Unified exchange formats: .mntpl layout template / .mnexp export template / .mnpage.json single page. */
 export function ExchangeDialog({ onClose, selection, dirty, onChanged }: Props) {
   const { t } = useI18n();
   const [layouts, setLayouts] = useState<LayoutTemplate[]>([]);

@@ -2,11 +2,11 @@ import type { Lang } from './types.ts';
 import { LANGUAGES } from './types.ts';
 
 /**
- * 交换文件 / 工程清单的版本迁移链。
+ * Version migration chain for exchange files / project manifests.
  *
- * 每个迁移函数只负责「把上一版内容改成下一版内容」，不写磁盘、不校验；
- * 版本号与 `$schema` 由 shared/format.ts 统一补齐。这样迁移可以单独测试，
- * 也方便以后追加 v1 → v2。
+ * Each migration only turns the previous version's content into the next one; it does not
+ * touch the disk or validate. Version numbers and `$schema` are filled in by shared/format.ts,
+ * so migrations stay testable on their own and a v1 → v2 step can be appended later.
  */
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -14,7 +14,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const APP_FALLBACK_VERSION = '0.1.0';
 
-/** v0（早期试验版 manifest）：images 在顶层、字段叫 file、语言目录叫 langDirs */
+/** v0 (early experimental manifest): images at the top level, field named `file`, language dirs named `langDirs`. */
 export function migrateManifestV0(raw: Record<string, unknown>): Record<string, unknown> {
   const topImages = Array.isArray(raw.images) ? raw.images : [];
   const inventoryImages = isRecord(raw.inventory) && Array.isArray(raw.inventory.images) ? raw.inventory.images : [];
@@ -71,7 +71,7 @@ export function migrateManifestV0(raw: Record<string, unknown>): Record<string, 
   return migrated;
 }
 
-/** v0 版式模板：裸 LayoutTemplate（可能带 volume/chapter/pageIndex 绑定） */
+/** v0 layout template: a bare LayoutTemplate (possibly bound to volume/chapter/pageIndex). */
 export function migrateLayoutTemplateV0(raw: Record<string, unknown>): Record<string, unknown> {
   const layout = isRecord(raw.layout) ? raw.layout : raw;
   const grid = isRecord(layout.grid) ? layout.grid : undefined;
@@ -92,7 +92,7 @@ export function migrateLayoutTemplateV0(raw: Record<string, unknown>): Record<st
   };
 }
 
-/** v0 导出模板：裸 ExportTemplate、data/templates/export.json 的数组项，或裸 ExportConfig */
+/** v0 export template: a bare ExportTemplate, an item of data/templates/export.json, or a bare ExportConfig. */
 export function migrateExportTemplateV0(raw: Record<string, unknown>): Record<string, unknown> {
   const source = isRecord(raw.template) ? raw.template : raw;
   const config = isRecord(source.config)
@@ -109,7 +109,7 @@ export function migrateExportTemplateV0(raw: Record<string, unknown>): Record<st
   };
 }
 
-/** v0 页面 JSON：旧 data/pages 里的裸 PageDoc，只缺 envelope 字段 */
+/** v0 page JSON: a bare PageDoc from the old data/pages, missing only the envelope fields. */
 export function migratePageV0(raw: Record<string, unknown>): Record<string, unknown> {
   const migrated: Record<string, unknown> = { ...raw, schemaVersion: 1 };
   // `version` was the pre-1.0 spelling; `schemaVersion` is now the single source.

@@ -7,7 +7,7 @@ import { formatBytes, formatNumber, t, useI18n } from '../i18n';
 type Props = {
   onClose: () => void;
   onImported: (library: Library) => void;
-  /** 当前页面是否有未保存修改（confirm 模式下的待保存内容） */
+  /** Whether the current page has unsaved edits (pending content in confirm mode). */
   dirty: boolean;
 };
 
@@ -22,7 +22,7 @@ function readFileBytes(file: File): Promise<ArrayBuffer> {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** 工程文件 .mnproj：另存为工程（引用 / 打包）与打开工程（检查 → 导入） */
+/** Project file .mnproj: save as project (reference / bundled) and open project (inspect → import). */
 export function ProjectDialog({ onClose, onImported, dirty }: Props) {
   const { t } = useI18n();
   const [mode, setMode] = useState<ProjectMode>('reference');

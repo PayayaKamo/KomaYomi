@@ -5,23 +5,23 @@ export type PngMode = 'page' | 'panel' | 'collage';
 
 export type PngExportOptions = {
   page: PageEntry;
-  /** 单页/单格导出使用的语言 */
+  /** Language used for single-page / single-panel export. */
   lang: Lang;
-  /** 拼图使用的语言列表（按顺序） */
+  /** Languages for the collage, in order. */
   langs: Lang[];
-  /** 格子矩形，传入则裁切该格 */
+  /** Panel rect; when set, only that panel is cropped. */
   rect?: PanelRect | null;
   mode: PngMode;
-  /** 文件名前缀，例如 `点兔第14卷-172-P1` */
+  /** Filename prefix, e.g. `vol14-172-P1`. */
   filenameBase: string;
-  /** 页面矢量标注；面板作用域的标注按 panels 里的 rect 映射回整页 */
+  /** Page-level vector annotations; panel-scoped ones are mapped back to the full page via the rect in panels. */
   annotations?: Annotation[];
-  /** 是否把标注烘焙进 PNG（关掉即为原图） */
+  /** Whether to bake annotations into the PNG (off = original image). */
   includeAnnotations?: boolean;
   panels?: Panel[];
 };
 
-/** 拼图布局常量（缩放前的逻辑像素） */
+/** Collage layout constants (logical pixels before scaling). */
 const PAD = 32;
 const GAP = 32;
 const LABEL_H = 48;
@@ -31,7 +31,7 @@ const MAX_WIDTH = 4200;
 
 type CropRect = { sx: number; sy: number; sw: number; sh: number };
 
-/** 加载图片（同源地址无需 crossOrigin） */
+/** Load an image (same-origin URLs need no crossOrigin). */
 function loadImage(src: string, lang: Lang): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -46,7 +46,7 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-/** 把归一化矩形换算成原图裁切像素，四舍五入并限制在图片范围内 */
+/** Convert a normalized rect into source-pixel crop bounds, rounding and clamping to the image. */
 function cropRect(img: HTMLImageElement, rect?: PanelRect | null): CropRect {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
@@ -80,7 +80,7 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-/** 通过临时 anchor 触发下载，用完立即移除 */
+/** Trigger a download through a temporary anchor, removed right after. */
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -90,7 +90,7 @@ function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // 延迟释放，避免个别浏览器取消下载
+  // Release after a delay; some browsers cancel the download if the URL is revoked immediately.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -301,7 +301,7 @@ async function renderCollage(
   const contentW = widths.reduce((sum, w) => sum + w, 0) + GAP * (items.length - 1);
   const totalW = PAD * 2 + contentW;
   const totalH = PAD * 2 + targetH + LABEL_H;
-  // 总宽超限时整体等比缩小
+  // Scale everything down proportionally when the total width exceeds the limit.
   const scale = totalW > MAX_WIDTH ? MAX_WIDTH / totalW : 1;
 
   const canvas = createCanvas(Math.round(totalW * scale), Math.round(totalH * scale));
@@ -331,7 +331,7 @@ async function renderCollage(
       drawAnnotations(ctx, draw, it.img, it.img.naturalWidth, it.img.naturalHeight);
       ctx.restore();
     }
-    // 底部标签带
+    // Label strip along the bottom.
     ctx.fillStyle = '#f2f2f2';
     ctx.fillRect(x, PAD + targetH, w, LABEL_H);
     ctx.fillStyle = '#000';
@@ -342,7 +342,7 @@ async function renderCollage(
   return canvas;
 }
 
-/** 导出并触发浏览器下载，出错时 reject(Error) */
+/** Export and trigger a browser download; rejects with Error on failure. */
 export async function exportPng(opts: PngExportOptions): Promise<void> {
   const { page, lang, langs, rect, mode, filenameBase } = opts;
   // Callers pass annotations only when the user wants them baked in; an explicit

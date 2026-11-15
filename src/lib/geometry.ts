@@ -11,7 +11,7 @@ export function normalizeRect(rect: PanelRect): PanelRect {
   return { x, y, w, h };
 }
 
-/** 鼠标位置换算成页面归一化坐标 */
+/** Convert a pointer position into page-normalized coordinates. */
 export function pointToNorm(el: HTMLElement, clientX: number, clientY: number): { x: number; y: number } {
   const r = el.getBoundingClientRect();
   return {
@@ -63,7 +63,10 @@ function median(nums: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-/** 与服务器端一致的阅读顺序：rtl 行内右→左；ltr 行内左→右；ttb 列从右→左、列内上→下 */
+export { applyGroupOrder, normalizeGroupOrder } from '../../shared/panelOrder';
+
+/** Reading order matching the server: rtl = right-to-left within a row, ltr = left-to-right,
+ *  ttb = top-to-bottom within columns ordered right-to-left. */
 export function sortPanels(panels: Panel[], dir: ReadingDirection): Panel[] {
   if (panels.length < 2) return panels;
   if (dir === 'ttb') {
@@ -113,7 +116,7 @@ export function newNote(
   };
 }
 
-/** 从链接中取域名，用于快速区分资料来源 */
+/** Extract the hostname from a link so note sources can be told apart at a glance. */
 export function sourceDomain(source?: NoteSource): string {
   if (!source?.url) return source?.text?.slice(0, 24) ?? '';
   try {

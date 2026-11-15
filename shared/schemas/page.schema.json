@@ -141,7 +141,8 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "number": { "type": "integer", "minimum": 1 }
+        "number": { "type": "integer", "minimum": 1 },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
       }
     },
     "annotation": {

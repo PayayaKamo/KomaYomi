@@ -29,7 +29,7 @@ export type NoteHit = {
   excerpt: string;
   tags: string[];
   source?: NoteSource;
-  /** 域名（有链接时）或自由来源前缀，便于按来源聚合 */
+  /** Hostname (when a link is present) or a free-form source prefix, used to group notes by source. */
   domain: string;
   createdAt: string;
   updatedAt: string;

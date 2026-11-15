@@ -76,7 +76,7 @@ export type NotesIndex = {
   pages: number;
 };
 
-/* ---- 工程文件 .mnproj ---- */
+/* ---- Project file .mnproj ---- */
 export type ProjectMode = 'reference' | 'packaged';
 export type ProjectConflict = 'overwrite' | 'merge' | 'skip';
 
@@ -161,7 +161,7 @@ export const api = {
   /** Persist the compare/export language order; null restores the default. */
   saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
 
-  /* ---- 目录识别规则 ---- */
+  /* ---- Directory recognition rules ---- */
   dirRules: () =>
     request<{ rules: DirRule[]; defaults: DirRule[]; customized: boolean; warning?: string }>('/api/dir-rules'),
 
@@ -177,7 +177,7 @@ export const api = {
 
   fetchLinkTitle: (url: string) => request<{ title: string; warning?: string }>('/api/link-title', json({ url })),
 
-  /* ---- 备份 / 恢复 ---- */
+  /* ---- Backup / restore ---- */
   createBackup: () =>
     request<{ file: string; url: string; size: number; entries: number }>('/api/backup', { method: 'POST' }),
 
@@ -199,7 +199,7 @@ export const api = {
       json({ data }),
     ),
 
-  /* ---- 存储提供者：本机 / 网络盘 / WebDAV ---- */
+  /* ---- Storage providers: local / network drive / WebDAV ---- */
   storage: () => request<{ config: StorageConfig; cache: CacheStats }>('/api/storage'),
 
   saveStorage: (config: StorageConfig, secrets?: Record<string, string | null>) =>
@@ -225,7 +225,7 @@ export const api = {
       json({ targetId }),
     ),
 
-  /* ---- 工程文件 .mnproj ---- */
+  /* ---- Project file .mnproj ---- */
   exportProject: (input: { mode: ProjectMode; name?: string; notes?: string }) =>
     request<{
       file: string;
@@ -316,7 +316,7 @@ export const api = {
       assetDir?: string;
     }>('/api/export', json(config)),
 
-  /* ---- 分格模板 ---- */
+  /* ---- Panel templates ---- */
   panelTemplates: () => request<{ templates: PanelTemplate[] }>('/api/panel-templates'),
 
   savePanelTemplate: (input: {
@@ -336,7 +336,7 @@ export const api = {
       json({ templateId, volume, chapter, pageIndices }),
     ),
 
-  /* ---- 对齐预设 ---- */
+  /* ---- Alignment presets ---- */
   alignPresets: () => request<{ presets: AlignPreset[] }>('/api/align-presets'),
 
   saveAlignPreset: (preset: Partial<AlignPreset> & { name: string; volume: string; chapter: string }) =>
@@ -348,7 +348,7 @@ export const api = {
   applyAlignPreset: (presetId: string, volume: string, chapter: string, pageIndices?: number[]) =>
     request<{ applied: number }>('/api/align-presets/apply', json({ presetId, volume, chapter, pageIndices })),
 
-  /* ---- 声明式版式模板 ---- */
+  /* ---- Declarative layout templates ---- */
   layouts: () => request<{ layouts: LayoutTemplate[] }>('/api/layouts'),
 
   saveLayout: (layout: Partial<LayoutTemplate>) => request<{ layout: LayoutTemplate }>('/api/layouts', json(layout)),
@@ -368,7 +368,7 @@ export const api = {
   applyLayout: (layoutId: string, volume: string, chapter?: string, pageIndices?: number[]) =>
     request<{ applied: number }>('/api/layouts/apply', json({ layoutId, volume, chapter, pageIndices })),
 
-  /* ---- 统一交换格式 .mntpl / .mnexp / .mnpage.json ---- */
+  /* ---- Unified exchange formats .mntpl / .mnexp / .mnpage.json ---- */
   exportLayoutFile: (layoutId: string) =>
     request<{
       file: string;
@@ -426,7 +426,7 @@ export const api = {
 
   plugins: () => request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
 
-  /* ---- 导出模板 ---- */
+  /* ---- Export templates ---- */
   exportTemplates: () => request<{ templates: ExportTemplate[] }>('/api/export-templates'),
 
   saveExportTemplate: (name: string, config: Partial<ExportConfig>) =>
@@ -436,7 +436,7 @@ export const api = {
     request<{ removed: boolean }>(`/api/export-templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
 
-/** 缩略图地址（服务端磁盘缓存，避免侧栏直接加载整页大图） */
+/** Thumbnail URL (cached on the server disk, so the sidebar never loads full-size pages). */
 export function thumbUrl(rawUrl: string, width = 200): string {
   return `/thumb?src=${encodeURIComponent(rawUrl)}&w=${width}`;
 }

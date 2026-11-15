@@ -873,21 +873,49 @@ body.pane-resizing * {
 
 .volume-title {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px 8px;
-  align-items: baseline;
+  align-items: center;
+  min-width: 0;
   padding: 8px 6px 6px;
   font-weight: 700;
   font-size: 12.5px;
   color: var(--text-2);
 }
 
-.volume-title em {
+/* The volume name owns the free space and truncates; language tags and the gear
+ * must never be pushed out, so the row keeps a single line when a chapter opens. */
+.volume-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volume-langs {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.volume-langs-more {
+  margin-left: 4px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.volume-gear {
+  flex: 0 0 auto;
+}
+
+.volume-warn {
+  display: block;
   font-style: normal;
   font-weight: 400;
   font-size: 10.5px;
   color: var(--warn);
-  width: 100%;
+  padding: 0 6px 4px;
+  overflow-wrap: anywhere;
 }
 
 .chapter {
@@ -1446,6 +1474,157 @@ body.pane-resizing * {
 
 .ann-hint {
   margin-left: auto;
+}
+
+/* ---- panel groups ---- */
+.groups-panel {
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  padding: 6px 12px;
+}
+
+.groups-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.groups-empty {
+  padding: 6px 2px 2px;
+}
+
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+}
+
+.group-color {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
+
+.group-name {
+  flex: 0 1 150px;
+  min-width: 80px;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+
+.group-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 6px;
+  font-size: 10.5px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: grab;
+}
+
+.group-chip:active {
+  cursor: grabbing;
+}
+
+.group-chip-x {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  line-height: 1;
+  color: var(--muted);
+  border-radius: 50%;
+}
+
+.group-chip-x:hover {
+  color: var(--danger-text, #f87171);
+  background: var(--panel-3);
+}
+
+.group-actions {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.pbox.grouped {
+  border-style: dashed;
+}
+
+/* ---- compare view: editable annotation lane ---- */
+.lang-pane.ann-lane {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ann-crop-editable {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ann-crop-editable .ann-layer {
+  pointer-events: none;
+}
+
+/* Narrow screens collapse the secondary toolbar groups into a "more" menu. */
+.tb-more-btn {
+  display: none;
+}
+
+.tb-group.tb-collapsible {
+  display: flex;
+}
+
+@media (max-width: 1100px) {
+  .tb-more-btn {
+    display: inline-flex;
+  }
+
+  .stage-toolbar:not(.tb-more-open) .tb-group.tb-collapsible {
+    display: none;
+  }
+
+  .stage-toolbar.tb-more-open .tb-group.tb-collapsible {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px dashed var(--line);
+  }
 }
 
 /* The wrapper never intercepts events; only the SVG (drawing tools) or the text
@@ -2060,7 +2239,7 @@ body.pane-resizing * {
   box-shadow: 0 0 0 1px rgba(240, 122, 77, 0.25);
 }
 
-/* 拖动整页时高亮整张卡片；Alt 临时逐格时只看那一格 */
+/* Highlight the whole card while dragging the page; Alt limits it to one panel. */
 .panel-card.scope-page {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(240, 122, 77, 0.35);
@@ -2071,7 +2250,7 @@ body.pane-resizing * {
   outline-offset: -2px;
 }
 
-/* 保存模式 / 未保存提示 / 撤销重做 */
+/* Save mode / unsaved indicator / undo-redo */
 .save-group .unsaved-flag {
   padding: 2px 6px;
   border-radius: 999px;
@@ -2792,9 +2971,9 @@ body.pane-resizing * {
   }
 }
 
-/* ================= 2026-11 迭代：响应式 / 对齐多模式 / 分格模板 ================= */
+/* ================= 2026-11 iteration: responsive / multi-mode alignment / panel templates ================= */
 
-/* 三语对照用 CSS 变量控制列数，窄屏才能顺滑改成纵向堆叠 */
+/* The trilingual compare view derives its column count from a CSS variable, so narrow screens can stack smoothly. */
 .lang-grid {
   grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
 }
@@ -2836,7 +3015,7 @@ body.pane-resizing * {
   border-color: rgba(240, 122, 77, 0.45);
 }
 
-/* 对齐设置 */
+/* Alignment settings */
 .align-box {
   flex: 0 0 auto;
   display: flex;
@@ -2973,7 +3152,7 @@ body.pane-resizing * {
   margin-left: auto;
 }
 
-/* 侧栏折叠：宽度 0，舞台独占 */
+/* Collapsed sidebar: zero width, the stage takes over */
 .app.sidebar-closed .sidebar {
   display: none;
 }
@@ -2991,7 +3170,7 @@ body.pane-resizing * {
   display: none;
 }
 
-/* 1280 及以下：批注栏改为抽屉，避免挤占漫画区 */
+/* Up to 1180px: the notes column becomes a drawer so it doesn't squeeze the manga area */
 @media (max-width: 1180px) {
   .app.show-notes .body-area,
   .app.sidebar-closed.show-notes .body-area {
@@ -3012,7 +3191,7 @@ body.pane-resizing * {
   }
 }
 
-/* 1024 及以下：平板/手机，侧栏抽屉化，对照视图纵向堆叠 */
+/* Up to 1024px: tablet / phone, sidebar becomes a drawer, compare view stacks vertically */
 @media (max-width: 1024px) {
   .body-area,
   .app.show-notes .body-area,
@@ -3083,7 +3262,7 @@ body.pane-resizing * {
   }
 }
 
-/* 手机：进一步压缩顶栏与工具栏 */
+/* Phone: compress the top bar and toolbars further */
 @media (max-width: 720px) {
   :root {
     --topbar-h: 92px;
@@ -3205,7 +3384,7 @@ body.pane-resizing * {
   }
 }
 
-/* ---- 导出：自定义模板 / PNG ---- */
+/* ---- Export: custom templates / PNG ---- */
 .tpl-manager {
   margin-top: 10px;
   display: flex;
@@ -3260,7 +3439,7 @@ body.pane-resizing * {
   flex-wrap: wrap;
 }
 
-/* ---- 快捷键帮助 ---- */
+/* ---- Keyboard shortcut help ---- */
 .help-modal {
   width: 720px;
   max-width: 94vw;
@@ -3325,7 +3504,7 @@ kbd {
   }
 }
 
-/* ---- 语言遮蔽（对照阅读时先思考再显示译文） ---- */
+/* ---- Language masking (think first, then reveal the translation in compare view) ---- */
 .lang-mask {
   position: absolute;
   inset: 0;
@@ -3387,9 +3566,10 @@ kbd {
   color: var(--text);
 }
 
-/* ---- 多漫画：卷设置与添加 ---- */
+/* ---- Multiple manga: volume settings and adding ---- */
 .volume-title {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
 }
@@ -3552,7 +3732,7 @@ kbd {
   padding-left: 18px;
 }
 
-/* ---- 工程文件 .mnproj ---- */
+/* ---- Project file .mnproj ---- */
 .project-section,
 .backup-section {
   display: flex;
@@ -3618,7 +3798,7 @@ kbd {
   color: #e8c98a;
 }
 
-/* ---- 学习笔记：Markdown 编辑、搜索、总览 ---- */
+/* ---- Study notes: Markdown editing, search, overview ---- */
 .notes-tabs {
   display: flex;
   gap: 4px;
@@ -3993,7 +4173,7 @@ kbd {
   margin-top: 6px;
 }
 
-/* ---- 目录识别规则 ---- */
+/* ---- Directory recognition rules ---- */
 .dirrules-body {
   flex: 1;
   min-height: 0;
