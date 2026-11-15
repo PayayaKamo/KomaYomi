@@ -6,6 +6,11 @@ release/
 *.tsbuildinfo
 *.log
 
+# One package manager only: npm with the tracked package-lock.json.
+# Stray pnpm files would also break `npm run format:check`, so never keep them around.
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
 # Runtime caches and generated deliverables
 data/cache/
 exports/
