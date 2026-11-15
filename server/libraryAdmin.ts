@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { listDirs, normalizeLang, readLibraryConfig, writeLibraryConfig } from './library.ts';
-import type { Lang } from '../shared/types.ts';
+import type { Lang, ReadingDirection } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
 
@@ -148,6 +148,28 @@ export function setVolumeDirs(
   const next = { ...(volumes[volume] ?? {}) };
   if (Object.keys(clean).length) next.dirs = clean;
   else delete next.dirs;
+  if (Object.keys(next).length) volumes[volume] = next;
+  else delete volumes[volume];
+  writeLibraryConfig(dataRoot, { ...cfg, volumes });
+}
+
+/**
+ * Persist the volume-level default reading direction that pages inherit until edited.
+ * `null` resets it to `rtl`; the key is kept so the config file cannot silently fall back
+ * through `preserveUnknown()` (which would restore a deleted nested key).
+ */
+export function setVolumeDefaultDirection(
+  rawRoot: string,
+  dataRoot: string,
+  volume: string,
+  direction: ReadingDirection | null,
+): void {
+  if (!fs.existsSync(path.join(rawRoot, volume))) {
+    throw new AppError('ERR_VOLUME_NOT_FOUND', { volume }, 404);
+  }
+  const cfg = readLibraryConfig(dataRoot);
+  const volumes = { ...(cfg.volumes ?? {}) };
+  const next = { ...(volumes[volume] ?? {}), defaultDirection: direction ?? 'rtl' };
   if (Object.keys(next).length) volumes[volume] = next;
   else delete volumes[volume];
   writeLibraryConfig(dataRoot, { ...cfg, volumes });

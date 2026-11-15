@@ -111,6 +111,11 @@ export const MESSAGES = {
     zh: '缺少卷名或语言目录配置',
     ja: '巻名または言語ディレクトリ設定が不足しています',
   },
+  ERR_UNKNOWN_DIRECTION: {
+    en: 'Unsupported reading direction',
+    zh: '不支持的阅读方向',
+    ja: '未対応の読む方向です',
+  },
   ERR_PREPROCESS_NO_BACKUP: {
     en: 'There is no previous preprocessing result to restore',
     zh: '没有可回滚的上一次预处理结果',

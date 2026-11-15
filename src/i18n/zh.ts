@@ -118,6 +118,7 @@ export const zh = {
   'app.help.subtitle': '在输入框内不会触发单键快捷键',
   'app.help.global': '全局',
   'app.help.prevNext': '上一页 / 下一页（可跨话）',
+  'app.help.arrowNav': '方向键同样翻页，随阅读方向变化：右→左用 ←，左→右用 →，竖排用 ↓ 翻到下一页',
   'app.help.switchViews': '切换到分格编辑 / 对照阅读',
   'app.help.toggleSidebar': '显示或收起图库侧栏',
   'app.help.toggleNotes': '显示或收起批注栏',
@@ -372,6 +373,11 @@ export const zh = {
   'reading.rtl': '从右到左 · 从上到下',
   'reading.ltr': '从左到右 · 从上到下',
   'reading.ttb': '从右到左 · 竖排',
+  'reading.horizontalRl': '从右到左 · 横排',
+  'reading.horizontalLr': '从左到右 · 横排',
+  'reading.verticalRl': '从右到左 · 竖排',
+  'reading.verticalLr': '从左到右 · 竖排',
+  'reading.continuousVertical': '条漫 · 连续向下',
 
   /* ---- locale switcher (autonyms, identical in every locale) ---- */
   'locale.en': 'English',

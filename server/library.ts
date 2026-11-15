@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LANGUAGES, LANG_LABEL, PAGE_KINDS, SINGLE_CHAPTER } from '../shared/types.ts';
-import { preserveUnknown } from '../shared/format.ts';
+import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 import type { Lang, Library, PageEntry, PageKind, ChapterEntry, VolumeEntry, VolumeOverride } from '../shared/types.ts';
 import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
@@ -486,6 +486,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
       langDirs,
       languages: langsInVolume,
       dirs,
+      defaultDirection: readReadingDirection(config.volumes?.[volumeId]?.defaultDirection),
     });
   }
 

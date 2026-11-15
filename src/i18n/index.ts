@@ -172,6 +172,11 @@ const READING_KEYS: Record<string, MessageKey> = {
   rtl: 'reading.rtl',
   ltr: 'reading.ltr',
   ttb: 'reading.ttb',
+  'horizontal-rl': 'reading.horizontalRl',
+  'horizontal-lr': 'reading.horizontalLr',
+  'vertical-rl': 'reading.verticalRl',
+  'vertical-lr': 'reading.verticalLr',
+  'continuous-vertical': 'reading.continuousVertical',
 };
 
 /** Localized language name; unknown values pass through unchanged. */

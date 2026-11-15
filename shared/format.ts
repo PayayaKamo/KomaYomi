@@ -1,4 +1,5 @@
-import type { ExportTemplate, LayoutTemplate, PageDoc } from './types.ts';
+﻿import type { ExportTemplate, LayoutTemplate, PageDoc, ReadingDirection } from './types.ts';
+import { READING_DIRECTIONS } from './types.ts';
 import { migrateExportTemplateV0, migrateLayoutTemplateV0, migrateManifestV0, migratePageV0 } from './migrations.ts';
 
 /**
@@ -127,6 +128,13 @@ const nullable = (inner: Spec): Spec => ({ kind: 'nullable', inner });
 
 const join = (path: string, key: string) => (path ? `${path}.${key}` : key);
 const where = (path: string) => path || '(root)';
+
+/** Narrow an unknown persisted value to a supported reading direction. */
+export function readReadingDirection(value: unknown): ReadingDirection | undefined {
+  return typeof value === 'string' && (READING_DIRECTIONS as readonly string[]).includes(value)
+    ? (value as ReadingDirection)
+    : undefined;
+}
 
 function validateSpec(value: unknown, spec: Spec, path: string, errors: string[]): void {
   if (spec.kind === 'any') return;
@@ -298,7 +306,7 @@ const pageSpec = object(
     alignMode: str({ enum: ['page', 'panel', 'anchors', 'grid'] }),
     panelOffsets: record(record(offsetSpec)),
     gridStep: num(),
-    readingDirection: str({ enum: ['rtl', 'ltr', 'ttb'] }),
+    readingDirection: str({ enum: READING_DIRECTIONS }),
     updatedAt: str({ minLength: 1 }),
     detectorVersion: str(),
     detectedAt: str(),
@@ -335,7 +343,7 @@ const layoutSpec = object(
     id: str({ minLength: 1 }),
     name: str({ minLength: 1 }),
     scope: str({ enum: ['template'] }),
-    readingDirection: str({ enum: ['rtl', 'ltr', 'ttb'] }),
+    readingDirection: str({ enum: READING_DIRECTIONS }),
     margin: marginSpec,
     gap: num(),
     colWeights: array(num()),
@@ -449,7 +457,7 @@ const panelTemplateSpec = object(
     id: str({ minLength: 1 }),
     name: str({ minLength: 1 }),
     panels: array(rectSpec),
-    readingDirection: str({ enum: ['rtl', 'ltr', 'ttb'] }),
+    readingDirection: str({ enum: READING_DIRECTIONS }),
     createdAt: str(),
   },
   ['$schema', 'schemaVersion', 'kind', 'id', 'panels'],
@@ -481,7 +489,7 @@ const storedLayoutSpec = object(
     volume: str(),
     chapter: str(),
     pageIndex: int({ min: 0 }),
-    readingDirection: str({ enum: ['rtl', 'ltr', 'ttb'] }),
+    readingDirection: str({ enum: READING_DIRECTIONS }),
     margin: marginSpec,
     gap: num(),
     colWeights: array(num()),

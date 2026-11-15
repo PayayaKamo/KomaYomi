@@ -119,6 +119,7 @@ export const en = {
   'app.help.subtitle': 'Single-key shortcuts are ignored while typing in a field',
   'app.help.global': 'Global',
   'app.help.prevNext': 'Previous / next page (crosses chapters)',
+  'app.help.arrowNav': 'Arrow keys follow the reading direction: ← in RTL, → in LTR, ↓ in TTB turn forward',
   'app.help.switchViews': 'Switch to panel editing / compare reading',
   'app.help.toggleSidebar': 'Show or hide the library sidebar',
   'app.help.toggleNotes': 'Show or hide the notes column',
@@ -383,6 +384,11 @@ export const en = {
   'reading.rtl': 'Right to left · top to bottom',
   'reading.ltr': 'Left to right · top to bottom',
   'reading.ttb': 'Right to left · vertical',
+  'reading.horizontalRl': 'Right to left · horizontal',
+  'reading.horizontalLr': 'Left to right · horizontal',
+  'reading.verticalRl': 'Right to left · vertical',
+  'reading.verticalLr': 'Left to right · vertical',
+  'reading.continuousVertical': 'Webtoon · continuous scroll',
 
   /* ---- locale switcher (autonyms, identical in every locale) ---- */
   'locale.en': 'English',

@@ -13,7 +13,13 @@ import type {
   PanelTemplate,
   ReadingDirection,
 } from '../shared/types.ts';
-import { CURRENT_SCHEMA_VERSION, checkSchemaVersion, preserveUnknown, prepareExchange } from '../shared/format.ts';
+import {
+  CURRENT_SCHEMA_VERSION,
+  checkSchemaVersion,
+  preserveUnknown,
+  prepareExchange,
+  readReadingDirection,
+} from '../shared/format.ts';
 import { sortReadingOrder } from './detect.ts';
 import { writePageDoc } from './storage.ts';
 import {
@@ -109,8 +115,7 @@ export function savePanelTemplate(
     volume: String(input.volume ?? ''),
     chapter: String(input.chapter ?? ''),
     panels: normalizeRects(input.panels),
-    readingDirection:
-      input.readingDirection === 'ltr' || input.readingDirection === 'ttb' ? input.readingDirection : 'rtl',
+    readingDirection: readReadingDirection(input.readingDirection) ?? 'rtl',
     createdAt: new Date().toISOString(),
   };
   const dir = panelTemplateDir(dataRoot);

@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
-import { addVolume, removeVolume, setVolumeDirs } from './libraryAdmin.ts';
+import { addVolume, removeVolume, setVolumeDefaultDirection, setVolumeDirs } from './libraryAdmin.ts';
 import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
 import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
@@ -70,7 +70,7 @@ import type {
   PanelTemplate,
 } from '../shared/types.ts';
 import { LANGUAGES } from '../shared/types.ts';
-import { HISTORY_SOURCES } from '../shared/format.ts';
+import { HISTORY_SOURCES, readReadingDirection } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
 import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
 import type { MessageCode, MessageParams } from './messages/index.ts';
@@ -862,12 +862,21 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const body = JSON.parse(await readBody(req)) as {
           volume?: string;
           dirs?: Partial<Record<string, string | null>>;
+          defaultDirection?: string | null;
         };
-        if (!body.volume || !body.dirs) {
+        if (!body.volume || (!body.dirs && body.defaultDirection === undefined)) {
           fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
           return true;
         }
-        setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
+        if (body.dirs) setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
+        if (body.defaultDirection !== undefined) {
+          const direction = body.defaultDirection === null ? null : readReadingDirection(body.defaultDirection);
+          if (body.defaultDirection !== null && !direction) {
+            fail(res, 400, 'ERR_UNKNOWN_DIRECTION');
+            return true;
+          }
+          setVolumeDefaultDirection(rawRoot, dataRoot, body.volume, direction ?? null);
+        }
         sendJson(res, 200, { library: createLibrary(rawRoot, dataRoot) });
         return true;
       }

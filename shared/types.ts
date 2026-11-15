@@ -64,14 +64,54 @@ export type Note = {
   updatedAt: string;
 };
 
-/** rtl = rows top-to-bottom, right-to-left within a row (default); ltr = left-to-right within a row; ttb = columns right-to-left, top-to-bottom within a column. */
-export type ReadingDirection = 'rtl' | 'ltr' | 'ttb';
+/**
+ * How panels/pages are read.
+ * - `horizontal-rl` / legacy `rtl`: rows top-to-bottom, right-to-left within a row
+ * - `horizontal-lr` / legacy `ltr`: rows top-to-bottom, left-to-right within a row
+ * - `vertical-rl` / legacy `ttb`: columns right-to-left, top-to-bottom within a column
+ * - `vertical-lr`: columns left-to-right, top-to-bottom within a column
+ * - `continuous-vertical`: one long strip read downwards (webtoon); no page pairing
+ */
+export type ReadingDirection =
+  'rtl' | 'ltr' | 'ttb' | 'horizontal-rl' | 'horizontal-lr' | 'vertical-rl' | 'vertical-lr' | 'continuous-vertical';
+
+/** Canonical order used by the selectors; legacy values stay first for familiarity. */
+export const READING_DIRECTIONS: readonly ReadingDirection[] = [
+  'rtl',
+  'ltr',
+  'ttb',
+  'horizontal-rl',
+  'horizontal-lr',
+  'vertical-rl',
+  'vertical-lr',
+  'continuous-vertical',
+];
 
 export const READING_LABEL: Record<ReadingDirection, string> = {
   rtl: '从右到左 · 从上到下',
   ltr: '从左到右 · 从上到下',
   ttb: '从右到左 · 竖排',
+  'horizontal-rl': '从右到左 · 横排',
+  'horizontal-lr': '从左到右 · 横排',
+  'vertical-rl': '从右到左 · 竖排',
+  'vertical-lr': '从左到右 · 竖排',
+  'continuous-vertical': '条漫 · 连续向下',
 };
+
+/** True when rows/columns progress right-to-left. */
+export function isRightToLeft(direction: ReadingDirection): boolean {
+  return direction === 'rtl' || direction === 'ttb' || direction === 'horizontal-rl' || direction === 'vertical-rl';
+}
+
+/** True when the strip is read downwards (vertical columns or webtoon). */
+export function isVerticalReading(direction: ReadingDirection): boolean {
+  return (
+    direction === 'ttb' ||
+    direction === 'vertical-rl' ||
+    direction === 'vertical-lr' ||
+    direction === 'continuous-vertical'
+  );
+}
 
 /**
  * Per-language alignment offset. x/y are fractions of the container width/height
@@ -271,6 +311,8 @@ export type VolumeEntry = {
   languages: Lang[];
   /** All subdirectories under raw/<volume>, so users can re-map language folders in volume settings. */
   dirs: string[];
+  /** Default direction for pages in this volume that have no explicit direction yet. */
+  defaultDirection?: ReadingDirection;
 };
 
 export type Library = {
@@ -297,6 +339,8 @@ export type VolumeOverride = {
   title?: string;
   dirs?: Partial<Record<Lang, string>>;
   chapters?: Record<string, ChapterOverride>;
+  /** Reading direction inherited by pages in this volume before they are edited. */
+  defaultDirection?: ReadingDirection;
 };
 
 export type DetectResult = {

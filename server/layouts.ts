@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { LayoutTemplate, PanelRect } from '../shared/types.ts';
-import { preserveUnknown } from '../shared/format.ts';
+import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
 import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
@@ -35,8 +35,7 @@ function normalizeLayout(input: Partial<LayoutTemplate>): LayoutTemplate | null 
     volume: String(input.volume ?? ''),
     chapter: input.chapter ? String(input.chapter) : undefined,
     pageIndex: Number.isInteger(input.pageIndex) ? Number(input.pageIndex) : undefined,
-    readingDirection:
-      input.readingDirection === 'ltr' || input.readingDirection === 'ttb' ? input.readingDirection : 'rtl',
+    readingDirection: readReadingDirection(input.readingDirection) ?? 'rtl',
     margin: { ...DEFAULT_MARGIN, ...(input.margin ?? {}) },
     gap: Math.min(0.08, Math.max(0, Number(input.gap ?? DEFAULT_GAP))),
     colWeights: Array.isArray(input.colWeights)
