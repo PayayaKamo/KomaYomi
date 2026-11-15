@@ -91,6 +91,23 @@ async function readBody(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/** Raw uploads skip base64 so multi-hundred-MB packaged projects fit in memory. */
+async function readBodyBuffer(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > limit) throw new AppError('ERR_BODY_TOO_LARGE', { limit: Math.round(limit / (1024 * 1024)) }, 413);
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+const isBinaryUpload = (req: IncomingMessage) =>
+  String(req.headers['content-type'] ?? '').includes('application/octet-stream');
+
+const MAX_PROJECT_BYTES = 2 * 1024 * 1024 * 1024;
+
 function safeResolve(root: string, rel: string): string | null {
   const base = path.resolve(root);
   const target = path.resolve(base, rel);
@@ -972,24 +989,37 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       }
 
       if (pathname === '/api/project/inspect' && req.method === 'POST') {
-        const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as { data?: string };
-        const buffer = Buffer.from(body.data ?? '', 'base64');
+        const buffer = isBinaryUpload(req)
+          ? await readBodyBuffer(req, MAX_PROJECT_BYTES)
+          : Buffer.from((JSON.parse(await readBody(req, 256 * 1024 * 1024)) as { data?: string }).data ?? '', 'base64');
         sendJson(res, 200, inspectProject({ rootDir, buffer }));
         return true;
       }
 
       if (pathname === '/api/project/import' && req.method === 'POST') {
-        const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as {
-          data?: string;
-          conflict?: string;
-          relinkDir?: string;
-        };
-        const buffer = Buffer.from(body.data ?? '', 'base64');
+        const binary = isBinaryUpload(req);
+        let buffer: Buffer;
+        let conflictRaw: string | undefined;
+        let relinkDir: string | undefined;
+        if (binary) {
+          buffer = await readBodyBuffer(req, MAX_PROJECT_BYTES);
+          conflictRaw = url.searchParams.get('conflict') ?? undefined;
+          relinkDir = url.searchParams.get('relinkDir') ?? undefined;
+        } else {
+          const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as {
+            data?: string;
+            conflict?: string;
+            relinkDir?: string;
+          };
+          buffer = Buffer.from(body.data ?? '', 'base64');
+          conflictRaw = body.conflict;
+          relinkDir = body.relinkDir;
+        }
         const result = importProject({
           rootDir,
           buffer,
-          conflict: body.conflict === 'merge' || body.conflict === 'skip' ? body.conflict : 'overwrite',
-          relinkDir: body.relinkDir,
+          conflict: conflictRaw === 'merge' || conflictRaw === 'skip' ? conflictRaw : 'overwrite',
+          relinkDir,
         });
         sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
         return true;

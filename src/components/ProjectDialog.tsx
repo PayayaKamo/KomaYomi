@@ -11,15 +11,12 @@ type Props = {
   dirty: boolean;
 };
 
-function readFileBase64(file: File): Promise<string> {
+function readFileBytes(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? '');
-      resolve(result.slice(result.indexOf(',') + 1));
-    };
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
     reader.onerror = () => reject(reader.error ?? new Error(t('common.readFileFailed')));
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file);
   });
 }
 
@@ -34,7 +31,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exported, setExported] = useState<{ file: string; url: string; size: number; images: number } | null>(null);
-  const [pending, setPending] = useState<{ data: string; fileName: string; info: ProjectInspect } | null>(null);
+  const [pending, setPending] = useState<{ data: ArrayBuffer; fileName: string; info: ProjectInspect } | null>(null);
   const [conflict, setConflict] = useState<ProjectConflict>('overwrite');
   const [relinkDir, setRelinkDir] = useState('');
   const [done, setDone] = useState<{
@@ -78,7 +75,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
     setError(null);
     setDone(null);
     try {
-      const data = await readFileBase64(file);
+      const data = await readFileBytes(file);
       const info = await api.inspectProject(data);
       setPending({ data, fileName: file.name, info });
       setConflict(info.conflictCount > 0 ? 'merge' : 'overwrite');

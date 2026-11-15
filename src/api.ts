@@ -208,10 +208,22 @@ export const api = {
       warnings: string[];
     }>('/api/project/export', json(input)),
 
-  inspectProject: (data: string) => request<ProjectInspect>('/api/project/inspect', json({ data })),
+  inspectProject: (data: ArrayBuffer) =>
+    request<ProjectInspect>('/api/project/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: data,
+    }),
 
-  importProject: (input: { data: string; conflict: ProjectConflict; relinkDir?: string }) =>
-    request<ProjectImport>('/api/project/import', json(input)),
+  importProject: (input: { data: ArrayBuffer; conflict: ProjectConflict; relinkDir?: string }) => {
+    const query = new URLSearchParams({ conflict: input.conflict });
+    if (input.relinkDir) query.set('relinkDir', input.relinkDir);
+    return request<ProjectImport>(`/api/project/import?${query.toString()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: input.data,
+    });
+  },
 
   page: (volume: string, chapter: string, index: number) =>
     request<PageResponse>(
