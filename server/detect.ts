@@ -6,10 +6,10 @@ import { AppError } from './errors.ts';
 
 type Gray = { width: number; height: number; data: Uint8Array };
 
-/** 切格算法版本：写进每页 JSON，算法升级后可识别出旧结果 */
+/** Detector version, written into every page JSON so stale results can be recognized after an algorithm upgrade. */
 export const DETECTOR_VERSION = 'xycut-1.3';
 
-/** 按文件头判断真实格式（素材里存在 .png 实际是 JPEG 的情况） */
+/** Detect the real format from the file header (some assets named .png are actually JPEG). */
 export function sniffFormat(buf: Buffer): 'png' | 'jpeg' | 'webp' | 'unknown' {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
@@ -18,7 +18,7 @@ export function sniffFormat(buf: Buffer): 'png' | 'jpeg' | 'webp' | 'unknown' {
   return 'unknown';
 }
 
-/** 快速读取图片尺寸（插件只需要宽高，避免为了拿尺寸把整张图解码一遍） */
+/** Read image dimensions cheaply: plugins only need width/height, so avoid decoding the whole image for it. */
 export function imageSize(buf: Buffer, filename: string): { width: number; height: number } {
   const format = sniffFormat(buf);
   if (format === 'png' && buf.length >= 24) {
@@ -37,7 +37,7 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
         continue;
       }
       const len = buf.readUInt16BE(i + 2);
-      // SOF0..SOF15（排除 DHT/DAC 等）
+      // SOF0..SOF15 (excluding DHT/DAC and similar segments).
       if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
         return { width: buf.readUInt16BE(i + 7), height: buf.readUInt16BE(i + 5) };
       }
@@ -48,7 +48,7 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
   return { width: decoded.width, height: decoded.height };
 }
 
-/** 解码图片为灰度图（RGBA -> 亮度），失败时抛错 */
+/** Decode an image to grayscale (RGBA -> luminance); throws on failure. */
 export function decodeGray(buf: Buffer, filename: string): Gray {
   const ext = path.extname(filename).toLowerCase();
   let width = 0;
@@ -79,7 +79,7 @@ export function decodeGray(buf: Buffer, filename: string): Gray {
   return { width, height, data: gray };
 }
 
-/** 按整数步长抽样缩小，返回缩小后的灰度图与缩放比 */
+/** Downsample by an integer step; returns the reduced grayscale image and the scale factor. */
 function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
   const step = Math.max(1, Math.ceil(Math.max(src.width, src.height) / maxDim));
   if (step === 1) return { gray: src, scale: 1 };
@@ -89,7 +89,7 @@ function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
   for (let y = 0; y < h; y++) {
     const sy = y * step;
     for (let x = 0; x < w; x++) {
-      // 2x2 平均，降低抽样噪声
+      // Average 2x2 blocks to reduce sampling noise.
       const sx = x * step;
       let sum = 0;
       let n = 0;
@@ -105,7 +105,7 @@ function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
   return { gray: { width: w, height: h, data }, scale: step };
 }
 
-/** 采样图片亮度分位，自适应计算“白纸”阈值 */
+/** Sample the luminance distribution to derive a "white paper" threshold adaptively. */
 function whiteThreshold(gray: Gray): number {
   const hist = new Uint32Array(256);
   const total = gray.data.length;
@@ -129,7 +129,7 @@ function whiteThreshold(gray: Gray): number {
 
 type Region = { x0: number; y0: number; x1: number; y1: number };
 
-/** 递归 XY-Cut：用整行/整列全白的分隔带切分，得到格子候选 */
+/** Recursive XY-Cut: split on fully white rows/columns to obtain panel candidates. */
 function xyCut(
   gray: Gray,
   isWhite: Uint8Array,
@@ -154,7 +154,7 @@ function xyCut(
   let { x0, y0, x1, y1 } = region;
   if (x1 - x0 < 8 || y1 - y0 < 8) return;
 
-  // 1. 先收缩四周全白留白（限制收缩比例，避免吃掉整页）
+  // 1. Trim the fully white margin first (cap the trim ratio so the whole page is never eaten).
   const maxTrimX = Math.floor((x1 - x0) * 0.18);
   const maxTrimY = Math.floor((y1 - y0) * 0.18);
   let tx = 0;
