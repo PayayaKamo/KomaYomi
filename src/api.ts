@@ -331,6 +331,15 @@ export const api = {
       assetDir?: string;
     }>('/api/export', json(config)),
 
+  exportDocx: (config: ExportConfig) =>
+    request<{
+      file: string;
+      url: string;
+      pages: number;
+      warnings: string[];
+      imageMode: 'embed';
+    }>('/api/export/docx', json(config)),
+
   /* ---- Panel templates ---- */
   panelTemplates: () => request<{ templates: PanelTemplate[] }>('/api/panel-templates'),
 

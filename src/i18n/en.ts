@@ -605,6 +605,12 @@ export const en = {
   'export.filesNote': ' (copy the .files folder as well)',
   'export.footerHint': 'Written to the project exports/ folder; the HTML opens directly in a browser',
   'export.generateHtml': 'Generate HTML',
+  'export.formatSection': 'File format',
+  'export.formatHtml': 'HTML page',
+  'export.formatDocx': 'Word document',
+  'export.wordHint': 'Word keeps the page images and turns notes into editable text.',
+  'export.generateDocx': 'Generate Word',
+  'export.downloadDocx': 'Download .docx',
 
   /* ---- backup & restore ---- */
   'backup.title': 'Backup & restore',

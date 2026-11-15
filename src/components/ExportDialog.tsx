@@ -85,8 +85,10 @@ export function ExportDialog({
   const { t } = useI18n();
   const [cfg, setCfg] = useState<ExportConfig | null>(null);
   const [scope, setScope] = useState<'page' | 'chapter'>('page');
+  const [format, setFormat] = useState<'html' | 'docx'>('html');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ExportResult | null>(null);
+  const [resultFormat, setResultFormat] = useState<'html' | 'docx'>('html');
   const [error, setError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
@@ -107,6 +109,7 @@ export function ExportDialog({
     setResult(null);
     setError(null);
     setScope('page');
+    setFormat('html');
     setPngMsg(null);
     // Respect the page's annotation layer toggle so a hidden layer is not silently baked in.
     setPngIncludeAnn(doc?.annotationsVisible !== false);
@@ -170,8 +173,9 @@ export function ExportDialog({
         ...cfg,
         pageIndices: scope === 'page' ? [sel.pageIndex] : [],
       };
-      const res = await api.exportHtml(payload);
+      const res = format === 'docx' ? await api.exportDocx(payload) : await api.exportHtml(payload);
       setResult(res);
+      setResultFormat(format);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -390,6 +394,19 @@ export function ExportDialog({
                   {t('export.wholeChapter', { count: formatNumber(chapterInfo?.pages.length ?? 0) })}
                 </button>
               </div>
+            </section>
+
+            <section>
+              <h3>{t('export.formatSection')}</h3>
+              <div className="seg">
+                <button type="button" className={format === 'html' ? 'on' : ''} onClick={() => setFormat('html')}>
+                  {t('export.formatHtml')}
+                </button>
+                <button type="button" className={format === 'docx' ? 'on' : ''} onClick={() => setFormat('docx')}>
+                  {t('export.formatDocx')}
+                </button>
+              </div>
+              {format === 'docx' && <p className="hint">{t('export.wordHint')}</p>}
             </section>
 
             <section>
@@ -653,22 +670,33 @@ export function ExportDialog({
                 <div>
                   {t('export.exportedPages', { pages: formatNumber(result.pages) })} <code>{result.file}</code>
                 </div>
-                <div className="tiny muted">
-                  {result.imageMode === 'embed'
-                    ? t('export.imagesEmbedded')
-                    : t('export.imageDir', {
-                        path: `${rootPath ? `${rootPath}\\exports\\` : 'exports/'}${result.assetDir ?? ''}`,
-                      })}
-                </div>
-                <div className="row-actions">
-                  <a className="btn primary" href={result.url} target="_blank" rel="noreferrer">
-                    {t('export.openHtml')}
-                  </a>
-                  <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
-                    {t('export.downloadHtml')}
-                  </a>
-                  {result.assetDir && <span className="tiny muted">{t('export.filesNote')}</span>}
-                </div>
+                {resultFormat === 'html' && (
+                  <>
+                    <div className="tiny muted">
+                      {result.imageMode === 'embed'
+                        ? t('export.imagesEmbedded')
+                        : t('export.imageDir', {
+                            path: `${rootPath ? `${rootPath}\\exports\\` : 'exports/'}${result.assetDir ?? ''}`,
+                          })}
+                    </div>
+                    <div className="row-actions">
+                      <a className="btn primary" href={result.url} target="_blank" rel="noreferrer">
+                        {t('export.openHtml')}
+                      </a>
+                      <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
+                        {t('export.downloadHtml')}
+                      </a>
+                      {result.assetDir && <span className="tiny muted">{t('export.filesNote')}</span>}
+                    </div>
+                  </>
+                )}
+                {resultFormat === 'docx' && (
+                  <div className="row-actions">
+                    <a className="btn primary" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
+                      {t('export.downloadDocx')}
+                    </a>
+                  </div>
+                )}
                 {result.warnings.length > 0 && (
                   <ul className="warn-list">
                     {result.warnings.map((w) => (
@@ -689,7 +717,7 @@ export function ExportDialog({
               {t('common.close')}
             </button>
             <button type="button" className="btn primary" onClick={generate} disabled={busy}>
-              {busy ? t('export.generating') : t('export.generateHtml')}
+              {busy ? t('export.generating') : format === 'docx' ? t('export.generateDocx') : t('export.generateHtml')}
             </button>
           </div>
         </footer>

@@ -12,6 +12,7 @@ import { listPlugins, runPlugin } from './plugins.ts';
 import { collectTagStats, createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
 import { findVersion, listVersions, readHistory, readHistoryLimit, recordVersion } from './pageHistory.ts';
 import { exportChapter } from './export.ts';
+import { exportChapterDocx } from './exportDocx.ts';
 import { createBackupBuffer, inspectBackup, restoreBackup } from './backup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
 import {
@@ -822,6 +823,13 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           config,
           library,
         });
+        sendJson(res, 200, result);
+        return true;
+      }
+
+      if (pathname === '/api/export/docx' && req.method === 'POST') {
+        const config = JSON.parse(await readBody(req)) as ExportConfig;
+        const result = await exportChapterDocx({ rootDir, dataRoot, exportRoot, config, library });
         sendJson(res, 200, result);
         return true;
       }

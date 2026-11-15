@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../server/errors.ts';
 import { exportChapter } from '../../server/export.ts';
+import { exportChapterDocx } from '../../server/exportDocx.ts';
 import { createLibrary, writeLibraryConfig } from '../../server/library.ts';
 import { runWithLang } from '../../server/messages/index.ts';
 import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
@@ -218,6 +219,26 @@ describe('exportChapter', () => {
 
     expect(result.pages).toBe(1);
     expect(result.warnings.join(' ')).toContain('2');
+  });
+  it('writes an editable Word document with page images and notes', async () => {
+    const { root, dataRoot, library } = seedExportRoot();
+    const exportRoot = path.join(root, 'exports');
+
+    const result = await runWithLang('en', () =>
+      exportChapterDocx({
+        rootDir: root,
+        dataRoot,
+        exportRoot,
+        config: config({ pageIndices: [0], languages: ['ja', 'en'] }),
+        library,
+      }),
+    );
+
+    expect(result.pages).toBe(1);
+    expect(result.file.endsWith('.docx')).toBe(true);
+    const buffer = fs.readFileSync(path.join(exportRoot, result.file));
+    expect(buffer.subarray(0, 2).toString()).toBe('PK');
+    expect(buffer.length).toBeGreaterThan(1000);
   });
 
   it('fails loudly for a missing chapter and for an empty export', async () => {

@@ -599,6 +599,12 @@ export const ja = {
   'export.filesNote': '（.files フォルダも一緒にコピーしてください）',
   'export.footerHint': 'プロジェクトの exports/ に出力します。HTML はブラウザで直接開けます',
   'export.generateHtml': 'HTML を生成',
+  'export.formatSection': 'ファイル形式',
+  'export.formatHtml': 'HTML ページ',
+  'export.formatDocx': 'Word 文書',
+  'export.wordHint': 'Word はページ画像を保持し、メモは編集可能なテキストになります。',
+  'export.generateDocx': 'Word を生成',
+  'export.downloadDocx': '.docx をダウンロード',
 
   /* ---- backup & restore ---- */
   'backup.title': 'バックアップと復元',

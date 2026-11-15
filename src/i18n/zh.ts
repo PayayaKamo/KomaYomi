@@ -582,6 +582,12 @@ export const zh = {
   'export.filesNote': '（.files 目录需一并拷贝）',
   'export.footerHint': '输出到项目 exports/ 目录，HTML 可直接在浏览器打开',
   'export.generateHtml': '生成 HTML',
+  'export.formatSection': '文件格式',
+  'export.formatHtml': 'HTML 网页',
+  'export.formatDocx': 'Word 文档',
+  'export.wordHint': 'Word 会保留整页图片，笔记转为可编辑文本。',
+  'export.generateDocx': '生成 Word',
+  'export.downloadDocx': '下载 .docx',
 
   /* ---- backup & restore ---- */
   'backup.title': '备份与恢复',
