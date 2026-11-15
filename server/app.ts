@@ -6,9 +6,10 @@ import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writ
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import { addVolume, removeVolume, setVolumeDefaultDirection, setVolumeDirs } from './libraryAdmin.ts';
 import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
-import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
-import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
-import { listPlugins, runPlugin } from './plugins.ts';
+import { sniffFormat, sortReadingOrder } from './detect.ts';
+import { detectPage } from './pageDetect.ts';
+import { captureLayout, deleteLayout, expandLayout, listLayouts, saveLayout } from './layouts.ts';
+import { listPlugins } from './plugins.ts';
 import { collectTagStats, createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
 import { findVersion, listVersions, readHistory, readHistoryLimit, recordVersion } from './pageHistory.ts';
 import { exportChapter } from './export.ts';
@@ -496,65 +497,20 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           });
           return true;
         }
-        const order: string[] = [body.lang ?? '', ...Object.keys(found.page.files)];
-        const lang = order.find((l) => found.page.files[l as keyof PageEntry['files']]);
-        const rel = lang ? found.page.files[lang as keyof PageEntry['files']] : undefined;
-        if (!rel) {
-          fail(res, 400, 'ERR_PAGE_NO_IMAGES', { volume: body.volume, chapter: body.chapter });
-          return true;
-        }
-        const file = path.join(rootDir, decodeURIComponent(rel));
-        const buf = fs.readFileSync(file);
-
-        // Priority: page/chapter/volume layout template > plugin > auto detection
-        const layout = resolveLayout(dataRoot, body.volume, body.chapter, body.pageIndex);
-        if (layout) {
-          const panels = expandLayout(layout, body.pageIndex);
-          sendJson(res, 200, {
-            width: imageSize(buf, file).width,
-            height: imageSize(buf, file).height,
-            panels,
-            meta: { scale: 1, threshold: 0, ms: 0 },
-            version: `layout:${layout.id}`,
-            source: 'template',
-            lang,
-            warnings: [t('WARN_DETECT_FROM_LAYOUT', { name: layout.name })],
-            warningCodes: [{ code: 'WARN_DETECT_FROM_LAYOUT', params: { name: layout.name } }],
-          });
-          return true;
-        }
-
-        const warnings: string[] = [];
-        const warningCodes: { code: string; params: MessageParams }[] = [];
-        const size = imageSize(buf, file);
-        const plugin = await runPlugin(rootDir, dataRoot, {
-          ...size,
+        const detected = await detectPage({
+          rootDir,
+          dataRoot,
           volume: body.volume,
           chapter: body.chapter,
           pageIndex: body.pageIndex,
-          filename: path.basename(file),
+          page: found.page,
+          lang: body.lang,
         });
-        if (plugin.ok) {
-          sendJson(res, 200, {
-            ...size,
-            panels: sortReadingOrder(plugin.panels, 'rtl'),
-            meta: { scale: 1, threshold: 0, ms: 0 },
-            version: `plugin:${plugin.plugin}`,
-            source: 'plugin',
-            lang,
-            warnings: [t('WARN_DETECT_FROM_PLUGIN', { plugin: plugin.plugin }), ...plugin.warnings],
-            warningCodes: [{ code: 'WARN_DETECT_FROM_PLUGIN', params: { plugin: plugin.plugin } }],
-          });
+        if (!detected) {
+          fail(res, 400, 'ERR_PAGE_NO_IMAGES', { volume: body.volume, chapter: body.chapter });
           return true;
         }
-        if (plugin.plugin) {
-          const params = { plugin: plugin.plugin, detail: plugin.error };
-          warnings.push(t('WARN_PLUGIN_FAILED_FALLBACK', params));
-          warningCodes.push({ code: 'WARN_PLUGIN_FAILED_FALLBACK', params });
-        }
-
-        const result = detectPanels(buf, file);
-        sendJson(res, 200, { ...result, lang, version: DETECTOR_VERSION, source: 'auto', warnings, warningCodes });
+        sendJson(res, 200, detected);
         return true;
       }
 

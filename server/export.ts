@@ -18,6 +18,7 @@ import type {
 import { DEFAULT_OFFSET, orderPageIndices } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { currentLang, langName, t } from './messages/index.ts';
+import { fillMissingPageDocs } from './pageDetect.ts';
 import type { MessageLang } from './messages/index.ts';
 
 const DATE_LOCALE: Record<MessageLang, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
@@ -339,7 +340,20 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   const indices = config.pageIndices?.length
     ? orderPageIndices(config.pageIndices, chapter.pages)
     : chapter.pages.map((p) => p.index);
+  // Pages nobody opened yet have no panel document; detect them now so a fresh chapter
+  // does not export as an empty shell.
+  const autoDetected = config.onlyWithNotes
+    ? []
+    : await fillMissingPageDocs({
+        rootDir,
+        dataRoot,
+        library,
+        volume: config.volume,
+        chapter: config.chapter,
+        pageIndices: config.pageIndices,
+      });
   const warnings: string[] = [];
+  if (autoDetected.length) warnings.push(t('WARN_EXPORT_AUTODETECTED', { count: autoDetected.length }));
   const sections: string[] = [];
   const styleBlocks: string[] = [];
   let exported = 0;

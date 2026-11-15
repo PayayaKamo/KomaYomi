@@ -594,6 +594,11 @@ export const MESSAGES = {
     zh: '第 {page} 页还没有分格数据，已跳过',
     ja: '{page} ページにはまだコマデータがありません。スキップしました',
   },
+  WARN_EXPORT_AUTODETECTED: {
+    en: 'Detected panels on {count} pages that had no layout yet',
+    zh: '{count} 页此前没有分格数据，导出前已自动检测',
+    ja: 'コマデータが無かった {count} ページを自動検出しました',
+  },
   WARN_PAGE_SKIPPED_NO_CONTENT: {
     en: 'Page {page} has no panels or notes yet — skipped',
     zh: '第 {page} 页还没有分格或笔记，已跳过',

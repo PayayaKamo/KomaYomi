@@ -6,10 +6,10 @@ import { exportChapter } from '../../server/export.ts';
 import { exportChapterDocx } from '../../server/exportDocx.ts';
 import { createLibrary, writeLibraryConfig } from '../../server/library.ts';
 import { runWithLang } from '../../server/messages/index.ts';
-import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
+import { createEmptyDoc, readPageDoc, writePageDoc } from '../../server/storage.ts';
 import { DEFAULT_EXPORT_CONFIG } from '../../shared/types.ts';
 import type { ExportConfig, PageDoc } from '../../shared/types.ts';
-import { solidPng } from '../helpers/fixtures.ts';
+import { solidPng, threePanelPage } from '../helpers/fixtures.ts';
 import { makeTempDir, removeDir, writeFile } from '../helpers/tmp.ts';
 
 const dirs: string[] = [];
@@ -133,6 +133,54 @@ describe('exportChapter', () => {
       }),
     );
     expect(result.pages).toBe(1);
+  });
+
+  it('detects pages that were never opened instead of dropping them', async () => {
+    const root = tempDir('export-detect');
+    writeFile(path.join(root, 'raw', 'Vol1', 'ja', '172', '01.png'), threePanelPage());
+    writeFile(path.join(root, 'raw', 'Vol1', 'ja', '172', '02.png'), threePanelPage());
+    const dataRoot = path.join(root, 'data');
+    const library = createLibrary(path.join(root, 'raw'), dataRoot);
+
+    const result = await runWithLang('en', () =>
+      exportChapter({
+        rootDir: root,
+        rawRoot: path.join(root, 'raw'),
+        dataRoot,
+        exportRoot: path.join(root, 'exports'),
+        config: config({ pageIndices: [] }),
+        library,
+      }),
+    );
+
+    expect(result.pages).toBe(2);
+    expect(result.warnings).toEqual(['Detected panels on 2 pages that had no layout yet']);
+    // The detected layout is written once, so a second export no longer reports it.
+    expect(readPageDoc(dataRoot, 'Vol1', '172', 1)?.panels.length).toBeGreaterThan(0);
+    // The Word export shares the same preflight, so both exits include the pages.
+    const docx = await runWithLang('en', () =>
+      exportChapterDocx({
+        rootDir: root,
+        dataRoot,
+        exportRoot: path.join(root, 'exports'),
+        config: config({ pageIndices: [] }),
+        library,
+      }),
+    );
+    expect(docx.pages).toBe(2);
+    expect(docx.warnings).toEqual([]);
+    const again = await runWithLang('en', () =>
+      exportChapter({
+        rootDir: root,
+        rawRoot: path.join(root, 'raw'),
+        dataRoot,
+        exportRoot: path.join(root, 'exports'),
+        config: config({ pageIndices: [] }),
+        library,
+      }),
+    );
+    expect(again.pages).toBe(2);
+    expect(again.warnings).toEqual([]);
   });
 
   it('inlines images as data URLs when embedImages is on', async () => {
