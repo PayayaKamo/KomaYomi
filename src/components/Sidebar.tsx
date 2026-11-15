@@ -36,20 +36,6 @@ function pickFile(page: PageEntry, volume?: VolumeEntry): { url: string; lang: L
 
 type FootIconName = 'project' | 'exchange' | 'rules' | 'backup' | 'preprocess' | 'plugins';
 
-/** Logo, product name and the localised tagline (two lines at most). */
-function Brand() {
-  const { t } = useI18n();
-  return (
-    <div className="brand">
-      <img className="brand-logo" src="/icon.svg" alt="" width={26} height={26} />
-      <div className="brand-text">
-        <span className="brand-name">KomaYomi</span>
-        <span className="brand-sub">{t('app.tagline')}</span>
-      </div>
-    </div>
-  );
-}
-
 /** Small monochrome icons for the sidebar footer; they inherit the theme colour. */
 function FootIcon({ name }: { name: FootIconName }) {
   return (
@@ -129,7 +115,6 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
     return (
       <aside className="sidebar">
         <div className="sidebar-head">
-          <Brand />
           <div className="root-path">{t('sidebar.loadingLibrary')}</div>
         </div>
       </aside>
@@ -139,9 +124,6 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   if (!library.volumes.length) {
     return (
       <aside className="sidebar">
-        <div className="sidebar-head">
-          <Brand />
-        </div>
         <div className="sidebar-empty">
           {t('sidebar.emptyNoVolumesBefore')}
           <code>{rootPath || 'raw'}</code>
@@ -248,7 +230,6 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <Brand />
         <div className="root-path" title={rootPath}>
           {t('format.volumesChapters', {
             volumes: formatNumber(library.volumes.length),

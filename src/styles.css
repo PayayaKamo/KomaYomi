@@ -196,7 +196,7 @@ code {
   justify-content: center;
 }
 
-/* Topbar brand: icon only (the full lockup lives in the sidebar). */
+/* Topbar brand: icon only. */
 .brand-mark {
   display: inline-flex;
   align-items: center;
@@ -1063,54 +1063,11 @@ body.pane-resizing * {
 }
 
 .sidebar-head {
-  padding: 12px 14px 10px;
+  padding: 10px 14px 8px;
   border-bottom: 1px solid var(--line-soft);
 }
 
-.brand {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  min-width: 0;
-}
-
-.brand-logo {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  flex: 0 0 auto;
-  margin-top: 1px;
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.brand-name {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-}
-
-.brand-sub {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--muted);
-  line-height: 1.35;
-  /* Full tagline, but never more than two lines inside a narrow sidebar. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
 .root-path {
-  margin-top: 4px;
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
