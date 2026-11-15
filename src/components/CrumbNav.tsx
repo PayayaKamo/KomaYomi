@@ -16,7 +16,7 @@ type Props = {
   onStep: (delta: number) => void;
 };
 
-type Picker = 'volume' | 'chapter' | null;
+type Picker = 'volume' | 'chapter' | 'page' | null;
 
 /**
  * Topbar breadcrumb with clickable volume / chapter pickers and a page number box.
@@ -35,6 +35,7 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
   const volumeBtnRef = useRef<HTMLButtonElement>(null);
   const chapterBtnRef = useRef<HTMLButtonElement>(null);
   const pageInputRef = useRef<HTMLInputElement>(null);
+  const pageBtnRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Mirrors `active` so a fast ↑/↓ followed by Enter reads the new row before React re-renders.
   const activeRef = useRef(0);
@@ -71,6 +72,7 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
       setOpen(null);
       if (which === 'volume') volumeBtnRef.current?.focus();
       else if (which === 'chapter') chapterBtnRef.current?.focus();
+      else if (which === 'page') pageBtnRef.current?.focus();
     };
     const closeOnResize = () => setOpen(null);
     window.addEventListener('pointerdown', onPointerDown);
@@ -89,6 +91,7 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
     if (!refocus) return;
     if (which === 'volume') volumeBtnRef.current?.focus();
     else if (which === 'chapter') chapterBtnRef.current?.focus();
+    else if (which === 'page') pageBtnRef.current?.focus();
   };
 
   const focusItem = (index: number) => {
@@ -103,10 +106,12 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
       closePicker(true);
       return;
     }
-    const trigger = which === 'volume' ? volumeBtnRef.current : chapterBtnRef.current;
+    const trigger =
+      which === 'volume' ? volumeBtnRef.current : which === 'chapter' ? chapterBtnRef.current : pageBtnRef.current;
     if (trigger) {
       const rect = trigger.getBoundingClientRect();
-      const width = Math.min(260, window.innerWidth - 24);
+      // The page list carries thumbnails, so it gets a little more room than the breadcrumb lists.
+      const width = Math.min(which === 'page' ? 300 : 260, window.innerWidth - 24);
       setPopPos({
         top: rect.bottom + 8,
         left: Math.min(Math.max(8, rect.left), window.innerWidth - width - 8),
@@ -156,6 +161,12 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
     onOpen({ volume: selection.volume, chapter: name, pageIndex: target.pages.find((p) => !p.excluded)?.index ?? 0 });
   };
 
+  const pickPage = (index: number) => {
+    setOpen(null);
+    if (index !== selection.pageIndex) onOpen({ ...selection, pageIndex: index });
+    pageBtnRef.current?.focus();
+  };
+
   const commitPage = (value: string) => {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || pageCount === 0) {
@@ -193,7 +204,7 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
     // The page input keeps its own arrow/Enter handling.
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    const count = open === 'volume' ? volumeItems.length : chapterItems.length;
+    const count = open === 'volume' ? volumeItems.length : open === 'chapter' ? chapterItems.length : bodyPages.length;
     if (!count) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -212,9 +223,12 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
       if (open === 'volume') {
         const item = volumeItems[activeRef.current];
         if (item) pickVolume(item.id);
-      } else {
+      } else if (open === 'chapter') {
         const item = chapterItems[activeRef.current];
         if (item) pickChapter(item.chapter);
+      } else {
+        const item = bodyPages[activeRef.current];
+        if (item) pickPage(item.index);
       }
     } else if (e.key === 'Tab') {
       setOpen(null);
@@ -232,17 +246,36 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
       : t('format.chapter', { chapter: selection.chapter || '—' }));
   const volumeIndex = volumeItems.findIndex((v) => v.id === selection.volume);
   const chapterIndex = chapterItems.findIndex((c) => c.chapter === selection.chapter);
-  // Vertical directions read downward, so the pager shows up/down arrows.
+  // Vertical directions read downward, so the pager shows prev/next in reading order.
   const vertical = isVerticalReading(direction);
   const nextOnLeft = !vertical && isRightToLeft(direction);
+  // Match the [ / ] shortcuts: a chapter edge only ends the run when the neighbouring
+  // chapter has no body pages either.
+  const previousChapter = chapterIndex > 0 ? chapterItems[chapterIndex - 1] : null;
+  const nextChapter =
+    chapterIndex >= 0 && chapterIndex < chapterItems.length - 1 ? chapterItems[chapterIndex + 1] : null;
+  const prevDisabled = pageCount === 0 || (pagePosition <= 1 && !previousChapter?.pages.some((p) => !p.excluded));
+  const nextDisabled = pageCount === 0 || (pagePosition >= pageCount && !nextChapter?.pages.some((p) => !p.excluded));
   const prevButton = (
-    <button type="button" onClick={() => onStep(-1)} title={t('app.prevPageTitle')}>
-      {vertical ? '↑' : nextOnLeft ? '›' : '‹'}
+    <button
+      type="button"
+      onClick={() => onStep(-1)}
+      title={t('app.prevPageTitle')}
+      aria-label={t('app.prevPageTitle')}
+      disabled={prevDisabled}
+    >
+      {t('app.prevPage')}
     </button>
   );
   const nextButton = (
-    <button type="button" onClick={() => onStep(1)} title={t('app.nextPageTitle')}>
-      {vertical ? '↓' : nextOnLeft ? '‹' : '›'}
+    <button
+      type="button"
+      onClick={() => onStep(1)}
+      title={t('app.nextPageTitle')}
+      aria-label={t('app.nextPageTitle')}
+      disabled={nextDisabled}
+    >
+      {t('app.nextPage')}
     </button>
   );
 
@@ -367,19 +400,77 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
       <i className="crumb-sep">/</i>
 
       <div className="crumb-page">
-        <input
-          ref={pageInputRef}
-          className="crumb-page-input"
-          type="text"
-          inputMode="numeric"
-          aria-label={t('crumb.page')}
-          title={t('crumb.pageInputTitle')}
-          value={pageDraft}
-          disabled={pageCount === 0}
-          onChange={(e) => setPageDraft(e.target.value.replace(/[^\d]/g, ''))}
-          onKeyDown={onPageKeyDown}
-          onBlur={() => commitPage(pageDraft)}
-        />
+        <div className="crumb-page-field">
+          <input
+            ref={pageInputRef}
+            className="crumb-page-input"
+            type="text"
+            inputMode="numeric"
+            aria-label={t('crumb.page')}
+            title={t('crumb.pageInputTitle')}
+            value={pageDraft}
+            disabled={pageCount === 0}
+            onChange={(e) => setPageDraft(e.target.value.replace(/[^\d]/g, ''))}
+            onKeyDown={onPageKeyDown}
+            onBlur={() => commitPage(pageDraft)}
+          />
+          <button
+            ref={pageBtnRef}
+            type="button"
+            className={`crumb-page-btn ${open === 'page' ? 'on' : ''}`}
+            aria-haspopup="listbox"
+            aria-expanded={open === 'page'}
+            aria-label={t('crumb.pageList')}
+            title={t('crumb.pageList')}
+            disabled={pageCount === 0}
+            onClick={() => openPicker('page', Math.max(0, pagePosition - 1))}
+          >
+            <span className="crumb-caret" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+          {open === 'page' && (
+            <div
+              className="crumb-pop crumb-page-pop"
+              role="listbox"
+              aria-label={t('crumb.pageList')}
+              data-testid="crumb-page-pop"
+              style={popPos}
+            >
+              <div className="crumb-pop-head">{t('crumb.pageList')}</div>
+              <div className="crumb-pop-list">
+                {bodyPages.map((p, i) => {
+                  const thumb = Object.values(p.files).find(Boolean);
+                  return (
+                    <button
+                      key={p.index}
+                      ref={(el) => {
+                        itemRefs.current[i] = el;
+                      }}
+                      type="button"
+                      role="option"
+                      aria-selected={p.index === selection.pageIndex}
+                      className={`crumb-item crumb-page-item ${i === active ? 'active' : ''} ${p.index === selection.pageIndex ? 'current' : ''}`}
+                      title={t('format.page', { page: formatNumber(i + 1) })}
+                      onPointerEnter={() => {
+                        activeRef.current = i;
+                        setActive(i);
+                      }}
+                      onClick={() => pickPage(p.index)}
+                    >
+                      {thumb ? (
+                        <img className="crumb-page-thumb" src={thumb} alt="" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="crumb-page-thumb" aria-hidden="true" />
+                      )}
+                      <span className="crumb-item-text">{t('format.page', { page: formatNumber(i + 1) })}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         <span className="crumb-total">/ {formatNumber(pageCount)}</span>
         <div className="page-nav">
           {nextOnLeft ? (

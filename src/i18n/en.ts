@@ -14,6 +14,8 @@ export const en = {
   'pane.notesHandle': 'Drag to resize the notes panel · double-click to reset',
   'app.prevPageTitle': 'Previous page ([)',
   'app.nextPageTitle': 'Next page (])',
+  'app.prevPage': 'Prev page',
+  'app.nextPage': 'Next page',
   'app.tabPanels': 'Panels',
   'app.tabCompare': 'Compare',
   'app.tabScroll': 'Scroll',
@@ -36,6 +38,7 @@ export const en = {
   'crumb.switchVolume': 'Switch volume',
   'crumb.switchChapter': 'Switch chapter',
   'crumb.pageInputTitle': 'Type a page number and press Enter; ↑/↓ step one page',
+  'crumb.pageList': 'Pages in this chapter',
   'crumb.chapterPages': '{count} pages',
   /* ---- file menu ---- */
   'file.menu': 'File',

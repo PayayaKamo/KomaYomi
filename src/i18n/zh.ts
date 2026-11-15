@@ -14,6 +14,8 @@ export const zh = {
   'pane.notesHandle': '拖动调整笔记栏宽度 · 双击恢复默认',
   'app.prevPageTitle': '上一页（[）',
   'app.nextPageTitle': '下一页（]）',
+  'app.prevPage': '上一页',
+  'app.nextPage': '下一页',
   'app.tabPanels': '分格',
   'app.tabCompare': '对照阅读',
   'app.tabScroll': '条漫',
@@ -36,6 +38,7 @@ export const zh = {
   'crumb.switchVolume': '切换卷',
   'crumb.switchChapter': '切换话',
   'crumb.pageInputTitle': '输入页码后按回车跳转；↑/↓ 逐页切换',
+  'crumb.pageList': '本话页面',
   'crumb.chapterPages': '{count} 页',
   /* ---- file menu ---- */
   'file.menu': '文件',

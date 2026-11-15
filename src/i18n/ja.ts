@@ -13,6 +13,8 @@ export const ja = {
   'pane.notesHandle': 'ドラッグでノート欄の幅を変更 · ダブルクリックで既定値',
   'app.prevPageTitle': '前のページ（[）',
   'app.nextPageTitle': '次のページ（]）',
+  'app.prevPage': '前のページ',
+  'app.nextPage': '次のページ',
   'app.tabPanels': 'コマ',
   'app.tabCompare': '比較読み',
   'app.tabScroll': 'スクロール',
@@ -35,6 +37,7 @@ export const ja = {
   'crumb.switchVolume': '巻を切り替え',
   'crumb.switchChapter': '話を切り替え',
   'crumb.pageInputTitle': 'ページ番号を入力して Enter で移動。↑/↓ で 1 ページずつ',
+  'crumb.pageList': 'この話のページ',
   'crumb.chapterPages': '{count} ページ',
   /* ---- file menu ---- */
   'file.menu': 'ファイル',
