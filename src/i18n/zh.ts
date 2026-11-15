@@ -614,6 +614,12 @@ export const zh = {
   'export.openPrint': '打开打印页',
   'export.printHint': '在打印对话框中选择“另存为 PDF”。',
 
+  /* ---- offline write queue ---- */
+  'outbox.queued': '无法连接服务器，本页已保存在本机，稍后会自动重试。（{detail}）',
+  'outbox.pending': '待同步 {count} 页',
+  'outbox.syncing': '同步中…',
+  'outbox.retryTitle': '离线修改已保存在本机，点击立即重试。',
+
   /* ---- backup & restore ---- */
   'backup.title': '备份与恢复',
   'backup.subtitle': '把 data/ 里的标注、模板、预设打包；缩略图缓存不包含在内',

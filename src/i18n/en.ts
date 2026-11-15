@@ -639,6 +639,12 @@ export const en = {
   'export.openPrint': 'Open print view',
   'export.printHint': 'In the print dialog choose “Save as PDF”.',
 
+  /* ---- offline write queue ---- */
+  'outbox.queued': 'Server unreachable — this page is saved on this device and will retry automatically. ({detail})',
+  'outbox.pending': '{count} pending',
+  'outbox.syncing': 'Syncing…',
+  'outbox.retryTitle': 'Offline edits are kept on this device. Click to retry now.',
+
   /* ---- backup & restore ---- */
   'backup.title': 'Backup & restore',
   'backup.subtitle': 'Bundles annotations, templates and presets from data/; thumbnail cache is not included',

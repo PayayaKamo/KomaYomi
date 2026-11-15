@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { HistorySource } from '../api';
 import { t } from '../i18n';
+import { dropOutbox, enqueueOutbox, outboxKeyOf } from '../lib/outbox';
 import type { PageDoc, PageEntry } from '../types';
 
 export type Selection = { volume: string; chapter: string; pageIndex: number };
@@ -105,10 +106,19 @@ export function usePage(sel: Selection | null) {
     try {
       const res = await api.savePage(doc, source);
       savedDoc.current = cloneDoc(res.doc);
+      // A successful write supersedes any queued copy of the same page.
+      dropOutbox(outboxKeyOf(doc));
       setState((s) => ({ ...s, saving: false, dirty: pending.current ? s.dirty : false, exists: true }));
     } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      // Never lose notes: keep an offline copy that the outbox replays later.
+      const queued = enqueueOutbox(doc, source);
       pending.current = doc;
-      setState((s) => ({ ...s, saving: false, error: err instanceof Error ? err.message : String(err) }));
+      setState((s) => ({
+        ...s,
+        saving: false,
+        error: queued ? t('outbox.queued', { detail }) : detail,
+      }));
     }
   }, []);
 
@@ -262,7 +272,7 @@ export function usePage(sel: Selection | null) {
     if (pending.current && saveModeRef.current === 'confirm' && undoStack.current.length) {
       const leaving = pending.current;
       pending.current = null;
-      void api.savePage(leaving).catch(() => null);
+      void api.savePage(leaving).catch(() => enqueueOutbox(leaving));
     }
     undoStack.current = [];
     redoStack.current = [];

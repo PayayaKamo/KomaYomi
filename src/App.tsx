@@ -11,6 +11,7 @@ import { PageHistoryDialog } from './components/PageHistoryDialog';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
+import { useOutbox } from './hooks/useOutbox';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
 import { DEFAULT_LANGUAGES } from './types';
@@ -89,6 +90,7 @@ export default function App() {
   }, []);
 
   const pageState = usePage(sel);
+  const outbox = useOutbox();
   const { doc, page } = pageState;
 
   // Hash deep link: #/<volume>/<chapter>/<page (1-based)>, for direct opening and sharing.
@@ -352,6 +354,17 @@ export default function App() {
           </button>
           {sel && <CrumbNav library={library} selection={sel} onOpen={openSelection} onStep={goPage} />}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {outbox.count > 0 && (
+            <button
+              type="button"
+              className="outbox-chip"
+              disabled={outbox.syncing}
+              onClick={() => void outbox.replay()}
+              title={outbox.error ?? t('outbox.retryTitle')}
+            >
+              {outbox.syncing ? t('outbox.syncing') : t('outbox.pending', { count: formatNumber(outbox.count) })}
+            </button>
+          )}
           {sel && (
             <button
               type="button"

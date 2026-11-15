@@ -732,6 +732,25 @@ code {
   border-color: rgba(224, 168, 60, 0.4);
 }
 
+/* Pending offline writes: a click retries the queue immediately. */
+.outbox-chip {
+  font-size: 11px;
+  color: var(--warn);
+  background: rgba(224, 168, 60, 0.12);
+  border: 1px solid rgba(224, 168, 60, 0.4);
+  border-radius: 99px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.outbox-chip:hover:not(:disabled) {
+  background: rgba(224, 168, 60, 0.22);
+}
+.outbox-chip:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
 .body-area {
   flex: 1;
   min-height: 0;

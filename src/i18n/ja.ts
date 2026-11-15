@@ -633,6 +633,12 @@ export const ja = {
   'export.openPrint': '印刷ページを開く',
   'export.printHint': '印刷ダイアログで「PDF に保存」を選択してください。',
 
+  /* ---- offline write queue ---- */
+  'outbox.queued': 'サーバーに接続できません。このページは端末内に保存し、後で自動的に再試行します。（{detail}）',
+  'outbox.pending': '未同期 {count} 件',
+  'outbox.syncing': '同期中…',
+  'outbox.retryTitle': 'オフラインの変更は端末内に保存されています。クリックで再試行します。',
+
   /* ---- backup & restore ---- */
   'backup.title': 'バックアップと復元',
   'backup.subtitle': 'data/ の注釈・テンプレート・プリセットをまとめます。サムネイルキャッシュは含みません',
