@@ -77,6 +77,7 @@ import type { HistorySource } from '../shared/format.ts';
 import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
 import type { MessageCode, MessageParams } from './messages/index.ts';
 import { AppError, errorBody, toErrorResponse } from './errors.ts';
+import { requireChapter, requirePage } from './pageTargets.ts';
 import { setFormatAppVersion } from '../shared/format.ts';
 
 const MIME: Record<string, string> = {
@@ -440,6 +441,13 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
+        const pageIndex = Number(body.pageIndex);
+        if (!Number.isInteger(pageIndex) || pageIndex < 0) {
+          fail(res, 400, 'ERR_PAGE_INDEX_INVALID');
+          return true;
+        }
+        // Request targets are checked against the scan before any path is built.
+        requirePage(library, body.volume, body.chapter, pageIndex);
         const requested = url.searchParams.get('source') ?? '';
         const source = HISTORY_SOURCES.includes(requested as HistorySource) ? (requested as HistorySource) : 'auto';
         const saved = writePageDoc(dataRoot, body, { source });
@@ -452,6 +460,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const volume = url.searchParams.get('volume') ?? '';
         const chapter = url.searchParams.get('chapter') ?? '';
         const index = Number(url.searchParams.get('index') ?? 0);
+        requireChapter(library, volume, chapter);
         sendJson(res, 200, listVersions(dataRoot, volume, chapter, index));
         return true;
       }
@@ -466,6 +475,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const volume = String(body.volume ?? '');
         const chapter = String(body.chapter ?? '');
         const pageIndex = Math.max(0, Math.trunc(Number(body.pageIndex) || 0));
+        requirePage(library, volume, chapter, pageIndex);
         const entry = findVersion(dataRoot, volume, chapter, pageIndex, String(body.id ?? ''));
         if (!entry) {
           fail(res, 404, 'ERR_HISTORY_VERSION_NOT_FOUND', { id: String(body.id ?? '') });
@@ -621,6 +631,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
+        requirePage(library, body.volume, body.chapter, Number(body.pageIndex) || 0);
         const doc = readPageDoc(dataRoot, body.volume, body.chapter, Number(body.pageIndex) || 0);
         if (!doc?.panels.length) {
           fail(res, 400, 'ERR_PAGE_NO_PANELS', { volume: body.volume, chapter: body.chapter });
@@ -1275,6 +1286,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
+        requirePage(library, body.volume, body.chapter, Number(body.pageIndex) || 0);
         sendJson(
           res,
           200,
@@ -1305,6 +1317,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
             volume: body.volume,
             chapter: body.chapter,
             pageIndex: body.pageIndex,
+            library,
           }),
         );
         return true;

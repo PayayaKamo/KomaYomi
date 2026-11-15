@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ExportConfig, ExportTemplate, LayoutScope, LayoutTemplate, PageDoc } from '../shared/types.ts';
+import type { ExportConfig, ExportTemplate, LayoutScope, LayoutTemplate, Library, PageDoc } from '../shared/types.ts';
 import { CURRENT_SCHEMA_VERSION, SCHEMA_URLS, prepareExchange, validateExchange } from '../shared/format.ts';
 import { readLayout, saveLayout } from './layouts.ts';
 import { listExportTemplates, saveExportTemplate } from './presets.ts';
 import { pageFilePath, readPageDoc, writePageDoc } from './storage.ts';
 import { projectFileName } from './project.ts';
 import { AppError } from './errors.ts';
+import { safeSegment } from './pathSafety.ts';
+import { requireChapter } from './pageTargets.ts';
 import { t } from './messages/index.ts';
 
 /**
@@ -62,13 +64,6 @@ function parsePayload(data: unknown, label: string): { value: unknown; text: str
   } catch {
     throw new AppError('ERR_EXCHANGE_INVALID_JSON', { label }, 400);
   }
-}
-
-function safeSegment(input: string): string | null {
-  const clean = String(input ?? '').trim();
-  if (!clean || clean === '.' || clean === '..') return null;
-  if (/[\\/:*?"<>|\0]/.test(clean)) return null;
-  return clean;
 }
 
 function backupExchangeFile(dataRoot: string, extension: string, text: string): string {
@@ -287,6 +282,8 @@ export function importPage(opts: {
   volume?: string;
   chapter?: string;
   pageIndex?: number;
+  /** Current scan: imported pages must target a volume/chapter that exists. */
+  library?: Library;
 }): {
   doc: PageDoc;
   migratedFrom?: number;
@@ -306,6 +303,7 @@ export function importPage(opts: {
   if (!safeSegment(volume) || !safeSegment(chapter)) throw new AppError('ERR_UNSAFE_SEGMENT', {}, 400);
   const pageIndex = Number.isInteger(opts.pageIndex) ? Number(opts.pageIndex) : Number(value.pageIndex);
   if (!Number.isInteger(pageIndex) || pageIndex < 0) throw new AppError('ERR_PAGE_INDEX_INVALID', {}, 400);
+  if (opts.library) requireChapter(opts.library, volume, chapter);
 
   const bound: Record<string, unknown> = { ...value, volume, chapter, pageIndex };
   const check = validateExchange('page', bound);

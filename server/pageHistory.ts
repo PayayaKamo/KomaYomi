@@ -1,9 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { PageDoc, PanelRect } from '../shared/types.ts';
 import type { HistorySource } from '../shared/format.ts';
 import { assertWritableFile, readStoredFile, writeStoredFile } from './schemaStore.ts';
+import { assertSafeSegment, resolveWithin } from './pathSafety.ts';
+import { AppError } from './errors.ts';
 import { readLibraryConfig } from './library.ts';
 
 /**
@@ -69,7 +70,12 @@ export type RecordOptions = {
 };
 
 export function historyFilePath(dataRoot: string, volume: string, chapter: string, pageIndex: number): string {
-  return path.join(dataRoot, 'history', volume, chapter, `${pageIndex}.json`);
+  const safeVolume = assertSafeSegment(volume, 'volume');
+  const safeChapter = assertSafeSegment(chapter, 'chapter');
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) {
+    throw new AppError('ERR_PAGE_INDEX_INVALID', {}, 400);
+  }
+  return resolveWithin(dataRoot, 'history', safeVolume, safeChapter, `${pageIndex}.json`);
 }
 
 /** Effective retention for every page; configured through `data/library.json`. */

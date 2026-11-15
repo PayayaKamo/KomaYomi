@@ -6,10 +6,17 @@ import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
 import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 import { recordVersion } from './pageHistory.ts';
+import { assertSafeSegment, resolveWithin } from './pathSafety.ts';
+import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
 
 export function pageFilePath(dataRoot: string, volume: string, chapter: string, pageIndex: number): string {
-  return path.join(dataRoot, 'pages', volume, chapter, `${pageIndex}.json`);
+  const safeVolume = assertSafeSegment(volume, 'volume');
+  const safeChapter = assertSafeSegment(chapter, 'chapter');
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) {
+    throw new AppError('ERR_PAGE_INDEX_INVALID', {}, 400);
+  }
+  return resolveWithin(dataRoot, 'pages', safeVolume, safeChapter, `${pageIndex}.json`);
 }
 
 export function createEmptyDoc(volume: string, chapter: string, pageIndex: number): PageDoc {
