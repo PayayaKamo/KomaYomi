@@ -9,7 +9,7 @@ The compare reader puts the same panel from two or more languages next to each o
 
 ## The problem it solves
 
-Two editions of the same book rarely share exact geometry: the raw and the scanlation are shifted, cropped or scaled differently. Comparing a page as a whole hides small differences. Comparing **one panel at a time**, with each language independently aligned, makes wording, tone and omissions visible.
+Two editions of the same book rarely line up exactly: the raw and the scanlation are shifted, cropped or scaled differently. Comparing a page as a whole hides small differences. Comparing **one panel at a time**, with each language independently aligned, makes wording, tone and omissions visible.
 
 ## Layouts
 

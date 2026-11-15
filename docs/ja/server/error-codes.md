@@ -1,6 +1,6 @@
 # サーバーと CLI のメッセージコード
 
-KomaYomi は、`server/` と `scripts/` が出すユーザー向けの文言を 1 つの三言語カタログ（`server/messages/catalog.ts`）にまとめています。ドメイン側のコードは**安定したコードとパラメーター**だけを投げ、テキストは境界で、リクエスト（HTTP）または実行（CLI）ごとに交渉された言語で描画されます。
+KomaYomi は、`server/` と `scripts/` が出すユーザー向けの文言を 1 つの三言語カタログ（`server/messages/catalog.ts`）にまとめています。ドメイン側のコードは**安定したコードとパラメーター**だけを投げ、テキストは境界で、リクエスト（HTTP）または実行（CLI）ごとに交渉された言語で生成されます。
 
 `ERR_*` / `WARN_*` / `STATUS_*` は公開 API です。クライアントやスクリプトが照合する可能性があるため、コード名の変更は破壊的変更になります。追加は破壊的ではありません。
 
@@ -39,7 +39,7 @@ KomaYomi は、`server/` と `scripts/` が出すユーザー向けの文言を 
 優先度は高い順に：
 
 1. `?lang=ja` クエリパラメーター（`en` / `zh` / `ja`。`ja-JP` のような地域タグも可）。
-2. `Accept-Language` ヘッダー。q 値を尊重します（`ja;q=0.9, en;q=0.4`）。
+2. `Accept-Language` ヘッダー。q 値を考慮します（`ja;q=0.9, en;q=0.4`）。
 3. 環境変数：`KOMAYOMI_LANG`、次に `MANGA_LOCALE`、最後に `LC_ALL` / `LANG`。
 4. 英語。
 

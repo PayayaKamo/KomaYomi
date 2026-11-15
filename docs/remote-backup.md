@@ -2,7 +2,7 @@
 
 ## What exists today
 
-Local disk is the default: KomaYomi reads images from `raw/`, writes annotations to `data/`, and writes generated files to `exports/`. On top of that, the server supports **remote image sources** and **remote backup destinations** over WebDAV or a mounted/SMB network share, configured under **Data tools → Storage** and stored in `data/storage.json` (`schemaVersion: 1`).
+Local disk is the default: KomaYomi reads images from `raw/`, writes annotations to `data/`, and puts generated files in `exports/`. On top of that, the server supports **remote image sources** and **remote backup destinations** over WebDAV or a mounted/SMB network share, configured under **Data tools → Storage** and stored in `data/storage.json` (`schemaVersion: 1`).
 
 Two portable local safety nets are also implemented.
 

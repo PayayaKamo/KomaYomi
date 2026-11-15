@@ -30,10 +30,10 @@ Husky がコミット時に `lint-staged` を実行します。TS/TSX は ESLint
 
 ## コードスタイル
 
-- TypeScript の strict モード。モジュール境界では型を明示する。
-- ESLint のフラット設定（`eslint.config.js`）が正しさ、Prettier が整形を担当。Prettier と重複するスタイル規則は追加しない。
+- TypeScript の strict モードです。モジュール境界では型を明示します。
+- ESLint のフラット設定（`eslint.config.js`）が正しさを、Prettier が整形を担当します。Prettier と重複するスタイル規則は追加しません。
 - サーバーは ESM TypeScript で、import に `.ts` 拡張子を付けます。`server/`、`shared/`、`src/` に CommonJS は書きません。
-- `shared/` は `node:` モジュールを import せず、DOM にも触れません。両側が依存しています。
+- `shared/` は `node:` モジュールを import せず、DOM にも触れません。フロントエンドとサーバーの両方が依存しています。
 - 画面の文言はすべて `src/i18n/`（`en`、`zh`、`ja`）。コンポーネントへの中国語の直書きは `npm run i18n:scan:strict` で止まります。
 - サーバーのエラーと警告の文言は `server/messages/catalog.ts` にコード単位で置きます。
 - ドキュメントは三言語そろえ、`docs/.vitepress/config.mts` のナビとサイドバーにも追加します。

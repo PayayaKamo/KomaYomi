@@ -39,7 +39,7 @@ raw/<volume>/<language>/<chapter>/<page images>
 
 ## 笔记（Note）
 
-**笔记**是附加到页面或分格上的 Markdown 文本，带有标签和可选的来源。它是主要的标注对象。
+**笔记**是挂在页面或分格上的 Markdown 文本，带有标签和可选的来源。它是主要的标注对象。
 
 ## 标注（Annotation）
 
@@ -57,7 +57,7 @@ raw/<volume>/<language>/<chapter>/<page images>
 }
 ```
 
-数据模型、规范化以及项目导入/导出都支持标注，包括页面级的 `annotationsVisible` 开关。切格工作台提供箭头、矩形、椭圆、高亮、自由画笔、文本、徽标和马赛克等矢量标注工具；标注在导入导出时会保留。
+标注贯穿数据模型、规范化和项目导入/导出，页面级还有 `annotationsVisible` 开关。切格工作台提供箭头、矩形、椭圆、高亮、自由画笔、文本、徽标和马赛克等矢量标注工具；导入导出时标注会保留。
 
 ## 对齐（Alignment）
 

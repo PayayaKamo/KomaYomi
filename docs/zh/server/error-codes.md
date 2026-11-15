@@ -1,6 +1,6 @@
 # 服务端与 CLI 消息码
 
-KomaYomi 把 `server/` 与 `scripts/` 里所有面向用户的句子都收在一份三语消息表（`server/messages/catalog.ts`）里。领域代码只抛出**稳定的错误码和参数**，文本则在边界处按请求（HTTP）或调用（CLI）协商出的语言渲染。
+KomaYomi 把 `server/` 与 `scripts/` 里所有面向用户的句子都收在一份三语消息表（`server/messages/catalog.ts`）里。领域代码只抛出**稳定的错误码和参数**，文本则在边界处按请求（HTTP）或调用（CLI）协商好的语言渲染。
 
 `ERR_*` / `WARN_*` / `STATUS_*` 属于公开 API——客户端和脚本可能拿它们做判断，所以改码名是破坏性变更，新增码不是。
 

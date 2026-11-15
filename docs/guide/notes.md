@@ -1,6 +1,6 @@
 # Notes
 
-Notes are the reason the panels and alignment exist. A note can hang off a whole page or a single panel, it is written in Markdown, and it can carry tags, a source and attached screenshots.
+Notes are the reason the panels and alignment exist. A note can hang off a whole page or a single panel; it is written in Markdown and can carry tags, a source and attached screenshots.
 
 <figure class="shot">
   <img src="/assets/screenshots/notes-markdown.png" alt="Notes panel with Markdown editor, live preview, tags and the overview tab">

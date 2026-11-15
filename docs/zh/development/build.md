@@ -109,4 +109,4 @@ npm run i18n:scan
 npm run docs:build
 ```
 
-`i18n:scan` 默认非严格；CI 会把 `src/` 里新增的写死中文当作失败。`docs:build` 遇到死链会失败，这是发现三语页面改名遗漏最便宜的办法。
+`i18n:scan` 默认非严格；CI 会把 `src/` 里新增的写死中文当作失败。`docs:build` 遇到死链会失败，这是发现三语页面改名遗漏最省事的办法。

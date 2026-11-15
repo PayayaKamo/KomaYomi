@@ -1,6 +1,6 @@
 # On Different Devices
 
-One app, several shapes. KomaYomi reflows instead of hiding features behind a separate mobile build, so the same buttons are always somewhere on screen — they just move around. This page shows how the main windows rearrange. The two desktop shapes have real captures; the phone and tablet slots are waiting for the responsive pass.
+One app, several shapes. KomaYomi reflows instead of hiding features behind a separate mobile build, so the same buttons are always somewhere on screen — they just move around. This page shows how the main windows rearrange at each size, with a real capture for each shape.
 
 ## PC, landscape — 1440 px
 
@@ -23,32 +23,29 @@ At 900 px the layout switches to its narrow mode: the library folds into a drawe
 ## Phone, portrait — 390 × 844
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: phone portrait (390 × 844)</strong>
-    A real capture at this width will land here once the responsive pass is finished.
-  </div>
-  <figcaption>Planned screenshot: 390 × 844.</figcaption>
+  <img src="/assets/screenshots/device-phone-portrait.png" alt="390 by 844 phone window with one compare column, language chips and a toolbar wrapped over several rows">
+  <figcaption>390 × 844: one compare column; the Language chips pick JA, EN or ZH; the toolbar wraps onto several rows.</figcaption>
 </figure>
+
+On a 390 px phone the top bar wraps into three rows — navigation and page controls, then interface language and export, then the **Panels / Compare** switch. The compare stage keeps a single column: each panel lists its chosen languages one below another, and the **Language** chips (JA / EN / ZH) decide which of them appear, because there is no room for two panes side by side. Toolbar groups wrap onto extra rows instead of scrolling out of reach, and the library and notes both open as full-width drawers.
 
 ## Tablet, portrait — 820 × 1180
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: tablet portrait (820 × 1180)</strong>
-    A real capture at this width will land here once the responsive pass is finished.
-  </div>
-  <figcaption>Planned screenshot: 820 × 1180.</figcaption>
+  <img src="/assets/screenshots/device-tablet-portrait.png" alt="820 by 1180 tablet window with the top bar on one row and a single, full-width compare column">
+  <figcaption>820 × 1180: top bar on one row, sidebar in a drawer, compare still a single column, toolbar over two rows.</figcaption>
 </figure>
+
+At 820 px the top bar stays on a single row and the sidebar stays a drawer, but the compare stage is still one column wide — the language panes are stacked rather than side by side. The **Language** chips work as on the phone, and the toolbar folds into two rows: language and view controls first, then the annotation tools. Notes open as a drawer over the stage.
 
 ## Tablet, landscape — 1180 × 820
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: tablet landscape (1180 × 820)</strong>
-    A real capture at this width will land here once the responsive pass is finished.
-  </div>
-  <figcaption>Planned screenshot: 1180 × 820.</figcaption>
+  <img src="/assets/screenshots/device-tablet-landscape.png" alt="1180 by 820 tablet window with the sidebar open and three language panes side by side">
+  <figcaption>1180 × 820: sidebar open, three language panes side by side, notes as a drawer.</figcaption>
 </figure>
+
+At 1180 px the sidebar (240 px) is back, and the three language panes sit in one row at roughly 290 px each. Notes stay a drawer at this width and open over the stage. The toolbar keeps two rows — language and alignment controls on top, annotation tools below — while **Export HTML** stays in the top bar.
 
 ::: tip Capturing your own layouts
 Resize the browser window rather than zooming the page: the breakpoints follow the viewport width, and the notes column and sidebar only change places when the window itself crosses them.

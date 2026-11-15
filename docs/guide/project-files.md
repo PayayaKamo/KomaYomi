@@ -1,6 +1,6 @@
 # Project Files & Formats
 
-Everything KomaYomi stores is plain files: images in `raw/`, annotations in `data/`, generated output in `exports/`. This page covers the three ways to move that work elsewhere — and the versioning rules that keep old files readable instead of turning them into archaeology.
+Everything KomaYomi stores lives in plain files: images in `raw/`, annotations in `data/`, generated output in `exports/`. This page covers the three ways to move that work elsewhere — and the versioning rules that keep old files readable instead of turning them into archaeology.
 
 ## The problem it solves
 
@@ -135,7 +135,7 @@ data/library.json
 data/.backup-meta.json
 ```
 
-Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Restoring overwrites same-named files, keeps pages absent from the backup, and writes a snapshot first.
+Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Restoring overwrites same-named files, keeps pages that are absent from the backup, and writes a snapshot first.
 
 ## What is not implemented
 

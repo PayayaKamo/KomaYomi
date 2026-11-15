@@ -1,6 +1,6 @@
 # Data Formats
 
-Everything KomaYomi stores is plain JSON or plain image files. This page documents the on-disk contract so you can script against it, diff it, or repair it by hand.
+Everything KomaYomi stores is either plain JSON or plain image files. This page documents the on-disk contract so you can script against it, diff it, or repair it by hand.
 
 ## File map
 

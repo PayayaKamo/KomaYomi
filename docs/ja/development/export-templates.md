@@ -66,7 +66,7 @@
 }
 ```
 
-保存時の `config` は部分オブジェクトです。ダイアログから保存したテンプレートには管理下の全フィールドが入りますが、手書きのファイルはキーを省いて既定値で補えます（`two-column`、`漫画比較メモ`、`ja`/`zh`/`en`、`pageWidthRatio` 46、`columnGap` 28、`fontScale` 1、`columns` 1）。
+保存時の `config` は部分オブジェクトです。ダイアログから保存したテンプレートには管理下の全フィールドが入りますが、手書きのファイルはキーを省いても既定値で補えます（`two-column`、`漫画比較メモ`、`ja`/`zh`/`en`、`pageWidthRatio` 46、`columnGap` 28、`fontScale` 1、`columns` 1）。
 
 ## テンプレートの適用
 

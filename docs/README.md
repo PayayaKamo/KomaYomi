@@ -122,4 +122,4 @@ Everything under `docs/` except VitePress internals and this `README.md` (`srcEx
 
 ## Reference template
 
-The styling adapts a private VitePress starter template: its typography scale, brand-accent hero, card hover motion, wrapping tables, blurred navigation bar and print rules were adapted here on top of the standard VitePress default theme, keeping the KomaYomi orange palette and the three-locale content. The template was reviewed in a temporary `docs/.template-tmp/` directory (gitignored) and deleted afterwards; no copy remains in this repository.
+The styling is adapted from a private VitePress starter template: its typography scale, brand-accent hero, card hover motion, wrapping tables, blurred navigation bar and print rules were carried over onto the standard VitePress default theme, keeping the KomaYomi orange palette and the three-locale content. The template was reviewed in a temporary `docs/.template-tmp/` directory (gitignored) and deleted afterwards; no copy remains in this repository.

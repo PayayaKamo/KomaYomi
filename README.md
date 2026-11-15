@@ -4,7 +4,7 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 
-KomaYomi is a local-first reading and annotation app for people who study languages with manga. Point it at a folder of pages, and it pairs the same page across Japanese, Chinese and English, splits the page into panels, and lets you read, align and annotate them side by side while taking Markdown notes. There is no account and no upload: your images stay in your own folder, and your work stays in plain JSON next to them.
+KomaYomi is a local-first reading and annotation app for people who study languages with manga. Point it at a folder of pages; it pairs the same page across Japanese, Chinese and English, splits each page into panels, and lets you read, align and annotate them side by side while taking Markdown notes. There is no account and no upload: your images stay in your own folder, and your work stays in plain JSON next to them.
 
 It is a study tool, not a manga host. Bring your own scans and read them on one machine.
 
@@ -112,7 +112,7 @@ Then open the app and pick a chapter in the sidebar.
 npm run desktop
 ```
 
-This builds the frontend, bundles the server into `dist-server/`, and opens the Electron window. Run from source, it reuses the repository folder for `raw/`, `data/` and `exports/`. A packaged build keeps them in a `library` folder inside the Electron user data directory and asks for a folder on first launch. `Ctrl+Shift+D` switches the data directory (restart required); `MANGA_DATA_DIR` overrides it.
+This builds the frontend, bundles the server into `dist-server/`, and opens the Electron window. When run from source, it reuses the repository folder for `raw/`, `data/` and `exports/`. A packaged build keeps them in a `library` folder inside the Electron user data directory and asks for a folder on first launch. `Ctrl+Shift+D` switches the data directory (restart required); `MANGA_DATA_DIR` overrides it.
 
 ### Docker
 
@@ -120,7 +120,7 @@ This builds the frontend, bundles the server into `dist-server/`, and opens the 
 docker compose up --build
 ```
 
-The container serves the same API on `http://127.0.0.1:3921`. It is meant for running on your own machine, not as a public service: there are no accounts and no authentication. Three bind mounts keep all state outside the image:
+The container serves the same API on `http://127.0.0.1:3921`. It is meant to run on your own machine, not as a public service: there are no accounts and no authentication. Three bind mounts keep all state outside the image:
 
 | Mount       | Container path      | Contents                                        |
 | ----------- | ------------------- | ----------------------------------------------- |

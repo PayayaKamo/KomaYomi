@@ -59,7 +59,7 @@ npm run dist:win   # Windows x64: NSIS installer + portable .exe in release/
 npm run dist:dir   # unpacked app in release/, useful for a quick smoke test
 ```
 
-`dist:win` builds the frontend and the bundled server first, then runs electron-builder with both the `nsis` and `portable` targets. Artifacts follow `KomaYomi-<version>-<arch>.exe` and `KomaYomi-<version>-portable.exe`.
+`dist:win` builds the frontend and the bundled server first, then runs electron-builder with both the `nsis` and `portable` targets. Artifacts are named `KomaYomi-<version>-<arch>.exe` and `KomaYomi-<version>-portable.exe`.
 
 What the package contains:
 

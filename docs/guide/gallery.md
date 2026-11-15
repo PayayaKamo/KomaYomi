@@ -81,7 +81,7 @@ Panels and notes are stored per volume and chapter. If the mapping changes later
 | Leave the path blank | Creates an empty folder under `raw/`. |
 | Pick an existing folder | Creates a **folder link** under `raw/` that points at the original. Images are not copied, and annotations remain writable because the link behaves like a normal folder. |
 
-Optional: give the volume a different display name. The hint under the field repeats the expected layout: `language/chapter/page.jpg`.
+Optional: give the volume a different display name. The hint under the field shows the expected layout: `language/chapter/page.jpg`.
 
 **Remove from library** (in volume settings) deletes only the link under `raw/`; images in the original folder are untouched, and annotations already saved under `data/pages/` are kept.
 

@@ -32,7 +32,7 @@ features:
 
 ## What is KomaYomi?
 
-KomaYomi — **Manga Learner** — is a **local web application** for learning languages with manga: read the same pages in Japanese, Chinese and English, align them closely, and take notes. Your page images stay in a `raw/` folder; every panel, note, tag, alignment offset and annotation lives in plain JSON under `data/`. Nothing leaves the machine unless you export it.
+KomaYomi — **Manga Learner** — is a **local web application** for learning languages with manga: read the same pages in Japanese, Chinese and English, align them precisely, and take notes. Your page images stay in a `raw/` folder; every panel, note, tag, alignment offset and annotation lives in plain JSON under `data/`. Nothing leaves the machine unless you export it.
 
 It is designed for study and translation review rather than for hosting copyrighted material: bring your own scans, point the app at the folder, and work page by page.
 

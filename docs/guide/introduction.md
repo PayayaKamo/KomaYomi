@@ -2,7 +2,7 @@
 
 KomaYomi — **Manga Learner** — is a local-first web app for reading manga in more than one language at once. Maybe you are learning Japanese with one eye on the translation, maybe you are doing scanlation and want to check your typesetting against the raw, maybe you just need to know how that one line was handled in the official release. KomaYomi splits a page into panels, lines up the same panel across Japanese, Chinese and English, and lets you pin Markdown notes — TL notes, typesetting questions, vocabulary — to the exact panel they belong to.
 
-It is not a general-purpose manga reader and not a distribution platform. Everything runs on your own machine, against your own image folders.
+It is neither a general-purpose manga reader nor a distribution platform. Everything runs on your own machine, against your own image folders.
 
 ## The problem it solves
 
