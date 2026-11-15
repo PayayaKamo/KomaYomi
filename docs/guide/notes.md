@@ -1,6 +1,6 @@
 # Notes
 
-Notes are the reason the panels and alignment exist. A note can belong to a whole page or to one panel, it is written in Markdown, and it can carry tags, a source and attached images.
+Notes are the reason the panels and alignment exist. A note can hang off a whole page or a single panel, it is written in Markdown, and it can carry tags, a source and attached screenshots.
 
 <figure class="shot">
   <img src="/assets/screenshots/notes-markdown.png" alt="Notes panel with Markdown editor, live preview, tags and the overview tab">
@@ -9,7 +9,7 @@ Notes are the reason the panels and alignment exist. A note can belong to a whol
 
 ## The problem it solves
 
-A remark like “this translation drops the honorific” is meaningless once it is detached from the balloon it refers to. Notes here are attached to a page or to a panel id, so they survive page reordering, template changes and export. A second problem is retrieval: after fifty pages you need to find every note tagged `tone` or sourced from one article.
+A remark like “this translation drops the honorific” stops meaning anything the moment it leaves the balloon it refers to. Notes here stay attached to a page or a panel id, so they survive page reordering, template changes and export. The second problem is retrieval: fifty pages later you need every note tagged `tone`, or everything you learned from one article.
 
 ## Page notes and panel notes
 
@@ -58,7 +58,7 @@ Tags are the cheapest way to build a personal taxonomy: `tone`, `mistranslation`
 
 ## Attached images
 
-A note can carry screenshots — useful for a reference page, an edition comparison or a photo of a printed book.
+A note can carry screenshots — useful for a reference page, an edition comparison, or a photo of the printed book you refuse to scan.
 
 - **Paste** an image into the editor, or **drag and drop** it onto the note form.
 - **Add images** opens a file picker; each attached image gets a thumbnail with a remove button.
@@ -99,7 +99,7 @@ The **Overview / search** tab works across the whole library, not just the curre
 
 ## Scratchpad
 
-The scratchpad is for thoughts that arrive before you know where they belong.
+The scratchpad is for thoughts that arrive before you know where they belong — the margin of your brain.
 
 1. Type in **Scratchpad** and press `Ctrl+Enter` or **Save**.
 2. Later, use **Move to page** or **Move to panel** to file it as a real note.

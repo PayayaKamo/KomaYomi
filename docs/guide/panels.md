@@ -1,6 +1,6 @@
 # Panel Workbench
 
-The panel workbench is where a page becomes structured data. Automatic detection is only a starting point; the workbench is built for correcting it, quickly and reversibly.
+The panel workbench is where a page becomes structured data. Automatic detection is only the first pass; the workbench exists so you can argue with it — quickly, and without breaking anything permanently.
 
 <figure class="shot">
   <img src="/assets/screenshots/panel-workspace.png" alt="Panel workbench with four detected panels, resize handles and the annotation toolbar">
@@ -9,7 +9,7 @@ The panel workbench is where a page becomes structured data. Automatic detection
 
 ## The problem it solves
 
-Every later feature depends on panels: compare reading, panel-scoped notes, PNG panel export, HTML export. If the boxes are wrong, everything downstream is wrong. Automatic detection gets most pages right, but splash pages, spread pages, edge strips and unusual layouts always need a hand.
+Every later feature stands on panels: compare reading, panel-scoped notes, PNG panel export, HTML export. If the boxes are wrong, everything downstream inherits the mistake. Automatic detection handles most pages fine, but splash pages, spreads, edge strips and whatever the magazine decided to do that month always need a hand.
 
 ## The toolbar, control by control
 
@@ -111,12 +111,12 @@ All coordinates are normalized to the page, so a panel stays in the same place a
 - The same order drives the compare reader, the notes overview and HTML export.
 
 ::: tip Reading order first
-If panel numbers look wrong before you start editing, fix the reading-direction selector first. Renumbering by hand is possible in the JSON, but changing the direction fixes every page in the chapter.
+If the numbers look wrong before you have touched anything, fix the reading-direction selector first. Hand-numbering panels in the JSON is possible, but changing the direction repairs the whole chapter at once.
 :::
 
 ## Annotation tools
 
-The annotation layer draws on top of the artwork and is stored separately from panels.
+The annotation layer draws on top of the artwork and lives separately from panels — think of it as your red pen, not part of the page geometry.
 
 <figure class="shot">
   <img src="/assets/screenshots/annotation-tools.png" alt="Annotation toolbar with visibility, select, shapes, highlighter, freehand, text, badge, mosaic, colour swatches and clear-all">
@@ -144,7 +144,7 @@ Exported HTML and PNG include annotations only when the layer is shown. The HTML
 
 ## Groups
 
-A group is a named set of panels that should be read as one unit. Use it for a double-page spread made of two boxes, a recurring establishing shot, or a sequence you want to discuss together. Groups are layout metadata: they never merge artwork, move notes or change annotations.
+A group is a named set of panels that should be read as one unit: a double-page spread split into two boxes, a recurring establishing shot, or a sequence you want to talk about as a block. Groups are layout metadata only — they never merge artwork, move notes or change annotations.
 
 ### Create a group
 
@@ -172,7 +172,7 @@ Groups are stored in the page JSON as `groups: [{ id, name, panelIds, number, co
 
 ## Page history
 
-Every save also appends a version to `data/history/<volume>/<chapter>/<page>.json`. Unlike the in-session undo stack, history survives reloads, restarts and project packaging.
+Every save also appends a version to `data/history/<volume>/<chapter>/<page>.json`. Unlike the in-session undo stack, history survives reloads, restarts and project packaging — your safety net for the day a template eats the panels.
 
 1. Open a page.
 2. Click **≡ History** in the top bar.
@@ -196,6 +196,8 @@ Every save also appends a version to `data/history/<volume>/<chapter>/<page>.jso
 Restoring is not the same as undo: it writes a new version, so the state you restored *from* is still in the list. History files are included in backups and project packages; they are not removed by clearing the thumbnail cache.
 
 ## A safe correction workflow
+
+A rhythm that keeps you out of trouble:
 
 1. Open the page and let automatic detection run.
 2. Fix obvious boxes: move, resize, add, delete.

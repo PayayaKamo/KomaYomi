@@ -1,6 +1,6 @@
 # Compare Reader
 
-The compare reader puts the same panel from two or three languages next to each other — or on top of each other — and lets you align the artwork so the comparison is honest.
+The compare reader puts the same panel from two or more languages next to each other — or on top of each other — and lets you align the artwork so the comparison is actually honest.
 
 <figure class="shot">
   <img src="/assets/screenshots/compare-reading.png" alt="Compare reader showing the same page in Japanese, Chinese and English side by side">
@@ -9,15 +9,15 @@ The compare reader puts the same panel from two or three languages next to each 
 
 ## The problem it solves
 
-Two editions of the same book rarely share exact geometry: scans are shifted, cropped or scaled differently. Comparing a page as a whole hides small differences. Comparing **one panel at a time**, with each language independently aligned, makes wording, tone and omissions visible.
+Two editions of the same book rarely share exact geometry: the raw and the scanlation are shifted, cropped or scaled differently. Comparing a page as a whole hides small differences. Comparing **one panel at a time**, with each language independently aligned, makes wording, tone and omissions visible.
 
 ## Layouts
 
 | Control | Behaviour |
 | --- | --- |
-| **JA / ZH / EN** chips | Toggle a language on or off. A language missing on this page is disabled with a tooltip. |
+| **Language chips** (`JA`, `ZH`, `EN`, …) | Toggle a language on or off. A language missing on this page is disabled with a tooltip. |
 | Drag a chip | Reorders the panes. The order is remembered. |
-| `↺` | Restores the default language order (JA, ZH, EN). |
+| `↺` | Restores the library's language order. |
 | **Side by side** | One column per selected language. On a narrow window the panes stack vertically. |
 | **Overlay** | All selected languages are drawn in the same box. |
 | **Multiply** (Overlay only) | Multiplies the layers so line art shows through. |
@@ -25,7 +25,7 @@ Two editions of the same book rarely share exact geometry: scans are shifted, cr
 
 ## Masking
 
-Masking hides a language's artwork while you test your own comprehension.
+Masking hides a language's artwork while you test your own comprehension — the manga-learner equivalent of covering the answer.
 
 | Control | Behaviour |
 | --- | --- |
@@ -88,7 +88,7 @@ Presets record the alignment mode, offsets, panel offsets and grid step. Applyin
 
 ## Annotations in the compare reader
 
-The annotation toolbar is available here too, and it is the fastest place to mark a wording difference across editions.
+The annotation toolbar works here too, and compare view is the fastest place to mark a wording difference between the raw and the scanlation.
 
 - New marks follow the same page/panel scope as in the workbench; selecting a panel scopes the next mark to that panel.
 - In compare view the layer is shown by default, so marks are visible while you compare. Use the **Annotations** switch to hide them.
@@ -98,7 +98,7 @@ The annotation toolbar is available here too, and it is the fastest place to mar
 ## A practical comparison loop
 
 1. Open a page in **Compare** (`C`).
-2. Enable `JA` + `ZH` (and `EN` if available), in the order you want to read.
+2. Enable `JA` + `ZH` (and `EN` if available — or whichever languages the volume has), in the order you want to read.
 3. Choose **Per-panel offset** if the editions differ per panel; otherwise start with **Whole-page offset**.
 4. Drag each language's pane until the panel contents line up.
 5. Save an alignment preset if the rest of the chapter shares the offset.
