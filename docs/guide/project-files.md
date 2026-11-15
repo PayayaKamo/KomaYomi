@@ -1,10 +1,10 @@
 # Project Files & Formats
 
-Everything KomaYomi stores is plain files: images in `raw/`, annotations in `data/`, generated output in `exports/`. This page explains the three ways to move that work somewhere else, and the versioning rules that keep old files readable.
+Everything KomaYomi stores is plain files: images in `raw/`, annotations in `data/`, generated output in `exports/`. This page covers the three ways to move that work elsewhere — and the versioning rules that keep old files readable instead of turning them into archaeology.
 
 ## The problem it solves
 
-Annotations are the expensive part — hours of panel correction, alignment and notes. They must survive a machine change, a disk failure, sharing with a study partner, and future app versions. A database backup would be opaque; these formats are plain ZIP and JSON, inspectable with ordinary tools.
+Annotations are the expensive part — hours of panel correction, alignment and notes. They must survive a machine change, a dead disk, a study partner, and future app versions. A database backup would be a black box; these formats are plain ZIP and JSON, inspectable with ordinary tools.
 
 ## Three portability layers
 
@@ -74,7 +74,7 @@ Exports strip the volume / chapter / page binding, so the template can be import
 
 ### `.mnexp` — export template
 
-Stores the layout and style settings for HTML and PNG export. Export it now, import it later. Template storage lives in `data/templates/export.json`.
+Stores the layout and style settings for the HTML, Word and print document. Export it now, import it later. Template storage lives in `data/templates/export.json`.
 
 ### `.mnpage.json` — one page
 
@@ -170,5 +170,5 @@ Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Re
 ## Related
 
 - [Data Formats](/data-format) — full JSON field reference.
-- [Export](/guide/export) — HTML and PNG output.
+- [Export](/guide/export) — HTML, Word, PDF and PNG output.
 - [Remote Storage & Backup](/guide/remote) — backup targets.

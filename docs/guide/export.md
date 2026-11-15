@@ -1,6 +1,6 @@
 # Export
 
-Export turns a chapter of panels and notes into something you can read, print or share: an HTML study document, PNG images for slides, or a project package for another machine.
+Export turns a chapter of panels and notes into something you can actually carry: an HTML study document, PNG images for slides, a `.docx` for people who live in Word, or a print view for the PDF crowd.
 
 <figure class="shot">
   <img src="/assets/screenshots/export-dialog.png" alt="Export dialog with layout templates, scope, languages, image mode and a live preview">
@@ -9,7 +9,7 @@ Export turns a chapter of panels and notes into something you can read, print or
 
 ## The problem it solves
 
-Your notes live inside the app, attached to panels. To review them on a tablet, print them, or drop a comparison into a slide deck, you need a portable artifact that keeps the page image and the matching notes together — without uploading anything.
+Your notes live inside the app, glued to panels. Reviewing them on a tablet, printing them, or dropping a comparison into a slide deck all need a portable artifact that keeps the page image and the matching notes together — without uploading anything.
 
 ## Opening the dialog
 

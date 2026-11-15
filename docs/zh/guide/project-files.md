@@ -1,6 +1,6 @@
 # 工程文件与格式
 
-KomaYomi 存储的一切都是普通文件：图片在 `raw/`，标注在 `data/`，生成结果在 `exports/`。本页介绍把这份工作搬到别处的三种方式，以及让旧文件保持可读的版本规则。
+KomaYomi 存储的一切都是普通文件：图片在 `raw/`，标注在 `data/`，生成结果在 `exports/`。本页介绍把这份工作搬到别处的三种方式，以及让旧文件保持可读、而不是变成考古现场的版本规则。
 
 ## 它解决什么问题
 
@@ -74,7 +74,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ### `.mnexp` —— 导出模板
 
-保存 HTML 和 PNG 导出的版式与样式设置。可以现在导出、以后导入。模板存储在 `data/templates/export.json`。
+保存 HTML、Word 与打印文档的版式与样式设置。可以现在导出、以后导入。模板存储在 `data/templates/export.json`。
 
 ### `.mnpage.json` —— 单页
 
@@ -170,5 +170,5 @@ data/.backup-meta.json
 ## 相关
 
 - [数据格式](/zh/data-format) —— 完整的 JSON 字段参考。
-- [导出](/zh/guide/export) —— HTML 与 PNG 输出。
+- [导出](/zh/guide/export) —— HTML、Word、PDF 与 PNG 输出。
 - [远端存储与备份](/zh/guide/remote) —— 备份目标。

@@ -1,10 +1,10 @@
 # Remote Storage & Backup
 
-Your images can live on another disk, a NAS share or a WebDAV server while annotations stay in the local `data/` folder. This page explains how remote libraries behave, what happens offline, and how backups work.
+Your images can live on another disk, a NAS share or a WebDAV server while annotations stay in the local `data/` folder. This page covers how remote libraries behave, what happens when the network sulks, and how backups work.
 
 ## The problem it solves
 
-A manga library is often much larger than the disk you want the app to index, or it already lives on a NAS. Copying tens of thousands of images into `raw/` is wasteful. At the same time, annotations are small and must never be lost when the network is down.
+A manga library is often much bigger than the disk you want the app to index — or it already lives on a NAS. Copying tens of thousands of images into `raw/` is wasteful. Annotations, meanwhile, are tiny and must never be lost just because the Wi-Fi blinked.
 
 KomaYomi separates the two: **images are read remotely on demand, annotations are written locally.**
 
