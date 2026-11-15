@@ -335,6 +335,7 @@ const enSidebar = [
       { text: 'Remote & Backup', link: '/guide/remote' },
       { text: 'Project Files & Formats', link: '/guide/project-files' },
       { text: 'Shortcuts', link: '/guide/shortcuts' },
+      { text: 'On Different Devices', link: '/guide/devices' },
     ],
   },
   {
@@ -367,6 +368,7 @@ const zhSidebar = [
       { text: '备份与远端', link: '/zh/guide/remote' },
       { text: '工程文件与格式', link: '/zh/guide/project-files' },
       { text: '快捷键总表', link: '/zh/guide/shortcuts' },
+      { text: '不同设备上的样子', link: '/zh/guide/devices' },
     ],
   },
   {
@@ -399,6 +401,7 @@ const jaSidebar = [
       { text: 'バックアップとリモート', link: '/ja/guide/remote' },
       { text: 'プロジェクトファイルと形式', link: '/ja/guide/project-files' },
       { text: 'ショートカット一覧', link: '/ja/guide/shortcuts' },
+      { text: 'デバイスごとの表示', link: '/ja/guide/devices' },
     ],
   },
   {
@@ -434,6 +437,7 @@ const enTheme = {
         { text: 'Remote & Backup', link: '/guide/remote' },
         { text: 'Project Files & Formats', link: '/guide/project-files' },
         { text: 'Shortcuts', link: '/guide/shortcuts' },
+        { text: 'On Different Devices', link: '/guide/devices' },
       ],
     },
     {
@@ -502,6 +506,7 @@ const zhTheme = {
         { text: '备份与远端', link: '/zh/guide/remote' },
         { text: '工程文件与格式', link: '/zh/guide/project-files' },
         { text: '快捷键总表', link: '/zh/guide/shortcuts' },
+        { text: '不同设备上的样子', link: '/zh/guide/devices' },
       ],
     },
     {
@@ -570,6 +575,7 @@ const jaTheme = {
         { text: 'バックアップとリモート', link: '/ja/guide/remote' },
         { text: 'プロジェクトファイルと形式', link: '/ja/guide/project-files' },
         { text: 'ショートカット一覧', link: '/ja/guide/shortcuts' },
+        { text: 'デバイスごとの表示', link: '/ja/guide/devices' },
       ],
     },
     {
