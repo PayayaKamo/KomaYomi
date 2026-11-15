@@ -183,6 +183,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | Code                    | HTTP | Meaning                              | Common cause                      | What to do                                          |
 | ----------------------- | ---- | ------------------------------------ | --------------------------------- | --------------------------------------------------- |
 | `ERR_PLUGIN_NO_EXPORT`  | 200* | Module has no `panels` export        | Plugin file malformed             | Export `panels` from `plugins/*.mjs`.               |
+| `ERR_PLUGIN_LOAD`       | 200* | Module could not be imported         | Syntax error, missing dependency, throws at load | Fix the module; the warning keeps the original error text. |
+| `ERR_PLUGIN_RUN_FAILED` | 200* | `panels()` threw while running       | Unhandled input, runtime bug      | Catch errors inside the plugin; detection falls back to auto. |
+| `ERR_PLUGIN_BAD_RESULT` | 200* | Returned neither an array nor `{ panels }` | Wrong return value or shape | Return an array of rectangles or `{ panels: [...] }`. |
 | `ERR_PLUGIN_TIMEOUT`    | 504* | Plugin exceeded 2500 ms              | Slow algorithm on a large page    | Optimise the plugin; the server falls back to auto. |
 | `ERR_PLUGIN_NO_PANELS`  | 200* | Plugin returned no panels            | Threshold too strict              | Return at least one panel, or fall back to auto.    |
 | `ERR_PLUGIN_NONE`       | 200* | No plugin matched the page           | No plugin, or `match` mismatch    | Add a plugin or force `--auto` in the CLI.          |

@@ -81,7 +81,7 @@ The server expands the grid into normalized panel rectangles. Rows and cells are
 
 ## Panel plugins
 
-A plugin is a JS module in `plugins/` or `data/plugins/`. `.mjs`, `.cjs` and `.js` are all loaded. Files are tried in directory order — `plugins/` first, then `data/plugins/` — and the first matching plugin wins. Neither directory is sorted, so do not use filenames to control priority. A file that throws while loading stops the search; a file with no valid export is skipped.
+A plugin is a JS module in `plugins/` or `data/plugins/`. `.mjs`, `.cjs` and `.js` are all loaded. Files are tried in directory order — `plugins/` first, then `data/plugins/` — and the first matching plugin wins. Each directory is sorted by natural filename order (`page2.js` before `page10.js`), so filenames decide priority when two plugins claim the same page. A file that throws while loading stops the search; a file with no valid export is skipped.
 
 ### Minimal working plugin
 
