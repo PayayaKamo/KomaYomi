@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { decodeGray, sortReadingOrder } from './detect.ts';
+import { PNG } from 'pngjs';
+import { decodeGray, decodeRgba, sortReadingOrder } from './detect.ts';
+import type { RgbaImage } from './detect.ts';
 import { readPageDoc } from './storage.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
 import { applyGroupOrder } from '../shared/panelOrder.ts';
+import { mosaicBlockSize } from '../shared/mosaic.ts';
 import type {
   AlignOffset,
   Annotation,
@@ -145,12 +148,77 @@ function combinedOffset(page: AlignOffset | undefined, panel: AlignOffset | unde
 
 const PAGE_RECT: PanelRect = { x: 0, y: 0, w: 1, h: 1 };
 
+/** Page-space region covered by a mosaic annotation. */
+function annotationRegion(a: Annotation, doc: PageDoc): PanelRect {
+  const scope = a.scope === 'panel' ? (doc.panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
+  const xs = a.points.map((p) => p.x);
+  const ys = a.points.map((p) => p.y);
+  const x0 = Math.min(...xs);
+  const y0 = Math.min(...ys);
+  return {
+    x: scope.x + x0 * scope.w,
+    y: scope.y + y0 * scope.h,
+    w: (Math.max(...xs) - x0) * scope.w,
+    h: (Math.max(...ys) - y0) * scope.h,
+  };
+}
+
+/**
+ * Real pixelation of one page region, mirroring the browser canvas used by the editor,
+ * the compare view and the PNG export: average each block, then upscale without smoothing.
+ */
+function mosaicPatch(img: RgbaImage, region: PanelRect): Buffer | null {
+  const { width, height, data } = img;
+  const x = Math.min(1, Math.max(0, region.x));
+  const y = Math.min(1, Math.max(0, region.y));
+  const sx = Math.floor(x * width);
+  const sy = Math.floor(y * height);
+  const sw = Math.min(width - sx, Math.max(1, Math.round(Math.min(1 - x, region.w) * width)));
+  const sh = Math.min(height - sy, Math.max(1, Math.round(Math.min(1 - y, region.h) * height)));
+  if (sw < 2 || sh < 2) return null;
+
+  const block = mosaicBlockSize(sw, sh);
+  const bw = Math.max(1, Math.ceil(sw / block));
+  const bh = Math.max(1, Math.ceil(sh / block));
+  const sums = new Float64Array(bw * bh * 3);
+  const counts = new Uint32Array(bw * bh);
+  for (let py = 0; py < sh; py++) {
+    const by = Math.min(bh - 1, Math.floor(py / block));
+    const row = (sy + py) * width;
+    for (let px = 0; px < sw; px++) {
+      const idx = by * bw + Math.min(bw - 1, Math.floor(px / block));
+      const p = (row + sx + px) * 4;
+      sums[idx * 3] += data[p];
+      sums[idx * 3 + 1] += data[p + 1];
+      sums[idx * 3 + 2] += data[p + 2];
+      counts[idx] += 1;
+    }
+  }
+
+  const outW = bw * block;
+  const outH = bh * block;
+  const png = new PNG({ width: outW, height: outH });
+  for (let oy = 0; oy < outH; oy++) {
+    const by = Math.min(bh - 1, Math.floor(oy / block));
+    for (let ox = 0; ox < outW; ox++) {
+      const idx = by * bw + Math.min(bw - 1, Math.floor(ox / block));
+      const n = counts[idx] || 1;
+      const p = (oy * outW + ox) * 4;
+      png.data[p] = sums[idx * 3] / n;
+      png.data[p + 1] = sums[idx * 3 + 1] / n;
+      png.data[p + 2] = sums[idx * 3 + 2] / n;
+      png.data[p + 3] = 255;
+    }
+  }
+  return PNG.sync.write(png);
+}
+
 /**
  * Render the annotation layer as vector SVG.
  * Coordinates follow the UI convention: page scope is 0..1 of the whole page, panel scope is 0..1 inside that panel;
  * stroke widths scale with page width and font sizes with page height, so proportions stay correct when cropping at a larger scale.
  */
-function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuffix: string): string {
+function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number): string {
   const annotations = doc.annotations ?? [];
   // The visibility switch on the panel editor also controls exports.
   if (doc.annotationsVisible === false || !annotations.length) return '';
@@ -163,7 +231,6 @@ function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuff
   });
   const sw = (fraction: number) => Math.max(0.5, (fraction * vw) / view.w);
   const fs = (fraction: number) => Math.max(3, (fraction * vh) / view.h);
-  const patternId = `ann-mosaic-${idSuffix}`;
 
   const shapes = annotations
     .map((a: Annotation) => {
@@ -224,9 +291,8 @@ function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuff
             font,
           )}" font-weight="700" text-anchor="middle" dominant-baseline="central">${esc(a.text ?? '1')}</text></g>`;
         case 'mosaic':
-          return `<rect x="${num(Math.min(first.x, last.x))}" y="${num(Math.min(first.y, last.y))}" width="${num(
-            Math.abs(last.x - first.x),
-          )}" height="${num(Math.abs(last.y - first.y))}" fill="url(#${patternId})" />`;
+          // Redaction is real pixelation, generated as a PNG overlay next to this SVG.
+          return '';
         default:
           return '';
       }
@@ -235,10 +301,6 @@ function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuff
 
   if (!shapes) return '';
   return `<svg class="ann-overlay" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none" aria-hidden="true">
-    <defs><pattern id="${patternId}" width="10" height="10" patternUnits="userSpaceOnUse">
-      <rect width="10" height="10" fill="#9aa0a6" /><rect width="5" height="5" fill="#6b7280" />
-      <rect x="5" y="5" width="5" height="5" fill="#6b7280" />
-    </pattern></defs>
     ${shapes}
   </svg>`;
 }
@@ -298,6 +360,8 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .crops{display:grid;gap:10px;align-items:start}
 .crop{position:relative;overflow:hidden;background-repeat:no-repeat;border:1px solid var(--line);border-radius:4px;min-height:60px}
 .ann-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.ann-mosaic-img{position:absolute;display:block;pointer-events:none;image-rendering:pixelated}
+.ann-mosaic-solid{position:absolute;pointer-events:none;background:#6b7280}
 .crop-label{font-size:11px;color:var(--muted);margin-bottom:4px}
 .crop-wrap{display:flex;flex-direction:column}
 .note-src{margin-top:5px;font-size:12px;color:var(--muted)}
@@ -381,12 +445,14 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     }
 
     const images: Record<string, PageImage> = {};
+    const pageFiles: Record<string, string> = {};
     let pageAspect = 0.7;
     for (const lang of config.languages) {
       const url = page.files[lang];
       if (!url) continue;
       const file = path.join(rootDir, decodeURIComponent(url));
       if (!fs.existsSync(file)) continue;
+      pageFiles[lang] = file;
       let width = 0;
       let height = 0;
       try {
@@ -424,6 +490,58 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     const labels = new Map<Panel, string>();
     ordered.forEach((p, i) => labels.set(p, t('EXPORT_PANEL_NO', { n: i + 1 })));
 
+    // Mosaic annotations are baked into small pixelated PNGs at export time: the exported
+    // HTML cannot sample pixels, and a checkerboard looked nothing like the PNG/Word output.
+    const mosaics =
+      doc.annotationsVisible === false
+        ? []
+        : (doc.annotations ?? []).filter((a) => a.kind === 'mosaic' && a.points.length >= 2);
+    const rgbaByLang = new Map<string, RgbaImage | null>();
+    const patchByKey = new Map<string, string | null>();
+
+    const patchFor = (lang: string, annotation: Annotation, order: number): string | null => {
+      const key = `${lang}|${annotation.id}`;
+      if (patchByKey.has(key)) return patchByKey.get(key) ?? null;
+      let src: string | null = null;
+      const file = pageFiles[lang];
+      if (file && images[lang]) {
+        try {
+          if (!rgbaByLang.has(lang)) rgbaByLang.set(lang, decodeRgba(fs.readFileSync(file), file));
+          const rgba = rgbaByLang.get(lang);
+          const png = rgba ? mosaicPatch(rgba, annotationRegion(annotation, doc)) : null;
+          if (png) {
+            if (config.embedImages) {
+              src = `data:image/png;base64,${png.toString('base64')}`;
+            } else {
+              const name = `p${String(exported + 1).padStart(3, '0')}-${lang}-m${order + 1}.png`;
+              fs.mkdirSync(path.join(exportRoot, assetDir), { recursive: true });
+              fs.writeFileSync(path.join(exportRoot, assetDir, name), png);
+              src = `./${encodeURI(assetDir)}/${name}`;
+            }
+          }
+        } catch {
+          src = null;
+        }
+      }
+      patchByKey.set(key, src);
+      return src;
+    };
+
+    /** Mosaic overlays positioned in page percentages, clipped by the parent. */
+    const mosaicOverlay = (view: PanelRect, lang: string): string =>
+      mosaics
+        .map((a, order) => {
+          const rect = annotationRegion(a, doc);
+          const style = `left:${num(((rect.x - view.x) / view.w) * 100)}%;top:${num(
+            ((rect.y - view.y) / view.h) * 100,
+          )}%;width:${num((rect.w / view.w) * 100)}%;height:${num((rect.h / view.h) * 100)}%`;
+          const src = patchFor(lang, a, order);
+          return src
+            ? `<img class="ann-mosaic-img" src="${src}" alt="" style="${style}">`
+            : `<div class="ann-mosaic-solid" style="${style}"></div>`;
+        })
+        .join('');
+
     // Write one CSS rule per language for the full-page image; panels crop it with background-position/size.
     // Avoid CSS variables: Chrome silently fails on huge var() values (base64 over 4MB).
     const bgRules = Object.entries(images)
@@ -450,12 +568,10 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
               const eff = offsetRect(panel.rect, combinedOffset(pageOff, doc.panelOffsets?.[panel.id]?.[lang]));
               return `<div class="crop-wrap">
                 <div class="crop-label">${esc(langName(lang))}</div>
-                <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}">${annotationSvg(
-                  doc,
+                <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}">${mosaicOverlay(
                   eff,
-                  langAspect,
-                  `${index}-${panel.id}-${lang}`,
-                )}</div>
+                  lang,
+                )}${annotationSvg(doc, eff, langAspect)}</div>
               </div>`;
             })
             .join('');
@@ -481,24 +597,28 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
         rows || `<div class="empty">${esc(t('EXPORT_EMPTY_PANELS'))}</div>`
       }</div>`;
     } else if (config.template === 'stack') {
-      const mainImg = images[config.languages[0]];
-      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, `${index}-page`) : '';
+      const mainLang = config.languages[0];
+      const mainImg = images[mainLang];
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height) : '';
+      const mosaicPage = mainImg ? mosaicOverlay(PAGE_RECT, mainLang) : '';
       const shot = mainImg
         ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
             t('EXPORT_PAGE_ALT', { n: index + 1 }),
-          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
+          )}" />${mosaicPage}${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
         : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))
         .join('')}`;
       body = `<div class="page-body stack">${shot}${notes ? `<div class="notes">${notes}</div>` : ''}</div>`;
     } else {
-      const mainImg = images[config.languages[0]];
-      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, `${index}-page`) : '';
+      const mainLang = config.languages[0];
+      const mainImg = images[mainLang];
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height) : '';
+      const mosaicPage = mainImg ? mosaicOverlay(PAGE_RECT, mainLang) : '';
       const shot = mainImg
         ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
             t('EXPORT_PAGE_ALT', { n: index + 1 }),
-          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
+          )}" />${mosaicPage}${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
         : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))

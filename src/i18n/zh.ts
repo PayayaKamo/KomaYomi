@@ -716,6 +716,7 @@ export const zh = {
   'export.formatDocx': 'Word 文档',
   'export.wordHint': 'Word 会保留整页图片，笔记转为可编辑文本。',
   'export.wordIncludeAnnotations': '把标注合成进整页图片（由浏览器合成后再插入）',
+  'export.mosaicHint': '马赛克在编辑器、对照视图、HTML/打印与 PNG/Word 导出中都是真实像素化。',
   'export.generateDocx': '生成 Word',
   'export.downloadDocx': '下载 .docx',
   'export.formatPdf': 'PDF（打印）',

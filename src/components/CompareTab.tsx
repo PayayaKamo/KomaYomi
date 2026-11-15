@@ -974,6 +974,7 @@ export function CompareTab({
               onSelect={setAnnSelected}
               onChange={applyAnnotations}
               viewport={panel.rect}
+              imageUrl={url}
             />
           ) : (
             <AnnotationOverlay
@@ -981,6 +982,7 @@ export function CompareTab({
               panels={doc.panels}
               rect={panel.rect}
               visible={annotationsVisible}
+              imageUrl={url}
             />
           )}
         </div>
@@ -1093,6 +1095,7 @@ export function CompareTab({
               onSelect={setAnnSelected}
               onChange={applyAnnotations}
               viewport={panel.rect}
+              imageUrl={page.files[dragLang]}
             />
           ) : (
             <AnnotationOverlay
@@ -1100,6 +1103,7 @@ export function CompareTab({
               panels={doc.panels}
               rect={panel.rect}
               visible={annotationsVisible}
+              imageUrl={page.files[dragLang]}
             />
           )}
         </div>

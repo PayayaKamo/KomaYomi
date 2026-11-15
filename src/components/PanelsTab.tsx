@@ -1828,6 +1828,7 @@ export function PanelsTab({
                   selectedId={annSelected}
                   onSelect={setAnnSelected}
                   onChange={applyAnnotations}
+                  imageUrl={url}
                 />
               )}
               {imgLoaded &&

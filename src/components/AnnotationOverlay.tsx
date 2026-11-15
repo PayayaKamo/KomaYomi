@@ -1,4 +1,6 @@
 import type { Annotation, Panel, PanelRect } from '../types';
+import { mosaicRegion } from '../lib/mosaicPatch';
+import { MosaicPatch } from './MosaicPatch';
 
 const PAGE_RECT: PanelRect = { x: 0, y: 0, w: 1, h: 1 };
 
@@ -8,6 +10,8 @@ type Props = {
   /** Visible crop of the page in normalized page coordinates. */
   rect: PanelRect;
   visible?: boolean;
+  /** Page image used to pixelate mosaics; without it mosaics render as flat blocks. */
+  imageUrl?: string;
 };
 
 const num = (n: number) => Math.round(n * 100) / 100;
@@ -17,7 +21,7 @@ const num = (n: number) => Math.round(n * 100) / 100;
  * Rendering rules mirror the editable layer (page/panel scope, width as a fraction of the
  * page width, font size as a fraction of the page height) so both views agree.
  */
-export function AnnotationOverlay({ annotations, panels, rect, visible = true }: Props) {
+export function AnnotationOverlay({ annotations, panels, rect, visible = true, imageUrl }: Props) {
   if (!visible || !annotations.length) return null;
 
   const vw = 1000;
@@ -29,7 +33,6 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true }:
   });
   const sw = (fraction: number) => Math.max(0.5, (fraction * vw) / rect.w);
   const fs = (fraction: number) => Math.max(3, (fraction * vh) / rect.h);
-  const mosaicId = 'ann-readonly-mosaic';
 
   const shapes = annotations.map((a) => {
     const scope = a.scope === 'panel' ? (panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
@@ -149,14 +152,16 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true }:
         );
       case 'mosaic':
         return (
-          <rect
-            key={a.id}
-            x={num(Math.min(first.x, last.x))}
-            y={num(Math.min(first.y, last.y))}
-            width={num(Math.abs(last.x - first.x))}
-            height={num(Math.abs(last.y - first.y))}
-            fill={`url(#${mosaicId})`}
-          />
+          <g key={a.id}>
+            <MosaicPatch
+              imageUrl={imageUrl}
+              region={mosaicRegion(scope, a.points)}
+              x={num(Math.min(first.x, last.x))}
+              y={num(Math.min(first.y, last.y))}
+              width={num(Math.abs(last.x - first.x))}
+              height={num(Math.abs(last.y - first.y))}
+            />
+          </g>
         );
       default:
         return null;
@@ -165,13 +170,6 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true }:
 
   return (
     <svg className="ann-crop" viewBox={`0 0 ${vw} ${vh}`} preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <pattern id={mosaicId} width="10" height="10" patternUnits="userSpaceOnUse">
-          <rect width="10" height="10" fill="#9aa0a6" />
-          <rect width="5" height="5" fill="#6b7280" />
-          <rect x="5" y="5" width="5" height="5" fill="#6b7280" />
-        </pattern>
-      </defs>
       {shapes}
     </svg>
   );

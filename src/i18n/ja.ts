@@ -735,6 +735,7 @@ export const ja = {
   'export.formatDocx': 'Word 文書',
   'export.wordHint': 'Word はページ画像を保持し、メモは編集可能なテキストになります。',
   'export.wordIncludeAnnotations': '注釈をページ画像に合成する（ブラウザ側で合成してから挿入）',
+  'export.mosaicHint': 'モザイクはエディター・比較ビュー・HTML/印刷・PNG/Word すべてで実際のピクセル化になります。',
   'export.generateDocx': 'Word を生成',
   'export.downloadDocx': '.docx をダウンロード',
   'export.formatPdf': 'PDF（印刷）',

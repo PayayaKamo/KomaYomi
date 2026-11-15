@@ -279,6 +279,7 @@ export function PanelDetail({
                         panels={doc.panels}
                         rect={panel.rect}
                         visible={annotationsVisible}
+                        imageUrl={url}
                       />
                     </div>
                   </div>

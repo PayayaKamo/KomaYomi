@@ -13,6 +13,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import type { Annotation, AnnotationKind, Panel, PanelRect } from '../types';
 import { clamp01, uid } from '../lib/geometry';
+import { mosaicRegion } from '../lib/mosaicPatch';
+import { MosaicPatch } from './MosaicPatch';
 import { t } from '../i18n';
 import type { MessageKey } from '../i18n';
 
@@ -93,6 +95,8 @@ type Props = {
    * passes one panel crop, so the same normalized annotations stay in sync.
    */
   viewport?: PanelRect;
+  /** Page image used to pixelate mosaics; without it mosaics render as flat blocks. */
+  imageUrl?: string;
 };
 
 function panelRect(panels: Panel[], id: string | null): PanelRect {
@@ -127,6 +131,7 @@ function renderShape(
   box: Box,
   extraClass = '',
   viewport: PanelRect = PAGE_RECT,
+  imageUrl?: string,
 ): ReactNode {
   const pts = toPixels(shape.points, rect, box, viewport);
   const color = shape.color ?? ANNOTATION_COLORS[0];
@@ -244,9 +249,9 @@ function renderShape(
       const w = Math.abs(last.x - first.x);
       const h = Math.abs(last.y - first.y);
       return (
-        <foreignObject className={`ann-shape ${extraClass}`} x={x} y={y} width={w} height={h}>
-          <div className="ann-mosaic" />
-        </foreignObject>
+        <g className={`ann-shape ${extraClass}`}>
+          <MosaicPatch imageUrl={imageUrl} region={mosaicRegion(rect, shape.points)} x={x} y={y} width={w} height={h} />
+        </g>
       );
     }
     default:
@@ -298,6 +303,7 @@ export function AnnotationLayer({
   onSelect,
   onChange,
   viewport = PAGE_RECT,
+  imageUrl,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState<Box>({ w: 0, h: 0 });
@@ -518,12 +524,12 @@ export function AnnotationLayer({
                   strokeLinejoin="round"
                 />
               )}
-              {renderShape(annotation, rect, box, '', viewport)}
+              {renderShape(annotation, rect, box, '', viewport, imageUrl)}
               {selected && selectionFrame(annotation, rect, box, annotation.color ?? color, viewport)}
             </g>
           );
         })}
-        {draft && renderShape({ ...draft, color, width }, draft.rect, box, 'draft', viewport)}
+        {draft && renderShape({ ...draft, color, width }, draft.rect, box, 'draft', viewport, imageUrl)}
         {textEdit && (
           <foreignObject x={0} y={0} width={box.w} height={box.h}>
             <div className="ann-input-wrap">

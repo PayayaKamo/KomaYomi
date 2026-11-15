@@ -467,6 +467,7 @@ export function ExportDialog({
                 </label>
               )}
               {format === 'pdf' && <p className="hint">{t('export.pdfHint')}</p>}
+              <p className="hint">{t('export.mosaicHint')}</p>
             </section>
 
             <section>

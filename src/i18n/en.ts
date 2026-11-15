@@ -741,6 +741,7 @@ export const en = {
   'export.formatDocx': 'Word document',
   'export.wordHint': 'Word keeps the page images and turns notes into editable text.',
   'export.wordIncludeAnnotations': 'Bake annotations into the page images (the browser composites them)',
+  'export.mosaicHint': 'Mosaics are real pixelation in the editor, compare view, HTML/print and PNG/Word exports.',
   'export.generateDocx': 'Generate Word',
   'export.downloadDocx': 'Download .docx',
   'export.formatPdf': 'PDF (print)',

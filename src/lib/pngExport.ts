@@ -1,5 +1,6 @@
 import type { Annotation, Lang, PageEntry, Panel, PanelRect } from '../types';
 import { langLabel, t } from '../i18n';
+import { mosaicBlockSize } from '../../shared/mosaic';
 
 export type PngMode = 'page' | 'panel' | 'collage';
 
@@ -166,7 +167,7 @@ function drawMosaic(
   h: number,
 ): void {
   if (w < 1 || h < 1) return;
-  const block = Math.max(6, Math.round(Math.min(w, h) / 14));
+  const block = mosaicBlockSize(w, h);
   const small = createCanvas(Math.max(1, Math.floor(w / block)), Math.max(1, Math.floor(h / block)));
   get2d(small).drawImage(img, x, y, w, h, 0, 0, small.width, small.height);
   const previous = ctx.imageSmoothingEnabled;

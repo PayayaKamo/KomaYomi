@@ -6,6 +6,7 @@ import { sortReadingOrder } from '../shared/panelOrder.ts';
 import { AppError } from './errors.ts';
 
 type Gray = { width: number; height: number; data: Uint8Array };
+export type RgbaImage = { width: number; height: number; data: Uint8Array | Buffer };
 
 /** Detector version, written into every page JSON so stale results can be recognized after an algorithm upgrade. */
 export const DETECTOR_VERSION = 'xycut-1.3';
@@ -51,33 +52,29 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
 
 /** Decode an image to grayscale (RGBA -> luminance); throws on failure. */
 export function decodeGray(buf: Buffer, filename: string): Gray {
-  const ext = path.extname(filename).toLowerCase();
-  let width = 0;
-  let height = 0;
-  let rgba: Uint8Array | Buffer;
-
-  const format = sniffFormat(buf);
-  const effective = format === 'unknown' ? (ext === '.png' ? 'png' : 'jpeg') : format;
-
-  if (effective === 'png') {
-    const png = PNG.sync.read(buf);
-    width = png.width;
-    height = png.height;
-    rgba = png.data;
-  } else if (effective === 'jpeg') {
-    const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true });
-    width = img.width;
-    height = img.height;
-    rgba = img.data as Uint8Array;
-  } else {
-    throw new AppError('ERR_UNSUPPORTED_IMAGE_FORMAT', { format, ext }, 415);
-  }
-
+  const { width, height, data: rgba } = decodeRgba(buf, filename);
   const gray = new Uint8Array(width * height);
   for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
     gray[i] = (rgba[p] * 299 + rgba[p + 1] * 587 + rgba[p + 2] * 114) / 1000;
   }
   return { width, height, data: gray };
+}
+
+/** Decode an image to RGBA; throws on failure. Used where color sampling is required (mosaic redaction). */
+export function decodeRgba(buf: Buffer, filename: string): RgbaImage {
+  const ext = path.extname(filename).toLowerCase();
+  const format = sniffFormat(buf);
+  const effective = format === 'unknown' ? (ext === '.png' ? 'png' : 'jpeg') : format;
+
+  if (effective === 'png') {
+    const png = PNG.sync.read(buf);
+    return { width: png.width, height: png.height, data: png.data };
+  }
+  if (effective === 'jpeg') {
+    const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true });
+    return { width: img.width, height: img.height, data: img.data as Uint8Array };
+  }
+  throw new AppError('ERR_UNSUPPORTED_IMAGE_FORMAT', { format, ext }, 415);
 }
 
 /** Downsample by an integer step; returns the reduced grayscale image and the scale factor. */
