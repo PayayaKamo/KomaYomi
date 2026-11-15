@@ -5325,6 +5325,49 @@ kbd {
   font-weight: 600;
   color: var(--accent);
 }
+.preprocess-file-tools {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.preprocess-file-tools summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.preprocess-file-tools .preprocess-grid {
+  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.preprocess-file-tools > .btn {
+  margin-top: 8px;
+}
+.preprocess-split-toggle {
+  width: 100%;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.preprocess-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+  padding: 6px;
+  border-top: 1px solid var(--line);
+}
+.preprocess-split .field {
+  flex: 1 1 90px;
+  min-width: 80px;
+}
+.preprocess-split-actions {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.preprocess-split .preprocess-hint {
+  width: 100%;
+  margin: 0;
+}
 
 /* ---- panel plugins dialog ---- */
 .plugins-modal {

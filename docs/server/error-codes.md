@@ -117,6 +117,10 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_MISSING_VOLUME_DIRS`     | 400  | Volume name or language dirs not supplied | Creating a volume without directories            | Send `{ volume, dirs }`.                               |
 | `ERR_UNKNOWN_DIRECTION`       | 400  | Reading direction is not supported        | Client sent a removed or misspelled value         | Use one of the seven reading directions still in the UI. |
 | `ERR_PREPROCESS_NO_BACKUP`    | 404  | No previous preprocessing result to roll back | Preprocessing never ran, or was already rolled back | Run preprocessing once, then roll back.          |
+| `ERR_RENAME_ORDER`            | 400  | Page order is not a permutation of the chapter | A page was skipped or listed twice               | Send every current page index exactly once.            |
+| `ERR_RENAME_CONFLICT`         | 409  | Target filename already exists in the folder | A file outside the rename batch uses that name   | Choose another prefix/start, or move the conflicting file. |
+| `ERR_RENAME_FAILED`           | 500  | Batch rename failed and was rolled back   | Disk full, permission denied, file locked        | See `detail`; the manifest under `data/file-ops/` lists every planned move. |
+| `ERR_SPLIT_FAILED`            | 500  | Page split failed and was rolled back     | Disk full, permission denied, file locked        | See `detail`; the original is kept unless the manifest says the backup step finished. |
 | `ERR_URL_NOT_HTTP`            | 400  | Title fetch only supports http(s)         | `file://` or relative URL                        | Use an `http(s)` URL.                                  |
 | `ERR_PAGE_NO_IMAGES`          | 400  | Page has no image in any language         | Empty chapter folder, naming mismatch            | Check the files for that page index.                   |
 | `ERR_PAGE_NO_PANELS`          | 400  | Operation needs panels first              | Capturing a layout from a page without panels    | Detect panels on that page, then retry.                |

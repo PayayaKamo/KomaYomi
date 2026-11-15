@@ -74,6 +74,61 @@ function writePreprocessConfig(dataRoot: string, cfg: LibraryConfig): void {
   writeStoredFile(file, 'mnconfig', preserveUnknown(base, { ...cfg, volumes: cfg.volumes ?? {} }));
 }
 
+/**
+ * Rewrite page indices in the saved chapter overrides after files moved on disk.
+ * `mapIndex` returns the new index, or `null` when the old page no longer exists.
+ * Returns true when the config changed.
+ */
+export function remapChapterPages(
+  dataRoot: string,
+  volume: string,
+  chapter: string,
+  mapIndex: (index: number) => number | null,
+): boolean {
+  const cfg = readLibraryConfig(dataRoot);
+  const current = cfg.volumes?.[volume]?.chapters?.[chapter];
+  if (!current) return false;
+  const next: ChapterOverride = { ...current };
+
+  if (current.order) {
+    const order = current.order
+      .map(mapIndex)
+      .filter((index): index is number => index !== null)
+      .filter((index, position, list) => list.indexOf(index) === position);
+    if (order.length) next.order = order;
+    else delete next.order;
+  }
+  if (current.excluded) {
+    const excluded = current.excluded
+      .map(mapIndex)
+      .filter((index): index is number => index !== null)
+      .filter((index, position, list) => list.indexOf(index) === position);
+    if (excluded.length) next.excluded = excluded;
+    else delete next.excluded;
+  }
+  if (current.kinds) {
+    const kinds: Record<string, PageKind> = {};
+    for (const [key, kind] of Object.entries(current.kinds)) {
+      const mapped = mapIndex(Number(key));
+      if (mapped !== null) kinds[String(mapped)] = kind;
+    }
+    if (Object.keys(kinds).length) next.kinds = kinds;
+    else delete next.kinds;
+  }
+  if (JSON.stringify(next) === JSON.stringify(current)) return false;
+
+  const volumes = { ...(cfg.volumes ?? {}) };
+  const volumeCfg = { ...volumes[volume] };
+  const chapters = { ...(volumeCfg.chapters ?? {}) };
+  if (Object.keys(next).length) chapters[chapter] = next;
+  else delete chapters[chapter];
+  if (Object.keys(chapters).length) volumeCfg.chapters = chapters;
+  else delete volumeCfg.chapters;
+  volumes[volume] = volumeCfg;
+  writePreprocessConfig(dataRoot, { ...cfg, volumes });
+  return true;
+}
+
 const cleanText = (value: unknown, max = 200): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const text = value.trim().slice(0, max);

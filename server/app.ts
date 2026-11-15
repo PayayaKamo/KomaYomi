@@ -7,6 +7,7 @@ import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writ
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import { addVolume, removeVolume, setVolumeDefaultDirection, setVolumeDirs } from './libraryAdmin.ts';
 import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
+import { renameChapterFiles, splitPage } from './fileOps.ts';
 import { sniffFormat, sortReadingOrder } from './detect.ts';
 import { detectPage } from './pageDetect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, saveLayout } from './layouts.ts';
@@ -955,6 +956,46 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
           return true;
         }
         const result = restorePreprocess(dataRoot, body.volume);
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/preprocess/rename' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          chapter?: string;
+          prefix?: string;
+          start?: number;
+          padding?: number;
+          order?: number[];
+        };
+        const result = renameChapterFiles(rawRoot, dataRoot, {
+          volume: String(body.volume ?? ''),
+          chapter: String(body.chapter ?? ''),
+          prefix: body.prefix,
+          start: body.start,
+          padding: body.padding,
+          order: Array.isArray(body.order) ? body.order.map((index) => Number(index)) : undefined,
+        });
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/preprocess/split' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+          axis?: 'vertical' | 'horizontal';
+          ratio?: number;
+        };
+        const result = splitPage(rawRoot, dataRoot, {
+          volume: String(body.volume ?? ''),
+          chapter: String(body.chapter ?? ''),
+          pageIndex: Number(body.pageIndex),
+          axis: body.axis,
+          ratio: body.ratio,
+        });
         sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
         return true;
       }

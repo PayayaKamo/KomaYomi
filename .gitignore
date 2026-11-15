@@ -13,6 +13,8 @@ pnpm-workspace.yaml
 
 # Runtime caches and generated deliverables
 data/cache/
+# Rename manifests and original images kept by the preprocessing file tools.
+data/file-ops/
 exports/
 .screenshots/
 .trae-html-share-packages/

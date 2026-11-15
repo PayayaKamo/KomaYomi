@@ -141,6 +141,26 @@ export const MESSAGES = {
     zh: '没有可回滚的上一次预处理结果',
     ja: '復元できる前回の前処理結果がありません',
   },
+  ERR_RENAME_ORDER: {
+    en: 'Page order must list every page exactly once',
+    zh: '页序必须且只能包含每一页一次',
+    ja: 'ページ順は各ページをちょうど 1 回ずつ指定してください',
+  },
+  ERR_RENAME_CONFLICT: {
+    en: 'Cannot rename: "{name}" already exists in this folder',
+    zh: '无法改名：该目录下已存在「{name}」',
+    ja: '名前を変更できません：このフォルダに「{name}」が既に存在します',
+  },
+  ERR_RENAME_FAILED: {
+    en: 'Batch rename failed and was rolled back: {detail}',
+    zh: '批量改名失败，已回滚：{detail}',
+    ja: '一括リネームに失敗したため元に戻しました：{detail}',
+  },
+  ERR_SPLIT_FAILED: {
+    en: 'Page split failed and was rolled back: {detail}',
+    zh: '跨页拆分失败，已回滚：{detail}',
+    ja: 'ページ分割に失敗したため元に戻しました：{detail}',
+  },
   ERR_URL_NOT_HTTP: {
     en: 'Only http(s) links are supported',
     zh: '只支持 http(s) 链接',

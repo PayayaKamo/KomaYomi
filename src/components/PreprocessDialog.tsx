@@ -42,12 +42,14 @@ function PreprocessEditor({
   onBackupChange,
   onRestored,
   onDone,
+  onFilesChanged,
 }: {
   volume: VolumeEntry;
   backup: { at: string; volume: string } | null;
   onBackupChange: (backup: { at: string; volume: string } | null) => void;
   onRestored: () => void;
   onDone: (library: Library) => void;
+  onFilesChanged: (library: Library, notice: string) => void;
 }) {
   const { t, formatNumber } = useI18n();
   const [title, setTitle] = useState(() => (volume.title === volume.id ? '' : volume.title));
@@ -69,6 +71,15 @@ function PreprocessEditor({
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  // File operations (rename/split) run outside the apply flow and report through the parent.
+  const [fileBusy, setFileBusy] = useState<string | null>(null);
+  const [renamePrefix, setRenamePrefix] = useState('');
+  const [renameStart, setRenameStart] = useState('1');
+  const [renamePadding, setRenamePadding] = useState('3');
+  // `${chapter}:${pageIndex}` of the page whose split form is open.
+  const [splitTarget, setSplitTarget] = useState<string | null>(null);
+  const [splitAxis, setSplitAxis] = useState<'vertical' | 'horizontal'>('vertical');
+  const [splitRatio, setSplitRatio] = useState('50');
   // Folder name -> language id; an empty value means "detect from the folder name".
   const [dirLangs, setDirLangs] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
@@ -145,6 +156,58 @@ function PreprocessEditor({
 
   const chapterName = (chapter: string) =>
     chapter === SINGLE_CHAPTER ? t('sidebar.singleChapter') : t('format.chapter', { chapter });
+
+  /** Renames the chapter's image files in the current draft order (all complete languages). */
+  const renameFiles = async (chapter: string) => {
+    setFileBusy('rename');
+    setError(null);
+    setStatus('');
+    try {
+      const draft = chapters[chapter];
+      const res = await api.renameChapterFiles({
+        volume: volume.id,
+        chapter,
+        prefix: renamePrefix.trim(),
+        start: Number(renameStart),
+        padding: Number(renamePadding),
+        order: draft?.order,
+      });
+      let message = t('preprocess.renamed', {
+        files: formatNumber(res.files),
+        docs: formatNumber(res.docs),
+      });
+      if (res.skipped.length) {
+        message += ` ${t('preprocess.renameSkipped', { langs: res.skipped.map((lang) => langLabel(lang)).join(', ') })}`;
+      }
+      onFilesChanged(res.library, message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFileBusy(null);
+    }
+  };
+
+  /** Splits one page at a normalized position and inserts the second half as the next page. */
+  const splitPage = async (chapter: string, pageIndex: number) => {
+    setFileBusy('split');
+    setError(null);
+    setStatus('');
+    try {
+      const ratio = Math.min(90, Math.max(10, Number(splitRatio))) / 100;
+      const res = await api.splitPage({ volume: volume.id, chapter, pageIndex, axis: splitAxis, ratio });
+      onFilesChanged(
+        res.library,
+        t('preprocess.splitDone', {
+          page: formatNumber(pageIndex + 1),
+          next: formatNumber(pageIndex + 2),
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFileBusy(null);
+    }
+  };
 
   /** Swaps a page with its neighbour in the draft order. */
   const movePage = (chapter: string, from: number, delta: number) => {
@@ -243,12 +306,57 @@ function PreprocessEditor({
                   }
                 />
               </label>
+              <details className="preprocess-file-tools">
+                <summary>{t('preprocess.filesTitle')}</summary>
+                <p className="preprocess-hint">{t('preprocess.renameHint')}</p>
+                <div className="preprocess-grid">
+                  <label className="field">
+                    <span>{t('preprocess.renamePrefix')}</span>
+                    <input
+                      value={renamePrefix}
+                      maxLength={40}
+                      placeholder={t('preprocess.renamePrefixPlaceholder')}
+                      onChange={(e) => setRenamePrefix(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{t('preprocess.renameStart')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999999}
+                      value={renameStart}
+                      onChange={(e) => setRenameStart(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{t('preprocess.renamePadding')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={6}
+                      value={renamePadding}
+                      onChange={(e) => setRenamePadding(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={fileBusy !== null || busy}
+                  onClick={() => void renameFiles(chapter.chapter)}
+                >
+                  {fileBusy === 'rename' ? t('preprocess.renaming') : t('preprocess.renameAction')}
+                </button>
+              </details>
               <div className="preprocess-pages">
                 {orderedPages.map((page, position) => {
                   const file = firstFile(volume, page.files);
                   const key = String(page.index);
                   const kind = draft.kinds[key];
                   const excluded = draft.excluded.includes(page.index);
+                  const splitKey = `${chapter.chapter}:${page.index}`;
+                  const splitting = splitTarget === splitKey;
                   return (
                     <figure className={`preprocess-page ${excluded ? 'excluded' : ''}`} key={page.index}>
                       {file ? (
@@ -320,7 +428,60 @@ function PreprocessEditor({
                             </option>
                           ))}
                         </select>
+                        <button
+                          type="button"
+                          className="preprocess-split-toggle"
+                          disabled={!file || fileBusy !== null}
+                          aria-expanded={splitting}
+                          onClick={() => setSplitTarget(splitting ? null : splitKey)}
+                        >
+                          {t('preprocess.splitAction')}
+                        </button>
                       </div>
+                      {splitting && (
+                        <div className="preprocess-split">
+                          <label className="field">
+                            <span>{t('preprocess.splitAxis')}</span>
+                            <select
+                              value={splitAxis}
+                              onChange={(e) => setSplitAxis(e.target.value as 'vertical' | 'horizontal')}
+                            >
+                              <option value="vertical">{t('preprocess.splitVertical')}</option>
+                              <option value="horizontal">{t('preprocess.splitHorizontal')}</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            <span>{t('preprocess.splitPosition')}</span>
+                            <input
+                              type="number"
+                              min={10}
+                              max={90}
+                              step={1}
+                              value={splitRatio}
+                              onChange={(e) => setSplitRatio(e.target.value)}
+                            />
+                          </label>
+                          <div className="preprocess-split-actions">
+                            <button
+                              type="button"
+                              className="btn primary"
+                              disabled={fileBusy !== null}
+                              onClick={() => void splitPage(chapter.chapter, page.index)}
+                            >
+                              {fileBusy === 'split' ? t('preprocess.splitting') : t('preprocess.splitConfirm')}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={fileBusy !== null}
+                              onClick={() => setSplitTarget(null)}
+                            >
+                              {t('preprocess.splitCancel')}
+                            </button>
+                          </div>
+                          <p className="preprocess-hint">{t('preprocess.splitHint')}</p>
+                        </div>
+                      )}
                     </figure>
                   );
                 })}
@@ -427,6 +588,12 @@ export function PreprocessDialog({ library, initialVolume, onClose, onDone }: Pr
                 onDone={(lib) => {
                   setLocalLibrary(lib);
                   onDone(lib);
+                }}
+                onFilesChanged={(lib, message) => {
+                  setLocalLibrary(lib);
+                  onDone(lib);
+                  setRevision((n) => n + 1);
+                  setNotice(message);
                 }}
               />
             )}

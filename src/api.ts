@@ -202,6 +202,31 @@ export const api = {
   restorePreprocess: (volume: string) =>
     request<{ at: string; library: Library }>('/api/preprocess/restore', json({ volume })),
 
+  renameChapterFiles: (input: {
+    volume: string;
+    chapter: string;
+    prefix?: string;
+    start?: number;
+    padding?: number;
+    order?: number[];
+  }) =>
+    request<{ at: string; manifest: string; files: number; docs: number; skipped: Lang[]; library: Library }>(
+      '/api/preprocess/rename',
+      json(input),
+    ),
+
+  splitPage: (input: {
+    volume: string;
+    chapter: string;
+    pageIndex: number;
+    axis?: 'vertical' | 'horizontal';
+    ratio?: number;
+  }) =>
+    request<{ at: string; manifest: string; pageIndex: number; languages: Lang[]; library: Library }>(
+      '/api/preprocess/split',
+      json(input),
+    ),
+
   /* ---- Directory recognition rules ---- */
   dirRules: () =>
     request<{ rules: DirRule[]; defaults: DirRule[]; customized: boolean; warning?: string }>('/api/dir-rules'),

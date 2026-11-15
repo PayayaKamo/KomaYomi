@@ -107,6 +107,10 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_MISSING_VOLUME_DIRS`     | 400  | 缺少卷名或语言目录配置                                     | 建卷时没给目录                     | 传 `{ volume, dirs }`。                               |
 | `ERR_UNKNOWN_DIRECTION`       | 400  | 不支持的阅读方向                                           | 传了已删除或拼错的取值             | 使用界面上仍提供的 7 个阅读方向之一。                 |
 | `ERR_PREPROCESS_NO_BACKUP`    | 404  | 没有可回滚的上一次预处理结果                               | 还没跑过预处理，或已经回滚过       | 先运行一次预处理，再回滚。                            |
+| `ERR_RENAME_ORDER`            | 400  | 页序不是该话页面的完整排列                                 | 漏掉某页或重复列了某页             | 当前每一页的序号各传一次。                            |
+| `ERR_RENAME_CONFLICT`         | 409  | 目标文件名在该目录下已存在                                 | 有不在本次改名范围内的文件占用了该名 | 换前缀/起始编号，或先移走冲突文件。                   |
+| `ERR_RENAME_FAILED`           | 500  | 批量改名失败，已回滚                                       | 磁盘满、无权限、文件被占用         | 查看 `detail`；`data/file-ops/` 下的清单记录了全部计划中的改名。 |
+| `ERR_SPLIT_FAILED`            | 500  | 跨页拆分失败，已回滚                                       | 磁盘满、无权限、文件被占用         | 查看 `detail`；除非清单显示备份完成，原图仍在原处。   |
 | `ERR_URL_NOT_HTTP`            | 400  | 只支持 http(s) 链接                                        | 用了 `file://` 或相对地址          | 换成 `http(s)` 链接。                                 |
 | `ERR_PAGE_NO_IMAGES`          | 400  | 该页没有任何语言的图片                                     | 话目录为空、命名对不上             | 检查这一页序号对应的文件。                            |
 | `ERR_PAGE_NO_PANELS`          | 400  | 这一页还没有分格可抓取                                     | 在没切格的页上抓取版式             | 先给这一页切格，再重试。                              |
