@@ -666,6 +666,23 @@ export default defineConfig({
     externalLinks: { target: '_blank', rel: 'noopener noreferrer' },
     image: { lazyLoading: true },
     toc: { level: [2, 3] },
+    /**
+     * Raw HTML inside Markdown is not rewritten by VitePress, so root-absolute
+     * `href` values (the 404 page links) would lose the deploy subpath. Prefix
+     * them with `base` while rendering. `<img src>` is left alone because Vite
+     * already resolves public assets (`/assets/...`) and prepends `base`.
+     */
+    config(md) {
+      const rewrite = (html: string) => html.replace(/\bhref="\/(?!\/)/g, `href="${BASE}`)
+
+      const htmlBlock = md.renderer.rules.html_block
+      md.renderer.rules.html_block = (tokens, idx, options, env, self) =>
+        rewrite(htmlBlock ? htmlBlock(tokens, idx, options, env, self) : tokens[idx].content)
+
+      const htmlInline = md.renderer.rules.html_inline
+      md.renderer.rules.html_inline = (tokens, idx, options, env, self) =>
+        rewrite(htmlInline ? htmlInline(tokens, idx, options, env, self) : tokens[idx].content)
+    },
   },
   transformPageData(pageData) {
     const locale = localeOf(pageData.relativePath)

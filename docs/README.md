@@ -89,45 +89,36 @@ Before adding or changing a feature description, verify it in the source (`src/`
 
 ## Publishing to GitHub Pages
 
-The public site lives in the separate repository `https://github.com/PayayaKamo/KomaYomi-docs` and is served from `https://payayakamo.github.io/KomaYomi-docs/`. This `docs/` directory is the only source of truth; the publishing script mirrors it into that repository.
+The public site is served from `https://payayakamo.github.io/KomaYomi-docs/` by the separate repository `https://github.com/PayayaKamo/KomaYomi-docs`. This `docs/` directory is the only source of truth: that repository holds **build output only** — no VitePress source, no `package.json`, no workflow.
 
-### How the sync works
+### How publishing works
 
-`npm run docs:publish` (from the repository root) runs `scripts/publish-docs.mjs`:
+`.github/workflows/docs.yml` in this repository runs on every push to `main` that touches `docs/**`, and can be started manually:
 
-1. Clones `KomaYomi-docs` into a temporary directory (nothing is added to the main repository's history).
-2. Empties the checkout except `.git` and `.github`, then copies the current `docs/` tree — so deleted pages disappear instead of lingering.
-3. Keeps any workflow that already exists in the target. If none is present, it installs `scripts/docs-pages-workflow.yml` as `.github/workflows/pages.yml`.
-4. Commits and pushes to `main` with a normal fast-forward push (never `--force`).
+1. Install dependencies and build inside `docs/` (`npm ci`, `npm run docs:build`).
+2. Clone `KomaYomi-docs`, remove everything except `.git`, and copy `docs/.vitepress/dist` in — so deleted pages disappear instead of lingering.
+3. Commit and push a normal fast-forward commit to `main` (never `--force`).
+4. GitHub Pages serves that branch under the `/KomaYomi-docs/` subpath, which is the `base` in `config.mts`.
 
-Excluded from every publish: `node_modules`, `.vitepress/dist`, `.vitepress/cache`, `.template-tmp`, this `README.md`, and — unless `--with-screenshots` is passed — `public/assets/screenshots`.
-
-### First publish
-
-1. Create the empty `KomaYomi-docs` repository on GitHub (no README needed).
-2. Make sure your machine can push to it, for example with `gh auth login` or an SSH key plus `DOCS_REMOTE=git@github.com:PayayaKamo/KomaYomi-docs.git`.
-3. Preview the change set without pushing: `npm run docs:publish -- --dry-run`.
-4. Push: `npm run docs:publish`.
-5. In the repository settings, open **Pages** and set **Source** to **GitHub Actions** if it is not selected yet.
-6. The first deployment usually appears within 1–3 minutes after the workflow finishes; if Pages was just enabled, allow up to about 10 minutes.
-
-### Day-to-day updates
+The workflow authenticates with the repository secret `DOCS_PUBLISH_TOKEN`. It needs write access to `PayayaKamo/KomaYomi-docs` (fine-grained: **Contents: read and write**; classic: `repo`). Create or rotate it with:
 
 ```bash
-npm run docs:build            # verify locally first
-npm run docs:publish -- --dry-run
-npm run docs:publish
+gh secret set DOCS_PUBLISH_TOKEN --repo PayayaKamo/KomaYomi
 ```
 
-Every run replaces the target content wholesale, so reviews happen in the main repository. Add `--with-screenshots` to publish the sample-library captures (or remove the exclusion in `scripts/publish-docs.mjs`).
+Never commit the token — the workflow only reads it from the secret.
 
-### Useful overrides
+### Pages settings
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `DOCS_REMOTE` | `https://github.com/PayayaKamo/KomaYomi-docs.git` | Target repository URL, e.g. to use SSH. |
-| `DOCS_BRANCH` | `main` | Target branch. |
+In `PayayaKamo/KomaYomi-docs` → **Settings → Pages**, the source must be **Deploy from a branch**, branch `main`, folder `/ (root)`.
 
+### Local check
+
+```bash
+npm run docs:build            # output in docs/.vitepress/dist
+```
+
+Everything under `docs/` except VitePress internals and this `README.md` (`srcExclude`) ends up on the live site.
 
 ## Reference template
 
