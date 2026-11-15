@@ -629,6 +629,11 @@ export const zh = {
   'outbox.syncing': '同步中…',
   'outbox.retryTitle': '离线修改已保存在本机，点击立即重试。',
 
+  /* ---- installed app (offline / update) ---- */
+  'pwa.offline': '离线中 — 已缓存的页面与批注仍可打开',
+  'pwa.updateReady': '新版本已就绪。',
+  'pwa.reload': '刷新',
+
   /* ---- backup & restore ---- */
   'backup.title': '备份与恢复',
   'backup.subtitle': '把 data/ 里的标注、模板、预设打包；缩略图缓存不包含在内',

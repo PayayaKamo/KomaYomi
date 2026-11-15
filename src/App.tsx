@@ -13,6 +13,7 @@ import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './co
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
 import { useOutbox } from './hooks/useOutbox';
+import { usePwaStatus } from './hooks/usePwaStatus';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
 import { DEFAULT_LANGUAGES, READING_DIRECTIONS, isRightToLeft, isVerticalReading } from './types';
@@ -96,6 +97,7 @@ export default function App() {
 
   const pageState = usePage(sel);
   const outbox = useOutbox();
+  const pwa = usePwaStatus();
   const { doc, page } = pageState;
 
   // Hash deep link: #/<volume>/<chapter>/<page (1-based)>, for direct opening and sharing.
@@ -392,6 +394,7 @@ export default function App() {
             />
           )}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {!pwa.online && <span className="pwa-chip">{t('pwa.offline')}</span>}
           {outbox.count > 0 && (
             <button
               type="button"
@@ -649,6 +652,15 @@ export default function App() {
         onBeforeRestore={pageState.flush}
         onRestored={pageState.reload}
       />
+
+      {pwa.updateReady && (
+        <div className="banner info floating pwa-update" role="status">
+          <span>{t('pwa.updateReady')}</span>
+          <button type="button" className="btn tiny" onClick={pwa.applyUpdate}>
+            {t('pwa.reload')}
+          </button>
+        </div>
+      )}
 
       {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 

@@ -72,7 +72,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE);
-        const hit = await cache.match(request);
+        // Vite stamps files with `Vary: Accept-Language`, which would reject a valid
+        // hit when the request headers differ; hashed asset urls never change content.
+        const hit = await cache.match(request, { ignoreVary: true });
         if (hit) return hit;
         const response = await fetch(request);
         if (response.ok) await cache.put(request, response.clone());

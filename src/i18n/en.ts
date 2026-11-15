@@ -654,6 +654,11 @@ export const en = {
   'outbox.syncing': 'Syncing…',
   'outbox.retryTitle': 'Offline edits are kept on this device. Click to retry now.',
 
+  /* ---- installed app (offline / update) ---- */
+  'pwa.offline': 'Offline — cached pages and annotations still open',
+  'pwa.updateReady': 'A new version is ready.',
+  'pwa.reload': 'Reload',
+
   /* ---- backup & restore ---- */
   'backup.title': 'Backup & restore',
   'backup.subtitle': 'Bundles annotations, templates and presets from data/; thumbnail cache is not included',

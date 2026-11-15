@@ -648,6 +648,11 @@ export const ja = {
   'outbox.syncing': '同期中…',
   'outbox.retryTitle': 'オフラインの変更は端末内に保存されています。クリックで再試行します。',
 
+  /* ---- installed app (offline / update) ---- */
+  'pwa.offline': 'オフライン — キャッシュ済みのページと注釈は開けます',
+  'pwa.updateReady': '新しいバージョンがあります。',
+  'pwa.reload': '再読み込み',
+
   /* ---- backup & restore ---- */
   'backup.title': 'バックアップと復元',
   'backup.subtitle': 'data/ の注釈・テンプレート・プリセットをまとめます。サムネイルキャッシュは含みません',
