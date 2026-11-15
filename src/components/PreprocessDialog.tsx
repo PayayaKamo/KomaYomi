@@ -56,15 +56,46 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  // Folder name -> language id; an empty value means "detect from the folder name".
+  const [dirLangs, setDirLangs] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const dir of volume.dirs) {
+      out[dir] = Object.entries(volume.langDirs).find(([, value]) => value === dir)?.[0] ?? '';
+    }
+    return out;
+  });
+
+  const langOptions = useMemo(() => {
+    const set = new Set<string>(volume.languages);
+    for (const lang of Object.values(dirLangs)) if (lang.trim()) set.add(lang.trim());
+    return [...set].sort();
+  }, [volume.languages, dirLangs]);
+
+  const duplicateLang = useMemo(() => {
+    const seen = new Set<string>();
+    for (const dir of volume.dirs) {
+      const lang = dirLangs[dir]?.trim();
+      if (!lang) continue;
+      if (seen.has(lang)) return lang;
+      seen.add(lang);
+    }
+    return '';
+  }, [volume.dirs, dirLangs]);
 
   const apply = async () => {
     setBusy(true);
     setError(null);
     setStatus('');
     try {
+      const dirs: Partial<Record<string, string>> = {};
+      for (const dir of volume.dirs) {
+        const lang = dirLangs[dir]?.trim();
+        if (lang) dirs[lang] = dir;
+      }
       const res = await api.applyPreprocess({
         volume: volume.id,
         title,
+        dirs,
         chapters: Object.fromEntries(
           Object.entries(chapters).map(([chapter, draft]) => [
             chapter,
@@ -114,17 +145,32 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
 
         <section className="preprocess-section">
           <h3>{t('preprocess.languageDirs')}</h3>
+          <p className="preprocess-hint">{t('preprocess.dirsHint')}</p>
           <div className="preprocess-dirs">
-            {volume.dirs.map((dir) => {
-              const lang = Object.entries(volume.langDirs).find(([, value]) => value === dir)?.[0];
-              return (
-                <span className="preprocess-dir" key={dir}>
-                  <code>{dir}</code>
-                  <span>{lang ? langLabel(lang) : '—'}</span>
-                </span>
-              );
-            })}
+            <datalist id="preprocess-lang-options">
+              {langOptions.map((lang) => (
+                <option key={lang} value={lang}>
+                  {langLabel(lang)}
+                </option>
+              ))}
+            </datalist>
+            {volume.dirs.map((dir) => (
+              <label className="preprocess-dir" key={dir} title={dir}>
+                <code>{dir}</code>
+                <input
+                  value={dirLangs[dir] ?? ''}
+                  list="preprocess-lang-options"
+                  placeholder={t('preprocess.languagePlaceholder')}
+                  aria-label={t('preprocess.languageForDir', { dir })}
+                  maxLength={40}
+                  onChange={(e) => setDirLangs((prev) => ({ ...prev, [dir]: e.target.value }))}
+                />
+              </label>
+            ))}
           </div>
+          {duplicateLang && (
+            <div className="banner error">{t('preprocess.duplicateLanguage', { lang: duplicateLang })}</div>
+          )}
         </section>
 
         {volume.chapters.map((chapter) => {
@@ -249,7 +295,12 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
       </div>
       <footer className="modal-foot">
         <span className="spacer" />
-        <button type="button" className="btn primary" disabled={busy} onClick={() => void apply()}>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={busy || Boolean(duplicateLang)}
+          onClick={() => void apply()}
+        >
           {busy ? t('preprocess.applying') : t('preprocess.apply')}
         </button>
       </footer>

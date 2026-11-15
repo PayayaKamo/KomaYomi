@@ -203,6 +203,8 @@ export const zh = {
   'preprocess.languageDirs': '语言目录',
   'preprocess.languageForDir': '「{dir}」对应的语言',
   'preprocess.languagePlaceholder': 'ja / zh / fr…',
+  'preprocess.dirsHint': '为每个目录指定语言；留空则按目录名自动识别。',
+  'preprocess.duplicateLanguage': '语言“{lang}”同时对应了多个目录。',
   'preprocess.orderHint': '用箭头调整页序；被排除的页面不会进入正文与导出。',
   'preprocess.moveEarlier': '前移',
   'preprocess.moveLater': '后移',

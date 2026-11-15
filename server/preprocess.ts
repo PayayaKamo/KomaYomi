@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PAGE_KINDS, type ChapterOverride, type Lang, type PageKind, type VolumeOverride } from '../shared/types.ts';
-import { listDirs, normalizeLang, readLibraryConfig, writeLibraryConfig } from './library.ts';
+import { preserveUnknown } from '../shared/format.ts';
+import { assertWritableFile, readRawRecord, writeStoredFile } from './schemaStore.ts';
+import { listDirs, normalizeLang, readLibraryConfig, type LibraryConfig } from './library.ts';
 import { AppError } from './errors.ts';
 
 /** data/preprocess-backup.json: one-shot snapshot of the volume config before the last apply. */
@@ -21,6 +23,56 @@ export type PreprocessInput = {
 };
 
 const backupFile = (dataRoot: string) => path.join(dataRoot, 'preprocess-backup.json');
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const VOLUME_KEYS = ['title', 'dirs', 'chapters'];
+const CHAPTER_KEYS = ['title', 'order', 'excluded', 'kinds'];
+
+/** Drops the keys preprocessing owns from the stored config, keeping unknown fields intact. */
+function stripOwned(prev: Record<string, unknown>): Record<string, unknown> {
+  const volumes = prev.volumes;
+  if (!isRecord(volumes)) return prev;
+  const nextVolumes: Record<string, unknown> = {};
+  for (const [id, entry] of Object.entries(volumes)) {
+    if (!isRecord(entry)) {
+      nextVolumes[id] = entry;
+      continue;
+    }
+    const volume = { ...entry };
+    for (const key of VOLUME_KEYS) delete volume[key];
+    if (isRecord(volume.chapters)) {
+      const chapters: Record<string, unknown> = {};
+      for (const [name, chapter] of Object.entries(volume.chapters)) {
+        if (!isRecord(chapter)) {
+          chapters[name] = chapter;
+          continue;
+        }
+        const cleaned = { ...chapter };
+        for (const key of CHAPTER_KEYS) delete cleaned[key];
+        chapters[name] = cleaned;
+      }
+      volume.chapters = chapters;
+    }
+    // A volume entry that only held preprocessing config must disappear, not come back empty.
+    if (Object.keys(volume).length) nextVolumes[id] = volume;
+  }
+  return { ...prev, volumes: nextVolumes };
+}
+
+/**
+ * Writes the library config without resurrecting preprocessing fields that were just cleared.
+ * The generic writer restores missing keys from the previous file (to protect unknown fields),
+ * which would otherwise bring back removed exclusions, page order or folder mappings.
+ */
+function writePreprocessConfig(dataRoot: string, cfg: LibraryConfig): void {
+  const file = path.join(dataRoot, 'library.json');
+  assertWritableFile(file, 'mnconfig');
+  const prev = readRawRecord(file);
+  const base = prev ? stripOwned(prev) : null;
+  writeStoredFile(file, 'mnconfig', preserveUnknown(base, { ...cfg, volumes: cfg.volumes ?? {} }));
+}
 
 const cleanText = (value: unknown, max = 200): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -119,7 +171,7 @@ export function applyPreprocess(rawRoot: string, dataRoot: string, input: Prepro
 
   if (Object.keys(next).length) volumes[input.volume] = next;
   else delete volumes[input.volume];
-  writeLibraryConfig(dataRoot, { ...cfg, volumes });
+  writePreprocessConfig(dataRoot, { ...cfg, volumes });
   return { backupAt: at };
 }
 
@@ -131,7 +183,7 @@ export function restorePreprocess(dataRoot: string, volume: string): { at: strin
   const volumes = { ...(cfg.volumes ?? {}) };
   if (backup.entry && Object.keys(backup.entry).length) volumes[volume] = backup.entry;
   else delete volumes[volume];
-  writeLibraryConfig(dataRoot, { ...cfg, volumes });
+  writePreprocessConfig(dataRoot, { ...cfg, volumes });
   fs.rmSync(backupFile(dataRoot), { force: true });
   return { at: backup.at };
 }

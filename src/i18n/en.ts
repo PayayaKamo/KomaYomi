@@ -208,6 +208,8 @@ export const en = {
   'preprocess.languageDirs': 'Language folders',
   'preprocess.languageForDir': 'Language for “{dir}”',
   'preprocess.languagePlaceholder': 'ja / zh / fr…',
+  'preprocess.dirsHint': 'Map each folder to a language; an empty box detects it from the folder name.',
+  'preprocess.duplicateLanguage': 'Language “{lang}” is used by more than one folder.',
   'preprocess.orderHint': 'Use the arrows to reorder pages; excluded pages stay out of the reading body and exports.',
   'preprocess.moveEarlier': 'Move earlier',
   'preprocess.moveLater': 'Move later',

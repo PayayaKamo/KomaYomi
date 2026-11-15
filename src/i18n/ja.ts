@@ -206,6 +206,8 @@ export const ja = {
   'preprocess.languageDirs': '言語フォルダ',
   'preprocess.languageForDir': '「{dir}」の言語',
   'preprocess.languagePlaceholder': 'ja / zh / fr…',
+  'preprocess.dirsHint': '各フォルダに言語を割り当てます。空欄ならフォルダ名から自動判定します。',
+  'preprocess.duplicateLanguage': '言語「{lang}」が複数のフォルダに割り当てられています。',
   'preprocess.orderHint': '矢印でページ順を変更できます。除外したページは本文と書き出しに含まれません。',
   'preprocess.moveEarlier': '前へ',
   'preprocess.moveLater': '後ろへ',
