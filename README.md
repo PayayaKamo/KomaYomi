@@ -44,7 +44,7 @@ All captures use the self-made sample volume in [`samples/demo-library/`](sample
 
 **Reading**
 
-- Scans `raw/` as the library: `raw/<volume>/<language>/<chapter>/<pages>`, with one to three languages per volume.
+- Scans `raw/` as the library: `raw/<volume>/<language>/<chapter>/<pages>`, with one or more languages per volume.
 - Pairs pages across languages by sorted position and reports pages that are missing a language.
 - Compare reader: side-by-side or overlay, per-language mask, wheel zoom and pan, full page or one panel at a time.
 - Alignment in four ways — whole-page offset, per-panel offset, two-anchor point-to-point, and grid/percentage snapping — savable as presets for a page or a chapter.

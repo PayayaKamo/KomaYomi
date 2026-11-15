@@ -22,7 +22,7 @@ hero:
 features:
   - title: Panels first
     details: Automatic XY-cut detection with manual drawing, merging, numbering and reusable layout templates. Old annotations are remapped when panel counts match.
-  - title: Compare up to three languages
+  - title: Compare multiple languages
     details: Side-by-side or overlay views, per-language masks, wheel zoom and pan, plus page / panel / anchor / grid alignment with reusable presets.
   - title: Notes that travel
     details: Markdown notes at page or panel scope, tags, sources, a scratch pad, full-text search and one-click "copy context" for pasting into an LLM.

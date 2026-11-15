@@ -39,7 +39,7 @@ The window has five regions that never move, so muscle memory can take over:
 - **Notes column** (`N`) — page notes, panel notes, overview search and the scratchpad.
 - **Pane splitters** — drag the vertical handle between library and stage, or between stage and notes, to resize; double-click to reset.
 
-A page can be in one, two or three languages. The language chips in the compare reader are enabled only for languages that exist on the current page.
+A page can carry any number of languages. The language chips in the compare reader are enabled only for languages that exist on the current page.
 
 ## The first ten minutes
 
