@@ -963,7 +963,7 @@ export function CompareTab({
 
   return (
     <div className="compare-tab">
-      <div className="stage-toolbar">
+      <div className={`stage-toolbar ${moreOpen ? 'tb-more-open' : ''}`}>
         <div className="tb-group">
           <span className="tb-label">{t('compare.language')}</span>
           <div className="lang-chips">
@@ -1033,7 +1033,7 @@ export function CompareTab({
           </div>
         </div>
 
-        <div className="tb-group mask-group">
+        <div className="tb-group mask-group tb-collapsible">
           <span className="tb-label">{t('compare.mask')}</span>
           <button
             type="button"
@@ -1076,27 +1076,30 @@ export function CompareTab({
               </select>
               <button
                 type="button"
-                className="btn tiny"
+                className="btn icon tiny"
                 onClick={() => setRevealed({})}
                 title={t('compare.maskAllTitle')}
+                aria-label={t('compare.maskAllTitle')}
               >
-                {t('compare.maskAll')}
+                ◉
               </button>
               <button
                 type="button"
-                className="btn tiny"
+                className="btn icon tiny"
                 onClick={() => setMaskPrefs((p) => ({ ...p, master: false }))}
                 title={t('compare.maskNoneTitle')}
+                aria-label={t('compare.maskNoneTitle')}
               >
-                {t('compare.maskNone')}
+                ◯
               </button>
               <button
                 type="button"
-                className={`btn tiny ${maskDefaultsOpen ? 'on' : ''}`}
+                className={`btn icon tiny ${maskDefaultsOpen ? 'on' : ''}`}
                 onClick={() => setMaskDefaultsOpen((v) => !v)}
                 title={t('compare.maskDefaultsTitle')}
+                aria-label={t('compare.maskDefaultsTitle')}
               >
-                {t('compare.maskDefaults')}
+                ⚙
               </button>
             </>
           )}
@@ -1134,7 +1137,7 @@ export function CompareTab({
           )}
         </div>
 
-        <div className="tb-group align-mode">
+        <div className="tb-group align-mode tb-collapsible">
           <span className="tb-label">{t('compare.align')}</span>
           <select
             className={`tb-select mode mode-${mode}`}
@@ -1164,15 +1167,16 @@ export function CompareTab({
           )}
           <button
             type="button"
-            className={`btn tiny ${alignOpen ? 'on' : ''}`}
+            className={`btn icon tiny ${alignOpen ? 'on' : ''}`}
             onClick={() => setAlignOpen((v) => !v)}
             title={t('compare.alignSettingsTitle')}
+            aria-label={t('compare.alignSettingsTitle')}
           >
-            {t('compare.alignSettings')}
+            ⚙
           </button>
         </div>
 
-        <div className="tb-group scope-group">
+        <div className="tb-group scope-group tb-collapsible">
           <span className="tb-label">{t('compare.dragZoom')}</span>
           <div className="seg scope-seg" title={t('compare.scopeTitle')}>
             <button
@@ -1180,16 +1184,18 @@ export function CompareTab({
               className={scopeOfMode === 'page' ? 'on' : ''}
               onClick={() => changeMode('page')}
               title={t('compare.scopePageTitle')}
+              aria-label={t('compare.scopePageTitle')}
             >
-              {t('compare.scopePage')}
+              ▦
             </button>
             <button
               type="button"
               className={scopeOfMode === 'panel' ? 'on' : ''}
               onClick={() => changeMode('panel')}
               title={t('compare.scopePanelTitle')}
+              aria-label={t('compare.scopePanelTitle')}
             >
-              {t('compare.scopePanel')}
+              ▣
             </button>
           </div>
           <span className="muted tiny alt-hint" title={t('compare.altHintTitle')}>
