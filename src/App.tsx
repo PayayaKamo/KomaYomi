@@ -405,11 +405,14 @@ export default function App() {
             <PaneSplitter
               edge="left"
               target=".sidebar"
+              cssVar="--sidebar-w"
               min={SIDEBAR_PANE.min}
               max={SIDEBAR_PANE.max}
               label={t('pane.libraryHandle')}
-              onChange={setSidebarWidth}
-              onCommit={(w) => savePaneWidth(SIDEBAR_PANE.key, w)}
+              onCommit={(w) => {
+                setSidebarWidth(w);
+                savePaneWidth(SIDEBAR_PANE.key, w);
+              }}
               onReset={() => {
                 setSidebarWidth(null);
                 savePaneWidth(SIDEBAR_PANE.key, null);
@@ -420,11 +423,14 @@ export default function App() {
             <PaneSplitter
               edge="right"
               target=".notes-col"
+              cssVar="--notes-w"
               min={NOTES_PANE.min}
               max={NOTES_PANE.max}
               label={t('pane.notesHandle')}
-              onChange={setNotesWidth}
-              onCommit={(w) => savePaneWidth(NOTES_PANE.key, w)}
+              onCommit={(w) => {
+                setNotesWidth(w);
+                savePaneWidth(NOTES_PANE.key, w);
+              }}
               onReset={() => {
                 setNotesWidth(null);
                 savePaneWidth(NOTES_PANE.key, null);

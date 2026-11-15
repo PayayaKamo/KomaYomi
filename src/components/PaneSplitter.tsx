@@ -37,10 +37,11 @@ type Props = {
   edge: 'left' | 'right';
   /** Selector of the pane that should be measured and resized. */
   target: string;
+  /** CSS custom property on `.body-area` that drives the grid column width. */
+  cssVar: string;
   min: number;
   max: number;
   label: string;
-  onChange: (width: number) => void;
   onCommit: (width: number) => void;
   onReset: () => void;
 };
@@ -48,14 +49,30 @@ type Props = {
 /**
  * Thin drag handle between the stage and a side pane.
  *
- * Widths are read from the live DOM at pointer-down, so the responsive CSS defaults
- * (240/300px on smaller desktops) are respected until the user actually drags.
- * The handle is hidden below the layout breakpoints, where both panes become drawers.
+ * Drags write the grid CSS variable directly (one style write per animation
+ * frame) instead of lifting React state on every pointermove, so the layout is
+ * not re-rendered dozens of times per second. State and localStorage are updated
+ * once on pointerup.
  */
-export function PaneSplitter({ edge, target, min, max, label, onChange, onCommit, onReset }: Props) {
+export function PaneSplitter({ edge, target, cssVar, min, max, label, onCommit, onReset }: Props) {
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const widthRef = useRef(0);
+  const frameRef = useRef(0);
   const [dragging, setDragging] = useState(false);
+
+  const bodyArea = () => document.querySelector<HTMLElement>('.body-area');
+
+  const paint = (width: number) => {
+    frameRef.current = 0;
+    bodyArea()?.style.setProperty(cssVar, `${width}px`);
+  };
+
+  const cancelFrame = () => {
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+    }
+  };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -75,16 +92,26 @@ export function PaneSplitter({ edge, target, min, max, label, onChange, onCommit
     const delta = edge === 'left' ? e.clientX - drag.startX : drag.startX - e.clientX;
     const next = clampPaneWidth(drag.startWidth + delta, min, max);
     widthRef.current = next;
-    onChange(next);
+    if (!frameRef.current) frameRef.current = requestAnimationFrame(() => paint(widthRef.current));
   };
 
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     dragRef.current = null;
+    cancelFrame();
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     setDragging(false);
     document.body.classList.remove('pane-resizing');
-    onCommit(widthRef.current);
+    // Land exactly on the last value, then hand it to React/localStorage once.
+    paint(widthRef.current);
+    if (widthRef.current !== drag.startWidth) onCommit(widthRef.current);
+  };
+
+  const reset = () => {
+    cancelFrame();
+    bodyArea()?.style.removeProperty(cssVar);
+    onReset();
   };
 
   return (
@@ -93,12 +120,15 @@ export function PaneSplitter({ edge, target, min, max, label, onChange, onCommit
       role="separator"
       aria-orientation="vertical"
       aria-label={label}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={Math.round(widthRef.current) || undefined}
       title={label}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
-      onDoubleClick={onReset}
+      onDoubleClick={reset}
     />
   );
 }

@@ -28,6 +28,53 @@ function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
   return null;
 }
 
+type FootIconName = 'project' | 'exchange' | 'rules' | 'backup';
+
+/** Small monochrome icons for the sidebar footer; they inherit the theme colour. */
+function FootIcon({ name }: { name: FootIconName }) {
+  return (
+    <svg
+      className="foot-icon"
+      viewBox="0 0 14 14"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {name === 'project' && (
+        <>
+          <path d="M3.5 1.8h4l3 3v7.4h-7z" />
+          <path d="M7.5 1.8v3h3" />
+        </>
+      )}
+      {name === 'exchange' && (
+        <>
+          <path d="M2.6 4.6h8.2m0 0-2.1-2.1m2.1 2.1-2.1 2.1" />
+          <path d="M11.4 9.4H3.2m0 0 2.1-2.1M3.2 9.4l2.1 2.1" />
+        </>
+      )}
+      {name === 'rules' && (
+        <>
+          <path d="M2.4 3.6h9.2M2.4 7h9.2M2.4 10.4h9.2" />
+          <circle cx="5.4" cy="3.6" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="9" cy="7" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="4.4" cy="10.4" r="1.3" fill="currentColor" stroke="none" />
+        </>
+      )}
+      {name === 'backup' && (
+        <>
+          <path d="M7 1.8v6.4m0 0L4.4 5.6M7 8.2l2.6-2.6" />
+          <path d="M2.4 10.2v1.8h9.2v-1.8" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty }: Props) {
   const { t, formatNumber } = useI18n();
   const [open, setOpen] = useState<Record<string, boolean>>(() => ({}));
@@ -213,34 +260,49 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         ))}
       </div>
       <div className="sidebar-foot">
-        <span>{t('sidebar.rawReadOnly')}</span>
+        <span className="sidebar-foot-status" title={t('sidebar.rawReadOnly')}>
+          {t('sidebar.rawReadOnly')}
+        </span>
         <span className="sidebar-foot-actions">
           <button
             type="button"
-            className="btn tiny"
+            className="btn tiny foot-btn"
             onClick={() => setProjectOpen(true)}
             title={t('sidebar.projectFileTitle')}
+            aria-label={t('sidebar.projectFileTitle')}
           >
-            {t('sidebar.projectFile')}
+            <FootIcon name="project" />
+            <span className="foot-label">{t('sidebar.projectFile')}</span>
           </button>
           <button
             type="button"
-            className="btn tiny"
+            className="btn tiny foot-btn"
             onClick={() => setExchangeOpen(true)}
             title={t('sidebar.exchangeTitle')}
+            aria-label={t('sidebar.exchangeTitle')}
           >
-            {t('sidebar.exchange')}
+            <FootIcon name="exchange" />
+            <span className="foot-label">{t('sidebar.exchange')}</span>
           </button>
           <button
             type="button"
-            className="btn tiny"
+            className="btn tiny foot-btn"
             onClick={() => setDirRulesOpen(true)}
             title={t('sidebar.dirRulesTitle')}
+            aria-label={t('sidebar.dirRulesTitle')}
           >
-            {t('sidebar.dirRules')}
+            <FootIcon name="rules" />
+            <span className="foot-label">{t('sidebar.dirRules')}</span>
           </button>
-          <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title={t('sidebar.backupTitle')}>
-            {t('sidebar.backup')}
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setDataOpen(true)}
+            title={t('sidebar.backupTitle')}
+            aria-label={t('sidebar.backupTitle')}
+          >
+            <FootIcon name="backup" />
+            <span className="foot-label">{t('sidebar.backup')}</span>
           </button>
         </span>
       </div>
