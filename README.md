@@ -228,13 +228,6 @@ The full user guide is published at **https://payayakamo.github.io/KomaYomi-docs
 | 中文     | https://payayakamo.github.io/KomaYomi-docs/zh/ |
 | 日本語   | https://payayakamo.github.io/KomaYomi-docs/ja/ |
 
-Its sources live in [`docs/`](docs/) as a VitePress site and can be previewed locally:
-
-```bash
-npm run docs:dev     # http://127.0.0.1:5174
-npm run docs:build
-```
-
 ## Try it online (in development)
 
 The browser-only edition is still in development and has no public demo URL yet. Its source lives at `https://github.com/PayayaKamo/KomaYomi-online`; this section will get a working link once it ships.

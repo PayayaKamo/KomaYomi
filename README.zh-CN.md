@@ -228,13 +228,6 @@ exports/            生成的 HTML / PNG、备份、工程包（已 gitignore）
 | 中文    | https://payayakamo.github.io/KomaYomi-docs/zh/ |
 | 日本語  | https://payayakamo.github.io/KomaYomi-docs/ja/ |
 
-源码在 [`docs/`](docs/) 中，是一个 VitePress 站点，可以在本地预览：
-
-```bash
-npm run docs:dev     # http://127.0.0.1:5174
-npm run docs:build
-```
-
 ## 在线体验（开发中）
 
 纯浏览器版本仍在开发中，暂时没有公开的体验地址。源码位于 `https://github.com/PayayaKamo/KomaYomi-online`；上线后会在本节补上正式入口。
