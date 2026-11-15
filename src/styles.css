@@ -2764,11 +2764,24 @@ body.pane-resizing * {
 }
 
 .panel-notes li {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
   font-size: 11.5px;
   color: var(--text-2);
+}
+
+.panel-note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.panel-note-tags:not(:empty) {
+  margin-bottom: 2px;
+}
+
+/* Note text uses the same Markdown renderer as the notes panel preview. */
+.panel-note-body {
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .compare-empty {

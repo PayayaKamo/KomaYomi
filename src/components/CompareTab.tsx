@@ -3,6 +3,7 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 import type { AlignMode, AlignOffset, AlignPreset, Lang, PageDoc, PageEntry, Panel } from '../types';
 import { DEFAULT_OFFSET, DEFAULT_LANGUAGES, langShort } from '../types';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
+import { renderMarkdown } from '../../shared/markdown';
 import { api } from '../api';
 import type { HistorySource } from '../api';
 import { langLabel, readingLabel, useI18n } from '../i18n';
@@ -1706,12 +1707,17 @@ export function CompareTab({
                 <ul className="panel-notes">
                   {notes.map((n) => (
                     <li key={n.id}>
-                      {n.tags.map((t) => (
-                        <span className="tag" key={t}>
-                          {t}
-                        </span>
-                      ))}
-                      <span>{n.text}</span>
+                      <div className="panel-note-tags">
+                        {n.tags.map((t) => (
+                          <span className="tag" key={t}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <div
+                        className="md-body panel-note-body"
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(n.text) }}
+                      />
                     </li>
                   ))}
                 </ul>
