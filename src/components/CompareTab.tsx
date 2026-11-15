@@ -758,6 +758,8 @@ export function CompareTab({
       <div
         key={lang}
         className={`lang-pane ${dragging && dragLang === lang ? 'dragging' : ''} ${
+          annOn && !overlay && lang === annLang ? 'ann-lane' : ''
+        } ${
           activeDrag?.panelId === panel.id && activeDrag.lang === lang && activeDrag.scope === 'panel'
             ? 'scope-target'
             : ''
@@ -766,20 +768,41 @@ export function CompareTab({
         data-lang={lang}
         data-panel-id={panel.id}
         data-has-image="1"
-        onPointerDown={(e) => startPan(e, lang, panel)}
+        onPointerDown={(e) => {
+          if (annOn && lang !== annLang) setAnnLang(lang);
+          // A drawing tool owns this pane, so it must not also start a pan.
+          if (annOn && annTool !== 'select') return;
+          startPan(e, lang, panel);
+        }}
       >
         <CropLayer url={url} rect={panel.rect} offset={off} opacity={1} blend={false} />
-        {/* Read-only annotation layer: same offsets as the image, below the mask. */}
+        {/* Only the highlighted lane edits; other lanes mirror the same marks read-only. */}
         <div
           className="ann-crop-layer"
           style={{ transform: `translate(${off.x * 100}%, ${off.y * 100}%) scale(${off.scale})` }}
         >
-          <AnnotationOverlay
-            annotations={doc.annotations ?? []}
-            panels={doc.panels}
-            rect={panel.rect}
-            visible={doc.annotationsVisible !== false}
-          />
+          {annOn && lang === annLang ? (
+            <AnnotationLayer
+              annotations={annotations}
+              visible={annotationsVisible}
+              tool={annTool}
+              color={annColor}
+              width={0.0035}
+              activePanel={annScope === 'panel' ? panel : null}
+              panels={doc.panels}
+              selectedId={annSelected}
+              onSelect={setAnnSelected}
+              onChange={applyAnnotations}
+              viewport={panel.rect}
+            />
+          ) : (
+            <AnnotationOverlay
+              annotations={annotations}
+              panels={doc.panels}
+              rect={panel.rect}
+              visible={annotationsVisible}
+            />
+          )}
         </div>
         {isHidden(panel.id, lang) && (
           <div
@@ -847,7 +870,10 @@ export function CompareTab({
         data-lang={dragLang}
         data-panel-id={panel.id}
         data-has-image="1"
-        onPointerDown={(e) => startPan(e, dragLang, panel)}
+        onPointerDown={(e) => {
+          if (annOn && annTool !== 'select') return;
+          startPan(e, dragLang, panel);
+        }}
       >
         {activeLangs.map((lang) => {
           const url = page.files[lang];
@@ -864,7 +890,7 @@ export function CompareTab({
             />
           );
         })}
-        {/* Overlay mode draws one annotation layer on top of the blended panes. */}
+        {/* Overlay mode keeps a single editable layer on top of the blended panes. */}
         <div
           className="ann-crop-layer"
           style={{
@@ -873,12 +899,28 @@ export function CompareTab({
             }%) scale(${offsetsOf(dragLang, panel).scale})`,
           }}
         >
-          <AnnotationOverlay
-            annotations={doc.annotations ?? []}
-            panels={doc.panels}
-            rect={panel.rect}
-            visible={doc.annotationsVisible !== false}
-          />
+          {annOn ? (
+            <AnnotationLayer
+              annotations={annotations}
+              visible={annotationsVisible}
+              tool={annTool}
+              color={annColor}
+              width={0.0035}
+              activePanel={annScope === 'panel' ? panel : null}
+              panels={doc.panels}
+              selectedId={annSelected}
+              onSelect={setAnnSelected}
+              onChange={applyAnnotations}
+              viewport={panel.rect}
+            />
+          ) : (
+            <AnnotationOverlay
+              annotations={annotations}
+              panels={doc.panels}
+              rect={panel.rect}
+              visible={annotationsVisible}
+            />
+          )}
         </div>
         {activeLangs.some((l) => isHidden(panel.id, l)) && (
           <div

@@ -377,7 +377,7 @@ export const zh = {
   'panels.statusMarquee': '空白处拖拽框出格子 · Shift 正方形 · Alt 关闭吸附 · Esc 取消',
   'panels.statusEdit': '拖动框体移动，拖角点缩放；Ctrl/Shift 点选多格后可合并；Delete 删除',
 
-  /* ---- 对照阅读 ---- */
+  /* ---- compare tab ---- */
   'compare.language': '语言',
   'compare.missingLangImage': '本页缺少{lang}图片',
   'compare.mask': '遮蔽',
@@ -601,7 +601,7 @@ export const zh = {
   'backup.offline': '离线',
   'backup.statusReadOnly': '（只读）',
 
-  /* ---- 目录识别 ---- */
+  /* ---- folder rules ---- */
   'dirRules.title': '目录识别规则',
   'dirRules.introBefore': '用占位符描述页文件路径：',
   'dirRules.introAfter': '；按顺序尝试，第一个命中的规则生效',
@@ -632,7 +632,7 @@ export const zh = {
   'dirRules.saving': '保存中…',
   'dirRules.saveRules': '保存规则',
 
-  /* ---- 交换文件 ---- */
+  /* ---- exchange files ---- */
   'exchange.title': '交换文件',
   'exchange.subtitle': '.mntpl 版式模板 · .mnexp 导出模板 · .mnpage.json 单页数据；导入前都会备份并校验',
   'exchange.dirtyBanner': '当前页面有未保存的修改。导出不会包含它们；单页导入会覆盖当前页。建议先按顶栏「保存」。',
@@ -696,7 +696,7 @@ export const zh = {
   'exchange.scopeChapter': '绑定到指定话',
   'exchange.scopePage': '绑定到指定页',
 
-  /* ---- 添加漫画 ---- */
+  /* ---- add manga ---- */
   'addVolume.title': '添加漫画',
   'addVolume.subtitle': '选择包含语言目录的文件夹，或用 raw 下的新目录',
   'addVolume.folderPath': '文件夹路径',
@@ -712,7 +712,7 @@ export const zh = {
   'addVolume.browserNoPicker': '浏览器里无法弹出文件夹选择框，请直接填写文件夹路径；桌面版可点「选择文件夹」',
   'addVolume.pickFolderTitle': '选择漫画文件夹（里面应有 ja/zh/en 等语言目录）',
 
-  /* ---- 卷设置 ---- */
+  /* ---- volume settings ---- */
   'volumeSettings.title': '卷设置 · {title}',
   'volumeSettings.subtitle': '指定哪个子目录对应哪门语言；留空表示自动识别',
   'volumeSettings.autoOption': '不使用 / 自动',
@@ -722,7 +722,7 @@ export const zh = {
     '从图库移除「{title}」？\n\n只会删除 raw 下的目录链接，不会删除原文件夹里的图片；已保存的标注会保留。',
   'volumeSettings.saving': '保存中…',
 
-  /* ---- 工程文件 ---- */
+  /* ---- project file ---- */
   'project.title': '工程文件',
   'project.subtitle': '.mnproj = 压缩包 + 纯文本 JSON，可把图片、批注、模板与语言设置一起带走',
   'project.dirtyBanner': '当前页面有未保存的修改。导出不会包含这些修改；导入可能覆盖它们。建议先按顶栏「保存」。',
@@ -773,11 +773,11 @@ export const zh = {
   'project.browserNoPicker': '浏览器里无法弹出文件夹选择框，请直接填写补链目录路径',
   'project.pickFolderTitle': '选择缺失图片所在的原始文件夹',
 
-  /* ---- API 层 ---- */
+  /* ---- API layer ---- */
   'api.nonJson': '服务返回了非 JSON 内容：{text}',
   'api.requestFailed': '请求失败（{status}）',
 
-  /* ---- 图片标注 ---- */
+  /* ---- annotations ---- */
   'ann.layer': '标注',
   'ann.show': '显示标注图层',
   'ann.hide': '隐藏标注图层',
@@ -824,10 +824,10 @@ export const zh = {
   'groups.sortHint': '按每组首个格子的阅读顺序整理分组',
   'groups.empty': '先框选格子，再点「成组」',
 
-  /* ---- 通用工具栏 ---- */
+  /* ---- shared toolbar ---- */
   'toolbar.more': '更多',
 
-  /* ---- PNG 导出 ---- */
+  /* ---- PNG export ---- */
   'png.loadImageFailed': '加载{lang}图片失败：{src}',
   'png.noImages': '没有可导出的图片',
   'png.missingImage': '缺少{lang}图片，无法导出',
@@ -835,7 +835,7 @@ export const zh = {
   'png.canvasEmpty': '导出 PNG 失败：canvas.toBlob 返回空',
   'png.panelRectRequired': '格子导出需要提供 rect',
 
-  /* ---- 关于弹窗 ---- */
+  /* ---- about dialog ---- */
   'about.title': '关于 KomaYomi',
   'about.openTitle': '关于 KomaYomi：版本、许可证与致谢',
   'about.version': '版本',
