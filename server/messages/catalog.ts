@@ -32,6 +32,21 @@ export const MESSAGES = {
     zh: '请求体过大（上限 {limit} MB）',
     ja: 'リクエストボディが大きすぎます（上限 {limit} MB）',
   },
+  ERR_UNTRUSTED_HOST: {
+    en: 'Request host is not trusted: {host}. This server only accepts loopback hostnames.',
+    zh: '请求的主机不受信任：{host}。本服务只接受本机回环地址。',
+    ja: '信頼できないホストからのリクエストです：{host}。このサーバーはローカル（ループバック）のみ受け付けます。',
+  },
+  ERR_UNTRUSTED_ORIGIN: {
+    en: 'Cross-site request blocked (origin: {origin})',
+    zh: '已拦截跨站请求（来源：{origin}）',
+    ja: 'クロスサイトリクエストをブロックしました（オリジン：{origin}）',
+  },
+  ERR_UNSUPPORTED_CONTENT_TYPE: {
+    en: 'Unsupported content type: {type}. Send application/json.',
+    zh: '不支持的内容类型：{type}，请使用 application/json。',
+    ja: '未対応の Content-Type です：{type}。application/json を使用してください。',
+  },
   ERR_UNKNOWN_ENDPOINT: {
     en: 'Unknown API endpoint: {path}',
     zh: '未知接口：{path}',

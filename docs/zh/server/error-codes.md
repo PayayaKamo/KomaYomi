@@ -73,6 +73,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_INTERNAL`              | 500  | 服务器内部错误：{detail}             | 程序缺陷、数据目录不可读、未捕获的异常   | 查看 `detail` 参数和服务端日志。             |
 | `ERR_INVALID_JSON`          | 400  | 请求内容不是有效的 JSON：{detail}    | 手工改过文件、`Content-Type` 不对        | 发送 JSON 请求体；上传前先校验。             |
 | `ERR_BODY_TOO_LARGE`        | 413  | 请求体过大（上限 {limit} MB）        | 导入了非常大的 `.mnproj`                 | 改用流式写入磁盘的文件接口导入。             |
+| `ERR_UNTRUSTED_HOST`        | 403  | 请求的主机不是本机回环地址：{host}   | DNS 重绑定、未显式放开就对外暴露         | 用 `127.0.0.1`/`localhost` 访问；确需局域网访问时再显式开启。 |
+| `ERR_UNTRUSTED_ORIGIN`      | 403  | 已拦截跨站写入请求：{origin}         | 其他网站向本地 API 发请求                | 只允许应用自身来源写入，不要把它嵌进第三方页面。 |
+| `ERR_UNSUPPORTED_CONTENT_TYPE` | 415 | 不支持的内容类型：{type}          | 发送了 `text/plain` 或表单提交           | 使用 `Content-Type: application/json`。      |
 | `ERR_UNKNOWN_ENDPOINT`      | 404  | 未知接口：{path}                     | 旧客户端、拼写错误、base URL 不对        | 对照本仓库的 `server/app.ts` 检查路径。      |
 | `ERR_FILE_NOT_FOUND`        | 404  | 文件不存在：{path}                   | 文件被移动或清理                         | 重新导出。                                   |
 | `ERR_EXPORT_FILE_NOT_FOUND` | 404  | 导出文件不存在：{path}               | 导出目录被清空                           | 重新导出这一话。                             |

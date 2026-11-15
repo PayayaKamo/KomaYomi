@@ -16,7 +16,7 @@ KomaYomi ships in four shapes from one codebase: a browser app with a local serv
 | `npm run build` | Type-check the project and build the frontend. | `dist/` |
 | `npm run preview` | Serve the built frontend with the same API middleware. | — |
 | `npm run server:build` | Bundle `server/app.ts` and `server/standalone.ts` with esbuild. | `dist-server/app.mjs`, `dist-server/standalone.mjs` |
-| `npm start` | Run the bundled standalone server. | HTTP on `0.0.0.0:3921` |
+| `npm start` | Run the bundled standalone server. | HTTP on `127.0.0.1:3921` |
 | `npm run desktop` | Build, bundle the server and open Electron. | window |
 | `npm run dist:win` | NSIS installer and portable executable. | `release/` |
 | `npm run dist:dir` | Unpacked app for a quick desktop sanity check. | `release/win-unpacked/` |
@@ -49,7 +49,7 @@ npm start
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `HOST` | `0.0.0.0` | Listen address. |
+| `HOST` | `127.0.0.1` | Listen address. Set `0.0.0.0` only to allow LAN access; the API has no login. |
 | `PORT` | `3921` | Listen port. |
 | `RAW_DIR` | `<cwd>/raw` | Manga images. |
 | `DATA_DIR` | `<cwd>/data` | JSON data. |

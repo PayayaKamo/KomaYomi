@@ -16,7 +16,7 @@
 | `npm run build` | 类型检查并构建前端。 | `dist/` |
 | `npm run preview` | 用同一个 API 中间件预览构建结果。 | — |
 | `npm run server:build` | 用 esbuild 打包 `server/app.ts` 与 `server/standalone.ts`。 | `dist-server/app.mjs`、`dist-server/standalone.mjs` |
-| `npm start` | 运行打包后的独立服务。 | `0.0.0.0:3921` |
+| `npm start` | 运行打包后的独立服务。 | `127.0.0.1:3921` |
 | `npm run desktop` | 构建、打包服务并打开 Electron。 | 窗口 |
 | `npm run dist:win` | 生成 NSIS 安装包和便携版。 | `release/` |
 | `npm run dist:dir` | 生成未打包目录，快速验证桌面版。 | `release/win-unpacked/` |
@@ -49,7 +49,7 @@ npm start
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
-| `HOST` | `0.0.0.0` | 监听地址。 |
+| `HOST` | `127.0.0.1` | 监听地址。仅在需要局域网访问时设为 `0.0.0.0`；本服务没有登录鉴权。 |
 | `PORT` | `3921` | 监听端口。 |
 | `RAW_DIR` | `<cwd>/raw` | 漫画图片目录。 |
 | `DATA_DIR` | `<cwd>/data` | JSON 数据目录。 |

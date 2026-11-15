@@ -73,6 +73,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_INTERNAL`              | 500  | サーバー内部エラー：{detail}         | バグ、データディレクトリが読めない、未捕捉の例外 | `detail` とサーバーログを確認します。     |
 | `ERR_INVALID_JSON`          | 400  | リクエスト本文が有効な JSON ではありません：{detail} | ファイルを手で編集した、`Content-Type` が違う | JSON を送る。アップロード前に検証する。 |
 | `ERR_BODY_TOO_LARGE`        | 413  | リクエストボディが大きすぎます（上限 {limit} MB） | 非常に大きな `.mnproj` を取り込んだ | ディスクへストリームするファイル用エンドポイントで取り込む。 |
+| `ERR_UNTRUSTED_HOST`        | 403  | 信頼できないホストです：{host}       | DNS リバインディング、明示しない外部公開 | `127.0.0.1`/`localhost` でアクセスする。LAN 公開は明示的に有効化する。 |
+| `ERR_UNTRUSTED_ORIGIN`      | 403  | クロスサイトの書き込みをブロックしました：{origin} | 別サイトからローカル API へのリクエスト | アプリ自身のオリジンだけを許可し、第三者ページに埋め込まない。 |
+| `ERR_UNSUPPORTED_CONTENT_TYPE` | 415 | 未対応の Content-Type です：{type} | `text/plain` やフォーム送信            | `Content-Type: application/json` を送る。   |
 | `ERR_UNKNOWN_ENDPOINT`      | 404  | 不明な API エンドポイント：{path}    | 古いクライアント、打ち間違い、base URL の誤り | このリポジトリの `server/app.ts` でパスを確認する。 |
 | `ERR_FILE_NOT_FOUND`        | 404  | ファイルが見つかりません：{path}     | ファイルが移動・削除された                   | もう一度エクスポートする。                   |
 | `ERR_EXPORT_FILE_NOT_FOUND` | 404  | エクスポートファイルが見つかりません：{path} | エクスポート先が空になった           | その話をもう一度エクスポートする。           |

@@ -6,7 +6,8 @@
  * container can bind-mount raw/data/exports independently.
  *
  * Environment:
- *   HOST            listen address (default 0.0.0.0 so the container is reachable)
+ *   HOST            listen address (default 127.0.0.1; set 0.0.0.0 only when you
+ *                   deliberately want other machines on the LAN to reach it)
  *   PORT            listen port (default 3921)
  *   RAW_DIR         manga images   (default <cwd>/raw)
  *   DATA_DIR        annotations    (default <cwd>/data)
@@ -45,11 +46,16 @@ if (!fs.existsSync(staticDir)) {
 }
 
 const port = Number(process.env.PORT) || 3921;
-const host = process.env.HOST || '0.0.0.0';
+// Loopback by default: the API has no user login, so exposing it to the LAN is an
+// explicit decision. Any non-loopback HOST also raises the request guard's host check.
+const host = process.env.HOST || '127.0.0.1';
 
 const { server } = await startMangaServer(rootDir, port, staticDir, { rawDir, dataDir, exportDir }, host);
 
 log('info', `listening on http://${host}:${port}`);
+if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
+  log('warn', 'HOST is not loopback: anyone who can reach this port can read and modify your library');
+}
 log('info', `raw=${rawDir}`);
 log('info', `data=${dataDir}`);
 log('info', `exports=${exportDir}`);

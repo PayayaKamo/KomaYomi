@@ -23,7 +23,7 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \
-    HOST=0.0.0.0 \
+    HOST=127.0.0.1 \
     PORT=3921 \
     RAW_DIR=/data/raw \
     DATA_DIR=/data/annotations \

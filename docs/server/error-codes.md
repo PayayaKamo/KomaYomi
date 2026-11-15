@@ -83,6 +83,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_INTERNAL`             | 500  | Unexpected server error (detail attached)      | Bug, unreadable data directory, unexpected exception | Check the `detail` param and the server log.        |
 | `ERR_INVALID_JSON`         | 400  | Request body is not valid JSON                 | Hand-edited file, wrong `Content-Type`               | Send a JSON body; validate before uploading.        |
 | `ERR_BODY_TOO_LARGE`       | 413  | Body exceeds the 8 MB limit                    | Importing a very large `.mnproj`                      | Import via the file endpoint that streams to disk.  |
+| `ERR_UNTRUSTED_HOST`       | 403  | `Host` header is not a loopback name           | DNS rebinding, exposing the server without opt-in     | Reach it via `127.0.0.1`/`localhost`, or enable LAN access deliberately. |
+| `ERR_UNTRUSTED_ORIGIN`     | 403  | Cross-site browser write was blocked           | Another site posting to the local API                 | Only the app's own origin may write; never embed the API in third-party pages. |
+| `ERR_UNSUPPORTED_CONTENT_TYPE` | 415 | A non-GET body is not JSON or a binary upload | `text/plain` or HTML form posts                      | Send `Content-Type: application/json`.              |
 | `ERR_UNKNOWN_ENDPOINT`     | 404  | No route matches the path                      | Old client, typo, wrong base URL                     | Check the path in this repository's `server/app.ts`.|
 | `ERR_FILE_NOT_FOUND`       | 404  | Requested export/download file is missing      | File was moved or cleaned up                         | Re-run the export.                                  |
 | `ERR_EXPORT_FILE_NOT_FOUND`| 404  | Export artifact is not on disk                 | Export directory cleared                             | Re-export the chapter.                              |

@@ -78,6 +78,8 @@ import { currentLang, resolveRequestLang, runWithLang, t } from './messages/inde
 import type { MessageCode, MessageParams } from './messages/index.ts';
 import { AppError, errorBody, toErrorResponse } from './errors.ts';
 import { requireChapter, requirePage } from './pageTargets.ts';
+import { assertTrustedRequest, isLoopbackHost } from './requestGuard.ts';
+import type { RequestGuardOptions } from './requestGuard.ts';
 import { setFormatAppVersion } from '../shared/format.ts';
 
 const MIME: Record<string, string> = {
@@ -170,6 +172,11 @@ export type MangaServerOptions = {
   rawDir?: string;
   dataDir?: string;
   exportDir?: string;
+  /**
+   * Accept non-loopback Host headers. Off by default: the API is for this machine only.
+   * Set only when the user deliberately exposes the server to the local network.
+   */
+  allowLan?: boolean;
 };
 
 /**
@@ -177,11 +184,18 @@ export type MangaServerOptions = {
  * Docker/standalone entry. Folder overrides let containers bind-mount raw/data/exports
  * separately while the desktop app keeps the `rootDir/{raw,data,exports}` layout.
  */
-export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: MangaServerOptions) {
+export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowLan }: MangaServerOptions) {
   const rawRoot = rawDir ? path.resolve(rawDir) : path.join(rootDir, 'raw');
   const dataRoot = dataDir ? path.resolve(dataDir) : path.join(rootDir, 'data');
   const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
+  const guard: RequestGuardOptions = {
+    allowLan: allowLan ?? /^(1|true|yes)$/i.test(process.env.KOMAYOMI_ALLOW_LAN ?? ''),
+    allowedOrigins: (process.env.KOMAYOMI_ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
 
   // Scheduled local backups run on their own timer; manual backups keep the `backup-` prefix.
   startAutoBackupScheduler({ dataRoot, exportRoot });
@@ -1355,6 +1369,14 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
     const lang = resolveRequestLang(req, new URL(req.url, 'http://localhost'));
     res.setHeader('Vary', 'Accept-Language');
     res.setHeader('Content-Language', lang);
+    // Refuse cross-site and DNS-rebinding requests before any endpoint runs.
+    try {
+      assertTrustedRequest(req, guard);
+    } catch (err) {
+      const { status, body } = toErrorResponse(err, lang);
+      sendJson(res, status, body);
+      return Promise.resolve(true);
+    }
     return runWithLang(lang, () => handleRequest(req, res));
   };
 }
@@ -1384,7 +1406,7 @@ export function startMangaServer(
   overrides: Pick<MangaServerOptions, 'rawDir' | 'dataDir' | 'exportDir'> = {},
   host = '127.0.0.1',
 ): Promise<{ server: http.Server; port: number }> {
-  const handler = createMangaHandler({ rootDir, ...overrides });
+  const handler = createMangaHandler({ rootDir, ...overrides, allowLan: !isLoopbackHost(host) });
 
   const serveStatic = (res: ServerResponse, pathname: string): boolean => {
     if (!staticDir) return false;

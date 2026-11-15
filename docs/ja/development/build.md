@@ -16,7 +16,7 @@
 | `npm run build` | 型検査とフロントエンドのビルド。 | `dist/` |
 | `npm run preview` | 同じ API ミドルウェアでビルド結果をプレビュー。 | — |
 | `npm run server:build` | esbuild で `server/app.ts` と `server/standalone.ts` を束ねる。 | `dist-server/app.mjs`、`dist-server/standalone.mjs` |
-| `npm start` | 束ねた単体サーバーを実行。 | `0.0.0.0:3921` |
+| `npm start` | 束ねた単体サーバーを実行。 | `127.0.0.1:3921` |
 | `npm run desktop` | ビルド、サーバー束ね、Electron 起動。 | ウィンドウ |
 | `npm run dist:win` | NSIS インストーラーとポータブル版。 | `release/` |
 | `npm run dist:dir` | 未パッケージのフォルダー。デスクトップ版の確認用。 | `release/win-unpacked/` |
@@ -49,7 +49,7 @@ npm start
 
 | 変数 | 既定値 | 用途 |
 | --- | --- | --- |
-| `HOST` | `0.0.0.0` | 待ち受けアドレス。 |
+| `HOST` | `127.0.0.1` | 待ち受けアドレス。LAN からアクセスさせる場合のみ `0.0.0.0` にします（認証はありません）。 |
 | `PORT` | `3921` | 待ち受けポート。 |
 | `RAW_DIR` | `<cwd>/raw` | 漫画画像。 |
 | `DATA_DIR` | `<cwd>/data` | JSON データ。 |

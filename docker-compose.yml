@@ -13,9 +13,15 @@ services:
     image: koma-yomi:local
     container_name: koma-yomi
     ports:
-      - '3921:3921'
+      # Host-side binding is loopback only. To reach it from another machine, change this
+      # to '3921:3921' AND set HOST: 0.0.0.0 below — the API has no login, so anyone on
+      # the network could then read and modify the library.
+      - '127.0.0.1:3921:3921'
     environment:
       PORT: 3921
+      # Inside the container the process must listen on all interfaces for the published
+      # port to reach it; the host side above still restricts access to this machine.
+      HOST: 0.0.0.0
       RAW_DIR: /data/raw
       DATA_DIR: /data/annotations
       EXPORT_DIR: /data/exports
