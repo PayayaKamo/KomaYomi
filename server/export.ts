@@ -130,20 +130,22 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .tags{display:inline-flex;gap:4px;margin-right:6px;vertical-align:middle}
 .tag{background:#fdece3;color:#9a3412;border-radius:99px;padding:0 7px;font-size:11px}
 /* Markdown 笔记：导出后保留标题、列表、引用、代码与表格样式 */
-.md h1,.md h2,.md h3,.md h4{margin:10px 0 4px;line-height:1.3;color:var(--ink)}
+.md{line-height:1.75;line-break:strict;overflow-wrap:anywhere}
+.md h1,.md h2,.md h3,.md h4{margin:12px 0 5px;line-height:1.35;color:var(--ink)}
 .md h1{font-size:18px}.md h2{font-size:16px}.md h3{font-size:15px}
-.md p{margin:4px 0}
-.md ul,.md ol{margin:4px 0;padding-left:20px}
-.md li{margin:2px 0}
-.md blockquote{margin:6px 0;padding:4px 10px;border-left:3px solid var(--accent);background:#faf7f4;color:#4b5563}
+.md p{margin:6px 0}
+.md ul,.md ol{margin:6px 0;padding-left:22px}
+.md li{margin:3px 0}
+.md blockquote{margin:8px 0;padding:5px 12px;border-left:3px solid var(--accent);background:#faf7f4;color:#4b5563;border-radius:0 4px 4px 0}
 .md code{background:#f3f4f6;border-radius:3px;padding:0 4px;font-size:.92em}
-.md pre.md-code{background:#1f2937;color:#e5e7eb;padding:10px 12px;border-radius:6px;overflow:auto}
+.md pre.md-code{background:#1f2937;color:#e5e7eb;padding:10px 12px;border-radius:6px;overflow:auto;font-size:12.5px;line-height:1.65}
 .md pre.md-code code{background:none;color:inherit;padding:0}
-.md table{border-collapse:collapse;margin:8px 0;width:100%;font-size:13px}
-.md th,.md td{border:1px solid var(--line);padding:4px 8px}
+.md table{border-collapse:collapse;margin:10px 0;width:100%;font-size:13px}
+.md tbody tr:nth-child(even){background:#fafafa}
+.md th,.md td{border:1px solid var(--line);padding:5px 8px;text-align:left}
 .md th{background:#faf7f4}
 .md a{color:var(--accent)}
-.md hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.md hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .compare{display:grid;gap:20px;align-items:start}
 .compare .notes-group{grid-column:1/-1}
 .panel-row{margin:0 0 26px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:8px}

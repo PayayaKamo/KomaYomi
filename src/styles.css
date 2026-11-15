@@ -31,6 +31,8 @@
   --canvas-grad: #141a22;
   --stripe-a: #191f27;
   --stripe-b: #151b22;
+  --code-bg: #10141a;
+  --code-text: #dbe3ef;
   --shadow-lg: rgba(0, 0, 0, 0.5);
   --radius: 10px;
   --topbar-h: 56px;
@@ -74,6 +76,8 @@
   --canvas-grad: #e9edf3;
   --stripe-a: #eceff4;
   --stripe-b: #e3e7ee;
+  --code-bg: #f1f3f7;
+  --code-text: #26303d;
   --shadow-lg: rgba(20, 28, 40, 0.18);
 }
 
@@ -1371,11 +1375,11 @@ body.pane-resizing * {
 }
 
 .note {
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: var(--panel);
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  margin-bottom: 6px;
+  border-radius: 9px;
+  margin-bottom: 8px;
 }
 
 .note-top {
@@ -1399,10 +1403,27 @@ body.pane-resizing * {
 }
 
 .note-text {
-  font-size: 12.5px;
-  line-height: 1.65;
-  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: normal;
   word-break: break-word;
+}
+
+.note-text.collapsed {
+  max-height: 224px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}
+
+.note-more {
+  margin-top: 4px;
+  padding: 0;
+  font-size: 11.5px;
+  color: var(--blue);
+}
+
+.note-more:hover {
+  text-decoration: underline;
 }
 
 .note-images {
@@ -2980,14 +3001,17 @@ kbd {
   overflow: hidden;
   background: var(--panel-2);
 }
+
 .md-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   padding: 4px 6px;
   border-bottom: 1px solid var(--line);
   background: var(--panel-3);
 }
+
 .md-toolbar button {
   border: 1px solid transparent;
   background: none;
@@ -2995,36 +3019,68 @@ kbd {
   border-radius: 5px;
   padding: 2px 6px;
   font-size: 11px;
+  line-height: 1.6;
   cursor: pointer;
 }
+
 .md-toolbar button:hover {
   color: var(--text);
   background: var(--panel-2);
 }
+
 .md-toolbar button.on {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+
+.md-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.md-modes button {
+  padding: 1px 7px;
+}
+
+.md-panes {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .md-editor textarea {
   width: 100%;
+  min-height: 132px;
   border: 0;
   outline: none;
   resize: vertical;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: transparent;
   color: var(--text);
   font-family: inherit;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 13.5px;
+  line-height: 1.7;
+  overflow-y: auto;
 }
+
+.md-editor.mode-split textarea {
+  resize: none;
+  border-bottom: 1px solid var(--line-soft);
+}
+
 .md-hint {
   padding: 4px 8px 6px;
   border-top: 1px dashed var(--line-soft);
 }
+
 .md-body {
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.75;
+  line-break: strict;
   overflow-wrap: anywhere;
 }
 .md-body > :first-child {
@@ -3072,11 +3128,14 @@ kbd {
 }
 .md-body pre,
 .md-body pre.md-code {
-  margin: 6px 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: #10141a;
-  color: #dbe3ef;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  line-height: 1.65;
   overflow: auto;
 }
 .md-body pre code {
@@ -3089,10 +3148,14 @@ kbd {
   border-collapse: collapse;
   font-size: 12px;
 }
+.md-body tbody tr:nth-child(even) {
+  background: var(--hover);
+}
 .md-body th,
 .md-body td {
-  padding: 4px 7px;
+  padding: 5px 8px;
   border: 1px solid var(--line);
+  text-align: left;
 }
 .md-body th {
   background: var(--panel-3);
@@ -3106,9 +3169,9 @@ kbd {
   border-top: 1px solid var(--line);
 }
 .md-preview {
-  max-height: 260px;
+  max-height: 320px;
   overflow: auto;
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 .note-source {
   margin: 4px 0 0;

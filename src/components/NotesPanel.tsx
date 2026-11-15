@@ -8,6 +8,7 @@ import { api } from '../api';
 import type { NotesIndex } from '../api';
 import type { Selection } from '../hooks/usePage';
 import { useI18n } from '../i18n';
+import type { MessageKey } from '../i18n';
 
 type Props = {
   doc: PageDoc | null;
@@ -80,20 +81,54 @@ function clipboardImageFiles(data: DataTransfer | null): File[] {
   return [...data.files].filter((f) => f.type.startsWith('image/'));
 }
 
-/* ---------------- Markdown 编辑器：编辑 / 实时预览 ---------------- */
+/* ---------------- Markdown 编辑器：编辑 / 分栏 / 预览 ---------------- */
+
+type NoteViewMode = 'edit' | 'split' | 'preview';
+const NOTE_MODE_KEY = 'manga-memo.notes-mode';
+
+function readNoteMode(): NoteViewMode {
+  try {
+    const saved = localStorage.getItem(NOTE_MODE_KEY);
+    return saved === 'edit' || saved === 'preview' || saved === 'split' ? saved : 'split';
+  } catch {
+    return 'split';
+  }
+}
 
 type EditorProps = {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
-  rows?: number;
 };
 
-function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: EditorProps) {
+const MODE_ORDER: { mode: NoteViewMode; label: MessageKey }[] = [
+  { mode: 'edit', label: 'notes.modeEdit' },
+  { mode: 'split', label: 'notes.modeSplit' },
+  { mode: 'preview', label: 'notes.modePreview' },
+];
+
+function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps) {
   const { t } = useI18n();
-  const [preview, setPreview] = useState(false);
+  const [mode, setMode] = useState<NoteViewMode>(readNoteMode);
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  const changeMode = (next: NoteViewMode) => {
+    setMode(next);
+    try {
+      localStorage.setItem(NOTE_MODE_KEY, next);
+    } catch {
+      /* private mode: the choice just lasts for this session */
+    }
+  };
+
+  // Grow with the content (capped) so a note never starts in a three-line box.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || mode === 'preview') return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 440)}px`;
+  }, [value, mode]);
 
   const apply = (transform: (sel: string) => string, fallback: string) => {
     const el = ref.current;
@@ -126,6 +161,8 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
       `${prefix}${t('notes.listItem')}`,
     );
 
+  const insertRule = () => apply(() => '\n\n---\n\n', '\n\n---\n\n');
+
   const keydown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
@@ -145,17 +182,32 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
     }
   };
 
+  const previewBody = value.trim() ? (
+    <div className="md-body md-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }} />
+  ) : (
+    <div className="md-preview muted tiny">{t('notes.emptyPreview')}</div>
+  );
+
   return (
-    <div className="md-editor">
+    <div className={`md-editor mode-${mode}`}>
       <div className="md-toolbar">
+        <button type="button" title={t('notes.headingTitle')} onClick={() => prefixLines('## ')}>
+          H2
+        </button>
         <button type="button" title={t('notes.boldTitle')} onClick={() => wrap('**', t('notes.boldText'))}>
           <b>B</b>
         </button>
         <button type="button" title={t('notes.italicTitle')} onClick={() => wrap('*', t('notes.italicText'))}>
           <i>I</i>
         </button>
+        <button type="button" title={t('notes.strikeTitle')} onClick={() => wrap('~~', t('notes.strikeText'))}>
+          <s>S</s>
+        </button>
         <button type="button" title={t('notes.bulletTitle')} onClick={() => prefixLines('- ')}>
           {t('notes.bulletLabel')}
+        </button>
+        <button type="button" title={t('notes.orderedTitle')} onClick={() => prefixLines('1. ')}>
+          1.
         </button>
         <button type="button" title={t('notes.quoteTitle')} onClick={() => prefixLines('> ')}>
           {t('notes.quoteLabel')}
@@ -172,34 +224,58 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
         >
           {t('notes.linkLabel')}
         </button>
-        <span className="spacer" />
-        <button
-          type="button"
-          className={preview ? 'on' : ''}
-          onClick={() => setPreview((v) => !v)}
-          title={t('notes.togglePreviewTitle')}
-        >
-          {preview ? t('notes.edit') : t('notes.preview')}
+        <button type="button" title={t('notes.ruleTitle')} onClick={insertRule}>
+          —
         </button>
+        <span className="spacer" />
+        <div className="md-modes" role="group" aria-label={t('notes.togglePreviewTitle')}>
+          {MODE_ORDER.map(({ mode: m, label }) => (
+            <button
+              type="button"
+              key={m}
+              className={mode === m ? 'on' : ''}
+              title={t(label)}
+              onClick={() => changeMode(m)}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
       </div>
-      {preview ? (
-        value.trim() ? (
-          <div className="md-body md-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }} />
-        ) : (
-          <div className="md-preview muted tiny">{t('notes.emptyPreview')}</div>
-        )
-      ) : (
-        <textarea
-          ref={ref}
-          value={value}
-          rows={rows}
-          placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={keydown}
-        />
-      )}
+      <div className="md-panes">
+        {mode !== 'preview' && (
+          <textarea
+            ref={ref}
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={keydown}
+          />
+        )}
+        {mode !== 'edit' && previewBody}
+      </div>
       <div className="md-hint muted tiny">{t('notes.markdownHint')}</div>
     </div>
+  );
+}
+
+/** Rendered note body; long notes start collapsed so the list stays scannable. */
+function NoteBody({ text }: { text: string }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const long = text.length > 280;
+  return (
+    <>
+      <div
+        className={`note-text md-body ${long && !open ? 'collapsed' : ''}`}
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }}
+      />
+      {long && (
+        <button type="button" className="note-more" onClick={() => setOpen((v) => !v)}>
+          {open ? t('notes.collapse') : t('notes.expand')}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -603,7 +679,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
       ) : sourceIds[note.id] ? (
         <pre className="note-source">{note.text}</pre>
       ) : (
-        <div className="note-text md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.text) }} />
+        <NoteBody text={note.text} />
       )}
       {note.images?.length ? imageStrip(note.images) : null}
       {note.source && (note.source.url || note.source.title || note.source.text) && (
