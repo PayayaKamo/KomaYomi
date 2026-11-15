@@ -86,6 +86,10 @@ function clipboardImageFiles(data: DataTransfer | null): File[] {
 
 type NoteViewMode = 'edit' | 'split' | 'preview';
 const NOTE_MODE_KEY = 'manga-memo.notes-mode';
+/** Split direction: stacked (column) or side by side (row). */
+type SplitAxis = 'column' | 'row';
+const SPLIT_AXIS_KEY = 'manga-memo.notes-split-axis';
+const HINT_KEY = 'manga-memo.notes-hint-hidden';
 
 function readNoteMode(): NoteViewMode {
   try {
@@ -93,6 +97,22 @@ function readNoteMode(): NoteViewMode {
     return saved === 'edit' || saved === 'preview' || saved === 'split' ? saved : 'split';
   } catch {
     return 'split';
+  }
+}
+
+function readSplitAxis(): SplitAxis {
+  try {
+    return localStorage.getItem(SPLIT_AXIS_KEY) === 'row' ? 'row' : 'column';
+  } catch {
+    return 'column';
+  }
+}
+
+function readHintHidden(): boolean {
+  try {
+    return localStorage.getItem(HINT_KEY) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -116,6 +136,8 @@ const MODE_ORDER: { mode: NoteViewMode; label: MessageKey }[] = [
 function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: EditorProps) {
   const { t } = useI18n();
   const [mode, setMode] = useState<NoteViewMode>(readNoteMode);
+  const [axis, setAxis] = useState<SplitAxis>(readSplitAxis);
+  const [hintHidden, setHintHidden] = useState(readHintHidden);
   const ref = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   /** Text fed to the preview pane; lags the editor by a debounce so typing stays smooth. */
@@ -153,6 +175,27 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: Edit
     if (next !== 'edit') setPreviewText(value);
     try {
       localStorage.setItem(NOTE_MODE_KEY, next);
+    } catch {
+      /* private mode: the choice just lasts for this session */
+    }
+  };
+
+  const toggleAxis = () => {
+    setAxis((prev) => {
+      const next: SplitAxis = prev === 'column' ? 'row' : 'column';
+      try {
+        localStorage.setItem(SPLIT_AXIS_KEY, next);
+      } catch {
+        /* private mode: the choice just lasts for this session */
+      }
+      return next;
+    });
+  };
+
+  const setHintVisible = (visible: boolean) => {
+    setHintHidden(!visible);
+    try {
+      localStorage.setItem(HINT_KEY, visible ? '0' : '1');
     } catch {
       /* private mode: the choice just lasts for this session */
     }
@@ -445,6 +488,17 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: Edit
         </button>
         <span className="spacer" />
         <div className="md-modes" role="group" aria-label={t('notes.togglePreviewTitle')}>
+          {mode === 'split' && (
+            <button
+              type="button"
+              className="md-axis"
+              title={t(axis === 'column' ? 'notes.splitSwitchToRow' : 'notes.splitSwitchToColumn')}
+              aria-label={t(axis === 'column' ? 'notes.splitSwitchToRow' : 'notes.splitSwitchToColumn')}
+              onClick={toggleAxis}
+            >
+              {axis === 'column' ? '◫' : '⬒'}
+            </button>
+          )}
           {MODE_ORDER.map(({ mode: m, label }) => (
             <button
               type="button"
@@ -457,6 +511,17 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: Edit
             </button>
           ))}
         </div>
+        {hintHidden && (
+          <button
+            type="button"
+            className="md-hint-toggle"
+            title={t('notes.showHint')}
+            aria-label={t('notes.showHint')}
+            onClick={() => setHintVisible(true)}
+          >
+            ?
+          </button>
+        )}
       </div>
       {tableOpen && (
         <div className="md-table-pop" role="dialog" aria-label={t('notes.tableTitle')}>
@@ -492,7 +557,7 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: Edit
           </button>
         </div>
       )}
-      <div className="md-panes">
+      <div className={`md-panes axis-${axis}`}>
         {mode !== 'preview' && (
           <textarea
             ref={ref}
@@ -506,7 +571,20 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: Edit
         )}
         {mode !== 'edit' && previewBody}
       </div>
-      <div className="md-hint muted tiny">{t('notes.markdownHint')}</div>
+      {!hintHidden && (
+        <div className="md-hint muted tiny">
+          <span>{t('notes.markdownHint')}</span>
+          <button
+            type="button"
+            className="md-hint-close"
+            title={t('notes.hideHint')}
+            aria-label={t('notes.hideHint')}
+            onClick={() => setHintVisible(false)}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -127,6 +127,7 @@ export const ja = {
   'app.help.switchViews': 'コマ編集 / 比較読みに切り替え',
   'app.help.toggleSidebar': 'ライブラリサイドバーの表示を切り替え',
   'app.help.toggleNotes': 'ノート欄の表示を切り替え',
+  'app.help.toggleReading': '閲覧モードを切り替え（Esc で終了）',
   'app.help.openExport': 'エクスポート画面を開く',
   'app.help.openHelp': 'このヘルプを開く',
   'app.help.panels': 'コマ',
@@ -359,6 +360,10 @@ export const ja = {
   'notes.linkTitle': 'リンク（Ctrl+K）',
   'notes.linkLabel': '↗ リンク',
   'notes.togglePreviewTitle': '編集 / プレビューを切り替え',
+  'notes.splitSwitchToRow': '左右に並べて表示',
+  'notes.splitSwitchToColumn': '上下に積んで表示',
+  'notes.hideHint': 'Markdown ヒントを隠す',
+  'notes.showHint': 'Markdown ヒントを表示',
   'notes.modeEdit': '編集',
   'notes.modeSplit': '分割',
   'notes.modePreview': 'プレビュー',
@@ -418,6 +423,9 @@ export const ja = {
   'lang.en': '英語',
 
   /* ---- reading directions ---- */
+  'reading.enterTitle': '閲覧モード（R）',
+  'reading.exit': '閲覧モードを終了',
+  'reading.exitTitle': '閲覧モードを終了（Esc）',
   'reading.rtl': '右から左 · 上から下',
   'reading.ltr': '左から右 · 上から下',
   'reading.ttb': '右から左 · 縦書き',

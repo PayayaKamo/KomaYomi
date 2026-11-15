@@ -129,6 +129,7 @@ export const en = {
   'app.help.switchViews': 'Switch to panel editing / compare reading',
   'app.help.toggleSidebar': 'Show or hide the library sidebar',
   'app.help.toggleNotes': 'Show or hide the notes column',
+  'app.help.toggleReading': 'Toggle reading mode (Esc exits)',
   'app.help.openExport': 'Open the export dialog',
   'app.help.openHelp': 'Open this help',
   'app.help.panels': 'Panels',
@@ -363,6 +364,10 @@ export const en = {
   'notes.linkTitle': 'Link (Ctrl+K)',
   'notes.linkLabel': '↗ Link',
   'notes.togglePreviewTitle': 'Toggle edit / preview',
+  'notes.splitSwitchToRow': 'Switch split to side by side',
+  'notes.splitSwitchToColumn': 'Switch split to stacked',
+  'notes.hideHint': 'Hide Markdown tips',
+  'notes.showHint': 'Show Markdown tips',
   'notes.modeEdit': 'Edit',
   'notes.modeSplit': 'Split',
   'notes.modePreview': 'Preview',
@@ -422,6 +427,9 @@ export const en = {
   'lang.en': 'English',
 
   /* ---- reading directions ---- */
+  'reading.enterTitle': 'Reading mode (R)',
+  'reading.exit': 'Exit reading mode',
+  'reading.exitTitle': 'Exit reading mode (Esc)',
   'reading.rtl': 'Right to left · top to bottom',
   'reading.ltr': 'Left to right · top to bottom',
   'reading.ttb': 'Right to left · vertical',

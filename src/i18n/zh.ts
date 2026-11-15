@@ -127,6 +127,7 @@ export const zh = {
   'app.help.switchViews': '切换到分格编辑 / 对照阅读',
   'app.help.toggleSidebar': '显示或收起图库侧栏',
   'app.help.toggleNotes': '显示或收起批注栏',
+  'app.help.toggleReading': '切换阅读模式（Esc 退出）',
   'app.help.openExport': '打开导出窗',
   'app.help.openHelp': '打开本帮助',
   'app.help.panels': '分格',
@@ -352,6 +353,10 @@ export const zh = {
   'notes.linkTitle': '链接（Ctrl+K）',
   'notes.linkLabel': '↗ 链接',
   'notes.togglePreviewTitle': '切换编辑 / 预览',
+  'notes.splitSwitchToRow': '分栏改为左右并排',
+  'notes.splitSwitchToColumn': '分栏改为上下堆叠',
+  'notes.hideHint': '隐藏 Markdown 提示',
+  'notes.showHint': '显示 Markdown 提示',
   'notes.modeEdit': '编辑',
   'notes.modeSplit': '分栏',
   'notes.modePreview': '预览',
@@ -410,6 +415,9 @@ export const zh = {
   'lang.en': '英语',
 
   /* ---- reading directions ---- */
+  'reading.enterTitle': '阅读模式（R）',
+  'reading.exit': '退出阅读模式',
+  'reading.exitTitle': '退出阅读模式（Esc）',
   'reading.rtl': '从右到左 · 从上到下',
   'reading.ltr': '从左到右 · 从上到下',
   'reading.ttb': '从右到左 · 竖排',

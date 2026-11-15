@@ -196,6 +196,49 @@ code {
   justify-content: center;
 }
 
+/* Reading mode: hide the shell chrome so the page keeps the whole window. */
+.app.reading-mode {
+  --topbar-h: 0px;
+}
+
+.app.reading-mode .topbar,
+.app.reading-mode .stage-toolbar,
+.app.reading-mode .sec-rail,
+.app.reading-mode .groups-panel,
+.app.reading-mode .stage-status {
+  display: none;
+}
+
+/* The only always-visible way out; Esc does the same. Sits below modals and detail. */
+.reading-exit {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  z-index: 54;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.reading-exit:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.reading-exit span {
+  font-size: 15px;
+  line-height: 1;
+}
+
 /* Topbar brand: icon only. */
 .brand-mark {
   display: inline-flex;
@@ -4550,6 +4593,30 @@ kbd {
   min-height: 0;
 }
 
+/* Side-by-side split: both panes share one fixed height and scroll on their own. */
+.md-editor.mode-split .md-panes.axis-row {
+  flex-direction: row;
+  height: 320px;
+}
+
+.md-editor.mode-split .md-panes.axis-row > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.md-editor.mode-split .md-panes.axis-row textarea {
+  height: 100% !important;
+  min-height: 0;
+  border-bottom: 0;
+  border-right: 1px solid var(--line-soft);
+  resize: none;
+}
+
+.md-editor.mode-split .md-panes.axis-row .md-preview {
+  max-height: none;
+  height: 100%;
+}
+
 .md-editor textarea {
   width: 100%;
   min-height: 132px;
@@ -4571,8 +4638,35 @@ kbd {
 }
 
 .md-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   padding: 4px 8px 6px;
   border-top: 1px dashed var(--line-soft);
+}
+
+.md-hint span {
+  flex: 1;
+  min-width: 0;
+}
+
+.md-hint-close,
+.md-hint-toggle {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  border-radius: 5px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.md-hint-close:hover,
+.md-hint-toggle:hover {
+  color: var(--text);
+  background: var(--panel-2);
 }
 
 .md-body {

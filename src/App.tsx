@@ -43,6 +43,16 @@ function arrowPageStep(dir: ReadingDirection, key: string): number {
 /** Drag-resizable panes: storage key and the range that keeps both usable. */
 const SIDEBAR_PANE = { key: 'manga-memo.sidebar-width', min: 200, max: 420 };
 const NOTES_PANE = { key: 'manga-memo.notes-width', min: 260, max: 560 };
+/** Reading mode hides the shell chrome; the choice survives reloads. */
+const READING_MODE_KEY = 'manga-memo.reading-mode';
+
+function readReadingMode(): boolean {
+  try {
+    return localStorage.getItem(READING_MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export default function App() {
   const { t, locale, setLocale, formatNumber } = useI18n();
@@ -65,6 +75,7 @@ export default function App() {
   const [tagStats, setTagStats] = useState<{ tag: string; count: number }[]>([]);
   const [notesOpen, setNotesOpen] = useState(() => window.innerWidth > 1180);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
+  const [readingMode, setReadingMode] = useState(readReadingMode);
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() =>
     loadPaneWidth(SIDEBAR_PANE.key, SIDEBAR_PANE.min, SIDEBAR_PANE.max),
   );
@@ -121,6 +132,16 @@ export default function App() {
       history.replaceState(null, '', `${location.pathname}${location.search}`);
     });
   }, [confirmLeave]);
+
+  /** Flip reading mode and remember it for the next visit. */
+  const setReadingModePersisted = useCallback((next: boolean) => {
+    setReadingMode(next);
+    try {
+      localStorage.setItem(READING_MODE_KEY, next ? '1' : '0');
+    } catch {
+      /* private mode: the choice just lasts for this session */
+    }
+  }, []);
 
   // Keep the palette in sync with the stored preference and with OS changes when the
   // user picked "system". index.html already applied it before paint, so this only
@@ -386,7 +407,7 @@ export default function App() {
   const redoPage = pageState.redo;
 
   // Keyboard shortcuts (ignored while an input has focus): [ ] page, P panels, C compare,
-  // S sidebar, N notes, E export.
+  // S sidebar, N notes, R reading mode, E export.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -396,6 +417,13 @@ export default function App() {
       if (detailPanel) return;
       // Handled lower in the tree (panel nudging, dialogs) — do not page-turn on top of it.
       if (e.defaultPrevented) return;
+      const modalOpen = Boolean(document.querySelector('.modal-backdrop'));
+      // Escape leaves reading mode; dialogs and the detail view keep their own Esc.
+      if (readingMode && e.key === 'Escape' && !modalOpen) {
+        e.preventDefault();
+        setReadingModePersisted(false);
+        return;
+      }
       if (e.ctrlKey || e.metaKey) {
         const mod = e.key.toLowerCase();
         if (mod === 'z') {
@@ -411,7 +439,7 @@ export default function App() {
       if (e.altKey) return;
       // Arrows turn pages along the page's reading direction: RTL reads leftward,
       // TTB reads downward. Modals keep their own keyboard handling.
-      if (e.key.startsWith('Arrow') && doc && !document.querySelector('.modal-backdrop')) {
+      if (e.key.startsWith('Arrow') && doc && !modalOpen) {
         const step = arrowPageStep(doc.readingDirection, e.key);
         if (step) {
           e.preventDefault();
@@ -430,12 +458,13 @@ export default function App() {
       else if (key === 'c') setView('compare');
       else if (key === 's') setSidebarOpen((v) => !v);
       else if (key === 'n') setNotesOpen((v) => !v);
+      else if (key === 'r' && !modalOpen) setReadingModePersisted(!readingMode);
       else if (key === 'e' && doc) setExportOpen(true);
       else if (e.key === '?') setHelpOpen((v) => !v);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, goPage, undoPage, redoPage, detailPanel]);
+  }, [doc, goPage, undoPage, redoPage, detailPanel, readingMode, setReadingModePersisted]);
 
   // Library-wide language order; the runtime list grows with whatever the scan finds.
   const allLangs = useMemo<Lang[]>(
@@ -464,7 +493,9 @@ export default function App() {
         : t('app.saveSaved');
 
   return (
-    <div className={`app ${notesOpen ? 'show-notes' : ''} ${sidebarOpen ? '' : 'sidebar-closed'}`}>
+    <div
+      className={`app ${notesOpen ? 'show-notes' : ''} ${sidebarOpen ? '' : 'sidebar-closed'} ${readingMode ? 'reading-mode' : ''}`}
+    >
       <header className="topbar">
         <div className="tb-left">
           <button
@@ -599,6 +630,15 @@ export default function App() {
             <option value="zh">{t('locale.zh')}</option>
             <option value="ja">{t('locale.ja')}</option>
           </select>
+          <button
+            type="button"
+            className="btn icon reading-btn"
+            onClick={() => setReadingModePersisted(true)}
+            title={t('reading.enterTitle')}
+            aria-label={t('reading.enterTitle')}
+          >
+            ⛶
+          </button>
           <button type="button" className={`btn ${notesOpen ? 'on' : ''}`} onClick={() => setNotesOpen((v) => !v)}>
             {t('app.notesButton')}
           </button>
@@ -744,6 +784,17 @@ export default function App() {
         />
       </div>
 
+      {readingMode && (
+        <button
+          type="button"
+          className="reading-exit"
+          onClick={() => setReadingModePersisted(false)}
+          title={t('reading.exitTitle')}
+        >
+          <span aria-hidden="true">×</span> {t('reading.exit')}
+        </button>
+      )}
+
       <ExportDialog
         open={exportOpen}
         onClose={() => {
@@ -838,6 +889,10 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
                 <Kbd>N</Kbd>
               </dt>
               <dd>{t('app.help.toggleNotes')}</dd>
+              <dt>
+                <Kbd>R</Kbd>
+              </dt>
+              <dd>{t('app.help.toggleReading')}</dd>
               <dt>
                 <Kbd>E</Kbd>
               </dt>
