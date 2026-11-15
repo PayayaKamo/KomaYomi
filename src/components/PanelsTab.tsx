@@ -7,6 +7,7 @@ import {
   clamp01,
   normalizeGroupOrder,
   normalizeRect,
+  renumberPanels,
   sortPanels,
   uid,
   unionRects,
@@ -428,7 +429,16 @@ export function PanelsTab({
         }
       : { x: 0.3, y: 0.4, w: 0.4, h: 0.2 };
     const id = uid('p');
-    mutate((d) => ({ ...d, panels: [...d.panels, { id, rect, source: 'manual' }] }));
+    // New panels obey an explicit rule instead of the geometry sort: append when
+    // nothing is selected, otherwise slot in directly after the selected panel.
+    const afterId = selected.length ? selected[selected.length - 1] : null;
+    mutate((d) => {
+      const sequence = applyGroupOrder(sortPanels(d.panels, d.readingDirection), d.groups);
+      const at = afterId ? sequence.findIndex((p) => p.id === afterId) : -1;
+      const next = [...sequence];
+      next.splice(at >= 0 ? at + 1 : next.length, 0, { id, rect, source: 'manual' as const });
+      return { ...d, panels: renumberPanels(next) };
+    });
     setSelected([id]);
   };
 
@@ -449,10 +459,7 @@ export function PanelsTab({
   const applyPanelOrder = (order: string[]) => {
     mutate((d) => {
       const byId = new Map(d.panels.map((p) => [p.id, p]));
-      const panels = order
-        .map((id) => byId.get(id))
-        .filter((p): p is Panel => Boolean(p))
-        .map((p, i) => ({ ...p, number: i + 1 }));
+      const panels = renumberPanels(order.map((id) => byId.get(id)).filter((p): p is Panel => Boolean(p)));
       return { ...d, panels };
     });
     setOrderOpen(false);
@@ -478,7 +485,7 @@ export function PanelsTab({
       ids.forEach((id, i) =>
         byId.set(id, { ...current, id, rect: pieces[i], source: 'manual' as const, number: undefined }),
       );
-      const panels = sequence.map((id, i) => ({ ...byId.get(id)!, number: i + 1 }));
+      const panels = renumberPanels(sequence.map((id) => ({ ...byId.get(id)! })));
       const first = ids[0];
       return {
         ...d,

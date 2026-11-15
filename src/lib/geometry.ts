@@ -84,6 +84,11 @@ function median(nums: number[]): number {
 
 export { applyGroupOrder, normalizeGroupOrder } from '../../shared/panelOrder';
 
+/** Freeze a sequence into explicit 1..N numbers so every view reads the same order. */
+export function renumberPanels(panels: Panel[]): Panel[] {
+  return panels.map((panel, index) => ({ ...panel, number: index + 1 }));
+}
+
 /** Reading order matching the server: rtl = right-to-left within a row, ltr = left-to-right,
  *  ttb = top-to-bottom within columns ordered right-to-left. */
 export function sortPanels(panels: Panel[], dir: ReadingDirection): Panel[] {

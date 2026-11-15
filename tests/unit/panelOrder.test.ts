@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sortPanels, splitRect } from '../../src/lib/geometry';
+import { renumberPanels, sortPanels, splitRect } from '../../src/lib/geometry';
 import type { Panel } from '../../src/types';
 
 const panel = (id: string, x: number, y: number, number?: number): Panel => ({
@@ -22,6 +22,14 @@ describe('sortPanels', () => {
   it('keeps unnumbered panels after numbered ones in their stored order', () => {
     const panels = [panel('x', 0, 0), panel('a', 0.5, 0, 1), panel('y', 0, 0.5)];
     expect(sortPanels(panels, 'rtl').map((p) => p.id)).toEqual(['a', 'x', 'y']);
+  });
+});
+
+describe('renumberPanels', () => {
+  it('writes consecutive numbers in array order regardless of previous values', () => {
+    const panels = [panel('a', 0, 0, 9), panel('b', 0.8, 0), panel('c', 0, 0.5, 2)];
+    expect(renumberPanels(panels).map((p) => p.number)).toEqual([1, 2, 3]);
+    expect(renumberPanels(panels).map((p) => p.id)).toEqual(['a', 'b', 'c']);
   });
 });
 
