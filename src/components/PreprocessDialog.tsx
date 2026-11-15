@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { Library, VolumeEntry } from '../types';
-import { SINGLE_CHAPTER } from '../types';
+import type { Library, PageKind, VolumeEntry } from '../types';
+import { PAGE_KINDS, SINGLE_CHAPTER } from '../types';
 import { langLabel, useI18n } from '../i18n';
 import { api, thumbUrl } from '../api';
 
@@ -19,7 +19,21 @@ const firstFile = (volume: VolumeEntry, files: Partial<Record<string, string>>) 
   return Object.values(files)[0];
 };
 
-type ChapterDraft = { title: string };
+type ChapterDraft = {
+  title: string;
+  /** Page document indices in reading order (only reordered by the page-order step). */
+  order: number[];
+  excluded: number[];
+  kinds: Record<string, PageKind>;
+};
+
+const KIND_KEYS = {
+  cover: 'preprocess.kindCover',
+  toc: 'preprocess.kindToc',
+  author: 'preprocess.kindAuthor',
+  ad: 'preprocess.kindAd',
+  recruit: 'preprocess.kindRecruit',
+} as const;
 
 /** Editor for one volume; remounted with `key` so switching volumes resets the local drafts. */
 function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (library: Library) => void }) {
@@ -27,7 +41,16 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
   const [title, setTitle] = useState(() => (volume.title === volume.id ? '' : volume.title));
   const [chapters, setChapters] = useState<Record<string, ChapterDraft>>(() => {
     const draft: Record<string, ChapterDraft> = {};
-    for (const chapter of volume.chapters) draft[chapter.chapter] = { title: chapter.title ?? '' };
+    for (const chapter of volume.chapters) {
+      const kinds: Record<string, PageKind> = {};
+      for (const page of chapter.pages) if (page.kind) kinds[String(page.index)] = page.kind;
+      draft[chapter.chapter] = {
+        title: chapter.title ?? '',
+        order: chapter.pages.map((page) => page.index),
+        excluded: chapter.pages.filter((page) => page.excluded).map((page) => page.index),
+        kinds,
+      };
+    }
     return draft;
   });
   const [busy, setBusy] = useState(false);
@@ -43,7 +66,10 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
         volume: volume.id,
         title,
         chapters: Object.fromEntries(
-          Object.entries(chapters).map(([chapter, draft]) => [chapter, { title: draft.title }]),
+          Object.entries(chapters).map(([chapter, draft]) => [
+            chapter,
+            { title: draft.title, order: draft.order, excluded: draft.excluded, kinds: draft.kinds },
+          ]),
         ),
       });
       onDone(res.library);
@@ -112,8 +138,11 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
               <div className="preprocess-pages">
                 {chapter.pages.map((page, position) => {
                   const file = firstFile(volume, page.files);
+                  const key = String(page.index);
+                  const kind = draft.kinds[key];
+                  const excluded = draft.excluded.includes(page.index);
                   return (
-                    <figure className={`preprocess-page ${page.excluded ? 'excluded' : ''}`} key={page.index}>
+                    <figure className={`preprocess-page ${excluded ? 'excluded' : ''}`} key={page.index}>
                       {file ? (
                         <img src={thumbUrl(file, 160)} alt="" loading="lazy" />
                       ) : (
@@ -121,8 +150,47 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
                       )}
                       <figcaption>
                         <span>{formatNumber(position + 1)}</span>
-                        {page.excluded && <em>{t('preprocess.excluded')}</em>}
+                        {kind && <b className="preprocess-kind">{t(KIND_KEYS[kind])}</b>}
+                        {excluded && <em>{t('preprocess.excluded')}</em>}
                       </figcaption>
+                      <div className="preprocess-page-actions">
+                        <label title={t('preprocess.exclude')}>
+                          <input
+                            type="checkbox"
+                            checked={excluded}
+                            onChange={(e) =>
+                              setChapters((prev) => ({
+                                ...prev,
+                                [chapter.chapter]: {
+                                  ...draft,
+                                  excluded: e.target.checked
+                                    ? [...draft.excluded, page.index]
+                                    : draft.excluded.filter((index) => index !== page.index),
+                                },
+                              }))
+                            }
+                          />
+                          {t('preprocess.exclude')}
+                        </label>
+                        <select
+                          value={kind ?? ''}
+                          aria-label={t('preprocess.pageKind')}
+                          onChange={(e) => {
+                            const value = e.target.value as PageKind | '';
+                            const kinds = { ...draft.kinds };
+                            if (value) kinds[key] = value;
+                            else delete kinds[key];
+                            setChapters((prev) => ({ ...prev, [chapter.chapter]: { ...draft, kinds } }));
+                          }}
+                        >
+                          <option value="">{t('preprocess.kindNone')}</option>
+                          {PAGE_KINDS.map((value) => (
+                            <option key={value} value={value}>
+                              {t(KIND_KEYS[value])}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </figure>
                   );
                 })}

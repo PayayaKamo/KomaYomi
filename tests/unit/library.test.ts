@@ -1,6 +1,13 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLibrary, encodePath, guessLang, naturalCompare, normalizeLangOrder } from '../../server/library.ts';
+import {
+  createLibrary,
+  encodePath,
+  guessLang,
+  naturalCompare,
+  normalizeLangOrder,
+  writeLibraryConfig,
+} from '../../server/library.ts';
 import { makeTempDir, removeDir, writeFile, writeFiles } from '../helpers/tmp.ts';
 import { runWithLang } from '../../server/messages/index.ts';
 
@@ -59,6 +66,33 @@ describe('encodePath', () => {
 });
 
 describe('createLibrary', () => {
+  it('applies titles, page order, exclusions and page roles from the config', () => {
+    const root = tempRoot([
+      'raw/Vol1/ja/172/01.png',
+      'raw/Vol1/ja/172/02.png',
+      'raw/Vol1/ja/172/03.png',
+      'raw/Vol1/en/172/01.png',
+      'raw/Vol1/en/172/02.png',
+      'raw/Vol1/en/172/03.png',
+    ]);
+    const dataRoot = path.join(root, 'data');
+    writeLibraryConfig(dataRoot, {
+      volumes: {
+        Vol1: {
+          title: 'Renamed',
+          chapters: { 172: { title: 'Intro', order: [2, 0, 1], excluded: [1], kinds: { 2: 'cover' } } },
+        },
+      },
+    });
+    const library = runWithLang('en', () => createLibrary(path.join(root, 'raw'), dataRoot));
+    const volume = library.volumes[0];
+    expect(volume.title).toBe('Renamed');
+    expect(volume.chapters[0].title).toBe('Intro');
+    expect(volume.chapters[0].pages.map((p) => p.index)).toEqual([2, 0, 1]);
+    expect(volume.chapters[0].pages.map((p) => p.excluded ?? false)).toEqual([false, false, true]);
+    expect(volume.chapters[0].pages[0].kind).toBe('cover');
+  });
+
   it('pairs pages across languages and reports a missing translation', () => {
     const root = tempRoot([
       'raw/Vol1/ja/172/01.png',

@@ -166,8 +166,10 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
     const volumeId = volume.id;
     const key = `${volumeId}/${chapter.chapter}`;
     const isOpen = expanded[key];
-    const pageWarnings = chapter.pages.reduce((n, p) => n + p.warnings.length, 0);
-    const annotated = chapter.pages.filter((p) => p.annotated).length;
+    // Pages excluded by preprocessing are not part of the reading body.
+    const bodyPages = chapter.pages.filter((p) => !p.excluded);
+    const pageWarnings = bodyPages.reduce((n, p) => n + p.warnings.length, 0);
+    const annotated = bodyPages.filter((p) => p.annotated).length;
 
     return (
       <div className="chapter" key={key}>
@@ -186,11 +188,11 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           <span className="ch-meta">
             {annotated > 0 && <span className="chip-mini ok">{formatNumber(annotated)}</span>}
             {pageWarnings > 0 && (
-              <span className="chip-mini warn" title={chapter.pages.flatMap((p) => p.warnings).join('\n')}>
+              <span className="chip-mini warn" title={bodyPages.flatMap((p) => p.warnings).join('\n')}>
                 !
               </span>
             )}
-            <span className="ch-count">{chapter.pages.length}p</span>
+            <span className="ch-count">{formatNumber(bodyPages.length)}p</span>
           </span>
         </button>
 
@@ -202,32 +204,29 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
               </div>
             ))}
             <div className="page-grid">
-              {chapter.pages.map((page) => {
+              {bodyPages.map((page, position) => {
                 const file = pickFile(page, volume);
                 const active =
                   selection?.volume === volumeId &&
                   selection.chapter === chapter.chapter &&
                   selection.pageIndex === page.index;
+                const pageNo = formatNumber(position + 1);
                 return (
                   <button
                     type="button"
                     key={page.index}
                     className={`thumb ${active ? 'active' : ''} ${file ? '' : 'missing'}`}
-                    title={`${t('format.page', { page: formatNumber(page.index + 1) })}${
+                    title={`${t('format.page', { page: pageNo })}${
                       page.warnings.length ? '\n' + page.warnings.join('\n') : ''
                     }`}
                     onClick={() => onOpen({ volume: volumeId, chapter: chapter.chapter, pageIndex: page.index })}
                   >
                     {file ? (
-                      <img
-                        src={thumbUrl(file.url, 200)}
-                        alt={t('format.page', { page: formatNumber(page.index + 1) })}
-                        loading="lazy"
-                      />
+                      <img src={thumbUrl(file.url, 200)} alt={t('format.page', { page: pageNo })} loading="lazy" />
                     ) : (
                       <span>{t('sidebar.missingImage')}</span>
                     )}
-                    <em>{formatNumber(page.index + 1)}</em>
+                    <em>{pageNo}</em>
                     {page.warnings.length > 0 && <i className="thumb-warn">!</i>}
                     {page.annotated && <i className="thumb-dot" />}
                     {file && <b className="thumb-lang">{langShort(file.lang)}</b>}

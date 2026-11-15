@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Library } from '../types';
 import { SINGLE_CHAPTER } from '../types';
@@ -41,13 +41,20 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
   const chapter = volume?.chapters.find((c) => c.chapter === selection.chapter) ?? null;
   const volumeItems = library?.volumes ?? [];
   const chapterItems = volume?.chapters ?? [];
-  const pageCount = chapter?.pages.length ?? 0;
+  // Preprocessing exclusions are not part of the reading body, so paging counts skip them.
+  const bodyPages = useMemo(() => chapter?.pages.filter((p) => !p.excluded) ?? [], [chapter]);
+  const pageCount = bodyPages.length;
+  const pagePosition =
+    Math.max(
+      0,
+      bodyPages.findIndex((p) => p.index === selection.pageIndex),
+    ) + 1;
 
   // Follow external navigation (shortcuts, sidebar, deep links) unless the user is typing.
   useEffect(() => {
     if (pageInputRef.current && document.activeElement === pageInputRef.current) return;
-    setPageDraft(String(selection.pageIndex + 1));
-  }, [selection.pageIndex]);
+    setPageDraft(String(pagePosition));
+  }, [pagePosition]);
 
   // Any outside pointer press or Escape dismisses the listbox, wherever focus sits.
   useEffect(() => {
@@ -128,7 +135,11 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
     const next = target.chapters.find((c) => c.chapter === selection.chapter) ?? target.chapters[0];
     if (!next) return;
     const pageIndex =
-      next.chapter === selection.chapter ? Math.min(selection.pageIndex, Math.max(0, next.pages.length - 1)) : 0;
+      next.chapter === selection.chapter
+        ? (next.pages.filter((p) => !p.excluded).find((p) => p.index === selection.pageIndex)?.index ??
+          next.pages.find((p) => !p.excluded)?.index ??
+          0)
+        : (next.pages.find((p) => !p.excluded)?.index ?? 0);
     onOpen({ volume: id, chapter: next.chapter, pageIndex });
   };
 
@@ -140,18 +151,19 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
     }
     const target = chapterItems.find((c) => c.chapter === name);
     if (!target) return;
-    onOpen({ volume: selection.volume, chapter: name, pageIndex: 0 });
+    onOpen({ volume: selection.volume, chapter: name, pageIndex: target.pages.find((p) => !p.excluded)?.index ?? 0 });
   };
 
   const commitPage = (value: string) => {
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || pageCount === 0) {
-      setPageDraft(String(selection.pageIndex + 1));
+      setPageDraft(String(pagePosition));
       return;
     }
     const next = Math.min(Math.max(1, parsed), pageCount);
     setPageDraft(String(next));
-    if (next - 1 !== selection.pageIndex) onOpen({ ...selection, pageIndex: next - 1 });
+    const target = bodyPages[next - 1];
+    if (target && target.index !== selection.pageIndex) onOpen({ ...selection, pageIndex: target.index });
   };
 
   const onPageKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -161,15 +173,16 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
       e.currentTarget.select();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setPageDraft(String(selection.pageIndex + 1));
+      setPageDraft(String(pagePosition));
       e.currentTarget.blur();
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       if (pageCount === 0) return;
       const delta = e.key === 'ArrowUp' ? 1 : -1;
-      const next = Math.min(Math.max(1, selection.pageIndex + 1 + delta), pageCount);
+      const next = Math.min(Math.max(1, pagePosition + delta), pageCount);
       setPageDraft(String(next));
-      if (next - 1 !== selection.pageIndex) onOpen({ ...selection, pageIndex: next - 1 });
+      const target = bodyPages[next - 1];
+      if (target && target.index !== selection.pageIndex) onOpen({ ...selection, pageIndex: target.index });
     }
   };
 
@@ -246,7 +259,7 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
             <div className="crumb-pop-head">{t('crumb.volume')}</div>
             <div className="crumb-pop-list">
               {volumeItems.map((v, i) => {
-                const pages = v.chapters.reduce((n, c) => n + c.pages.length, 0);
+                const pages = v.chapters.reduce((n, c) => n + c.pages.filter((p) => !p.excluded).length, 0);
                 return (
                   <button
                     key={v.id}
@@ -326,7 +339,7 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
                   >
                     <span className="crumb-item-text">{label}</span>
                     <span className="crumb-item-meta">
-                      {t('crumb.chapterPages', { count: formatNumber(c.pages.length) })}
+                      {t('crumb.chapterPages', { count: formatNumber(c.pages.filter((p) => !p.excluded).length) })}
                     </span>
                   </button>
                 );

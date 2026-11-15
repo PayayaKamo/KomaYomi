@@ -14,6 +14,7 @@ export {
   ALIGN_MODE_LABEL,
   ALIGN_MODE_HINT,
   SINGLE_CHAPTER,
+  PAGE_KINDS,
 } from '../shared/types';
 export type {
   AlignMode,

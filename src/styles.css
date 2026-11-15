@@ -4748,3 +4748,27 @@ kbd {
   max-width: 420px;
   margin: 0 0 10px;
 }
+.preprocess-page-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.preprocess-page-actions label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.preprocess-page-actions select {
+  width: 100%;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.preprocess-kind {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}

@@ -210,17 +210,21 @@ export default function App() {
       const ci = vol.chapters.findIndex((c) => c.chapter === sel.chapter);
       const chapter = vol.chapters[ci];
       if (!chapter) return;
-      const nextIndex = sel.pageIndex + delta;
-      if (nextIndex >= 0 && nextIndex < chapter.pages.length) {
-        setSel({ ...sel, pageIndex: nextIndex });
+      // Pages excluded by preprocessing are skipped in both directions.
+      const body = chapter.pages.filter((p) => !p.excluded);
+      const position = body.findIndex((p) => p.index === sel.pageIndex);
+      const nextPosition = position + delta;
+      if (position >= 0 && nextPosition >= 0 && nextPosition < body.length) {
+        setSel({ ...sel, pageIndex: body[nextPosition].index });
         return;
       }
       const nextChapter = vol.chapters[ci + (delta > 0 ? 1 : -1)];
-      if (!nextChapter || !nextChapter.pages.length) return;
+      const nextBody = nextChapter?.pages.filter((p) => !p.excluded) ?? [];
+      if (!nextChapter || !nextBody.length) return;
       setSel({
         volume: sel.volume,
         chapter: nextChapter.chapter,
-        pageIndex: delta > 0 ? 0 : nextChapter.pages.length - 1,
+        pageIndex: delta > 0 ? nextBody[0].index : nextBody[nextBody.length - 1].index,
       });
     },
     [library, sel],

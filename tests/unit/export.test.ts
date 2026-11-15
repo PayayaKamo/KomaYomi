@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../server/errors.ts';
 import { exportChapter } from '../../server/export.ts';
-import { createLibrary } from '../../server/library.ts';
+import { createLibrary, writeLibraryConfig } from '../../server/library.ts';
 import { runWithLang } from '../../server/messages/index.ts';
 import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
 import { DEFAULT_EXPORT_CONFIG } from '../../shared/types.ts';
@@ -113,6 +113,25 @@ describe('exportChapter', () => {
     expect(html).toContain('panel note');
     expect(html).toContain('Panel 1');
     expect(html).toContain('Exported by KomaYomi · 1 page(s)');
+  });
+
+  it('skips pages excluded by the preprocessing wizard', async () => {
+    const { root, dataRoot } = seedExportRoot();
+    // The second page has notes, so exporting it does not trip the empty-export guard.
+    writePageDoc(dataRoot, { ...noteDoc(), pageIndex: 1 });
+    writeLibraryConfig(dataRoot, { volumes: { Vol1: { chapters: { 172: { excluded: [0] } } } } });
+    const library = createLibrary(path.join(root, 'raw'), dataRoot);
+    const result = await runWithLang('en', () =>
+      exportChapter({
+        rootDir: root,
+        rawRoot: path.join(root, 'raw'),
+        dataRoot,
+        exportRoot: path.join(root, 'exports'),
+        config: config({ pageIndices: [] }),
+        library,
+      }),
+    );
+    expect(result.pages).toBe(1);
   });
 
   it('inlines images as data URLs when embedImages is on', async () => {
