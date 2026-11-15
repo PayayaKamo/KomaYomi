@@ -18,7 +18,7 @@ KomaYomi 补上了中间缺失的一层：
 
 | 步骤 | 你要做什么 | 页面 |
 | --- | --- | --- |
-| 1 | 把图片按 `raw/<volume>/<language>/<chapter>/01.jpg` 摆好，或添加已有文件夹。 | [图库与导入](/zh/guide/gallery) |
+| 1 | 整理扫描图，按 `raw/<volume>/<language>/<chapter>/01.jpg` 摆好，或添加已有文件夹。 | [预处理与重命名](/zh/guide/preprocess)、[图库与导入](/zh/guide/gallery) |
 | 2 | 打开页面，让应用自动切格，再手动修正框。 | [切格工作台](/zh/guide/panels) |
 | 3 | 并排或叠加阅读 2–3 种语言，对齐画面，遮住正在自测的语言。 | [对照阅读](/zh/guide/compare) |
 | 4 | 写下整页笔记与格级笔记，带标签、来源和截图。 | [笔记](/zh/guide/notes) |
@@ -54,7 +54,7 @@ KomaYomi 补上了中间缺失的一层：
 
 <div class="status-list">
   <div><strong>图库</strong> —— 扫描卷目录，识别语言目录别名，按排序位置配对页面，并对缺页和命名不一致给出警告。</div>
-  <div><strong>分格</strong> —— 自动 XY-cut 检测，新增 / 移动 / 八向缩放 / 合并 / 删除，编号，百分比输入，网格生成器，分格模板，声明式布局，插件。</div>
+  <div><strong>分格</strong> —— 自动 XY-cut 检测，新增 / 移动 / 八向缩放 / 合并 / 分组 / 删除，编号，百分比输入，网格生成器，分格模板，声明式布局，插件，跨会话页面历史。</div>
   <div><strong>标注</strong> —— 箭头、矩形、椭圆、荧光笔、自由笔迹、文字、编号圆标和马赛克，页面级显示开关，支持 PNG 导出。</div>
   <div><strong>对照</strong> —— 2–3 种语言，并排或叠加，按语言模糊 / 色块遮蔽，滚轮缩放，平移，整页 / 逐格 / 锚点 / 网格对齐，已保存的预设，自定义语言顺序。</div>
   <div><strong>笔记</strong> —— 整页 / 格级笔记，带工具栏和实时预览的 Markdown，标签，来源，附图，总览搜索，复制给大模型，随手记暂存。</div>
@@ -67,9 +67,9 @@ KomaYomi 补上了中间缺失的一层：
 
 以下内容在出现的位置都标记为 <Badge type="warning" text="计划中" />：
 
-- PDF、Word（`.docx`）和词表导出。
+- PDF、Word（`.docx`）和词表导出。请使用 HTML 导出和浏览器的打印为 PDF。
 - 离线写入队列与定时自动备份。
-- 在应用内创建和编辑分格分组。JSON 字段已经存在，读取、写入、导入和导出时都会保留，但还没有编辑界面。
+- 应用内的图片转换或批量重命名。请在导入前整理文件（见[预处理与重命名](/zh/guide/preprocess)）。
 - 原生移动端应用。Web 界面在窄浏览器窗口中确实可用（见下文）。
 
 <figure class="shot">
@@ -102,6 +102,8 @@ KomaYomi 补上了中间缺失的一层：
 ## 下一步
 
 - 全新安装：[安装与运行](/zh/guide/installation)。
+- 图片还没整理好：[预处理与重命名](/zh/guide/preprocess)。
 - 准备添加图片：[图库与导入](/zh/guide/gallery)。
+- 目录形状不常规：[目录识别规则](/zh/guide/folder-rules)。
 - 想找某个按键：[快捷键总表](/zh/guide/shortcuts)。
 - 遇到问题：[FAQ 与故障排查](/zh/faq)。

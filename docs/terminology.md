@@ -31,6 +31,21 @@ UI labels are quoted in the interface language, so a button may read differently
 | A saved alignment | preset | 预设 | プリセット |
 | A saved set of rectangles | panel template | 分格模板 | コマテンプレート |
 | A declarative page grid | layout template | 布局模板 | レイアウトテンプレート |
+| Several panels read as one unit | group | 分组 | グループ |
+
+## Preparation, rules and history
+
+| Concept | English | 中文 | 日本語 |
+| --- | --- | --- | --- |
+| Cleaning up scans before import | preparation / preprocessing | 预处理 | 前処理 |
+| Renaming a whole folder at once | batch rename | 批量重命名 | 一括リネーム |
+| A path pattern for the scanner | folder rule / directory rule | 目录识别规则 | フォルダ検出規則 |
+| A part of a path pattern | segment | 路径段 | パスセグメント |
+| A segment that may be absent | optional segment | 可选段 | 省略可能セグメント |
+| A one-segment placeholder | wildcard | 通配符 | ワイルドカード |
+| A saved state of a page | version / page history | 版本 / 页面历史 | バージョン / ページ履歴 |
+| One entry in the history | snapshot | 快照 | スナップショット |
+| Producing a PDF from the browser | print to PDF | 打印为 PDF | PDF として印刷 |
 
 ## Reading and annotation
 

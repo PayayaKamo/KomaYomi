@@ -14,6 +14,11 @@ KomaYomi が保存するものはすべてプレーンファイルです。画�
 | **交換ファイル** | `.mntpl`、`.mnexp`、`.mnpage.json` | 1つのレイアウト、1つのエクスポートスタイル、1つのページ | 再利用できるレイアウトや、注釈済みの1ページを共有するとき。 |
 | **バックアップ ZIP** | `.zip` | `data/` フォルダ全体 | 操作ミスの後に復元する、または定期的な安全コピーを保つとき。 |
 
+<figure class="shot">
+  <img src="/assets/screenshots/file-menu.png" alt="ファイルメニュー。ライブラリを開く、プロジェクトファイル、最近の巻、保存、読み込み、復元">
+  <figcaption>ファイルメニューはサイドバーと同じ操作をまとめています。現在のページを保存、プロジェクトとして保存、プロジェクトやページの読み込み、バックアップからの復元。</figcaption>
+</figure>
+
 ## プロジェクトパッケージ（`.mnproj`）
 
 `.mnproj` はテキストのマニフェストを含む ZIP です。
@@ -21,11 +26,14 @@ KomaYomi が保存するものはすべてプレーンファイルです。画�
 ```text
 manifest.json
 pages/<volume>/<chapter>/<index>.json
+history/<volume>/<chapter>/<index>.json
 templates/...
 presets/...
 config/library.json          (optional)
 assets/<sha1>.<ext>          (packaged mode only)
 ```
+
+ページ版履歴もプロジェクトに含まれるため、開き直したあとも[コマ分割ワークベンチ](/ja/guide/panels#ページ版履歴)で説明した記録を確認できます。
 
 ### 参照モードとパッケージモード
 
@@ -132,8 +140,8 @@ data/.backup-meta.json
 ## 未実装の機能
 
 - **PDF と Word（`.docx`）のエクスポート**、および語彙リストのエクスポート。HTML エクスポートとブラウザの PDF 印刷を使用してください。
-- **アプリ内でのコマグループ編集。** `groups` はページ JSON の一部で、あらゆる箇所で保持されますが、エディターはまだありません。
 - **定期的なバックアップ。** バックアップとバックアップ先へのアップロードは手動で開始します。
+- **アプリ内の画像変換と一括リネーム。** 取り込み前にファイルを整えてください。[画像の前処理と名前変更](/ja/guide/preprocess)を参照してください。
 
 ## よくある落とし穴
 

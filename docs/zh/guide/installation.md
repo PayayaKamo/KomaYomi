@@ -119,9 +119,15 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 ## 首次运行
 
 1. 按 `raw/<volume>/<ja|zh|en>/<chapter>/<pages>` 的结构，至少把一个卷放到 `raw/` 下。
-2. 打开应用。侧边栏会列出卷和章。
+2. 打开应用。侧边栏会列出卷和话。
 3. 选择一页。首次打开时该页会被自动检测并保存。
 4. 如果某个语言文件夹未被识别，打开卷设置手动映射目录。
+5. 点击顶栏的**关于**按钮，确认版本和当前数据目录，然后再去反馈问题。
+
+<figure class="shot">
+  <img src="/assets/screenshots/about-dialog.png" alt="关于对话框：KomaYomi 版本、构建信息与数据目录路径">
+  <figcaption>关于对话框。反馈问题时，版本号和数据目录是首先需要说明的两项信息。</figcaption>
+</figure>
 
 命名规则以及扫描器接受的语言别名，请参见[图库与导入](/zh/guide/gallery)。
 

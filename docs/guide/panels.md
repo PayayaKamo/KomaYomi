@@ -13,6 +13,11 @@ Every later feature depends on panels: compare reading, panel-scoped notes, PNG 
 
 ## The toolbar, control by control
 
+<figure class="shot">
+  <img src="/assets/screenshots/panel-toolbar.png" alt="Panel workbench toolbar with base image, detection status, split controls, save mode, grid and templates">
+  <figcaption>The two toolbar rows: detection and saving on top, the rectangle fields, grid generator and panel templates below. The annotation toolbar follows underneath.</figcaption>
+</figure>
+
 ### Row 1 — base image and splitting
 
 | Control | What it does | Notes |
@@ -23,6 +28,7 @@ Every later feature depends on panels: compare reading, panel-scoped notes, PNG 
 | **Auto split** | Runs detection on the base image and replaces the current panels. | Disabled while detection is running or when the page has no image. Re-running detection discards hand edits. |
 | **Add panel** | Adds a default panel near the centre of the page. | Faster alternative: double-click empty space. |
 | **Merge (n)** | Merges the selected panels into one box with `source: "merged"`. | Enabled with two or more selected panels. |
+| **Group (n)** | Creates a group from the selected panels. | Enabled with at least one selected panel. See [Groups](#groups). |
 | **Delete** | Deletes the selected panels and their panel-scoped notes. | Same as `Delete` / `Backspace`. |
 
 ### Row 1 — saving
@@ -112,6 +118,11 @@ If panel numbers look wrong before you start editing, fix the reading-direction 
 
 The annotation layer draws on top of the artwork and is stored separately from panels.
 
+<figure class="shot">
+  <img src="/assets/screenshots/annotation-tools.png" alt="Annotation toolbar with visibility, select, shapes, highlighter, freehand, text, badge, mosaic, colour swatches and clear-all">
+  <figcaption>The annotation toolbar. The hint on the right names the current scope — here, new marks cover the whole page. The same toolbar appears in the compare reader.</figcaption>
+</figure>
+
 | Control | What it does |
 | --- | --- |
 | **Annotations: Shown / Hidden** | Global visibility. Hiding keeps the data and hides it in exports. |
@@ -133,7 +144,56 @@ Exported HTML and PNG include annotations only when the layer is shown. The HTML
 
 ## Groups
 
-The page JSON has a `groups` field (`{ id, name, panelIds, number }`) and it is preserved on read, write, import and export. <Badge type="warning" text="Planned" /> There is no in-app UI for creating or editing groups yet; only direct JSON editing changes them.
+A group is a named set of panels that should be read as one unit. Use it for a double-page spread made of two boxes, a recurring establishing shot, or a sequence you want to discuss together. Groups are layout metadata: they never merge artwork, move notes or change annotations.
+
+### Create a group
+
+1. Select one or more panels: `Ctrl`-click, `Shift`-click, or drag a marquee on empty space.
+2. Click **Group (n)** in the first toolbar row.
+3. The new group appears in the **Groups (n)** panel. Give it a name and a colour.
+
+Creating a group removes its panels from any earlier group, so groups never overlap.
+
+### Edit a group
+
+| Control | What it does |
+| --- | --- |
+| Colour swatch | Colours the group's panel outlines and chips. |
+| Name field | Free text; defaults to *Group n*. |
+| Numbered chips | The panels in the group. Drag a chip to change the order inside the group. |
+| `×` on a chip | Removes that panel from the group; the panel itself stays on the page. |
+| **Merge up** | Appends this group's panels to the group above it. Disabled for the first group. |
+| **Split** | Splits a multi-panel group into one group per panel. |
+| **Delete** | Deletes the group only; its panels, notes and annotations remain. |
+
+**Sort by group** in the groups header renumbers the page so that each group follows its first panel in reading order. This changes panel numbering, so use it deliberately; export and compare reading follow the same order.
+
+Groups are stored in the page JSON as `groups: [{ id, name, panelIds, number, color }]` and travel with page exchange files, project packages and backups.
+
+## Page history
+
+Every save also appends a version to `data/history/<volume>/<chapter>/<page>.json`. Unlike the in-session undo stack, history survives reloads, restarts and project packaging.
+
+1. Open a page.
+2. Click **≡ History** in the top bar.
+3. Pick a version to inspect it, then **Restore this version** if it is the one you want.
+
+<figure class="shot">
+  <img src="/assets/screenshots/history-panel.png" alt="Page version history dialog with version entries, source labels, panel and annotation counts and restore buttons">
+  <figcaption>Page version history. Each row records why the version was created and the structural change; the current version is marked and cannot be restored over itself.</figcaption>
+</figure>
+
+| Control | What it does |
+| --- | --- |
+| Version row | Timestamp, source label and the structural diff against the previous version. |
+| Source labels | *auto save*, *manual save*, *batch*, *template*, *alignment*, *annotation*, *import*, *restore*, *auto-detect*. |
+| Counts | Panels, annotations and notes in that version. |
+| **Show panel preview** | Compares the panel rectangles of this version with the previous one. |
+| **Keep latest n versions per page** | History cap, default 50. Older versions are pruned on the next save. |
+| **Restore this version** | Saves the current state as a new version first, then restores the chosen one. |
+| **Undo restore** | Puts back the state from before the last restore. |
+
+Restoring is not the same as undo: it writes a new version, so the state you restored *from* is still in the list. History files are included in backups and project packages; they are not removed by clearing the thumbnail cache.
 
 ## A safe correction workflow
 
@@ -145,14 +205,6 @@ The page JSON has a `groups` field (`{ id, name, panelIds, number }`) and it is 
 
 Avoid re-running **Auto split** after hand edits unless you are willing to lose them.
 
-<figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: panel toolbar close-up</strong>
-    A cropped screenshot of the two toolbar rows and the annotation toolbar will be added here.
-  </div>
-  <figcaption>Planned screenshot: toolbar controls with numbered callouts.</figcaption>
-</figure>
-
 ## Common pitfalls
 
 - **Auto split replaced my boxes.** Detection overwrites. Use a panel template or edit by hand after the first successful split.
@@ -161,17 +213,19 @@ Avoid re-running **Auto split** after hand edits unless you are willing to lose 
 - **Panel notes disappeared after applying a template.** The template had a different panel count, so panel notes were dropped; page notes were kept. Restore from a backup if needed.
 - **“Unsaved changes” will not go away.** You are in Confirm mode. Press `✓` or `Enter`; `×` discards.
 - **Marks are invisible.** The annotation layer is hidden, or a panel filter is active. Check **Annotations: Shown**.
+- **Grouping changed the numbering.** **Sort by group** rewrites reading order. Undo it, or create the groups before writing panel notes.
+- **A restored version lost newer notes.** Restoring replaces the whole page. The state you restored from is kept as a version, so use **Undo restore** or restore that version again.
 
 ## Missing screenshots
 
 | Figure | Needed for |
 | --- | --- |
-| toolbar close-up | Row 1 and row 2 controls |
-| annotation toolbar close-up | Tool icons and colour swatches |
+| groups panel close-up | Colour, name, chips and group actions |
 | panel template panel | Template save / apply controls |
 
 ## Related
 
 - [Compare Reader](/guide/compare) — what panels are for.
+- [Project Files & Formats](/guide/project-files) — how history and groups are packaged.
 - [Data Formats](/data-format) — the page JSON contract.
 - [Keyboard Shortcuts](/guide/shortcuts) — one table for every key.

@@ -31,6 +31,21 @@
 | 保存好的对齐 | preset | 预设 | プリセット |
 | 保存好的一组矩形 | panel template | 分格模板 | コマテンプレート |
 | 声明式页面网格 | layout template | 布局模板 | レイアウトテンプレート |
+| 作为整体阅读的一组格子 | group | 分组 | グループ |
+
+## 预处理、规则与历史
+
+| 概念 | English | 中文 | 日本語 |
+| --- | --- | --- | --- |
+| 导入前整理扫描图 | preparation / preprocessing | 预处理 | 前処理 |
+| 整目录一次改名 | batch rename | 批量重命名 | 一括リネーム |
+| 给扫描器的路径模式 | folder rule / directory rule | 目录识别规则 | フォルダ検出規則 |
+| 路径中的一层 | segment | 路径段 | パスセグメント |
+| 可以缺失的一层 | optional segment | 可选段 | 省略可能セグメント |
+| 只匹配一层的占位符 | wildcard | 通配符 | ワイルドカード |
+| 页面的一个保存状态 | version / page history | 版本 / 页面历史 | バージョン / ページ履歴 |
+| 历史中的一条记录 | snapshot | 快照 | スナップショット |
+| 用浏览器生成 PDF | print to PDF | 打印为 PDF | PDF として印刷 |
 
 ## 阅读与标注
 

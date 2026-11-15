@@ -75,7 +75,7 @@ Changing the production URL means updating `SITE_URL` in `config.mts` and the si
 
 Real captures live in `public/assets/screenshots/` and are referenced as `/assets/screenshots/<name>.png`. Use English hyphenated names and keep a consistent viewport (for example 1440×900) so figures line up across languages. Pages that still need a capture contain a `.shot-missing` block and list it under *Missing screenshots*; replace that block with a `<figure class="shot"><img …></figure>` using the same path in all three languages.
 
-> **Screenshots:** every current capture uses the CC0 `samples/demo-library/` (Star Cafe) and contains no third-party manga. `npm run docs:publish` still skips `public/assets/screenshots/` by default; pass `--with-screenshots` to include them.
+> **Screenshots:** every current capture uses the CC0 `samples/demo-library/` (Star Cafe) and contains no third-party manga. `public/assets/screenshots/` is part of the VitePress build, so files there ship with the site automatically — there is no separate publish step.
 
 ## Status labels
 

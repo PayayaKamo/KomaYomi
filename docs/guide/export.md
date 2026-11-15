@@ -73,7 +73,7 @@ Files are written to the project's `exports/` folder. The HTML opens directly fr
 The generated HTML includes print styles: backgrounds are removed, the page width is unconstrained, and page blocks avoid breaking mid-image. Open the file in a browser and use the normal **Print** command to produce a PDF via the browser's print dialog.
 
 ::: tip Printing to PDF
-Browser "Save as PDF" is the supported way to get a PDF today. A native PDF exporter is not implemented — see [Project Files & Formats](/guide/project-files#format-versions).
+Browser "Save as PDF" is the supported way to get a PDF today. A native PDF exporter is not implemented — see [PDF and Word](#pdf-and-word).
 :::
 
 ## PNG export
@@ -94,6 +94,23 @@ Options:
 
 PNGs are generated in the browser and land in the browser's download folder. They paste straight into slides, documents or chat.
 
+<figure class="shot">
+  <img src="/assets/screenshots/export-options.png" alt="Export dialog with the scope, language chips, image mode, PNG modes and layout sliders">
+  <figcaption>The export dialog with the PNG modes visible. Whole page and current panel use the primary language; the trilingual collage uses the selected languages.</figcaption>
+</figure>
+
+## PDF and Word
+
+Native PDF and Word (`.docx`) writers are not implemented <Badge type="warning" text="Planned" />. The supported route is the HTML export plus the receiving application:
+
+| Target | How to produce it |
+| --- | --- |
+| **PDF** | Generate the HTML, open it in a browser, then **Print → Save as PDF**. The print styles remove backgrounds, unclamp the page width and avoid breaking inside an image. |
+| **Word** | Generate the HTML and open it in Word, or paste the rendered page into a document. Notes are real HTML, so headings, lists, images and tables survive the paste. |
+| **Plain text / Markdown** | Use **Copy page context** or the **Rendered / Source** toggle on a note; the note body is Markdown. |
+
+Both routes are offline and keep the image/notes pairing. A dedicated exporter would add page-size presets and a style file; that is tracked as planned work, not a hidden option.
+
 ## Export templates
 
 An export template (`.mnexp`) stores the layout and style settings so the same look can be reused or shared. Export and import templates through **Exchange files…** in the sidebar. Imported templates are validated and the original file is backed up under `data/backups/exchange/`.
@@ -105,6 +122,8 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
 - **A page is missing from the export.** It has no notes and **Only pages with notes** is on, or it has no images in the selected languages.
 - **Panel borders are not in the PNG.** PNG export uses the annotation toggle; enable **Include annotations**, and remember that panel borders are drawn from the panel rectangles, not from annotations.
 - **Print output is cropped.** Set the browser print scale to “Fit to page” and enable background graphics only if you need the shading.
+- **Word ignored the layout.** Paste the rendered HTML rather than the Markdown source; Word keeps HTML tables and images but not the two-column drag width.
+- **There is no .docx or .pdf button.** Those exporters are planned. Use the HTML plus Print / Word route above.
 - **The output folder is not writable.** In a packaged desktop build, `exports/` lives inside the chosen library folder.
 
 <figure class="shot">
