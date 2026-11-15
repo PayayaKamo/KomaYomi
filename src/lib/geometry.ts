@@ -69,6 +69,11 @@ export { applyGroupOrder, normalizeGroupOrder } from '../../shared/panelOrder';
  *  ttb = top-to-bottom within columns ordered right-to-left. */
 export function sortPanels(panels: Panel[], dir: ReadingDirection): Panel[] {
   if (panels.length < 2) return panels;
+  // A hand-saved order is stored as explicit numbers; it wins over the geometry so
+  // every view (compare, export, thumbnails) reads the same sequence.
+  if (panels.some((p) => typeof p.number === 'number')) {
+    return [...panels].sort((a, b) => (a.number ?? Number.MAX_SAFE_INTEGER) - (b.number ?? Number.MAX_SAFE_INTEGER));
+  }
   if (dir === 'ttb') {
     const mw = median(panels.map((p) => p.rect.w)) || 0.2;
     const cols: Panel[][] = [];

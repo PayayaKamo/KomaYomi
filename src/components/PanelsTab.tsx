@@ -22,6 +22,7 @@ import { useAnnSurface } from '../lib/annotationSurface';
 import { PANEL_SECTIONS, setPanelSection, togglePanelSection, usePanelSections } from '../lib/panelsSections';
 import type { PanelSection } from '../lib/panelsSections';
 import { toggleToolbarFold, useToolbarFolds } from '../lib/panelToolbarFolds';
+import { PanelOrderDialog } from './PanelOrderDialog';
 
 type Props = {
   doc: PageDoc;
@@ -187,6 +188,7 @@ export function PanelsTab({
   const folds = useToolbarFolds();
   const [metaOpen, setMetaOpen] = useState(false);
   const metaRef = useRef<HTMLDivElement>(null);
+  const [orderOpen, setOrderOpen] = useState(false);
   const sectionLabels: Record<PanelSection, string> = {
     grid: t('panels.grid'),
     template: t('panels.templates'),
@@ -439,6 +441,25 @@ export function PanelsTab({
         .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([]);
+  };
+
+  /** Reordering writes the array order plus consecutive numbers; undo restores both. */
+  const applyPanelOrder = (order: string[]) => {
+    mutate((d) => {
+      const byId = new Map(d.panels.map((p) => [p.id, p]));
+      const panels = order
+        .map((id) => byId.get(id))
+        .filter((p): p is Panel => Boolean(p))
+        .map((p, i) => ({ ...p, number: i + 1 }));
+      return { ...d, panels };
+    });
+    setOrderOpen(false);
+  };
+
+  /** Re-detecting rebuilds the array, so a hand-saved order needs an explicit yes. */
+  const requestDetect = () => {
+    if (doc.panels.some((p) => typeof p.number === 'number') && !window.confirm(t('panels.redetectLosesOrder'))) return;
+    onDetect(refLang);
   };
 
   const mergeSelected = () => {
@@ -820,7 +841,7 @@ export function PanelsTab({
           <span className="tb-label tb-group-label">{t('panels.grpSplit')}</span>
           {folds.split && (
             <>
-              <button type="button" className="btn" onClick={() => onDetect(refLang)} disabled={detecting || !url}>
+              <button type="button" className="btn" onClick={requestDetect} disabled={detecting || !url}>
                 {detecting ? t('panels.detecting') : t('panels.autoSplit')}
               </button>
               <button type="button" className="btn" onClick={() => addPanel()} disabled={!imgLoaded}>
@@ -828,6 +849,9 @@ export function PanelsTab({
               </button>
               <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
                 {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
+              </button>
+              <button type="button" className="btn" onClick={() => setOrderOpen(true)} disabled={doc.panels.length < 2}>
+                {t('panels.order')}
               </button>
               <button type="button" className="btn" onClick={createGroup} disabled={!selected.length}>
                 {t('groups.create')} {selected.length ? `(${formatNumber(selected.length)})` : ''}
@@ -1509,6 +1533,14 @@ export function PanelsTab({
         <span className="muted">{t('panels.statusMarquee')}</span>
         <span className="muted">{t('panels.statusEdit')}</span>
       </div>
+      {orderOpen && (
+        <PanelOrderDialog
+          panels={sortPanels(doc.panels, doc.readingDirection)}
+          selectedId={selected.length === 1 ? selected[0] : null}
+          onClose={() => setOrderOpen(false)}
+          onApply={applyPanelOrder}
+        />
+      )}
     </div>
   );
 }
