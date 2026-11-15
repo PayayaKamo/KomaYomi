@@ -1,5 +1,6 @@
 import type { Annotation, Lang, PageEntry, Panel, PanelRect } from '../types';
 import { langLabel, t } from '../i18n';
+import { annotationLeader } from '../../shared/annotations';
 import { mosaicBlockSize } from '../../shared/mosaic';
 
 export type PngMode = 'page' | 'panel' | 'collage';
@@ -197,6 +198,30 @@ function drawAnnotations(
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+
+    // Locator markers and leaders are drawn under the mark, matching the editor and HTML.
+    const leader = annotationLeader(a, scopeRect(a, draw.panels));
+    if (leader) {
+      ctx.beginPath();
+      ctx.moveTo(leader.from.x * imageW, leader.from.y * imageH);
+      ctx.lineTo(leader.to.x * imageW, leader.to.y * imageH);
+      ctx.stroke();
+    }
+    if (a.anchor) {
+      const cx = (a.anchor.x + (a.anchor.w ?? 0) / 2) * imageW;
+      const cy = (a.anchor.y + (a.anchor.h ?? 0) / 2) * imageH;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(3, lineWidth * 2.4), 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.stroke();
+      if (a.anchor.w && a.anchor.h) {
+        ctx.setLineDash([5, 4]);
+        ctx.strokeRect(a.anchor.x * imageW, a.anchor.y * imageH, a.anchor.w * imageW, a.anchor.h * imageH);
+        ctx.setLineDash([]);
+      }
+      ctx.fillStyle = color;
+    }
 
     switch (a.kind) {
       case 'arrow': {

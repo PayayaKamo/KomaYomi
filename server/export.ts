@@ -7,6 +7,7 @@ import { readPageDoc } from './storage.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
 import { applyGroupOrder } from '../shared/panelOrder.ts';
 import { mosaicBlockSize } from '../shared/mosaic.ts';
+import { annotationLeader } from '../shared/annotations.ts';
 import type {
   AlignOffset,
   Annotation,
@@ -232,6 +233,47 @@ function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number): strin
   const sw = (fraction: number) => Math.max(0.5, (fraction * vw) / view.w);
   const fs = (fraction: number) => Math.max(3, (fraction * vh) / view.h);
 
+  // Locator markers and leaders sit under the marks, like the editor and the PNG export.
+  const guideNodes = annotations
+    .map((a: Annotation) => {
+      const rect = a.scope === 'panel' ? (doc.panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
+      const color = a.color || '#e0453a';
+      const width = sw(a.width ?? 0.0035);
+      const leader = annotationLeader(a, rect);
+      const parts: string[] = [];
+      if (leader) {
+        const from = toView(leader.from, PAGE_RECT);
+        const to = toView(leader.to, PAGE_RECT);
+        parts.push(
+          `<line x1="${num(from.x)}" y1="${num(from.y)}" x2="${num(to.x)}" y2="${num(to.y)}" stroke="${esc(
+            color,
+          )}" stroke-width="${num(width)}" stroke-linecap="round" opacity="0.9" />`,
+        );
+      }
+      const anchor = a.anchor;
+      if (anchor) {
+        const centre = toView({ x: anchor.x + (anchor.w ?? 0) / 2, y: anchor.y + (anchor.h ?? 0) / 2 }, PAGE_RECT);
+        parts.push(
+          `<circle cx="${num(centre.x)}" cy="${num(centre.y)}" r="${num(Math.max(3, width * 2.4))}" fill="#ffffff" stroke="${esc(
+            color,
+          )}" stroke-width="${num(width)}" />`,
+        );
+        if (anchor.w && anchor.h) {
+          const from = toView(anchor, PAGE_RECT);
+          const to = toView({ x: anchor.x + anchor.w, y: anchor.y + anchor.h }, PAGE_RECT);
+          parts.push(
+            `<rect x="${num(Math.min(from.x, to.x))}" y="${num(Math.min(from.y, to.y))}" width="${num(
+              Math.abs(to.x - from.x),
+            )}" height="${num(Math.abs(to.y - from.y))}" fill="none" stroke="${esc(
+              color,
+            )}" stroke-width="${num(width)}" stroke-dasharray="5 4" opacity="0.9" />`,
+          );
+        }
+      }
+      return parts.join('');
+    })
+    .join('');
+
   const shapes = annotations
     .map((a: Annotation) => {
       const rect = a.scope === 'panel' ? (doc.panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
@@ -299,9 +341,9 @@ function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number): strin
     })
     .join('');
 
-  if (!shapes) return '';
+  if (!shapes && !guideNodes) return '';
   return `<svg class="ann-overlay" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none" aria-hidden="true">
-    ${shapes}
+    ${guideNodes}${shapes}
   </svg>`;
 }
 
