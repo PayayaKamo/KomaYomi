@@ -57,6 +57,9 @@ import type {
   PageEntry,
   PanelTemplate,
 } from '../shared/types.ts';
+import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
+import type { MessageCode, MessageParams } from './messages/index.ts';
+import { AppError, errorBody, toErrorResponse } from './errors.ts';
 
 const MIME: Record<string, string> = {
   png: 'image/png',
@@ -82,7 +85,7 @@ async function readBody(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > limit) throw new Error('请求体过大');
+    if (size > limit) throw new AppError('ERR_BODY_TOO_LARGE', { limit: Math.round(limit / (1024 * 1024)) }, 413);
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks).toString('utf8');
@@ -168,7 +171,12 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
     res.end(buf);
   };
 
-  return async function handler(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  /** Structured error response: legacy `error` plus `message` / `code` / `params` / `lang`. */
+  const fail = (res: ServerResponse, status: number, code: MessageCode, params: MessageParams = {}): void => {
+    sendJson(res, status, errorBody(code, params, currentLang()));
+  };
+
+  const handleRequest = async function handler(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     if (!req.url) return false;
     const url = new URL(req.url, 'http://localhost');
     const pathname = url.pathname;
@@ -191,12 +199,12 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
               file = thumbnailFile(path.dirname(cached), thumbRoot, path.basename(cached), w);
             }
           } catch (err) {
-            sendJson(res, 502, { error: `缩略图获取失败：${err instanceof Error ? err.message : String(err)}` });
+            fail(res, 502, 'ERR_THUMB_FETCH_FAILED', { detail: err instanceof Error ? err.message : String(err) });
             return true;
           }
         }
         if (!file) {
-          sendJson(res, 404, { error: '缩略图源不存在' });
+          fail(res, 404, 'ERR_THUMB_SOURCE_MISSING', { src });
           return true;
         }
         res.setHeader('Content-Type', 'image/jpeg');
@@ -226,12 +234,10 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
             return true;
           }
         } catch (err) {
-          sendJson(res, 503, {
-            error: `远端素材暂不可用（${err instanceof Error ? err.message : String(err)}），已缓存的页仍可阅读`,
-          });
+          fail(res, 503, 'ERR_REMOTE_UNAVAILABLE', { detail: err instanceof Error ? err.message : String(err) });
           return true;
         }
-        sendJson(res, 404, { error: '图片不存在' });
+        fail(res, 404, 'ERR_IMAGE_NOT_FOUND', { path: rel });
         return true;
       }
 
@@ -240,7 +246,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const rel = decodeURIComponent(pathname.slice('/exports/'.length));
         const file = safeResolve(exportRoot, rel);
         if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-          sendJson(res, 404, { error: '导出文件不存在' });
+          fail(res, 404, 'ERR_EXPORT_FILE_NOT_FOUND', { path: rel });
           return true;
         }
         serveFile(res, file);
@@ -315,7 +321,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const index = Number(url.searchParams.get('index') ?? 0);
         const found = findPage(library, volume, chapter, index);
         if (!found) {
-          sendJson(res, 404, { error: '页面不存在' });
+          fail(res, 404, 'ERR_PAGE_NOT_FOUND', { volume, chapter, page: index + 1 });
           return true;
         }
         const saved = readPageDoc(dataRoot, volume, chapter, index);
@@ -334,7 +340,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       if (pathname === '/api/page' && req.method === 'PUT') {
         const body = JSON.parse(await readBody(req)) as PageDoc;
         if (!body?.volume || !body?.chapter) {
-          sendJson(res, 400, { error: '缺少卷/话信息' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
         const saved = writePageDoc(dataRoot, body);
@@ -351,14 +357,18 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         };
         const found = findPage(library, body.volume, body.chapter, body.pageIndex);
         if (!found) {
-          sendJson(res, 404, { error: '页面不存在' });
+          fail(res, 404, 'ERR_PAGE_NOT_FOUND', {
+            volume: body.volume,
+            chapter: body.chapter,
+            page: Number(body.pageIndex) + 1,
+          });
           return true;
         }
         const order: string[] = [body.lang ?? '', 'ja', 'zh', 'en'];
         const lang = order.find((l) => found.page.files[l as keyof PageEntry['files']]);
         const rel = lang ? found.page.files[lang as keyof PageEntry['files']] : undefined;
         if (!rel) {
-          sendJson(res, 400, { error: '该页没有任何语言的图片' });
+          fail(res, 400, 'ERR_PAGE_NO_IMAGES', { volume: body.volume, chapter: body.chapter });
           return true;
         }
         const file = path.join(rootDir, decodeURIComponent(rel));
@@ -376,12 +386,14 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
             version: `layout:${layout.id}`,
             source: 'template',
             lang,
-            warnings: [`按版式模板「${layout.name}」切格`],
+            warnings: [t('WARN_DETECT_FROM_LAYOUT', { name: layout.name })],
+            warningCodes: [{ code: 'WARN_DETECT_FROM_LAYOUT', params: { name: layout.name } }],
           });
           return true;
         }
 
         const warnings: string[] = [];
+        const warningCodes: { code: string; params: MessageParams }[] = [];
         const size = imageSize(buf, file);
         const plugin = await runPlugin(rootDir, dataRoot, {
           ...size,
@@ -398,16 +410,19 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
             version: `plugin:${plugin.plugin}`,
             source: 'plugin',
             lang,
-            warnings: [`插件 ${plugin.plugin} 切格`, ...plugin.warnings],
+            warnings: [t('WARN_DETECT_FROM_PLUGIN', { plugin: plugin.plugin }), ...plugin.warnings],
+            warningCodes: [{ code: 'WARN_DETECT_FROM_PLUGIN', params: { plugin: plugin.plugin } }],
           });
           return true;
         }
         if (plugin.plugin) {
-          warnings.push(`插件 ${plugin.plugin} 失败（${plugin.error}），已回退自动检测`);
+          const params = { plugin: plugin.plugin, detail: plugin.error };
+          warnings.push(t('WARN_PLUGIN_FAILED_FALLBACK', params));
+          warningCodes.push({ code: 'WARN_PLUGIN_FAILED_FALLBACK', params });
         }
 
         const result = detectPanels(buf, file);
-        sendJson(res, 200, { ...result, lang, version: DETECTOR_VERSION, source: 'auto', warnings });
+        sendJson(res, 200, { ...result, lang, version: DETECTOR_VERSION, source: 'auto', warnings, warningCodes });
         return true;
       }
 
@@ -420,7 +435,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       if (pathname === '/api/panel-templates' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as Partial<PanelTemplate>;
         if (!Array.isArray(body.panels) || !body.panels.length) {
-          sendJson(res, 400, { error: '模板没有格子' });
+          fail(res, 400, 'ERR_PANEL_TEMPLATE_EMPTY');
           return true;
         }
         const template = savePanelTemplate(dataRoot, {
@@ -451,7 +466,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           .find((v) => v.id === body.volume)
           ?.chapters.find((c) => c.chapter === body.chapter);
         if (!found) {
-          sendJson(res, 404, { error: '章节不存在' });
+          fail(res, 404, 'ERR_CHAPTER_NOT_FOUND', { volume: body.volume, chapter: body.chapter });
           return true;
         }
         const indices = pageRange(body.pageIndices, found.pages.length);
@@ -498,16 +513,16 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           cols?: number;
         };
         if (!body.volume || !body.chapter) {
-          sendJson(res, 400, { error: '缺少卷/话' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
         const doc = readPageDoc(dataRoot, body.volume, body.chapter, Number(body.pageIndex) || 0);
         if (!doc?.panels.length) {
-          sendJson(res, 400, { error: '这一页还没有分格可抓取' });
+          fail(res, 400, 'ERR_PAGE_NO_PANELS', { volume: body.volume, chapter: body.chapter });
           return true;
         }
         const layout = saveLayout(dataRoot, {
-          name: body.name || `${body.chapter} 第 ${(body.pageIndex ?? 0) + 1} 页版式`,
+          name: body.name || t('DEFAULT_NAME_LAYOUT_PAGE', { chapter: body.chapter, page: (body.pageIndex ?? 0) + 1 }),
           scope: body.scope ?? 'page',
           volume: body.volume,
           chapter: body.chapter,
@@ -531,7 +546,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const all = listLayouts(dataRoot);
         const layout = all.find((l) => l.id === body.layoutId);
         if (!layout) {
-          sendJson(res, 404, { error: '版式模板不存在' });
+          fail(res, 404, 'ERR_LAYOUT_NOT_FOUND', { layoutId: body.layoutId ?? '' });
           return true;
         }
         const volume = body.volume ?? layout.volume;
@@ -539,7 +554,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           .find((v) => v.id === volume)
           ?.chapters.filter((c) => !body.chapter || c.chapter === body.chapter);
         if (!chapters?.length) {
-          sendJson(res, 404, { error: '章节不存在' });
+          fail(res, 404, 'ERR_CHAPTER_NOT_FOUND', { volume, chapter: body.chapter ?? '' });
           return true;
         }
         let applied = 0;
@@ -593,7 +608,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           chapter?: string;
         };
         if (!body.name || !body.volume || !body.chapter) {
-          sendJson(res, 400, { error: '预设缺少名称/卷/话' });
+          fail(res, 400, 'ERR_ALIGN_PRESET_MISSING_FIELDS');
           return true;
         }
         const preset = saveAlignPreset(dataRoot, {
@@ -621,7 +636,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         };
         const preset = listAlignPresets(dataRoot).find((p) => p.id === body.presetId);
         if (!preset) {
-          sendJson(res, 404, { error: '预设不存在' });
+          fail(res, 404, 'ERR_ALIGN_PRESET_NOT_FOUND', { presetId: body.presetId ?? '' });
           return true;
         }
         const volume = body.volume ?? preset.volume;
@@ -629,7 +644,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           .find((v) => v.id === volume)
           ?.chapters.filter((c) => !body.chapter || c.chapter === body.chapter);
         if (!chapters?.length) {
-          sendJson(res, 404, { error: '章节不存在' });
+          fail(res, 404, 'ERR_CHAPTER_NOT_FOUND', { volume, chapter: body.chapter ?? '' });
           return true;
         }
         let applied = 0;
@@ -688,7 +703,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const file = url.searchParams.get('file') ?? '';
         const target = safeResolve(exportRoot, file);
         if (!target || !fs.existsSync(target)) {
-          sendJson(res, 404, { error: '文件不存在' });
+          fail(res, 404, 'ERR_FILE_NOT_FOUND', { path: file });
           return true;
         }
         serveFile(res, target, path.basename(target));
@@ -702,7 +717,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           dirs?: Partial<Record<string, string | null>>;
         };
         if (!body.volume || !body.dirs) {
-          sendJson(res, 400, { error: '缺少卷名或语言目录配置' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
           return true;
         }
         setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
@@ -720,7 +735,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       if (pathname === '/api/library/remove-volume' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { volume?: string };
         if (!body.volume) {
-          sendJson(res, 400, { error: '缺少卷名' });
+          fail(res, 400, 'ERR_MISSING_VOLUME');
           return true;
         }
         const result = removeVolume(rawRoot, dataRoot, body.volume);
@@ -752,7 +767,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const body = JSON.parse(await readBody(req)) as { url?: string };
         const target = (body.url ?? '').trim();
         if (!/^https?:\/\//i.test(target)) {
-          sendJson(res, 400, { error: '只支持 http(s) 链接' });
+          fail(res, 400, 'ERR_URL_NOT_HTTP');
           return true;
         }
         try {
@@ -778,7 +793,8 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
             : '';
           sendJson(res, 200, { title });
         } catch {
-          sendJson(res, 200, { title: '', warning: '抓取标题失败（可能被网络限制），可以手动填写' });
+          const warning = t('WARN_TITLE_FETCH_FAILED');
+          sendJson(res, 200, { title: '', warning, warningCode: 'WARN_TITLE_FETCH_FAILED' });
         }
         return true;
       }
@@ -831,7 +847,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           secrets?: Record<string, string | null>;
         };
         if (!body.config) {
-          sendJson(res, 400, { error: '缺少存储配置' });
+          fail(res, 400, 'ERR_STORAGE_CONFIG_MISSING');
           return true;
         }
         // Passwords arrive separately and are encrypted; storage.json stays shareable.
@@ -858,7 +874,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       if (pathname === '/api/storage/sync' && req.method === 'POST') {
         const source = readStorageConfig(dataRoot).rawSource;
         if (!source?.enabled) {
-          sendJson(res, 400, { error: '尚未配置远端素材目录' });
+          fail(res, 400, 'ERR_REMOTE_SOURCE_MISSING');
           return true;
         }
         const result = await syncRemoteTree(dataRoot, createProvider(dataRoot, source));
@@ -876,14 +892,14 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const cfg = readStorageConfig(dataRoot);
         const target = [cfg.rawSource, ...cfg.backups].find((t) => t?.id === id);
         if (!target) {
-          sendJson(res, 404, { error: '存储目标不存在' });
+          fail(res, 404, 'ERR_STORAGE_TARGET_NOT_FOUND', { targetId: id });
           return true;
         }
         try {
           const entries = await createProvider(dataRoot, target).list(url.searchParams.get('path') ?? '');
           sendJson(res, 200, { entries });
         } catch (err) {
-          sendJson(res, 503, { error: `无法列出目录：${err instanceof Error ? err.message : String(err)}` });
+          fail(res, 503, 'ERR_STORAGE_LIST_FAILED', { detail: err instanceof Error ? err.message : String(err) });
         }
         return true;
       }
@@ -905,7 +921,9 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
               entries,
             });
           } catch (err) {
-            sendJson(res, 503, { error: `备份上传失败：${err instanceof Error ? err.message : String(err)}` });
+            fail(res, 503, 'ERR_BACKUP_UPLOAD_FAILED', {
+              detail: err instanceof Error ? err.message : String(err),
+            });
           }
           return true;
         }
@@ -1044,7 +1062,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           pageIndex?: number;
         };
         if (!body.volume || !body.chapter) {
-          sendJson(res, 400, { error: '缺少卷/话' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
         sendJson(
@@ -1082,13 +1100,25 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      sendJson(res, 404, { error: `未知接口 ${pathname}` });
+      fail(res, 404, 'ERR_UNKNOWN_ENDPOINT', { path: pathname });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      sendJson(res, 500, { error: message });
+      const { status, body } = toErrorResponse(err, currentLang());
+      sendJson(res, status, body);
       return true;
     }
+  };
+
+  /**
+   * Negotiate the response language once per request and keep it in an async context so
+   * domain modules can render warnings without threading a language argument everywhere.
+   */
+  return (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
+    if (!req.url) return Promise.resolve(false);
+    const lang = resolveRequestLang(req, new URL(req.url, 'http://localhost'));
+    res.setHeader('Vary', 'Accept-Language');
+    res.setHeader('Content-Language', lang);
+    return runWithLang(lang, () => handleRequest(req, res));
   };
 }
 

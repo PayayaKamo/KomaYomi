@@ -15,6 +15,7 @@ import type {
 } from '../shared/types.ts';
 import { sortReadingOrder } from './detect.ts';
 import { writePageDoc } from './storage.ts';
+import { t as msg } from './messages/index.ts';
 
 const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -92,7 +93,7 @@ export function savePanelTemplate(
 ): PanelTemplate {
   const template: PanelTemplate = {
     id: uid('tpl'),
-    name: (input.name ?? '').trim() || '未命名分格模板',
+    name: (input.name ?? '').trim() || msg('DEFAULT_NAME_PANEL_TEMPLATE'),
     volume: String(input.volume ?? ''),
     chapter: String(input.chapter ?? ''),
     panels: normalizeRects(input.panels),
@@ -228,7 +229,7 @@ export function saveAlignPreset(
     input.mode === 'panel' || input.mode === 'anchors' || input.mode === 'grid' ? input.mode : 'page';
   const preset: AlignPreset = {
     id: input.id && typeof input.id === 'string' ? input.id : uid('al'),
-    name: input.name.trim() || '未命名对齐预设',
+    name: input.name.trim() || msg('DEFAULT_NAME_ALIGN_PRESET'),
     scope: input.scope === 'chapter' ? 'chapter' : 'page',
     volume: input.volume,
     chapter: input.chapter,
@@ -278,7 +279,7 @@ export function saveExportTemplate(
 ): ExportTemplate {
   const template: ExportTemplate = {
     id: typeof input.id === 'string' && input.id.trim() ? input.id.trim() : uid('ext'),
-    name: (input.name ?? '').trim() || '未命名导出模板',
+    name: (input.name ?? '').trim() || msg('DEFAULT_NAME_EXPORT_TEMPLATE'),
     createdAt: typeof input.createdAt === 'string' && input.createdAt ? input.createdAt : new Date().toISOString(),
     config: input.config ?? {},
   };

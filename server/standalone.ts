@@ -18,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { startMangaServer } from './app.ts';
+import { t } from './messages/index.ts';
 
 const LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 type LogLevel = (typeof LEVELS)[number];
@@ -39,7 +40,7 @@ for (const dir of [rawDir, dataDir, exportDir]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 if (!fs.existsSync(staticDir)) {
-  log('error', `静态目录不存在：${staticDir}，请先执行 npm run build`);
+  log('error', t('CLI_MISSING_STATIC_DIR', { dir: staticDir }));
   process.exit(1);
 }
 

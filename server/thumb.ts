@@ -4,6 +4,7 @@ import path from 'node:path';
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import { sniffFormat } from './detect.ts';
+import { AppError } from './errors.ts';
 
 type Decoded = { width: number; height: number; rgba: Uint8Array | Buffer };
 
@@ -17,7 +18,7 @@ function decode(buf: Buffer): Decoded {
     const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true });
     return { width: img.width, height: img.height, rgba: img.data as Uint8Array };
   }
-  throw new Error('缩略图暂不支持该格式');
+  throw new AppError('ERR_THUMB_UNSUPPORTED', {}, 415);
 }
 
 /** 面积平均的降采样，保证缩略图不出现锯齿 */

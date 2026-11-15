@@ -2,6 +2,7 @@
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import type { DetectResult, PanelRect, ReadingDirection } from '../shared/types.ts';
+import { AppError } from './errors.ts';
 
 type Gray = { width: number; height: number; data: Uint8Array };
 
@@ -68,7 +69,7 @@ export function decodeGray(buf: Buffer, filename: string): Gray {
     height = img.height;
     rgba = img.data as Uint8Array;
   } else {
-    throw new Error(`暂不支持该图片格式（${format} / ${ext}）`);
+    throw new AppError('ERR_UNSUPPORTED_IMAGE_FORMAT', { format, ext }, 415);
   }
 
   const gray = new Uint8Array(width * height);

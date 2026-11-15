@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createZip, readZip } from './zip.ts';
 import type { ZipEntryInput } from './zip.ts';
+import { AppError } from './errors.ts';
+import { t } from './messages/index.ts';
 
 /** Backup layout: every entry is prefixed with `data/` so the archive is self-describing. */
 const SKIP_DIRS = new Set(['cache']);
@@ -37,7 +39,7 @@ export function createBackupBuffer(dataRoot: string): { buffer: Buffer; entries:
 export function inspectBackup(dataRoot: string, buffer: Buffer) {
   const entries = readZip(buffer);
   const dataEntries = entries.filter((e) => e.name.startsWith('data/') && !e.name.endsWith('/'));
-  if (!dataEntries.length) throw new Error('压缩包里没有 data/ 目录，可能不是本工具的备份');
+  if (!dataEntries.length) throw new AppError('ERR_BACKUP_NOT_KOMAYOMI', {}, 400);
 
   let pages = 0;
   let notes = 0;
@@ -108,7 +110,7 @@ export function restoreBackup(
       snapshot = path.join(exportRoot, name);
       fs.writeFileSync(snapshot, snap);
     } catch (err) {
-      warnings.push(`恢复前快照失败：${err instanceof Error ? err.message : String(err)}`);
+      warnings.push(t('WARN_SNAPSHOT_FAILED', { detail: err instanceof Error ? err.message : String(err) }));
     }
   }
 
@@ -118,7 +120,7 @@ export function restoreBackup(
     const rel = entry.name.slice('data/'.length);
     const target = path.resolve(dataRoot, rel);
     if (!target.startsWith(path.resolve(dataRoot) + path.sep)) {
-      warnings.push(`跳过可疑路径：${entry.name}`);
+      warnings.push(t('WARN_SUSPICIOUS_PATH', { name: entry.name }));
       continue;
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });

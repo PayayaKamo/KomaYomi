@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirection } from '../shared/types.ts';
 import { DEFAULT_OFFSET } from '../shared/types.ts';
+import { t } from './messages/index.ts';
 
 export function pageFilePath(dataRoot: string, volume: string, chapter: string, pageIndex: number): string {
   return path.join(dataRoot, 'pages', volume, chapter, `${pageIndex}.json`);
@@ -202,29 +203,31 @@ const rectKey = (p: Panel) =>
 
 /** 轻量变更摘要：只回答「这次改了什么」，不做逐字段审计 */
 function summarize(prev: PageDoc | null, next: PageDoc): string {
-  if (!prev) return '创建页面数据';
+  if (!prev) return t('HISTORY_CREATED');
   const parts: string[] = [];
   if (prev.panels.length !== next.panels.length) {
-    parts.push(`格数 ${prev.panels.length}→${next.panels.length}`);
+    parts.push(t('HISTORY_PANELS', { from: prev.panels.length, to: next.panels.length }));
   } else if (prev.panels.map(rectKey).join('|') !== next.panels.map(rectKey).join('|')) {
-    parts.push('调整格框');
+    parts.push(t('HISTORY_PANEL_RECTS'));
   }
   if (prev.notes.length !== next.notes.length) {
-    parts.push(`批注 ${prev.notes.length}→${next.notes.length}`);
+    parts.push(t('HISTORY_NOTES', { from: prev.notes.length, to: next.notes.length }));
   } else if (JSON.stringify(prev.notes) !== JSON.stringify(next.notes)) {
-    parts.push('修改批注');
+    parts.push(t('HISTORY_NOTE_EDIT'));
   }
-  if (prev.readingDirection !== next.readingDirection) parts.push('阅读方向');
-  if (JSON.stringify(prev.groups ?? []) !== JSON.stringify(next.groups ?? [])) parts.push('分组');
-  if (JSON.stringify(prev.annotations ?? []) !== JSON.stringify(next.annotations ?? [])) parts.push('图片标注');
-  if (prev.alignMode !== next.alignMode) parts.push('对齐模式');
+  if (prev.readingDirection !== next.readingDirection) parts.push(t('HISTORY_DIRECTION'));
+  if (JSON.stringify(prev.groups ?? []) !== JSON.stringify(next.groups ?? [])) parts.push(t('HISTORY_GROUPS'));
+  if (JSON.stringify(prev.annotations ?? []) !== JSON.stringify(next.annotations ?? [])) {
+    parts.push(t('HISTORY_ANNOTATIONS'));
+  }
+  if (prev.alignMode !== next.alignMode) parts.push(t('HISTORY_ALIGN_MODE'));
   else if (
     JSON.stringify(prev.offsets) !== JSON.stringify(next.offsets) ||
     JSON.stringify(prev.panelOffsets) !== JSON.stringify(next.panelOffsets)
   ) {
-    parts.push('对齐偏移');
+    parts.push(t('HISTORY_OFFSETS'));
   }
-  return parts.join('；') || '保存';
+  return parts.join('; ') || t('HISTORY_SAVE');
 }
 
 export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
@@ -246,7 +249,8 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
   normalized.editCount = (prev?.editCount ?? 0) + 1;
   normalized.lastEditedAt = now;
   normalized.lastEditSummary =
-    meta?.summary ?? (meta?.detect ? `按 ${meta.detect.version} 切格` : summarize(prev, normalized));
+    meta?.summary ??
+    (meta?.detect ? t('HISTORY_DETECTED', { version: meta.detect.version }) : summarize(prev, normalized));
   normalized.updatedAt = now;
 
   const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);

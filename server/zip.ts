@@ -1,4 +1,5 @@
 import zlib from 'node:zlib';
+import { AppError } from './errors.ts';
 
 /**
  * Minimal ZIP reader/writer (store + deflate).
@@ -100,7 +101,7 @@ export type ZipEntry = { name: string; size: number; data: Buffer };
 
 /** Read every entry. Throws a readable error on malformed input. */
 export function readZip(buf: Buffer): ZipEntry[] {
-  if (buf.length < 22) throw new Error('不是有效的压缩包（文件太小）');
+  if (buf.length < 22) throw new AppError('ERR_ZIP_TOO_SMALL', {}, 400);
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
     if (buf.readUInt32LE(i) === 0x06054b50) {
@@ -108,7 +109,7 @@ export function readZip(buf: Buffer): ZipEntry[] {
       break;
     }
   }
-  if (eocd < 0) throw new Error('不是有效的压缩包（找不到目录区）');
+  if (eocd < 0) throw new AppError('ERR_ZIP_NO_EOCD', {}, 400);
 
   const count = buf.readUInt16LE(eocd + 10);
   const centralOffset = buf.readUInt32LE(eocd + 16);
@@ -117,7 +118,7 @@ export function readZip(buf: Buffer): ZipEntry[] {
 
   for (let i = 0; i < count; i++) {
     if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) {
-      throw new Error('压缩包目录损坏');
+      throw new AppError('ERR_ZIP_CORRUPT_DIR', {}, 400);
     }
     const method = buf.readUInt16LE(p + 10);
     const compSize = buf.readUInt32LE(p + 20);
@@ -129,7 +130,7 @@ export function readZip(buf: Buffer): ZipEntry[] {
     const name = buf.toString('utf8', p + 46, p + 46 + nameLen);
 
     if (localOffset + 30 > buf.length || buf.readUInt32LE(localOffset) !== 0x04034b50) {
-      throw new Error(`压缩包条目损坏：${name}`);
+      throw new AppError('ERR_ZIP_ENTRY_CORRUPT', { name }, 400);
     }
     const localNameLen = buf.readUInt16LE(localOffset + 26);
     const localExtraLen = buf.readUInt16LE(localOffset + 28);
@@ -139,10 +140,10 @@ export function readZip(buf: Buffer): ZipEntry[] {
     let data: Buffer;
     if (method === 0) data = Buffer.from(raw);
     else if (method === 8) data = zlib.inflateRawSync(raw);
-    else throw new Error(`不支持的压缩方式 ${method}（${name}）`);
+    else throw new AppError('ERR_ZIP_UNSUPPORTED_METHOD', { method, name }, 400);
 
     if (data.length !== uncompSize) {
-      throw new Error(`压缩包条目大小不符：${name}`);
+      throw new AppError('ERR_ZIP_ENTRY_SIZE', { name }, 400);
     }
     out.push({ name, size: uncompSize, data });
     p += 46 + nameLen + extraLen + commentLen;

@@ -14,6 +14,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { AppError } from './errors.ts';
+import { t } from './messages/index.ts';
 
 export type StorageKind = 'local' | 'network' | 'webdav';
 
@@ -208,7 +210,7 @@ export function safeRel(rel: string): string {
     .replace(/^\/+|\/+$/g, '');
   if (!cleaned) return '';
   const parts = cleaned.split('/');
-  if (parts.some((p) => p === '..' || p === '.' || p === '')) throw new Error('非法路径');
+  if (parts.some((p) => p === '..' || p === '.' || p === '')) throw new AppError('ERR_UNSAFE_PATH', { path: rel }, 400);
   return parts.join('/');
 }
 
@@ -216,7 +218,7 @@ function within(root: string, rel: string): string {
   const base = path.resolve(root);
   const target = path.resolve(base, safeRel(rel));
   const guard = base.endsWith(path.sep) ? base : base + path.sep;
-  if (target !== base && !target.startsWith(guard)) throw new Error('路径越界');
+  if (target !== base && !target.startsWith(guard)) throw new AppError('ERR_PATH_ESCAPE', { path: rel }, 400);
   return target;
 }
 
@@ -246,7 +248,7 @@ function localProvider(rootDir: string, target: StorageTarget, mustExist = false
       return fs.promises.readFile(within(base, rel));
     },
     async write(rel, data) {
-      if (target.readOnly) throw new Error('该存储为只读');
+      if (target.readOnly) throw new AppError('ERR_STORAGE_READONLY', { name: target.name }, 403);
       const file = within(base, rel);
       await fs.promises.mkdir(path.dirname(file), { recursive: true });
       atomicWrite(file, data);
@@ -255,13 +257,13 @@ function localProvider(rootDir: string, target: StorageTarget, mustExist = false
       const checkedAt = new Date().toISOString();
       try {
         const stat = await fs.promises.stat(base);
-        if (!stat.isDirectory()) throw new Error('不是目录');
+        if (!stat.isDirectory()) throw new AppError('ERR_NOT_A_DIRECTORY', { path: base }, 400);
         return {
           id: target.id,
           kind: target.kind,
           online: true,
           readOnly: Boolean(target.readOnly),
-          message: target.kind === 'network' ? '网络共享可访问' : '本地目录可访问',
+          message: t(target.kind === 'network' ? 'STATUS_STORAGE_NETWORK_OK' : 'STATUS_STORAGE_LOCAL_OK'),
           checkedAt,
         };
       } catch (err) {
@@ -277,7 +279,7 @@ function localProvider(rootDir: string, target: StorageTarget, mustExist = false
                 kind: target.kind,
                 online: true,
                 readOnly: Boolean(target.readOnly),
-                message: '目标目录尚未创建，首次写入时自动建立',
+                message: t('STATUS_STORAGE_DIR_NOT_CREATED'),
                 checkedAt,
               };
             }
@@ -290,7 +292,9 @@ function localProvider(rootDir: string, target: StorageTarget, mustExist = false
           kind: target.kind,
           online: false,
           readOnly: Boolean(target.readOnly),
-          message: err instanceof Error ? err.message : '无法访问',
+          message: t('STATUS_STORAGE_ACCESS_FAILED', {
+            detail: err instanceof AppError ? t(err.code, err.params) : err instanceof Error ? err.message : '',
+          }),
           checkedAt,
         };
       }
@@ -384,7 +388,7 @@ function webdavProvider(target: StorageTarget, password?: string): StorageProvid
       return Buffer.from(await resp.arrayBuffer());
     },
     async write(rel, data) {
-      if (target.readOnly) throw new Error('该存储为只读');
+      if (target.readOnly) throw new AppError('ERR_STORAGE_READONLY', { name: target.name }, 403);
       const resp = await request('PUT', rel, data);
       if (!resp.ok) throw new Error(`WebDAV ${resp.status}`);
     },
@@ -398,7 +402,7 @@ function webdavProvider(target: StorageTarget, password?: string): StorageProvid
           kind: 'webdav',
           online: true,
           readOnly: Boolean(target.readOnly),
-          message: 'WebDAV 可访问',
+          message: t('STATUS_STORAGE_WEBDAV_OK'),
           checkedAt,
         };
       } catch (err) {
@@ -407,7 +411,12 @@ function webdavProvider(target: StorageTarget, password?: string): StorageProvid
           kind: 'webdav',
           online: false,
           readOnly: true,
-          message: err instanceof Error ? (err.name === 'AbortError' ? '连接超时' : err.message) : '无法连接',
+          message:
+            err instanceof Error && err.name === 'AbortError'
+              ? t('STATUS_STORAGE_TIMEOUT')
+              : err instanceof Error
+                ? err.message
+                : t('STATUS_STORAGE_UNREACHABLE'),
           checkedAt,
         };
       }

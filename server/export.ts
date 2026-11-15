@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { decodeGray, sortReadingOrder } from './detect.ts';
 import { readPageDoc } from './storage.ts';
-import { LANG_LABEL } from '../shared/types.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
 import type {
   AlignOffset,
@@ -14,6 +13,12 @@ import type {
   PanelRect,
   ReadingDirection,
 } from '../shared/types.ts';
+import { AppError } from './errors.ts';
+import { currentLang, langName, t } from './messages/index.ts';
+import type { MessageLang } from './messages/index.ts';
+
+const DATE_LOCALE: Record<MessageLang, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
+const HTML_LANG: Record<MessageLang, string> = { en: 'en', zh: 'zh-Hans', ja: 'ja' };
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -37,11 +42,14 @@ type ExportArgs = {
   library: Library;
 };
 
-const dirLabel: Record<ReadingDirection, string> = {
-  rtl: '阅读方向：从右到左 · 从上到下',
-  ltr: '阅读方向：从左到右 · 从上到下',
-  ttb: '阅读方向：从右到左 · 竖排',
-};
+const dirLabel = (direction: ReadingDirection): string =>
+  t(
+    direction === 'ltr'
+      ? 'EXPORT_DIRECTION_LTR'
+      : direction === 'ttb'
+        ? 'EXPORT_DIRECTION_TTB'
+        : 'EXPORT_DIRECTION_RTL',
+  );
 
 function notesHtml(notes: Note[], filterTags: string[]): string {
   if (!notes.length) return '';
@@ -76,7 +84,7 @@ function pageNotesGroup(doc: PageDoc, filterTags: string[]): string {
     doc.notes.filter((n) => n.scope === 'page'),
     filterTags,
   );
-  return html ? `<div class="notes-group"><h3>整页批注</h3><ul>${html}</ul></div>` : '';
+  return html ? `<div class="notes-group"><h3>${esc(t('EXPORT_PAGE_NOTES'))}</h3><ul>${html}</ul></div>` : '';
 }
 
 function cropStyle(rect: PanelRect, pageAspect: number): string {
@@ -175,7 +183,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
 }> {
   const volume = library.volumes.find((v) => v.id === config.volume);
   const chapter = volume?.chapters.find((c) => c.chapter === config.chapter);
-  if (!chapter) throw new Error('找不到对应的话');
+  if (!chapter) throw new AppError('ERR_CHAPTER_NOT_FOUND', { volume: config.volume, chapter: config.chapter }, 404);
 
   const base = `${config.volume}-${config.chapter}-${Date.now()}`;
   const assetDir = `${base}.files`;
@@ -193,7 +201,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     if (!page) continue;
     const doc = readPageDoc(dataRoot, config.volume, config.chapter, index);
     if (!doc) {
-      warnings.push(`第 ${index + 1} 页还没有分格数据，已跳过`);
+      warnings.push(t('WARN_PAGE_SKIPPED_NO_PANELS', { page: index + 1 }));
       continue;
     }
 
@@ -204,7 +212,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     const notesAll = doc.notes;
     const hasContent = doc.panels.length > 0 || notesAll.length > 0;
     if (!hasContent) {
-      warnings.push(`第 ${index + 1} 页还没有任何标注，已跳过`);
+      warnings.push(t('WARN_PAGE_SKIPPED_NO_ANNOTATIONS', { page: index + 1 }));
       continue;
     }
 
@@ -223,7 +231,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
         height = gray.height;
         if (!pageAspect || pageAspect === 0.7) pageAspect = width / height;
       } catch {
-        warnings.push(`第 ${index + 1} 页 ${LANG_LABEL[lang]} 图片无法解析`);
+        warnings.push(t('WARN_PAGE_IMAGE_UNREADABLE', { page: index + 1, lang: langName(lang) }));
         continue;
       }
       let src: string;
@@ -245,7 +253,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     const ordered = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
     direction = direction ?? doc.readingDirection;
     const labels = new Map<Panel, string>();
-    ordered.forEach((p, i) => labels.set(p, `第 ${i + 1} 格`));
+    ordered.forEach((p, i) => labels.set(p, t('EXPORT_PANEL_NO', { n: i + 1 })));
 
     // 每种语言的整页图只写一次 CSS 规则，格子用 background-position/size 裁切。
     // 不用 CSS 变量：Chrome 对超大 var() 值（>4MB 的 base64）会静默失效。
@@ -270,7 +278,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
               const langAspect = img.width / img.height;
               const eff = offsetRect(panel.rect, doc.offsets[lang]);
               return `<div class="crop-wrap">
-                <div class="crop-label">${esc(LANG_LABEL[lang])}</div>
+                <div class="crop-label">${esc(langName(lang))}</div>
                 <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}"></div>
               </div>`;
             })
@@ -294,33 +302,29 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
       const pageNoteHtml = pageNotesGroup(doc, config.noteFilterTags);
       const cols = Math.min(4, Math.max(1, Math.round(config.columns || 1)));
       body = `<div class="compare" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${pageNoteHtml}${
-        rows || '<div class="empty">本页暂无分格</div>'
+        rows || `<div class="empty">${esc(t('EXPORT_EMPTY_PANELS'))}</div>`
       }</div>`;
     } else if (config.template === 'stack') {
       const shot = images[config.languages[0]]
-        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="第 ${index + 1} 页" />${boxOverlay(
-            ordered,
-            labels,
-            config.showPanelBoxes,
-          )}</div>`
-        : '<div class="empty">本页没有可用图片</div>';
+        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="${esc(
+            t('EXPORT_PAGE_ALT', { n: index + 1 }),
+          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}</div>`
+        : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))
         .join('')}`;
       body = `<div class="page-body stack">${shot}${notes ? `<div class="notes">${notes}</div>` : ''}</div>`;
     } else {
       const shot = images[config.languages[0]]
-        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="第 ${index + 1} 页" />${boxOverlay(
-            ordered,
-            labels,
-            config.showPanelBoxes,
-          )}</div>`
-        : '<div class="empty">本页没有可用图片</div>';
+        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="${esc(
+            t('EXPORT_PAGE_ALT', { n: index + 1 }),
+          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}</div>`
+        : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))
         .join('')}`;
       body = `<div class="page-body">${shot}<div class="notes">${
-        notes || '<div class="empty">暂无批注</div>'
+        notes || `<div class="empty">${esc(t('EXPORT_EMPTY_NOTES'))}</div>`
       }</div></div>`;
     }
 
@@ -331,10 +335,11 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     exported++;
   }
 
-  if (!exported) throw new Error('没有可导出的页面（请先给页面分格或写批注）');
+  if (!exported) throw new AppError('ERR_EXPORT_EMPTY', {}, 400);
 
+  const lang = currentLang();
   const html = `<!doctype html>
-<html lang="zh-Hans">
+<html lang="${HTML_LANG[lang]}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -348,13 +353,13 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   <header class="doc">
     <h1>${esc(config.title)}</h1>
     <div class="meta">
-      <span>${esc(config.volume)} · 第 ${esc(config.chapter)} 话</span>
-      <span>${esc(dirLabel[direction ?? 'rtl'])}</span>
-      <span>导出时间：${new Date().toLocaleString('zh-CN')}</span>
+      <span>${esc(t('EXPORT_CHAPTER_LINE', { volume: config.volume, chapter: config.chapter }))}</span>
+      <span>${esc(dirLabel(direction ?? 'rtl'))}</span>
+      <span>${esc(t('EXPORT_AT', { time: new Date().toLocaleString(DATE_LOCALE[lang]) }))}</span>
     </div>
   </header>
   ${sections.join('\n')}
-  <footer class="doc">由 KomaYomi 导出 · 共 ${exported} 页</footer>
+  <footer class="doc">${esc(t('EXPORT_FOOTER', { pages: exported }))}</footer>
 </div>
 </body>
 </html>`;

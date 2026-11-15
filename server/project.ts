@@ -9,6 +9,8 @@ import { createZip, readZip } from './zip.ts';
 import type { ZipEntryInput } from './zip.ts';
 import { CURRENT_SCHEMA_VERSION, SCHEMA_URLS, checkSchemaVersion, validateExchange } from '../shared/format.ts';
 import { migrateManifestV0 } from '../shared/migrations.ts';
+import { AppError } from './errors.ts';
+import { t } from './messages/index.ts';
 
 /**
  * 工程文件 .mnproj = zip 容器 + 纯文本 JSON。
@@ -257,7 +259,7 @@ function normalizeImage(input: Record<string, unknown>): ProjectImage {
   const chapter = String(input.chapter ?? '').trim();
   const name = String(input.name ?? '').trim();
   if (!volume || !chapter || !name) {
-    throw new Error('工程文件里的图片条目缺少卷 / 话 / 文件名');
+    throw new AppError('ERR_PROJECT_IMAGE_ENTRY', {}, 400);
   }
   const lang = LANGUAGES.includes(input.lang as Lang) ? (input.lang as Lang) : 'ja';
   return {
@@ -274,7 +276,7 @@ function normalizeImage(input: Record<string, unknown>): ProjectImage {
 }
 
 function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedFrom?: number } {
-  if (!isRecord(raw)) throw new Error('manifest.json 结构不正确（应为 JSON 对象）');
+  if (!isRecord(raw)) throw new AppError('ERR_MANIFEST_NOT_OBJECT', {}, 400);
   const version = checkSchemaVersion('mnproj', raw.schemaVersion);
   const migrated = version < PROJECT_SCHEMA_VERSION;
   const base = migrated ? migrateManifestV0(raw) : { ...raw };
@@ -283,7 +285,7 @@ function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedF
   if (manifest.storageMode !== 'reference' && manifest.storageMode !== 'packaged') {
     manifest.storageMode = 'reference';
   }
-  if (!isRecord(manifest.inventory)) throw new Error('工程文件缺少 inventory（卷话清单）');
+  if (!isRecord(manifest.inventory)) throw new AppError('ERR_MANIFEST_NO_INVENTORY', {}, 400);
   if (!Array.isArray(manifest.inventory.volumes)) manifest.inventory.volumes = [];
   if (!Array.isArray(manifest.inventory.images)) manifest.inventory.images = [];
   manifest.inventory.images = manifest.inventory.images.filter(isRecord).map((img) => normalizeImage(img));
@@ -302,7 +304,7 @@ function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedF
 
   // 先完整校验，再允许调用方进入「快照 → 写盘」流程，避免半加载。
   const check = validateExchange('mnproj', manifest);
-  if (!check.ok) throw new Error(`工程 manifest 数据不完整：${check.errors.join('；')}`);
+  if (!check.ok) throw new AppError('ERR_MANIFEST_INCOMPLETE', { errors: check.errors.join('; ') }, 400);
 
   return { manifest, migratedFrom: migrated ? version : undefined };
 }
@@ -345,12 +347,12 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
           try {
             rel = decodeURIComponent(url).replace(/^\/+/, '').replace(/\\/g, '/');
           } catch {
-            warnings.push(`图片路径无法解析：${url}`);
+            warnings.push(t('WARN_IMAGE_PATH_INVALID', { path: url }));
             continue;
           }
           const abs = path.resolve(rootDir, rel);
           if (!isInside(rootDir, abs) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
-            warnings.push(`图片不存在，已跳过：${rel}`);
+            warnings.push(t('WARN_IMAGE_MISSING', { path: rel }));
             continue;
           }
           const data = fs.readFileSync(abs);
@@ -390,7 +392,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
       if (Array.isArray(doc.notes)) noteCount += doc.notes.length;
       if (Array.isArray(doc.annotations)) annotationCount += doc.annotations.length;
     } catch {
-      warnings.push(`页面 JSON 无法解析：pages/${file.rel}`);
+      warnings.push(t('WARN_PAGE_JSON_INVALID', { path: `pages/${file.rel}` }));
     }
   }
 
@@ -468,7 +470,7 @@ function classifyEntry(name: string): { relDir: string; rel: string; kind: Proje
 }
 
 function parseProject(buffer: Buffer): ParsedProject {
-  if (!buffer.length) throw new Error('没有收到工程文件内容');
+  if (!buffer.length) throw new AppError('ERR_PROJECT_EMPTY', {}, 400);
   const entries = readZip(buffer);
   const warnings: string[] = [];
   const files: ProjectFile[] = [];
@@ -478,14 +480,14 @@ function parseProject(buffer: Buffer): ParsedProject {
   for (const entry of entries) {
     if (entry.name.endsWith('/')) continue;
     if (hasUnsafeName(entry.name)) {
-      warnings.push(`跳过可疑路径：${entry.name}`);
+      warnings.push(t('WARN_SUSPICIOUS_PATH', { name: entry.name }));
       continue;
     }
     if (entry.name === 'manifest.json') {
       try {
         manifestRaw = JSON.parse(entry.data.toString('utf8'));
       } catch {
-        throw new Error('manifest.json 不是有效的 JSON，可能不是 .mnproj 工程文件');
+        throw new AppError('ERR_MANIFEST_INVALID_JSON', {}, 400);
       }
       continue;
     }
@@ -495,7 +497,7 @@ function parseProject(buffer: Buffer): ParsedProject {
     }
     const cls = classifyEntry(entry.name);
     if (!cls) {
-      warnings.push(`忽略未知条目：${entry.name}`);
+      warnings.push(t('WARN_UNKNOWN_ENTRY', { name: entry.name }));
       continue;
     }
     if (cls.kind === 'page' || cls.kind === 'config') {
@@ -503,14 +505,14 @@ function parseProject(buffer: Buffer): ParsedProject {
         const parsed = JSON.parse(entry.data.toString('utf8'));
         if (!isRecord(parsed)) throw new Error('not an object');
       } catch {
-        warnings.push(`JSON 无法解析，已跳过：${entry.name}`);
+        warnings.push(t('WARN_ENTRY_JSON_INVALID', { name: entry.name }));
         continue;
       }
     }
     files.push({ ...cls, name: entry.name, data: entry.data });
   }
 
-  if (manifestRaw === null) throw new Error('压缩包里没有 manifest.json，可能不是 .mnproj 工程文件');
+  if (manifestRaw === null) throw new AppError('ERR_MANIFEST_MISSING', {}, 400);
   const { manifest, migratedFrom } = normalizeManifest(manifestRaw);
   return { manifest, migratedFrom, files, assets, warnings };
 }
@@ -566,14 +568,14 @@ export function inspectProject(opts: { rootDir: string; buffer: Buffer }): Proje
         if (Array.isArray(doc.notes)) notes += doc.notes.length;
         if (Array.isArray(doc.annotations)) annotations += doc.annotations.length;
       } catch {
-        warnings.push(`页面 JSON 无法解析：${file.name}`);
+        warnings.push(t('WARN_PAGE_JSON_INVALID', { path: file.name }));
       }
     } else if (file.kind === 'template') templates++;
     else if (file.kind === 'preset') presets++;
 
     const target = resolveInside(dataRoot, path.posix.join(file.relDir, file.rel));
     if (!target) {
-      warnings.push(`跳过可疑路径：${file.name}`);
+      warnings.push(t('WARN_SUSPICIOUS_PATH', { name: file.name }));
       continue;
     }
     if (fs.existsSync(target) && !sameContent(target, file.data)) {
@@ -645,7 +647,7 @@ export function mergePageDocs(existing: PageDoc, incoming: PageDoc): PageDoc {
 function mergeLibraryConfigFile(existingData: Buffer, incomingData: Buffer): Buffer {
   const existing = JSON.parse(existingData.toString('utf8')) as Record<string, unknown>;
   const incoming = JSON.parse(incomingData.toString('utf8')) as Record<string, unknown>;
-  if (!isRecord(existing) || !isRecord(incoming)) throw new Error('library.json 不是 JSON 对象');
+  if (!isRecord(existing) || !isRecord(incoming)) throw new AppError('ERR_LIBRARY_NOT_OBJECT', {}, 400);
   const existingVolumes = isRecord(existing.volumes) ? existing.volumes : {};
   const incomingVolumes = isRecord(incoming.volumes) ? incoming.volumes : {};
   return Buffer.from(
@@ -723,7 +725,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
       fs.writeFileSync(file, snap);
       snapshot = file;
     } catch (err) {
-      warnings.push(`导入前快照失败：${err instanceof Error ? err.message : String(err)}`);
+      warnings.push(t('WARN_SNAPSHOT_FAILED', { detail: err instanceof Error ? err.message : String(err) }));
     }
   }
 
@@ -735,7 +737,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
     projectBackup = path.join(backupDir, `${stamp}-${sha1Hex(buffer).slice(0, 8)}.mnproj`);
     fs.writeFileSync(projectBackup, buffer);
   } catch (err) {
-    warnings.push(`保存原始工程文件失败：${err instanceof Error ? err.message : String(err)}`);
+    warnings.push(t('WARN_PROJECT_COPY_FAILED', { detail: err instanceof Error ? err.message : String(err) }));
   }
 
   // 3. 恢复 pages / templates / presets / config
@@ -747,7 +749,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
   for (const file of parsed.files) {
     const target = resolveInside(dataRoot, path.posix.join(file.relDir, file.rel));
     if (!target) {
-      warnings.push(`跳过可疑路径：${file.name}`);
+      warnings.push(t('WARN_SUSPICIOUS_PATH', { name: file.name }));
       skipped++;
       continue;
     }
@@ -780,7 +782,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
         writeFileAtomic(target, Buffer.from(JSON.stringify(doc, null, 2), 'utf8'));
         merged++;
       } catch {
-        warnings.push(`无法合并 ${file.name}（JSON 解析失败），已保留现有内容`);
+        warnings.push(t('WARN_JSON_MERGE_FALLBACK', { name: file.name }));
         skipped++;
       }
       continue;
@@ -790,7 +792,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
         writeFileAtomic(target, mergeLibraryConfigFile(fs.readFileSync(target), file.data));
         merged++;
       } catch {
-        warnings.push('config/library.json 无法合并，已保留现有设置');
+        warnings.push(t('WARN_LIBRARY_MERGE_FALLBACK'));
         skipped++;
       }
       continue;
@@ -817,13 +819,13 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
       ok = false;
     }
     if (ok) relinkRoot = dir;
-    else warnings.push(`补链目录不存在或不是文件夹：${dir}`);
+    else warnings.push(t('WARN_RELINK_DIR_MISSING', { dir }));
   }
 
   for (const image of manifest.inventory.images) {
     const target = rawImageTarget(rawRoot, image, langDirFor(manifest, image.volume, image.lang));
     if (!target) {
-      warnings.push(`图片路径不安全，已跳过：${image.volume}/${image.chapter}/${image.name}`);
+      warnings.push(t('WARN_UNSAFE_IMAGE_PATH', { volume: image.volume, chapter: image.chapter, name: image.name }));
       continue;
     }
 
@@ -836,7 +838,10 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
       if (fs.existsSync(target)) {
         const existing = hashFileCached(target, hashCache);
         if (!image.sha1 || existing === image.sha1) imagesPresent++;
-        else warnings.push(`raw 里已存在同名但内容不同的图片，未覆盖：${image.volume}/${image.chapter}/${image.name}`);
+        else
+          warnings.push(
+            t('WARN_IMAGE_OVERWRITE_SKIPPED', { volume: image.volume, chapter: image.chapter, name: image.name }),
+          );
         continue;
       }
       writeFileAtomic(target, asset);
@@ -868,7 +873,9 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
           const existing = hashFileCached(target, hashCache);
           if (!image.sha1 || existing === image.sha1) imagesPresent++;
           else
-            warnings.push(`raw 里已存在同名但内容不同的图片，未覆盖：${image.volume}/${image.chapter}/${image.name}`);
+            warnings.push(
+              t('WARN_IMAGE_OVERWRITE_SKIPPED', { volume: image.volume, chapter: image.chapter, name: image.name }),
+            );
           continue;
         }
         writeFileAtomic(target, fs.readFileSync(found));

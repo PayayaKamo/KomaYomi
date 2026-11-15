@@ -3,6 +3,8 @@ import path from 'node:path';
 import { guessLang, naturalCompare } from './library.ts';
 import { SINGLE_CHAPTER } from '../shared/types.ts';
 import type { Lang } from '../shared/types.ts';
+import { AppError } from './errors.ts';
+import { t } from './messages/index.ts';
 
 /**
  * Declarative directory rules for library scanning.
@@ -45,7 +47,7 @@ export const DEFAULT_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif
 export const DEFAULT_RULES: DirRule[] = [
   {
     id: 'volume-language-chapter-page',
-    name: '卷 / 语言 / 话 / 页',
+    name: '{volume}/{language}/{chapter}/{page}',
     pattern: '{volume}/{language}/{chapter}/{page}',
   },
 ];
@@ -83,7 +85,7 @@ type Match = {
 
 export function parsePattern(pattern: string): PatternSegment[] {
   const trimmed = pattern.trim().replace(/^\/+|\/+$/g, '');
-  if (!trimmed) throw new Error('empty pattern');
+  if (!trimmed) throw new AppError('ERR_RULE_EMPTY', {}, 400);
   return trimmed.split('/').map((raw) => {
     let seg = raw.trim();
     let optional = false;
@@ -94,7 +96,7 @@ export function parsePattern(pattern: string): PatternSegment[] {
     const ph = seg.match(/^\{([a-zA-Z_-]+)\}$/);
     if (ph) {
       const name = PLACEHOLDER_ALIASES[ph[1].toLowerCase()];
-      if (!name) throw new Error(`unknown placeholder {${ph[1]}}`);
+      if (!name) throw new AppError('ERR_RULE_UNKNOWN_PLACEHOLDER', { name: ph[1] }, 400);
       return { kind: 'placeholder', name, optional };
     }
     if (seg === '*' || seg === '**') return { kind: 'wildcard' };
@@ -103,28 +105,28 @@ export function parsePattern(pattern: string): PatternSegment[] {
 }
 
 export function validateRules(rules: unknown): DirRule[] {
-  if (!Array.isArray(rules) || !rules.length) throw new Error('rules must be a non-empty array');
+  if (!Array.isArray(rules) || !rules.length) throw new AppError('ERR_RULES_NOT_ARRAY', {}, 400);
   const seen = new Set<string>();
   return rules.map((entry, i) => {
-    if (!entry || typeof entry !== 'object') throw new Error(`rule #${i + 1} is not an object`);
+    if (!entry || typeof entry !== 'object') throw new AppError('ERR_RULE_NOT_OBJECT', { index: i + 1 }, 400);
     const rule = entry as DirRule;
     const pattern = String(rule.pattern ?? '').trim();
-    if (!pattern) throw new Error(`rule #${i + 1} is missing "pattern"`);
+    if (!pattern) throw new AppError('ERR_RULE_PATTERN_MISSING', { index: i + 1 }, 400);
     if (path.isAbsolute(pattern) || pattern.split('/').includes('..')) {
-      throw new Error(`rule #${i + 1} must be a relative pattern without ".."`);
+      throw new AppError('ERR_RULE_PATTERN_ABSOLUTE', { index: i + 1 }, 400);
     }
     const segments = parsePattern(pattern);
     const names = new Set(segments.filter((s) => s.kind === 'placeholder').map((s) => s.name));
-    if (!names.has('page')) throw new Error(`rule #${i + 1} needs a {page} placeholder`);
+    if (!names.has('page')) throw new AppError('ERR_RULE_PAGE_MISSING', { index: i + 1 }, 400);
     const fallback = rule.language ? String(rule.language).toLowerCase() : undefined;
     if (fallback && !['ja', 'zh', 'en'].includes(fallback)) {
-      throw new Error(`rule #${i + 1} has an unsupported "language" value "${rule.language}" (use ja/zh/en)`);
+      throw new AppError('ERR_RULE_LANGUAGE_INVALID', { index: i + 1, value: rule.language ?? '' }, 400);
     }
     if (!names.has('language') && !fallback) {
-      throw new Error(`rule #${i + 1} needs a {language} placeholder or a "language" fallback`);
+      throw new AppError('ERR_RULE_LANGUAGE_MISSING', { index: i + 1 }, 400);
     }
     const id = String(rule.id ?? '').trim() || `rule-${i + 1}`;
-    if (seen.has(id)) throw new Error(`duplicate rule id "${id}"`);
+    if (seen.has(id)) throw new AppError('ERR_RULE_DUPLICATE_ID', { id }, 409);
     seen.add(id);
     const extensions = (rule.extensions ?? [])
       .map((e) => {
@@ -277,7 +279,14 @@ export function resolveFiles(
     try {
       return { rule, segments: parsePattern(rule.pattern) };
     } catch (err) {
-      throw new Error(`规则「${rule.name ?? rule.id}」无法解析：${err instanceof Error ? err.message : String(err)}`);
+      throw new AppError(
+        'ERR_RULE_PARSE',
+        {
+          rule: rule.name ?? rule.id,
+          detail: err instanceof AppError ? t(err.code, err.params) : err instanceof Error ? err.message : String(err),
+        },
+        400,
+      );
     }
   });
 
@@ -290,7 +299,7 @@ export function resolveFiles(
     for (const { rule, segments: pattern } of parsed) {
       const m = matchPattern(segments, pattern, 0, 0, { values: {}, positions: {} });
       if (!m) {
-        if (!closestReason) closestReason = `与规则「${rule.name ?? rule.pattern}」的层级不匹配`;
+        if (!closestReason) closestReason = t('WARN_RULE_LEVEL_MISMATCH', { rule: rule.name ?? rule.pattern });
         continue;
       }
       // A matched shape is not enough: the language folder must map to a known
@@ -298,11 +307,11 @@ export function resolveFiles(
       // without a {language} segment may declare a fixed fallback language.
       const langRaw = m.values.language ?? rule.language ?? '';
       if (!langRaw) {
-        closestReason = '规则没有 {language} 段，也没有 language 默认值';
+        closestReason = t('WARN_RULE_NO_LANGUAGE', { language: '{language}' });
         continue;
       }
       if (!guessLang(langRaw) && !Object.values(pinned).some((dirs) => Object.values(dirs ?? {}).includes(langRaw))) {
-        closestReason = `语言目录「${langRaw}」无法识别（可在卷设置里手动指定）`;
+        closestReason = t('WARN_UNKNOWN_LANGUAGE_DIR', { dir: langRaw });
         continue;
       }
       matched = { rule, match: m };
@@ -310,7 +319,7 @@ export function resolveFiles(
     }
 
     if (!matched) {
-      unmatched.push({ file, reason: closestReason || '没有任何规则匹配' });
+      unmatched.push({ file, reason: closestReason || t('WARN_NO_RULE_MATCHED') });
       continue;
     }
 
@@ -329,7 +338,7 @@ export function resolveFiles(
       if (pinnedLang) lang = pinnedLang;
     }
     if (!lang) {
-      unmatched.push({ file, reason: `语言目录「${langSegment}」无法识别` });
+      unmatched.push({ file, reason: t('WARN_UNKNOWN_LANGUAGE_DIR', { dir: langSegment }) });
       continue;
     }
 

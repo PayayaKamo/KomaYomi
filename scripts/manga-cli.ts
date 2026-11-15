@@ -1,12 +1,15 @@
 /**
- * 本地批处理 CLI（无需启动浏览器）：
+ * Local batch CLI (no browser needed):
  *   node scripts/manga-cli.ts report [--narrow]
  *   node scripts/manga-cli.ts regress [--update]
- *   node scripts/manga-cli.ts detect --volume 点兔第14卷 [--chapter 172] [--pages 1,2] [--lang ja] [--apply] [--overwrite]
- *   node scripts/manga-cli.ts apply-template --template <id> --volume 点兔第14卷 --chapter 172 [--pages 1,2]
- *   node scripts/manga-cli.ts apply-align --preset <id> --volume 点兔第14卷 --chapter 172 [--pages 1,2]
- *   node scripts/manga-cli.ts templates
- *   node scripts/manga-cli.ts align-presets
+ *   node scripts/manga-cli.ts detect --volume V [--chapter C] [--pages 1,2] [--content-lang ja] [--apply] [--overwrite]
+ *   node scripts/manga-cli.ts apply-layout --layout ID --volume V [--chapter C] [--pages 1,2]
+ *   node scripts/manga-cli.ts apply-template --template <id> --volume V --chapter C [--pages 1,2]
+ *   node scripts/manga-cli.ts apply-align --preset <id> --volume V --chapter C [--pages 1,2]
+ *   node scripts/manga-cli.ts templates | layouts | plugins | align-presets
+ *
+ * Output language: `--lang en|zh|ja`, then `$KOMAYOMI_LANG`, `$MANGA_LOCALE`,
+ * `$LC_ALL` / `$LANG`, then English. `--content-lang` picks which image files to read.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,15 +19,20 @@ import { createEmptyDoc, readPageDoc, writePageDoc } from '../server/storage.ts'
 import { listAlignPresets, listPanelTemplates, applyPanelTemplate } from '../server/presets.ts';
 import { expandLayout, listLayouts, resolveLayout } from '../server/layouts.ts';
 import { listPlugins, runPlugin } from '../server/plugins.ts';
+import { AppError } from '../server/errors.ts';
+import { langFromEnv, normalizeLang, runWithLang, t } from '../server/messages/index.ts';
+import type { MessageLang } from '../server/messages/index.ts';
 import type { PageDoc, Panel, PanelRect } from '../shared/types.ts';
+
+type Flags = Record<string, string | boolean>;
 
 const root = process.cwd();
 const rawRoot = path.join(root, 'raw');
 const dataRoot = path.join(root, 'data');
 
-function args(): { cmd: string; flags: Record<string, string | boolean> } {
+function args(): { cmd: string; flags: Flags } {
   const [cmd = 'help', ...rest] = process.argv.slice(2);
-  const flags: Record<string, string | boolean> = {};
+  const flags: Flags = {};
   for (let i = 0; i < rest.length; i++) {
     const token = rest[i];
     if (!token.startsWith('--')) continue;
@@ -40,6 +48,20 @@ function args(): { cmd: string; flags: Record<string, string | boolean> } {
   return { cmd, flags };
 }
 
+/** `--lang` wins, then the environment, then English. */
+function resolveCliLang(flags: Flags): MessageLang {
+  const explicit = typeof flags.lang === 'string' ? normalizeLang(flags.lang) : null;
+  return explicit ?? langFromEnv() ?? 'en';
+}
+
+function contentLang(flags: Flags): string | undefined {
+  for (const key of ['content-lang', 'image-lang']) {
+    const value = flags[key];
+    if (typeof value === 'string' && value) return value;
+  }
+  return undefined;
+}
+
 function findLangFile(page: { files: Partial<Record<string, string>> }, lang?: string): string | undefined {
   const order = [lang, 'ja', 'zh', 'en'].filter(Boolean) as string[];
   for (const l of order) if (page.files[l]) return page.files[l];
@@ -50,7 +72,7 @@ function loadDoc(volume: string, chapter: string, index: number): PageDoc {
   return readPageDoc(dataRoot, volume, chapter, index) ?? createEmptyDoc(volume, chapter, index);
 }
 
-function pageIndices(chapterPages: number, flag?: string): number[] {
+function pageIndices(chapterPages: number, flag?: string | boolean): number[] {
   if (!flag || flag === true) return Array.from({ length: chapterPages }, (_, i) => i);
   return String(flag)
     .split(',')
@@ -58,7 +80,7 @@ function pageIndices(chapterPages: number, flag?: string): number[] {
     .filter((n) => Number.isInteger(n) && n >= 0 && n < chapterPages);
 }
 
-/** 用稳定排序把旧批注按阅读顺序映射到新格子（数量一致时才保留） */
+/** Map old notes onto the new panels by reading order (kept only when counts match). */
 function remapNotes(oldPanels: Panel[], newPanels: Panel[], doc: PageDoc): PageDoc {
   if (oldPanels.length !== newPanels.length) {
     return { ...doc, panels: newPanels, notes: doc.notes.filter((n) => n.scope !== 'panel') };
@@ -76,7 +98,7 @@ function remapNotes(oldPanels: Panel[], newPanels: Panel[], doc: PageDoc): PageD
   };
 }
 
-function cmdReport(flags: Record<string, string | boolean>) {
+function cmdReport(flags: Flags) {
   const library = createLibrary(rawRoot, dataRoot);
   let pages = 0;
   let panelsTotal = 0;
@@ -105,23 +127,30 @@ function cmdReport(flags: Record<string, string | boolean>) {
     }
   }
 
-  console.log(`页面 ${pages} 页，格子合计 ${panelsTotal}，平均 ${(panelsTotal / Math.max(1, pages)).toFixed(2)} 格/页`);
   console.log(
-    '格子数分布：',
-    [...histogram.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([k, v]) => `${k}格×${v}页`)
-      .join('  '),
+    t('CLI_REPORT_SUMMARY', {
+      pages,
+      panels: panelsTotal,
+      avg: (panelsTotal / Math.max(1, pages)).toFixed(2),
+    }),
+  );
+  console.log(
+    t('CLI_REPORT_HISTOGRAM', {
+      dist: [...histogram.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([k, v]) => t('CLI_REPORT_HISTOGRAM_ITEM', { panels: k, pages: v }))
+        .join('  '),
+    }),
   );
   if (flags.narrow) {
-    console.log(`贴边窄条共 ${narrow.length} 个：`);
+    console.log(t('CLI_REPORT_NARROW', { count: narrow.length }));
     for (const line of narrow) console.log('  ' + line);
   }
 }
 
 const baselineFile = path.join(root, 'scripts', 'detect-baseline.json');
 
-function cmdRegress(flags: Record<string, string | boolean>) {
+function cmdRegress(flags: Flags) {
   const library = createLibrary(rawRoot, dataRoot);
   const current: Record<string, number> = {};
   for (const vol of library.volumes) {
@@ -138,7 +167,9 @@ function cmdRegress(flags: Record<string, string | boolean>) {
 
   if (flags.update || !fs.existsSync(baselineFile)) {
     fs.writeFileSync(baselineFile, JSON.stringify(current, null, 2) + '\n', 'utf8');
-    console.log(`已写入基线 ${path.relative(root, baselineFile)}（${Object.keys(current).length} 页）`);
+    console.log(
+      t('CLI_REGRESS_BASELINE', { file: path.relative(root, baselineFile), pages: Object.keys(current).length }),
+    );
     return;
   }
 
@@ -148,17 +179,17 @@ function cmdRegress(flags: Record<string, string | boolean>) {
     const before = baseline[key];
     if (before !== undefined && before !== count) diffs.push(`${key}: ${before} → ${count}`);
   }
-  console.log(`回归完成：${Object.keys(current).length} 页，差异 ${diffs.length} 页`);
+  console.log(t('CLI_REGRESS_RESULT', { pages: Object.keys(current).length, diffs: diffs.length }));
   for (const d of diffs) console.log('  ' + d);
 }
 
-/** 与网页端一致的优先级：版式模板 > 插件 > 自动检测（加 --auto 可强制自动） */
+/** Same priority as the web app: layout template > plugin > automatic detection (`--auto` forces auto). */
 async function detectPage(
   volume: string,
   chapter: string,
   index: number,
   file: string,
-  flags: Record<string, string | boolean>,
+  flags: Flags,
 ): Promise<{ rects: PanelRect[]; source: 'auto' | 'template' | 'plugin'; label: string; warnings: string[] }> {
   const buf = fs.readFileSync(file);
   if (!flags.auto) {
@@ -187,36 +218,48 @@ async function detectPage(
       };
     }
     if (plugin.plugin)
-      return { rects: [], source: 'auto', label: 'auto', warnings: [`插件 ${plugin.plugin} 失败：${plugin.error}`] };
+      return {
+        rects: [],
+        source: 'auto',
+        label: 'auto',
+        warnings: [t('CLI_PLUGIN_FAILED', { plugin: plugin.plugin, detail: plugin.error })],
+      };
   }
   const result = detectPanels(buf, file);
   return { rects: result.panels, source: 'auto', label: 'auto', warnings: [] };
 }
 
-async function cmdDetect(flags: Record<string, string | boolean>) {
+async function cmdDetect(flags: Flags) {
   const volume = String(flags.volume ?? '');
   const chapter = flags.chapter ? String(flags.chapter) : '';
   const library = createLibrary(rawRoot, dataRoot);
   const vol = library.volumes.find((v) => v.id === volume);
-  if (!vol) throw new Error(`找不到卷：${volume}`);
+  if (!vol) throw new AppError('ERR_VOLUME_NOT_FOUND', { volume }, 404);
   const chapters = chapter ? vol.chapters.filter((c) => c.chapter === chapter) : vol.chapters;
+  if (!chapters.length) throw new AppError('ERR_CHAPTER_NOT_FOUND', { volume, chapter }, 404);
   let changed = 0;
 
   for (const ch of chapters) {
     const targets = pageIndices(ch.pages.length, flags.pages);
     for (const index of targets) {
       const page = ch.pages[index];
-      const rel = findLangFile(page, flags.lang ? String(flags.lang) : undefined);
+      const rel = findLangFile(page, contentLang(flags));
       if (!rel) continue;
       const file = path.join(root, decodeURIComponent(rel));
       const detected = await detectPage(volume, ch.chapter, index, file, flags);
+      const label = `${ch.chapter}/p${index + 1}`;
       if (!detected.rects.length) {
-        console.log(`跳过 ${ch.chapter}/p${index + 1}：${detected.warnings.join('；') || '没有结果'}`);
+        console.log(
+          t('CLI_DETECT_SKIPPED', {
+            page: label,
+            reason: detected.warnings.join('; ') || t('CLI_NO_RESULT'),
+          }),
+        );
         continue;
       }
       const doc = loadDoc(volume, ch.chapter, index);
       if (doc.panels.length && !flags.overwrite) {
-        console.log(`跳过 ${ch.chapter}/p${index + 1}（已有 ${doc.panels.length} 格，加 --overwrite 覆盖）`);
+        console.log(t('CLI_DETECT_SKIPPED_EXISTING', { page: label, panels: doc.panels.length }));
         continue;
       }
       const nextPanels: Panel[] = detected.rects.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' }));
@@ -228,23 +271,31 @@ async function cmdDetect(flags: Record<string, string | boolean>) {
       };
       if (flags.apply) writePageDoc(dataRoot, next);
       changed++;
-      const warn = detected.warnings.length ? `  ⚠ ${detected.warnings.join('；')}` : '';
+      const warn = detected.warnings.length
+        ? t('CLI_DETECT_WARNING_SUFFIX', { warnings: detected.warnings.join('; ') })
+        : '';
       console.log(
-        `${ch.chapter}/p${index + 1}: ${detected.rects.length} 格（${detected.label}）${flags.apply ? '（已写入）' : '（预览，加 --apply 写入）'}${warn}`,
+        t('CLI_DETECT_PAGE', {
+          page: label,
+          panels: detected.rects.length,
+          source: detected.label,
+          state: flags.apply ? t('CLI_DETECT_WRITTEN') : t('CLI_DETECT_PREVIEW'),
+          warn,
+        }),
       );
     }
   }
-  console.log(`共处理 ${changed} 页`);
+  console.log(t('CLI_DETECT_DONE', { pages: changed }));
 }
 
-async function cmdApplyLayout(flags: Record<string, string | boolean>) {
+async function cmdApplyLayout(flags: Flags) {
   const layoutId = String(flags.layout ?? '');
   const layout = listLayouts(dataRoot).find((l) => l.id === layoutId || l.name === layoutId);
-  if (!layout) throw new Error(`找不到版式模板：${layoutId}`);
+  if (!layout) throw new AppError('ERR_LAYOUT_NOT_FOUND', { layoutId }, 404);
   const volume = String(flags.volume ?? layout.volume);
   const library = createLibrary(rawRoot, dataRoot);
   const vol = library.volumes.find((v) => v.id === volume);
-  if (!vol) throw new Error(`找不到卷：${volume}`);
+  if (!vol) throw new AppError('ERR_VOLUME_NOT_FOUND', { volume }, 404);
   const chapters = flags.chapter ? vol.chapters.filter((c) => c.chapter === String(flags.chapter)) : vol.chapters;
   let applied = 0;
   for (const ch of chapters) {
@@ -261,50 +312,63 @@ async function cmdApplyLayout(flags: Record<string, string | boolean>) {
       applied++;
     }
   }
-  console.log(`已把版式「${layout.name}」套用到 ${applied} 页`);
+  console.log(t('CLI_LAYOUT_APPLIED', { name: layout.name, pages: applied }));
 }
 
 function cmdLayouts() {
   const list = listLayouts(dataRoot);
-  if (!list.length) return console.log('还没有版式模板（data/layouts/*.json）');
+  if (!list.length) return console.log(t('CLI_LAYOUT_NONE'));
   for (const l of list) {
     console.log(
-      `${l.id}\t${l.name}\t${l.scope}\t${l.volume}${l.chapter ? '/' + l.chapter : ''}\t${l.grid.rows.length} 行 × ${l.grid.cols} 列`,
+      t('CLI_LAYOUT_ROW', {
+        id: l.id,
+        name: l.name,
+        scope: l.scope,
+        volume: `${l.volume}${l.chapter ? '/' + l.chapter : ''}`,
+        rows: l.grid.rows.length,
+        cols: l.grid.cols,
+      }),
     );
   }
 }
 
 async function cmdPlugins() {
   const list = await listPlugins(root, dataRoot);
-  if (!list.length) return console.log('还没有切格插件（plugins/*.mjs）');
-  for (const p of list) console.log(`${p.file}\t${p.name}${p.error ? `\t错误：${p.error}` : ''}`);
+  if (!list.length) return console.log(t('CLI_PLUGIN_NONE'));
+  for (const p of list) {
+    console.log(
+      p.error
+        ? t('CLI_PLUGIN_ROW_ERROR', { file: p.file, name: p.name, error: p.error })
+        : t('CLI_PLUGIN_ROW', { file: p.file, name: p.name }),
+    );
+  }
 }
 
-function cmdApplyTemplate(flags: Record<string, string | boolean>) {
+function cmdApplyTemplate(flags: Flags) {
   const templateId = String(flags.template ?? '');
   const volume = String(flags.volume ?? '');
   const chapter = String(flags.chapter ?? '');
-  if (!templateId || !volume || !chapter) throw new Error('需要 --template、--volume、--chapter');
+  if (!templateId || !volume || !chapter) throw new AppError('CLI_TEMPLATE_ARGS_REQUIRED', {}, 400);
   const library = createLibrary(rawRoot, dataRoot);
   const ch = library.volumes.find((v) => v.id === volume)?.chapters.find((c) => c.chapter === chapter);
-  if (!ch) throw new Error(`找不到章节：${volume}/${chapter}`);
+  if (!ch) throw new AppError('ERR_CHAPTER_NOT_FOUND', { volume, chapter }, 404);
   const indices = pageIndices(ch.pages.length, flags.pages);
   let applied = 0;
   for (const index of indices) {
     const doc = loadDoc(volume, chapter, index);
     if (applyPanelTemplate(dataRoot, doc, templateId)) applied++;
   }
-  console.log(`已套用模板 ${templateId} 到 ${applied} 页`);
+  console.log(t('CLI_TEMPLATE_APPLIED', { id: templateId, pages: applied }));
 }
 
-function cmdApplyAlign(flags: Record<string, string | boolean>) {
+function cmdApplyAlign(flags: Flags) {
   const presetId = String(flags.preset ?? '');
   const preset = listAlignPresets(dataRoot).find((p) => p.id === presetId);
-  if (!preset) throw new Error(`找不到对齐预设：${presetId}`);
+  if (!preset) throw new AppError('ERR_ALIGN_PRESET_NOT_FOUND', { presetId }, 404);
   const library = createLibrary(rawRoot, dataRoot);
   const vol = library.volumes.find((v) => v.id === String(flags.volume ?? preset.volume));
   const chapters = flags.chapter ? vol?.chapters.filter((c) => c.chapter === String(flags.chapter)) : vol?.chapters;
-  if (!vol || !chapters?.length) throw new Error('找不到目标章节');
+  if (!vol || !chapters?.length) throw new AppError('CLI_TARGET_CHAPTER_MISSING', {}, 404);
   let applied = 0;
   for (const ch of chapters) {
     for (const index of pageIndices(ch.pages.length, flags.pages)) {
@@ -319,23 +383,43 @@ function cmdApplyAlign(flags: Record<string, string | boolean>) {
       applied++;
     }
   }
-  console.log(`已套用对齐预设 ${preset.name} 到 ${applied} 页`);
+  console.log(t('CLI_ALIGN_APPLIED', { name: preset.name, pages: applied }));
 }
 
 function cmdTemplates() {
   const list = listPanelTemplates(dataRoot);
-  if (!list.length) return console.log('还没有分格模板');
-  for (const t of list) console.log(`${t.id}\t${t.name}\t${t.panels.length} 格\t${t.volume}/${t.chapter}`);
+  if (!list.length) return console.log(t('CLI_TEMPLATE_NONE'));
+  for (const tpl of list) {
+    console.log(
+      t('CLI_TEMPLATE_ROW', {
+        id: tpl.id,
+        name: tpl.name,
+        panels: tpl.panels.length,
+        volume: tpl.volume,
+        chapter: tpl.chapter,
+      }),
+    );
+  }
 }
 
 function cmdAlignPresets() {
   const list = listAlignPresets(dataRoot);
-  if (!list.length) return console.log('还没有对齐预设');
-  for (const p of list) console.log(`${p.id}\t${p.name}\t${p.mode}\t${p.scope}\t${p.volume}/${p.chapter}`);
+  if (!list.length) return console.log(t('CLI_ALIGN_NONE'));
+  for (const p of list) {
+    console.log(
+      t('CLI_ALIGN_ROW', {
+        id: p.id,
+        name: p.name,
+        mode: p.mode,
+        scope: p.scope,
+        volume: p.volume,
+        chapter: p.chapter,
+      }),
+    );
+  }
 }
 
-const { cmd, flags } = args();
-try {
+async function main(cmd: string, flags: Flags) {
   if (cmd === 'report') cmdReport(flags);
   else if (cmd === 'regress') cmdRegress(flags);
   else if (cmd === 'detect') await cmdDetect(flags);
@@ -346,21 +430,22 @@ try {
   else if (cmd === 'layouts') cmdLayouts();
   else if (cmd === 'plugins') await cmdPlugins();
   else if (cmd === 'align-presets') cmdAlignPresets();
-  else {
-    console.log(
-      [
-        '用法：node scripts/manga-cli.ts <命令> [参数]',
-        '  report [--narrow]                 扫描全部页面，输出格子数分布（--narrow 列出贴边窄条）',
-        '  regress [--update]                与 scripts/detect-baseline.json 对比格子数',
-        '  detect --volume V [--chapter C] [--pages 1,2] [--lang ja] [--plugin 名称] [--auto] [--apply] [--overwrite]',
-        '  apply-layout --layout ID --volume V [--chapter C] [--pages 1,2]',
-        '  apply-template --template ID --volume V --chapter C [--pages 1,2]',
-        '  apply-align --preset ID --volume V --chapter C [--pages 1,2]',
-        '  templates | layouts | plugins | align-presets',
-      ].join('\n'),
-    );
-  }
+  else console.log(t('CLI_USAGE'));
+}
+
+const { cmd, flags } = args();
+const lang = resolveCliLang(flags);
+try {
+  await runWithLang(lang, () => main(cmd, flags));
 } catch (err) {
-  console.error('出错了：', err instanceof Error ? err.message : err);
+  const detail =
+    err instanceof AppError
+      ? t(err.code, err.params, lang)
+      : err instanceof SyntaxError
+        ? t('ERR_INVALID_JSON', { detail: err.message }, lang)
+        : err instanceof Error
+          ? err.message
+          : String(err);
+  console.error(t('CLI_ERROR', { detail }, lang));
   process.exitCode = 1;
 }

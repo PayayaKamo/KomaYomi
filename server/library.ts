@@ -4,6 +4,8 @@ import { LANGUAGES, LANG_LABEL, SINGLE_CHAPTER } from '../shared/types.ts';
 import type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry } from '../shared/types.ts';
 import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
 import type { DirRule, UnmatchedFile } from './dirRules.ts';
+import { AppError } from './errors.ts';
+import { langName, t } from './messages/index.ts';
 
 export { LANGUAGES, LANG_LABEL, DEFAULT_RULES, SINGLE_CHAPTER };
 export type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry, DirRule };
@@ -150,7 +152,9 @@ function activeRules(cfg: LibraryConfig): { rules: DirRule[]; warning?: string }
   } catch (err) {
     return {
       rules: DEFAULT_RULES,
-      warning: `目录识别规则无效（${err instanceof Error ? err.message : String(err)}），已回退默认规则`,
+      warning: t('WARN_DIR_RULES_FALLBACK', {
+        detail: err instanceof AppError ? t(err.code, err.params) : err instanceof Error ? err.message : String(err),
+      }),
     };
   }
 }
@@ -187,7 +191,7 @@ export function previewDirs(rawRoot: string, dataRoot: string, dir = '', rulesOv
     if (entry?.dirs) pinned[volume] = entry.dirs;
   }
   const safeDir = dir.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  if (safeDir.split('/').some((s) => s === '..')) throw new Error('目录不能包含 ..');
+  if (safeDir.split('/').some((s) => s === '..')) throw new AppError('ERR_DIR_UNSAFE', {}, 400);
 
   const scan = resolveFiles(rawRoot, rules, safeDir, pinned);
   const byVolume = new Map<string, typeof scan.files>();
@@ -295,7 +299,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
     );
     const leftover = dirs.filter((d) => !usedTopDirs.has(d));
     if (leftover.length) {
-      volumeWarnings.push(`未识别的目录：${leftover.join('、')}（可在「卷设置」里指定语言）`);
+      volumeWarnings.push(t('WARN_UNRECOGNIZED_DIRS', { dirs: leftover.join('、') }));
     }
 
     const chapterNames = [...new Set(rows.map((r) => r.chapter))].sort(naturalCompare);
@@ -322,7 +326,9 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         const uniq = new Set(nonEmpty.map(([, count]) => count));
         if (uniq.size > 1) {
           chapterWarnings.push(
-            `各语言页数不一致：${nonEmpty.map(([lang, count]) => `${LANG_LABEL[lang]} ${count} 页`).join(' / ')}（按序号配对，缺页会在页面上标注）`,
+            t('WARN_LANGUAGE_PAGE_COUNT', {
+              counts: nonEmpty.map(([lang, count]) => `${langName(lang)} ${count}`).join(' / '),
+            }),
           );
         }
       }
@@ -331,7 +337,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
       for (const lang of langsInVolume) {
         const exts = new Set((filesByLang.get(lang) ?? []).map((f) => path.extname(f.filename).toLowerCase()));
         if (exts.size > 1) {
-          chapterWarnings.push(`${LANG_LABEL[lang]} 本话内扩展名不统一：${[...exts].join(' / ')}`);
+          chapterWarnings.push(t('WARN_MIXED_EXTENSIONS', { lang: langName(lang), exts: [...exts].join(' / ') }));
         }
       }
 
@@ -345,7 +351,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
           const list = filesByLang.get(lang) ?? [];
           const entry = list[i];
           if (!entry) {
-            warnings.push(`${LANG_LABEL[lang]} 缺第 ${i + 1} 页`);
+            warnings.push(t('WARN_MISSING_PAGE', { lang: langName(lang), page: i + 1 }));
             continue;
           }
           filenames[lang] = entry.filename;
@@ -360,7 +366,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
           if (!name) continue;
           const m = name.match(/^0*(\d+)/);
           if (m && parseInt(m[1], 10) !== i + 1) {
-            warnings.push(`${LANG_LABEL[lang]} 文件名 ${name} 与第 ${i + 1} 页序号不符`);
+            warnings.push(t('WARN_FILENAME_MISMATCH', { lang: langName(lang), name, page: i + 1 }));
           }
         }
 
@@ -395,7 +401,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         id: dir,
         title: dir,
         chapters: [],
-        warnings: ['未识别到语言目录或目录结构不符合任何识别规则，请检查「目录识别」规则或在此指定语言目录'],
+        warnings: [t('WARN_NO_LANGUAGE_DIRS')],
         langDirs: {},
         languages: [],
         dirs: listDirs(path.join(rawRoot, dir)),
