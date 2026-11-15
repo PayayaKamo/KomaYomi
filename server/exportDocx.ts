@@ -16,6 +16,38 @@ const DATE_LOCALE: Record<MessageLang, string> = { en: 'en-US', zh: 'zh-CN', ja:
 const IMAGE_WIDTH = 520;
 const IMAGE_MAX_HEIGHT = 620;
 
+/** Staging area for page PNGs the browser composited with annotations baked in. */
+const STAGING_DIR = '.staging';
+const STAGING_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Browser-composited page image for one page/language, if the client uploaded one. */
+function stagedPage(staging: string | null, index: number, lang: string): string | null {
+  if (!staging) return null;
+  const file = path.join(staging, `p${index}-${lang}.png`);
+  return fs.existsSync(file) ? file : null;
+}
+
+/** Drop staging folders a crashed export or closed tab left behind. */
+function purgeStaleStaging(exportRoot: string): void {
+  const root = path.join(exportRoot, STAGING_DIR);
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const dir = path.join(root, entry.name);
+    try {
+      if (fs.statSync(dir).mtimeMs < cutoff) fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* another export may own it right now */
+    }
+  }
+}
+
 type DocxArgs = {
   rootDir: string;
   dataRoot: string;
@@ -201,6 +233,15 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
   const chapter = volume?.chapters.find((c) => c.chapter === config.chapter);
   if (!chapter) throw new AppError('ERR_CHAPTER_NOT_FOUND', { volume: config.volume, chapter: config.chapter }, 404);
 
+  // Word images come from the browser when annotations are requested: the server has no
+  // canvas, so the client bakes the vector layer into page PNGs and stages them here.
+  purgeStaleStaging(exportRoot);
+  const includeAnnotations = config.includeAnnotations !== false;
+  const staging =
+    includeAnnotations && config.annotationImages && STAGING_ID.test(config.annotationImages)
+      ? path.join(exportRoot, STAGING_DIR, config.annotationImages)
+      : null;
+
   // Requested pages follow the chapter's reading order, the same as the HTML export.
   const indices = config.pageIndices?.length
     ? orderPageIndices(config.pageIndices, chapter.pages)
@@ -264,17 +305,23 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
     );
 
     let images = 0;
+    // An annotated page is only complete when at least one baked image arrived.
+    const annotated = includeAnnotations && doc.annotationsVisible !== false && (doc.annotations?.length ?? 0) > 0;
+    let baked = 0;
     for (const language of config.languages) {
       const url = page.files[language];
       if (!url) continue;
-      const file = path.join(rootDir, decodeURIComponent(url));
+      const staged = stagedPage(staging, index, language);
+      const file = staged ?? path.join(rootDir, decodeURIComponent(url));
       if (!fs.existsSync(file)) continue;
       try {
         const buffer = fs.readFileSync(file);
-        const kind = imageKind(buffer.subarray(0, 4), path.extname(file).toLowerCase());
+        if (staged) fs.rmSync(staged, { force: true });
+        const kind = staged ? 'png' : imageKind(buffer.subarray(0, 4), path.extname(file).toLowerCase());
         if (!kind) continue;
         const { width, height } = decodeGray(buffer, file);
         if (!width || !height) continue;
+        if (staged) baked++;
         const scale = Math.min(IMAGE_WIDTH / width, IMAGE_MAX_HEIGHT / height, 1);
         children.push(
           new Paragraph({
@@ -304,6 +351,9 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
       children.push(
         new Paragraph({ children: [new TextRun({ text: t('EXPORT_EMPTY_IMAGE'), italics: true, color: '6B7280' })] }),
       );
+    }
+    if (annotated && images > 0 && baked === 0) {
+      warnings.push(t('WARN_EXPORT_ANNOTATIONS_UNBAKED', { page: index + 1 }));
     }
 
     const ordered = applyGroupOrder(
@@ -357,6 +407,13 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
   fs.mkdirSync(exportRoot, { recursive: true });
   const filename = `${config.volume}-${config.chapter}-${Date.now()}.docx`;
   fs.writeFileSync(path.join(exportRoot, filename), buffer);
+  if (staging) {
+    try {
+      fs.rmSync(staging, { recursive: true, force: true });
+    } catch (err) {
+      warnings.push(t('WARN_EXPORT_STAGING_CLEANUP', { detail: err instanceof Error ? err.message : String(err) }));
+    }
+  }
   return {
     file: filename,
     url: '/exports/' + encodeURIComponent(filename),

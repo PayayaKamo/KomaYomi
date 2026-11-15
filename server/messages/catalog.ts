@@ -94,6 +94,11 @@ export const MESSAGES = {
     zh: '远端素材暂不可用（{detail}），已缓存的页仍可阅读',
     ja: 'リモート素材が一時的に利用できません（{detail}）。キャッシュ済みのページは閲覧できます',
   },
+  ERR_ANNOTATION_IMAGE_INVALID: {
+    en: 'Annotation image upload is invalid: {reason}',
+    zh: '标注合成图上传无效：{reason}',
+    ja: '注釈合成画像のアップロードが無効です：{reason}',
+  },
 
   /* ------------------------------ library & pages ----------------------------- */
   ERR_VOLUME_NOT_FOUND: {
@@ -648,6 +653,16 @@ export const MESSAGES = {
     en: 'Detected panels on {count} pages that had no layout yet',
     zh: '{count} 页此前没有分格数据，导出前已自动检测',
     ja: 'コマデータが無かった {count} ページを自動検出しました',
+  },
+  WARN_EXPORT_ANNOTATIONS_UNBAKED: {
+    en: 'Page {page} has annotations, but Word received no composited image for it — exported without annotations',
+    zh: '第 {page} 页有标注，但没有收到合成图，Word 中该页不含标注',
+    ja: '{page} ページに注釈がありますが、合成画像を受け取れなかったため注釈なしで書き出しました',
+  },
+  WARN_EXPORT_STAGING_CLEANUP: {
+    en: 'Could not remove temporary annotation images: {detail}',
+    zh: '临时标注合成图清理失败：{detail}',
+    ja: '一時的な注釈合成画像を削除できませんでした：{detail}',
   },
   WARN_PAGE_SKIPPED_NO_CONTENT: {
     en: 'Page {page} has no panels or notes yet — skipped',

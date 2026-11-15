@@ -385,6 +385,10 @@ export const api = {
       imageMode: 'embed';
     }>('/api/export/docx', json(config)),
 
+  /** Stage one browser-composited page PNG for the Word export. */
+  stageExportImage: (input: { id: string; key: string; dataUrl: string }) =>
+    request<{ ok: true; bytes: number }>('/api/export/annotation-image', json(input)),
+
   /* ---- Panel templates ---- */
   panelTemplates: () => request<{ templates: PanelTemplate[] }>('/api/panel-templates'),
 

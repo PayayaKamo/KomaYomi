@@ -740,6 +740,7 @@ export const en = {
   'export.formatHtml': 'HTML page',
   'export.formatDocx': 'Word document',
   'export.wordHint': 'Word keeps the page images and turns notes into editable text.',
+  'export.wordIncludeAnnotations': 'Bake annotations into the page images (the browser composites them)',
   'export.generateDocx': 'Generate Word',
   'export.downloadDocx': 'Download .docx',
   'export.formatPdf': 'PDF (print)',

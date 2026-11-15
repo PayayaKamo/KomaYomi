@@ -121,6 +121,23 @@ function renderPanel(img: HTMLImageElement, rect: PanelRect, draw?: AnnDraw): HT
 
 type AnnDraw = { annotations: Annotation[]; panels: Panel[] };
 
+/**
+ * Compose one full page with the annotation layer baked in.
+ * Used by the Word export: the server has no canvas, so the browser renders the page
+ * and uploads the PNG for the .docx to embed.
+ */
+export async function composeAnnotatedPage(
+  page: PageEntry,
+  lang: Lang,
+  annotations: Annotation[],
+  panels: Panel[],
+): Promise<HTMLCanvasElement | null> {
+  const src = page.files[lang];
+  if (!src) return null;
+  const img = await loadImage(src, lang);
+  return renderPage(img, annotations.length ? { annotations, panels } : undefined);
+}
+
 /** Panel rect that owns an annotation's normalized coordinates. */
 function scopeRect(a: Annotation, panels: Panel[]): PanelRect {
   if (a.scope !== 'panel' || !a.panelId) return { x: 0, y: 0, w: 1, h: 1 };

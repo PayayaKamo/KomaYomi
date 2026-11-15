@@ -90,6 +90,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_THUMB_UNSUPPORTED`       | 415  | 缩略图暂不支持该格式                             | AVIF/HEIC 或冷门格式         | 转成 JPEG/PNG/WEBP。                     |
 | `ERR_UNSUPPORTED_IMAGE_FORMAT`| 415  | 暂不支持该图片格式（{format} / {ext}）           | 不是图片文件，或编码不受支持 | 换成受支持的图片。                       |
 | `ERR_REMOTE_UNAVAILABLE`      | 503  | 远端素材暂不可用（{detail}），已缓存的页仍可阅读 | 网络共享离线、WebDAV 挂了    | 缓存页还能看；恢复在线后重试。           |
+| `ERR_ANNOTATION_IMAGE_INVALID`| 400  | 标注合成图上传无效：{reason}                     | Word 导出前上传的合成图缺字段或格式不对 | 重试导出；仍失败请反馈 `reason`。        |
 
 ### 图库、页面与卷
 
@@ -228,6 +229,8 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `WARN_TITLE_FETCH_FAILED`         | 抓取标题失败（可能被网络限制），可以手动填写                         | 网络受限、目标主机被挡       |
 | `WARN_PAGE_SKIPPED_NO_PANELS`     | 第 {page} 页还没有分格数据，已跳过                                   | 检测过但没保存               |
 | `WARN_EXPORT_AUTODETECTED`        | {count} 页此前没有分格数据，导出前已自动检测                         | 导出前这些页还没切格         |
+| `WARN_EXPORT_ANNOTATIONS_UNBAKED` | 第 {page} 页有标注，但没有收到合成图，Word 中该页不含标注             | 合成图上传中断或页面保存后又被修改 |
+| `WARN_EXPORT_STAGING_CLEANUP`     | 临时标注合成图清理失败：{detail}                                     | 文件被占用、权限不足         |
 | `WARN_PAGE_SKIPPED_NO_CONTENT`    | 第 {page} 页还没有分格或笔记，已跳过                                 | 这一页没有可导出的内容       |
 | `WARN_PAGE_IMAGE_UNREADABLE`      | 第 {page} 页 {lang} 图片无法解析                                     | 图片损坏、编码不受支持       |
 | `WARN_DIR_RULES_FALLBACK`         | 目录识别规则无效（{detail}），已回退默认规则                         | `config/dir-rules.json` 损坏 |

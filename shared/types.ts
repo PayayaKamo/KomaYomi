@@ -394,6 +394,14 @@ export type ExportConfig = {
   fontScale: number;
   /** Panels per row in the panel-compare template. */
   columns: number;
+  /**
+   * Bake the annotation layer into the exported page images.
+   * HTML/print use the vector layer; Word has no canvas on the server, so the client
+   * composites page PNGs and uploads them under `annotationImages`.
+   */
+  includeAnnotations?: boolean;
+  /** Staging id for browser-composited page PNGs, keyed `p{pageIndex}-{lang}`. */
+  annotationImages?: string;
 };
 
 export const DEFAULT_EXPORT_CONFIG: Omit<ExportConfig, 'volume' | 'chapter' | 'pageIndices' | 'offsets'> = {
@@ -403,6 +411,7 @@ export const DEFAULT_EXPORT_CONFIG: Omit<ExportConfig, 'volume' | 'chapter' | 'p
   embedImages: false,
   showPanelBoxes: false,
   includeNotes: true,
+  includeAnnotations: true,
   onlyWithNotes: false,
   noteFilterTags: [],
   pageWidthRatio: 46,

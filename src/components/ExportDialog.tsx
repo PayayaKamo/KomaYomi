@@ -3,7 +3,7 @@ import type { ExportConfig, ExportTemplate, Lang, Library, PageDoc, PageEntry, P
 import { DEFAULT_EXPORT_CONFIG, langShort } from '../types';
 import { api } from '../api';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
-import { exportPng } from '../lib/pngExport';
+import { composeAnnotatedPage, exportPng } from '../lib/pngExport';
 import { formatNumber, langLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
 import type { Selection } from '../hooks/usePage';
@@ -55,6 +55,7 @@ function layoutOf(c: ExportConfig): Partial<ExportConfig> {
     languages: c.languages,
     noteFilterTags: c.noteFilterTags,
     onlyWithNotes: c.onlyWithNotes,
+    includeAnnotations: c.includeAnnotations !== false,
   };
 }
 
@@ -165,6 +166,43 @@ export function ExportDialog({
     }
   };
 
+  /**
+   * Word has no canvas on the server, so annotated pages are composited here and
+   * uploaded one by one. Pages without annotations keep using the original files.
+   */
+  const stageAnnotatedPages = async (payload: ExportConfig): Promise<string | undefined> => {
+    const indices =
+      scope === 'page' ? [sel.pageIndex] : (chapterInfo?.pages ?? []).filter((p) => !p.excluded).map((p) => p.index);
+    const id = `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    let staged = 0;
+    for (const index of indices) {
+      const entry = index === sel.pageIndex && page ? page : chapterInfo?.pages.find((p) => p.index === index);
+      if (!entry) continue;
+      let pageDoc: PageDoc | null = index === sel.pageIndex ? doc : null;
+      if (!pageDoc) {
+        try {
+          pageDoc = (await api.page(sel.volume, sel.chapter, index)).doc;
+        } catch {
+          continue;
+        }
+      }
+      if (pageDoc.annotationsVisible === false || !pageDoc.annotations?.length) continue;
+      const annotations = pageDoc.annotations;
+      for (const lang of payload.languages) {
+        const canvas = await composeAnnotatedPage(entry, lang, annotations, pageDoc.panels);
+        if (!canvas) continue;
+        try {
+          await api.stageExportImage({ id, key: `p${index}-${lang}`, dataUrl: canvas.toDataURL('image/png') });
+          staged++;
+        } finally {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+      }
+    }
+    return staged ? id : undefined;
+  };
+
   const generate = async () => {
     setBusy(true);
     setError(null);
@@ -174,6 +212,13 @@ export function ExportDialog({
         pageIndices: scope === 'page' ? [sel.pageIndex] : [],
         print: format === 'pdf',
       };
+      if (format === 'docx') {
+        payload.includeAnnotations = cfg.includeAnnotations !== false;
+        if (payload.includeAnnotations) {
+          const staged = await stageAnnotatedPages(payload);
+          if (staged) payload.annotationImages = staged;
+        }
+      }
       const res = format === 'docx' ? await api.exportDocx(payload) : await api.exportHtml(payload);
       setResult(res);
       setResultFormat(format);
@@ -411,6 +456,16 @@ export function ExportDialog({
                 </button>
               </div>
               {format === 'docx' && <p className="hint">{t('export.wordHint')}</p>}
+              {format === 'docx' && (
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={cfg.includeAnnotations !== false}
+                    onChange={(e) => patch({ includeAnnotations: e.target.checked })}
+                  />
+                  {t('export.wordIncludeAnnotations')}
+                </label>
+              )}
               {format === 'pdf' && <p className="hint">{t('export.pdfHint')}</p>}
             </section>
 

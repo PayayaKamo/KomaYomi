@@ -90,6 +90,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_THUMB_UNSUPPORTED`       | 415  | この画像形式のサムネイルはまだ作成できません           | AVIF/HEIC など特殊な形式         | JPEG/PNG/WEBP に変換する。               |
 | `ERR_UNSUPPORTED_IMAGE_FORMAT`| 415  | 未対応の画像形式です（{format} / {ext}）               | 画像でないファイル、未対応コーデック | 対応形式の画像に差し替える。         |
 | `ERR_REMOTE_UNAVAILABLE`      | 503  | リモート素材が一時的に利用できません（{detail}）。キャッシュ済みのページは閲覧できます | ネットワーク共有がオフライン、WebDAV 停止 | キャッシュ済みページは読める。オンラインに戻って再試行する。 |
+| `ERR_ANNOTATION_IMAGE_INVALID`| 400  | 注釈合成画像のアップロードが無効です：{reason} | Word 書き出し前の合成画像の項目や形式が不正 | 再試行する。続く場合は `reason` を添えて報告する。 |
 
 ### ライブラリ・ページ・巻
 
@@ -228,6 +229,8 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `WARN_TITLE_FETCH_FAILED`         | タイトルを取得できませんでした（ネットワーク制限の可能性）。手動で入力できます | ネットワーク制限、ホスト遮断 |
 | `WARN_PAGE_SKIPPED_NO_PANELS`     | {page} ページにはまだコマデータがありません。スキップしました        | 検出したが保存していない       |
 | `WARN_EXPORT_AUTODETECTED`        | コマデータが無かった {count} ページを自動検出しました                | 書き出し前にコマ分割していない |
+| `WARN_EXPORT_ANNOTATIONS_UNBAKED` | {page} ページに注釈がありますが合成画像を受け取れず、Word では注釈なしになります | アップロード中断、または書き出し前のページ変更 |
+| `WARN_EXPORT_STAGING_CLEANUP`     | 一時的な注釈合成画像を削除できませんでした：{detail}                 | ファイルが使用中、権限不足     |
 | `WARN_PAGE_SKIPPED_NO_CONTENT`    | {page} ページにはまだコマもノートもありません。スキップしました      | 書き出せる内容がない           |
 | `WARN_PAGE_IMAGE_UNREADABLE`      | {page} ページの {lang} 画像を読み込めません                          | 画像の破損、未対応コーデック   |
 | `WARN_DIR_RULES_FALLBACK`         | ディレクトリ判定ルールが無効です（{detail}）。既定のルールに戻しました | `config/dir-rules.json` の破損 |

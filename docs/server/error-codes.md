@@ -100,6 +100,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_THUMB_UNSUPPORTED`      | 415  | Thumbnailing is not implemented for format | AVIF/HEIC or exotic formats               | Convert to JPEG/PNG/WEBP.                             |
 | `ERR_UNSUPPORTED_IMAGE_FORMAT` | 415 | Detector cannot read the image           | Non-image file or unsupported codec         | Replace the file with a supported image.              |
 | `ERR_REMOTE_UNAVAILABLE`     | 503  | Remote source is temporarily unusable    | Network share offline, WebDAV down          | Cached pages remain readable; retry when online.      |
+| `ERR_ANNOTATION_IMAGE_INVALID` | 400 | Composited annotation image is invalid ({reason}) | Word export staged image has bad fields or format | Retry the export; report `reason` if it persists. |
 
 ### Library, pages and volumes
 
@@ -240,6 +241,8 @@ the server generated them itself.
 | `WARN_TITLE_FETCH_FAILED`         | Title could not be fetched                           | Network restriction, blocked host             |
 | `WARN_PAGE_SKIPPED_NO_PANELS`     | Page skipped: no panels                              | Detected but never saved                      |
 | `WARN_EXPORT_AUTODETECTED`        | Pages without panel data were detected before export | Not split before exporting                    |
+| `WARN_EXPORT_ANNOTATIONS_UNBAKED` | Page has annotations but no composited image arrived, so Word omits them | Upload interrupted, or the page changed after staging |
+| `WARN_EXPORT_STAGING_CLEANUP`     | Temporary annotation images could not be removed | File locked or permission denied             |
 | `WARN_PAGE_SKIPPED_NO_CONTENT`    | Page skipped: no panels or notes                     | Nothing to export on that page                |
 | `WARN_PAGE_IMAGE_UNREADABLE`      | Page image cannot be decoded                         | Corrupt image, unsupported codec              |
 | `WARN_DIR_RULES_FALLBACK`         | Invalid directory rules, defaults used               | Corrupt `config/dir-rules.json`               |

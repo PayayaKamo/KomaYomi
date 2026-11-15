@@ -859,6 +859,32 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         return true;
       }
 
+      // Browser-composited page PNGs (annotations baked in) staged for the Word export.
+      // The server has no canvas, so the client renders each annotated page and drops it here.
+      if (pathname === '/api/export/annotation-image' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 48 * 1024 * 1024)) as {
+          id?: unknown;
+          key?: unknown;
+          dataUrl?: unknown;
+        };
+        const id = String(body.id ?? '');
+        const key = String(body.key ?? '');
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) fail(res, 400, 'ERR_ANNOTATION_IMAGE_INVALID', { reason: 'id' });
+        if (!/^[A-Za-z0-9_-]{1,80}$/.test(key)) fail(res, 400, 'ERR_ANNOTATION_IMAGE_INVALID', { reason: 'key' });
+        const dataUrl = String(body.dataUrl ?? '');
+        if (!dataUrl.startsWith('data:image/png;base64,')) {
+          fail(res, 400, 'ERR_ANNOTATION_IMAGE_INVALID', { reason: 'dataUrl' });
+          return true;
+        }
+        const buffer = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
+        if (!buffer.length) fail(res, 400, 'ERR_ANNOTATION_IMAGE_INVALID', { reason: 'empty' });
+        const dir = path.join(exportRoot, '.staging', id);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, `${key}.png`), buffer);
+        sendJson(res, 200, { ok: true, bytes: buffer.length });
+        return true;
+      }
+
       // Default download name for exported files
       if (pathname === '/api/export/download') {
         const file = url.searchParams.get('file') ?? '';
