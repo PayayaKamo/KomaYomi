@@ -1064,6 +1064,11 @@ export const en = {
   'ann.sharedHint': 'Page / panel scope is shared with the panel workspace',
   'ann.laneHint': 'Drawing in the {lang} column',
   'ann.compareDefault': 'Annotations are on by default in compare view',
+  'ann.anchor': 'Anchor',
+  'ann.anchorHint': 'Place a locator for the selected annotation: click a point, drag a box',
+  'ann.anchorClear': 'Clear anchor',
+  'ann.leader': 'Leader',
+  'ann.leaderHint': 'Draw the leader line between the annotation and its locator',
 
   'settings.title': 'Settings',
   'settings.openTitle': 'Settings',

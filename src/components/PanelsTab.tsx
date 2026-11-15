@@ -4,7 +4,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
+import type { AnnotationAnchor, Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
 import {
   applyDrag,
   applyGroupOrder,
@@ -188,6 +188,8 @@ export function PanelsTab({
   const [annTool, setAnnTool] = useState<AnnotationTool>('select');
   const [annSelected, setAnnSelected] = useState<string | null>(null);
   const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
+  /** Next drag on the page places the locator of the selected annotation. */
+  const [annAnchorMode, setAnnAnchorMode] = useState(false);
 
   const annSurface = useAnnSurface();
   /** Annotations belong to the reading view by default; the workspace opts in. */
@@ -301,6 +303,11 @@ export function PanelsTab({
     }
   }, [annAllowed]);
 
+  // Anchor picking belongs to the selected annotation; leaving it drops the mode.
+  useEffect(() => {
+    if (!annSelected) setAnnAnchorMode(false);
+  }, [annSelected]);
+
   const applyAnnotations = useCallback(
     (updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>) => {
       // Tag annotation changes so the page history panel can label them.
@@ -308,6 +315,30 @@ export function PanelsTab({
     },
     [mutate],
   );
+
+  const annSelectedItem = annSelected ? (annotations.find((a) => a.id === annSelected) ?? null) : null;
+
+  const setAnnotationAnchor = useCallback(
+    (id: string, anchor: AnnotationAnchor | null) => {
+      applyAnnotations((list) =>
+        list.map((a) => (a.id === id ? { ...a, anchor: anchor ?? undefined, updatedAt: new Date().toISOString() } : a)),
+      );
+      setAnnAnchorMode(false);
+    },
+    [applyAnnotations],
+  );
+
+  const toggleAnnotationLeader = useCallback(() => {
+    if (!annSelectedItem) return;
+    const next = annSelectedItem.showLeader === false;
+    applyAnnotations((list) =>
+      list.map((a) =>
+        a.id === annSelectedItem.id
+          ? { ...a, showLeader: next ? undefined : false, updatedAt: new Date().toISOString() }
+          : a,
+      ),
+    );
+  }, [annSelectedItem, applyAnnotations]);
 
   const loadTemplates = () => {
     api
@@ -456,7 +487,8 @@ export function PanelsTab({
   /** Pointer down on empty page area: clear selection and arm a drag-to-draw marquee. */
   const startMarquee = (e: ReactPointerEvent<HTMLDivElement>) => {
     // Drawing tools own the page surface; leaving this armed would draw both at once.
-    if (annTool !== 'select') return;
+    // Anchor picking also owns the surface and must keep the current selection.
+    if (annTool !== 'select' || annAnchorMode) return;
     setAnnSelected(null);
     if (e.button !== 0 || !e.isPrimary) return;
     // Panels and handles stop propagation themselves; this guard keeps nested markers safe.
@@ -1635,6 +1667,7 @@ export function PanelsTab({
                     disabled={!annotationsVisible}
                     onClick={() => {
                       setAnnTool(item);
+                      setAnnAnchorMode(false);
                       // Keep a single selected panel: it decides whether new marks use page
                       // scope or panel scope. The text in the toolbar states which one.
                       setAnnSelected(null);
@@ -1671,6 +1704,38 @@ export function PanelsTab({
               <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
                 {t('ann.delete')}
               </button>
+              <button
+                type="button"
+                className={`btn tiny ${annAnchorMode ? 'on' : ''}`}
+                aria-pressed={annAnchorMode}
+                title={t('ann.anchorHint')}
+                disabled={!annSelected}
+                onClick={() => {
+                  setAnnTool('select');
+                  setAnnAnchorMode((prev) => !prev);
+                }}
+              >
+                {t('ann.anchor')}
+              </button>
+              <button
+                type="button"
+                className={`btn tiny ${annSelectedItem?.showLeader !== false ? 'on' : ''}`}
+                aria-pressed={annSelectedItem?.showLeader !== false}
+                title={t('ann.leaderHint')}
+                disabled={!annSelectedItem}
+                onClick={toggleAnnotationLeader}
+              >
+                {t('ann.leader')}
+              </button>
+              {annSelectedItem?.anchor && (
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => setAnnotationAnchor(annSelectedItem.id, null)}
+                >
+                  {t('ann.anchorClear')}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn tiny danger"
@@ -1829,6 +1894,8 @@ export function PanelsTab({
                   onSelect={setAnnSelected}
                   onChange={applyAnnotations}
                   imageUrl={url}
+                  anchorTarget={annAnchorMode ? annSelected : null}
+                  onAnchorChange={setAnnotationAnchor}
                 />
               )}
               {imgLoaded &&

@@ -199,6 +199,14 @@ export type PanelGroup = {
 
 export type AnnotationKind = 'arrow' | 'rect' | 'ellipse' | 'highlight' | 'text' | 'badge' | 'mosaic' | 'pen';
 
+/** Optional locator attached to an annotation, in page coordinates (box when w/h are set). */
+export type AnnotationAnchor = {
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+};
+
 /** Vector annotation; coordinates are 0..1 relative to its scope box (page or panel). */
 export type Annotation = {
   id: string;
@@ -212,6 +220,10 @@ export type Annotation = {
   opacity?: number;
   text?: string;
   fontSize?: number;
+  /** Optional locator this annotation points at; absent means "the whole owning panel". */
+  anchor?: AnnotationAnchor;
+  /** Draw the leader line between the annotation and its locator; defaults to true. */
+  showLeader?: boolean;
   createdAt: string;
   updatedAt: string;
 };

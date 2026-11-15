@@ -1021,6 +1021,11 @@ export const zh = {
   'ann.sharedHint': '页 / 格作用域与切格工作台共用',
   'ann.laneHint': '正在 {lang} 栏绘制',
   'ann.compareDefault': '对照视图默认开启标注',
+  'ann.anchor': '锚点',
+  'ann.anchorHint': '为选中的批注放置定位点：单击取点，拖动取框',
+  'ann.anchorClear': '清除锚点',
+  'ann.leader': '引线',
+  'ann.leaderHint': '显示批注指向定位点的引线',
 
   'settings.title': '设置',
   'settings.openTitle': '设置',

@@ -1,6 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirection } from '../shared/types.ts';
+import type {
+  AlignMode,
+  AlignOffset,
+  AnnotationAnchor,
+  Lang,
+  Note,
+  PageDoc,
+  Panel,
+  ReadingDirection,
+} from '../shared/types.ts';
 import { DEFAULT_OFFSET } from '../shared/types.ts';
 import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
@@ -43,6 +52,21 @@ export function createEmptyDoc(volume: string, chapter: string, pageIndex: numbe
 }
 
 const clamp = (n: number, min = 0, max = 1) => Math.min(max, Math.max(min, Number.isFinite(n) ? n : 0));
+
+/** Locator of an annotation; older files simply have none, which reads as "no anchor". */
+function normalizeAnchor(input: unknown): AnnotationAnchor | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const anchor = input as Record<string, unknown>;
+  if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return undefined;
+  const w = Number.isFinite(anchor.w) ? clamp(Number(anchor.w)) : 0;
+  const h = Number.isFinite(anchor.h) ? clamp(Number(anchor.h)) : 0;
+  return {
+    x: clamp(Number(anchor.x)),
+    y: clamp(Number(anchor.y)),
+    ...(w > 0 ? { w } : {}),
+    ...(h > 0 ? { h } : {}),
+  };
+}
 
 function normalizeDoc(input: PageDoc): PageDoc {
   const panels: Panel[] = (Array.isArray(input.panels) ? input.panels : [])
@@ -167,6 +191,8 @@ function normalizeDoc(input: PageDoc): PageDoc {
       opacity: Number.isFinite(a.opacity) ? clamp(Number(a.opacity)) : undefined,
       text: typeof a.text === 'string' ? a.text : undefined,
       fontSize: Number.isFinite(a.fontSize) ? Number(a.fontSize) : undefined,
+      anchor: normalizeAnchor(a.anchor),
+      showLeader: a.showLeader === false ? false : undefined,
       createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString(),
       updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : new Date().toISOString(),
     }))
@@ -257,6 +283,25 @@ function summarize(prev: PageDoc | null, next: PageDoc): string {
   return parts.join('; ') || t('HISTORY_SAVE');
 }
 
+/**
+ * Anchor/leader are deletion-sensitive: `preserveUnknown` merges annotations by id and
+ * would otherwise resurrect a locator the user just cleared. Preserved copies keep any
+ * unknown fields, but these two always follow the normalized client state.
+ */
+function reconcileAnnotationExtras(merged: PageDoc, normalized: PageDoc): void {
+  if (!merged.annotations?.length) return;
+  const nextById = new Map((normalized.annotations ?? []).map((a) => [a.id, a]));
+  merged.annotations = merged.annotations.map((a) => {
+    const next = nextById.get(a.id);
+    if (!next) return a;
+    if (next.anchor) a.anchor = next.anchor;
+    else delete a.anchor;
+    if (next.showLeader === false) a.showLeader = false;
+    else delete a.showLeader;
+    return a;
+  });
+}
+
 export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
   const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
   // Preserve a damaged predecessor before this write replaces it.
@@ -291,6 +336,7 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
   // entries the client cleared (for example "reset all" in the compare view).
   merged.offsets = normalized.offsets;
   merged.panelOffsets = normalized.panelOffsets;
+  reconcileAnnotationExtras(merged, normalized);
   writeStoredFile(file, 'page', merged);
   if (!meta?.skipHistory) {
     // Version history is an audit trail: a write failure there must never block the save.

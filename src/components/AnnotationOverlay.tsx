@@ -1,4 +1,5 @@
 import type { Annotation, Panel, PanelRect } from '../types';
+import { annotationLeader } from '../../shared/annotations';
 import { mosaicRegion } from '../lib/mosaicPatch';
 import { MosaicPatch } from './MosaicPatch';
 
@@ -33,6 +34,59 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true, i
   });
   const sw = (fraction: number) => Math.max(0.5, (fraction * vw) / rect.w);
   const fs = (fraction: number) => Math.max(3, (fraction * vh) / rect.h);
+
+  // Leaders and locator markers are drawn under the marks, matching the editor and exports.
+  const guides = annotations.map((a) => {
+    const scope = a.scope === 'panel' ? (panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
+    const color = a.color || '#e0453a';
+    const width = sw(a.width ?? 0.0035);
+    const leader = annotationLeader(a, scope);
+    const anchor = a.anchor;
+    const dot = anchor
+      ? toView({ x: anchor.x + (anchor.w ?? 0) / 2, y: anchor.y + (anchor.h ?? 0) / 2 }, PAGE_RECT)
+      : null;
+    const boxFrom = anchor ? toView(anchor, PAGE_RECT) : null;
+    const boxTo = anchor ? toView({ x: anchor.x + (anchor.w ?? 0), y: anchor.y + (anchor.h ?? 0) }, PAGE_RECT) : null;
+    return (
+      <g key={a.id} pointerEvents="none">
+        {leader && (
+          <line
+            x1={num(toView(leader.from, PAGE_RECT).x)}
+            y1={num(toView(leader.from, PAGE_RECT).y)}
+            x2={num(toView(leader.to, PAGE_RECT).x)}
+            y2={num(toView(leader.to, PAGE_RECT).y)}
+            stroke={color}
+            strokeWidth={num(width)}
+            strokeLinecap="round"
+            opacity={0.9}
+          />
+        )}
+        {dot && (
+          <circle
+            cx={num(dot.x)}
+            cy={num(dot.y)}
+            r={num(Math.max(3, width * 2.4))}
+            fill="#fff"
+            stroke={color}
+            strokeWidth={num(width)}
+          />
+        )}
+        {anchor?.w && anchor.h && boxFrom && boxTo ? (
+          <rect
+            x={num(Math.min(boxFrom.x, boxTo.x))}
+            y={num(Math.min(boxFrom.y, boxTo.y))}
+            width={num(Math.abs(boxTo.x - boxFrom.x))}
+            height={num(Math.abs(boxTo.y - boxFrom.y))}
+            fill="none"
+            stroke={color}
+            strokeWidth={num(width)}
+            strokeDasharray="5 4"
+            opacity={0.9}
+          />
+        ) : null}
+      </g>
+    );
+  });
 
   const shapes = annotations.map((a) => {
     const scope = a.scope === 'panel' ? (panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
@@ -170,6 +224,7 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true, i
 
   return (
     <svg className="ann-crop" viewBox={`0 0 ${vw} ${vh}`} preserveAspectRatio="none" aria-hidden="true">
+      {guides}
       {shapes}
     </svg>
   );

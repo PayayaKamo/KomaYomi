@@ -1059,6 +1059,11 @@ export const ja = {
   'ann.sharedHint': 'ページ / コマの適用範囲はコマ編集と共通です',
   'ann.laneHint': '{lang} 列に描画中',
   'ann.compareDefault': '比較ビューでは注釈は既定でオンです',
+  'ann.anchor': 'アンカー',
+  'ann.anchorHint': '選択中の注釈に位置指定を置きます：クリックで点、ドラッグで範囲',
+  'ann.anchorClear': 'アンカー解除',
+  'ann.leader': '引き出し線',
+  'ann.leaderHint': '注釈と位置指定を結ぶ引き出し線を表示します',
 
   'settings.title': '設定',
   'settings.openTitle': '設定',

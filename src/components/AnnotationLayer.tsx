@@ -11,10 +11,11 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import type { Annotation, AnnotationKind, Panel, PanelRect } from '../types';
+import type { Annotation, AnnotationAnchor, AnnotationKind, Panel, PanelRect } from '../types';
 import { clamp01, uid } from '../lib/geometry';
 import { mosaicRegion } from '../lib/mosaicPatch';
 import { MosaicPatch } from './MosaicPatch';
+import { annotationLeader } from '../../shared/annotations';
 import { t } from '../i18n';
 import type { MessageKey } from '../i18n';
 
@@ -59,6 +60,8 @@ const DEFAULT_FONT = 0.035;
 type Point = { x: number; y: number };
 type Box = { w: number; h: number };
 type Draft = { kind: AnnotationKind; rect: PanelRect; panelId: string | null; points: Point[] };
+/** Drag while placing a locator: a click sets a point, a longer drag sets a box. */
+type AnchorDraft = { start: Point; current: Point };
 type TextEdit = {
   kind: 'text' | 'badge';
   rect: PanelRect;
@@ -97,6 +100,10 @@ type Props = {
   viewport?: PanelRect;
   /** Page image used to pixelate mosaics; without it mosaics render as flat blocks. */
   imageUrl?: string;
+  /** When set, the next drag on the page places this annotation's locator. */
+  anchorTarget?: string | null;
+  /** Receives the new locator, or null when the user clears it. */
+  onAnchorChange?: (id: string, anchor: AnnotationAnchor | null) => void;
 };
 
 function panelRect(panels: Panel[], id: string | null): PanelRect {
@@ -115,6 +122,72 @@ function toPixels(points: Point[], rect: PanelRect, box: Box, viewport: PanelRec
     x: ((rect.x + p.x * rect.w - viewport.x) / viewport.w) * box.w,
     y: ((rect.y + p.y * rect.h - viewport.y) / viewport.h) * box.h,
   }));
+}
+
+/** Page-space point to overlay pixels. */
+function pageToPixels(p: Point, box: Box, viewport: PanelRect): Point {
+  return { x: ((p.x - viewport.x) / viewport.w) * box.w, y: ((p.y - viewport.y) / viewport.h) * box.h };
+}
+
+/**
+ * Leader line and locator marker for one annotation.
+ * The anchor is a page-space point/box, so lines stay glued to the artwork when the
+ * view is panned, zoomed or cropped to a panel.
+ */
+function annotationGuides(annotation: Annotation, scope: PanelRect, box: Box, viewport: PanelRect): ReactNode {
+  const color = annotation.color ?? ANNOTATION_COLORS[0];
+  const strokeWidth = Math.max(1, ((annotation.width ?? DEFAULT_WIDTH) * box.w) / viewport.w);
+  const leader = annotationLeader(annotation, scope);
+  const anchor = annotation.anchor;
+  const anchorPoint = anchor
+    ? pageToPixels({ x: anchor.x + (anchor.w ?? 0) / 2, y: anchor.y + (anchor.h ?? 0) / 2 }, box, viewport)
+    : null;
+  const anchorBox =
+    anchor?.w && anchor.h
+      ? {
+          from: pageToPixels(anchor, box, viewport),
+          to: pageToPixels({ x: anchor.x + anchor.w, y: anchor.y + anchor.h }, box, viewport),
+        }
+      : null;
+  return (
+    <g className="ann-guides" pointerEvents="none">
+      {leader && (
+        <line
+          x1={pageToPixels(leader.from, box, viewport).x}
+          y1={pageToPixels(leader.from, box, viewport).y}
+          x2={pageToPixels(leader.to, box, viewport).x}
+          y2={pageToPixels(leader.to, box, viewport).y}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          opacity={0.9}
+        />
+      )}
+      {anchorPoint && (
+        <circle
+          cx={anchorPoint.x}
+          cy={anchorPoint.y}
+          r={Math.max(3, strokeWidth * 2.4)}
+          fill="#ffffff"
+          stroke={color}
+          strokeWidth={strokeWidth}
+        />
+      )}
+      {anchorBox && (
+        <rect
+          x={Math.min(anchorBox.from.x, anchorBox.to.x)}
+          y={Math.min(anchorBox.from.y, anchorBox.to.y)}
+          width={Math.abs(anchorBox.to.x - anchorBox.from.x)}
+          height={Math.abs(anchorBox.to.y - anchorBox.from.y)}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray="5 4"
+          opacity={0.9}
+        />
+      )}
+    </g>
+  );
 }
 
 function arrowHead(a: Point, b: Point, size: number): string {
@@ -304,12 +377,16 @@ export function AnnotationLayer({
   onChange,
   viewport = PAGE_RECT,
   imageUrl,
+  anchorTarget = null,
+  onAnchorChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState<Box>({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [textEdit, setTextEdit] = useState<TextEdit | null>(null);
   const draftRef = useRef<Draft | null>(null);
+  const anchorRef = useRef<AnchorDraft | null>(null);
+  const [anchorDraft, setAnchorDraft] = useState<AnchorDraft | null>(null);
   const moveRef = useRef<{ id: string; rect: PanelRect; origin: Point[]; start: Point } | null>(null);
   const [moving, setMoving] = useState(false);
 
@@ -368,7 +445,18 @@ export function AnnotationLayer({
   };
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (!visible || tool === 'select') return;
+    if (!visible) return;
+    if (anchorTarget) {
+      if (e.button !== 0 || !e.isPrimary) return;
+      e.preventDefault();
+      const start = pagePoint(e);
+      const next: AnchorDraft = { start, current: start };
+      anchorRef.current = next;
+      setAnchorDraft(next);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (tool === 'select') return;
     if (e.button !== 0 || !e.isPrimary) return;
     e.preventDefault();
     const page = pagePoint(e);
@@ -390,6 +478,13 @@ export function AnnotationLayer({
   };
 
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const placing = anchorRef.current;
+    if (placing) {
+      const next = { ...placing, current: pagePoint(e) };
+      anchorRef.current = next;
+      setAnchorDraft(next);
+      return;
+    }
     const current = draftRef.current;
     if (!current) return;
     const point = toScope(pagePoint(e), current.rect);
@@ -407,6 +502,30 @@ export function AnnotationLayer({
   };
 
   const finishDraft = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const placing = anchorRef.current;
+    if (placing) {
+      anchorRef.current = null;
+      setAnchorDraft(null);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* release may already have happened */
+      }
+      if (!anchorTarget) return;
+      const { start, current } = placing;
+      // A click (or tiny nudge) marks a point; a real drag marks a rectangle.
+      const box =
+        Math.abs(current.x - start.x) >= MIN_SIZE || Math.abs(current.y - start.y) >= MIN_SIZE
+          ? {
+              x: clamp01(Math.min(start.x, current.x)),
+              y: clamp01(Math.min(start.y, current.y)),
+              w: Math.abs(current.x - start.x),
+              h: Math.abs(current.y - start.y),
+            }
+          : { x: clamp01(start.x), y: clamp01(start.y) };
+      onAnchorChange?.(anchorTarget, box);
+      return;
+    }
     const current = draftRef.current;
     if (!current) return;
     draftRef.current = null;
@@ -485,7 +604,28 @@ export function AnnotationLayer({
 
   if (!visible) return null;
 
-  const interactive = tool !== 'select';
+  const interactive = tool !== 'select' || Boolean(anchorTarget);
+  const anchorPreview = (() => {
+    if (!anchorDraft) return null;
+    const a = pageToPixels(anchorDraft.start, box, viewport);
+    const b = pageToPixels(anchorDraft.current, box, viewport);
+    const boxed = Math.abs(b.x - a.x) > 2 || Math.abs(b.y - a.y) > 2;
+    return boxed ? (
+      <rect
+        x={Math.min(a.x, b.x)}
+        y={Math.min(a.y, b.y)}
+        width={Math.abs(b.x - a.x)}
+        height={Math.abs(b.y - a.y)}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeDasharray="5 4"
+        pointerEvents="none"
+      />
+    ) : (
+      <circle cx={a.x} cy={a.y} r={5} fill="#ffffff" stroke={color} strokeWidth={2} pointerEvents="none" />
+    );
+  })();
 
   return (
     <div className="ann-layer">
@@ -499,8 +639,23 @@ export function AnnotationLayer({
         onPointerCancel={() => {
           draftRef.current = null;
           setDraft(null);
+          anchorRef.current = null;
+          setAnchorDraft(null);
         }}
       >
+        {/* Leaders and locator markers sit under the marks so they never hide them. */}
+        <g className="ann-guides-layer" pointerEvents="none">
+          {annotations.map((annotation) => (
+            <g key={annotation.id}>
+              {annotationGuides(
+                annotation,
+                annotation.scope === 'panel' ? panelRect(panels, annotation.panelId ?? null) : PAGE_RECT,
+                box,
+                viewport,
+              )}
+            </g>
+          ))}
+        </g>
         {annotations.map((annotation) => {
           const rect = annotation.scope === 'panel' ? panelRect(panels, annotation.panelId ?? null) : PAGE_RECT;
           const selected = annotation.id === selectedId;
@@ -530,6 +685,7 @@ export function AnnotationLayer({
           );
         })}
         {draft && renderShape({ ...draft, color, width }, draft.rect, box, 'draft', viewport, imageUrl)}
+        {anchorPreview}
         {textEdit && (
           <foreignObject x={0} y={0} width={box.w} height={box.h}>
             <div className="ann-input-wrap">

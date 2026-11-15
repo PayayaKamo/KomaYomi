@@ -24,6 +24,7 @@ export type {
   AlignOffset,
   AlignPreset,
   Annotation,
+  AnnotationAnchor,
   AnnotationKind,
   ChapterEntry,
   ChapterOverride,
