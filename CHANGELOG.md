@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Conventional Commits enforcement via commitlint, Husky hooks, and lint-staged.
 - GitHub Actions CI (lint → typecheck → test → build) for pull requests and `main`.
 - Contribution guide, code of conduct, issue templates, and pull request template.
+- Desktop release pipeline: pushing a `v*` tag builds Windows (NSIS + portable), macOS (dmg + zip) and
+  Linux (AppImage + deb) for x64 and arm64 and attaches them to the GitHub Release. Builds are unsigned:
+  Windows triggers SmartScreen, macOS needs a manual Gatekeeper bypass.
 
 ## [0.1.0] - 2026-11-15
 
@@ -32,8 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
    (`## [x.y.z] - YYYY-MM-DD`) and bump `version` in `package.json` together with
    `package-lock.json` (`npm version <patch|minor|major> --no-git-tag-version`).
 3. Open a release PR from `dev` to `main`, verify CI, and merge.
-4. Tag the merge commit on `main` (`git tag vX.Y.Z && git push --tags`) and publish
-   release notes copied from this changelog.
+4. Tag the merge commit on `main` (`git tag vX.Y.Z && git push origin vX.Y.Z`) and publish
+   release notes copied from this changelog. The same tag push runs
+   `.github/workflows/release.yml`, which attaches the desktop packages for all six
+   platform/architecture combinations to the release (tags with a hyphen, such as
+   `v0.1.0-rc.1`, are published as prereleases).
 
 Semantic versioning: breaking changes bump the major version, backwards-compatible
 features bump the minor version, and fixes bump the patch version. While the project is

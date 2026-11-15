@@ -1,0 +1,242 @@
+# Builds the desktop app for Windows, macOS and Linux (x64 + arm64) and attaches the
+# native artifacts to a GitHub Release.
+#
+# Trigger: pushing a tag that starts with `v` (e.g. `v0.1.0-rc.1`). Tags containing a
+# hyphen are published as a prerelease.
+#
+# Signing: this repository currently has **no code-signing certificates**.
+#   - Windows: the installer and portable exe are unsigned, so SmartScreen shows
+#     "Windows protected your PC" until the user clicks "More info → Run anyway".
+#   - macOS: the app is unsigned and not notarized, so Gatekeeper blocks the first launch.
+#     Users have to right-click the app → Open, or allow it under
+#     System Settings → Privacy & Security → "Open Anyway".
+# Nothing here fakes a signature; the builds are honestly unsigned.
+#
+# Wiring certificates later (no code change needed beyond these env vars):
+#   Windows — set secrets WIN_CSC_LINK (base64 of the .pfx) and WIN_CSC_KEY_PASSWORD,
+#             and drop the `CSC_IDENTITY_AUTO_DISCOVERY: false` override below.
+#   macOS   — set secrets CSC_LINK (base64 of the .p12), CSC_KEY_PASSWORD, plus
+#             APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID and enable
+#             `mac.notarize` in electron-builder.yml.
+name: Release desktop builds
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # No signing identity is configured; stop electron-builder from looking for one on macOS.
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          repo="${GITHUB_REPOSITORY}"
+
+          notes="$(mktemp)"
+          cat > "$notes" <<EOF
+          Desktop builds for \`${tag}\`, produced by the release workflow.
+
+          | Platform | Architecture | Files |
+          | --- | --- | --- |
+          | Windows | x64, arm64 | \`KomaYomi-<version>-win-<arch>.exe\` (NSIS installer), \`KomaYomi-<version>-win-portable-<arch>.exe\` |
+          | macOS | x64, arm64 | \`KomaYomi-<version>-mac-<arch>.dmg\`, \`KomaYomi-<version>-mac-<arch>.zip\` |
+          | Linux | x64, arm64 | \`KomaYomi-<version>-linux-<arch>.AppImage\`, \`KomaYomi-<version>-linux-<arch>.deb\` |
+
+          ## These builds are unsigned
+
+          No code-signing certificates are configured for this project yet.
+
+          - **Windows** — the installer and the portable exe are unsigned. SmartScreen shows
+            "Windows protected your PC"; choose **More info → Run anyway**. Some browsers warn
+            about the download for the same reason.
+          - **macOS** — the app is unsigned and not notarized. Gatekeeper refuses the first
+            launch. Right-click the app → **Open** → **Open**, or allow it in
+            **System Settings → Privacy & Security → Open Anyway**.
+          - **Linux** — no signature; make the AppImage executable (\`chmod +x\`) before running.
+            The \`.deb\` installs with \`sudo apt install ./KomaYomi-<version>-linux-<arch>.deb\`.
+
+          The app is local-first: it asks for a data folder (raw / data / exports) on first
+          launch and keeps everything on disk.
+
+          Desktop changes are listed in [CHANGELOG.md](https://github.com/${repo}/blob/main/CHANGELOG.md),
+          and every commit since the previous tag is in the
+          [commit list](https://github.com/${repo}/commits/${tag}).
+          EOF
+
+          prerelease=()
+          if [[ "$tag" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+
+          gh release create "$tag" \
+            --repo "$repo" \
+            --title "KomaYomi ${tag}" \
+            --notes-file "$notes" \
+            "${prerelease[@]}"
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64
+            platform: win
+            arch: x64
+            builder_args: --win --x64
+          - os: windows-latest
+            label: Windows arm64
+            platform: win
+            arch: arm64
+            builder_args: --win --arm64
+          - os: macos-13
+            label: macOS x64
+            platform: mac
+            arch: x64
+            builder_args: --mac --x64
+          - os: macos-14
+            label: macOS arm64
+            platform: mac
+            arch: arm64
+            builder_args: --mac --arm64
+          - os: ubuntu-latest
+            label: Linux x64
+            platform: linux
+            arch: x64
+            builder_args: --linux --x64
+          - os: ubuntu-24.04-arm
+            label: Linux arm64
+            platform: linux
+            arch: arm64
+            builder_args: --linux --arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Electron downloads (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Cache Electron downloads (macOS / Linux)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build server bundle
+        run: npm run server:build
+
+      # `--publish never` keeps electron-builder from uploading on its own; the artifacts
+      # are attached below in one explicit step per platform.
+      - name: Package (${{ matrix.platform }} ${{ matrix.arch }})
+        run: npx electron-builder ${{ matrix.builder_args }} --publish never
+
+      - name: List artifacts
+        shell: bash
+        run: ls -la release
+
+      - name: Upload assets to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.create-release.outputs.tag }}"
+
+          shopt -s nullglob
+          case "${{ matrix.platform }}" in
+            win)   files=(release/*.exe) ;;
+            mac)   files=(release/*.dmg release/*.zip) ;;
+            linux) files=(release/*.AppImage release/*.deb) ;;
+          esac
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No ${{ matrix.platform }} artifacts were produced in release/"
+            exit 1
+          fi
+
+          printf 'Uploading: %s\n' "${files[@]}"
+          gh release upload "$tag" "--repo=${{ github.repository }}" "${files[@]}" --clobber
+
+  verify-assets:
+    name: Verify release assets
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that every platform is attached
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.create-release.outputs.tag }}"
+          assets="$(gh release view "$tag" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')"
+          echo "$assets"
+
+          expected=(
+            "-win-x64.exe"
+            "-win-portable-x64.exe"
+            "-win-arm64.exe"
+            "-win-portable-arm64.exe"
+            "-mac-x64.dmg"
+            "-mac-x64.zip"
+            "-mac-arm64.dmg"
+            "-mac-arm64.zip"
+            "-linux-x64.AppImage"
+            "-linux-x64.deb"
+            "-linux-arm64.AppImage"
+            "-linux-arm64.deb"
+          )
+          missing=0
+          for pattern in "${expected[@]}"; do
+            if ! grep -qF -- "$pattern" <<< "$assets"; then
+              echo "::error::Missing asset matching '$pattern'"
+              missing=1
+            fi
+          done
+          exit "$missing"

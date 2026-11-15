@@ -114,6 +114,10 @@ npm run desktop
 
 フロントエンドをビルドし、サーバーを `dist-server/` にまとめ、Electron のウィンドウを開きます。ソースから実行した場合はリポジトリのフォルダを `raw/`・`data/`・`exports/` として使います。パッケージ版では Electron のユーザーデータ内の `library` フォルダを使い、初回起動時にフォルダを尋ねます。`Ctrl+Shift+D` でデータフォルダを切り替え（再起動が必要）、`MANGA_DATA_DIR` で上書きできます。
 
+ビルド済みパッケージは [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases) で配布しています。Windows（NSIS インストーラとポータブル版）、macOS（dmg と zip）、Linux（AppImage と deb）を、それぞれ x64 と arm64 で用意します。`v*` タグを push すると `.github/workflows/release.yml` が走り、6 つのプラットフォーム/アーキテクチャの組み合わせをビルドして該当リリースにアップロードします。
+
+**これらのビルドは署名されていません。** コード署名証明書が未設定のため、Windows では SmartScreen が「Windows によって PC が保護されました」と表示します（「詳細情報」→「実行」を選択）。macOS では初回起動を Gatekeeper が止めるので、アプリを右クリック →「開く」、または「システム設定 → プライバシーとセキュリティ」で「このまま開く」を選んでください。証明書シークレットの差し込み位置は workflow に記載しています。
+
 ### Docker
 
 ```bash
@@ -167,7 +171,7 @@ node scripts/manga-cli.ts plugins
 | `npm run i18n:scan`                  | ロケールファイル外のハードコードされた中国語を検査                  |
 | `npm run docs:dev` / `docs:build`    | `docs/` のドキュメントサイト                                        |
 
-パッケージ設定は `electron-builder.yml`（アプリ ID `com.payayakamo.komayomi`、製品名 `KomaYomi`）。`npm run dist:win` は `KomaYomi-<version>-x64.exe`、`KomaYomi-<version>-portable.exe`、`win-unpacked/` を `release/` に出力します。
+パッケージ設定は `electron-builder.yml`（アプリ ID `com.payayakamo.komayomi`、製品名 `KomaYomi`）。`npm run dist:win` は `KomaYomi-<version>-win-x64.exe`、`KomaYomi-<version>-win-portable-x64.exe`、`win-unpacked/` を `release/` に出力します。リリース workflow は `--win/--mac/--linux` と `--x64/--arm64` を渡すため、公開されるファイル名には必ずプラットフォームとアーキテクチャが入ります。
 
 ## ディレクトリ構成
 

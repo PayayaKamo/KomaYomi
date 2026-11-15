@@ -114,6 +114,10 @@ npm run desktop
 
 该命令会构建前端、把服务端打包到 `dist-server/`，再打开 Electron 窗口。从源码运行时，`raw/`、`data/`、`exports/` 沿用仓库目录；打包版使用 Electron 用户数据目录下的 `library` 文件夹，并在首次启动时询问位置。`Ctrl+Shift+D` 可切换数据目录（需要重启），`MANGA_DATA_DIR` 可覆盖。
 
+预编译安装包发布在 [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases)：Windows（NSIS 安装包与便携版）、macOS（dmg 与 zip）、Linux（AppImage 与 deb），各自都有 x64 与 arm64。推送 `v*` tag 会触发 `.github/workflows/release.yml`，构建全部六个平台/架构组合并上传到对应的 Release。
+
+**这些构建没有代码签名。** 目前没有配置签名证书，因此 Windows 会弹出 SmartScreen「Windows 已保护你的电脑」提示（选择「更多信息 → 仍要运行」），macOS 首次启动会被 Gatekeeper 拦截（右键应用 →「打开」，或在「系统设置 → 隐私与安全性」里选择「仍要打开」）。证书密钥的接入位置写在 workflow 里。
+
 ### Docker
 
 ```bash
@@ -167,7 +171,7 @@ node scripts/manga-cli.ts plugins
 | `npm run i18n:scan`                  | 扫描语言文件之外硬编码的中文                     |
 | `npm run docs:dev` / `docs:build`    | `docs/` 里的文档站                               |
 
-打包配置在 `electron-builder.yml`（应用 ID `com.payayakamo.komayomi`，产品名 `KomaYomi`）。`npm run dist:win` 会把 `KomaYomi-<version>-x64.exe`、`KomaYomi-<version>-portable.exe` 和 `win-unpacked/` 输出到 `release/`。
+打包配置在 `electron-builder.yml`（应用 ID `com.payayakamo.komayomi`，产品名 `KomaYomi`）。`npm run dist:win` 会把 `KomaYomi-<version>-win-x64.exe`、`KomaYomi-<version>-win-portable-x64.exe` 和 `win-unpacked/` 输出到 `release/`；发布流程通过 `--win/--mac/--linux` 与 `--x64/--arm64` 指定目标，因此每个发布文件都带平台与架构标识。
 
 ## 目录结构
 

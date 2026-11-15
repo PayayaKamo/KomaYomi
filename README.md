@@ -114,6 +114,10 @@ npm run desktop
 
 This builds the frontend, bundles the server into `dist-server/`, and opens the Electron window. When run from source, it reuses the repository folder for `raw/`, `data/` and `exports/`. A packaged build keeps them in a `library` folder inside the Electron user data directory and asks for a folder on first launch. `Ctrl+Shift+D` switches the data directory (restart required); `MANGA_DATA_DIR` overrides it.
 
+Prebuilt packages are attached to [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases): Windows (NSIS installer and portable exe), macOS (dmg and zip) and Linux (AppImage and deb), each for x64 and arm64. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds all six platform/architecture combinations and uploads them to the release.
+
+**The builds are unsigned.** No code-signing certificates are configured yet, so Windows SmartScreen shows "Windows protected your PC" (choose **More info → Run anyway**) and macOS Gatekeeper blocks the first launch (right-click the app → **Open**, or allow it under **System Settings → Privacy & Security → Open Anyway**). The workflow documents where the Windows and Apple certificate secrets plug in.
+
 ### Docker
 
 ```bash
@@ -167,7 +171,7 @@ node scripts/manga-cli.ts plugins
 | `npm run i18n:scan`                  | Scan for hard-coded Chinese strings outside the locale files |
 | `npm run docs:dev` / `docs:build`    | Documentation site in `docs/`                                |
 
-Packaging uses `electron-builder.yml` (app id `com.payayakamo.komayomi`, product name `KomaYomi`). `npm run dist:win` writes `KomaYomi-<version>-x64.exe`, `KomaYomi-<version>-portable.exe` and `win-unpacked/` into `release/`.
+Packaging uses `electron-builder.yml` (app id `com.payayakamo.komayomi`, product name `KomaYomi`). `npm run dist:win` writes `KomaYomi-<version>-win-x64.exe`, `KomaYomi-<version>-win-portable-x64.exe` and `win-unpacked/` into `release/`; the release workflow passes `--win/--mac/--linux` and `--x64/--arm64`, so every published file carries its platform and architecture.
 
 ## Project structure
 

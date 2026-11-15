@@ -3,6 +3,14 @@
 #   npm run dist:win   → NSIS installer + portable exe in ./release
 #   npm run dist:dir   → unpacked app, useful to sanity-check the desktop build
 #
+# The release workflow (`.github/workflows/release.yml`) passes the target platform and
+# architecture on the command line (`--win --x64`, `--mac --arm64`, `--linux --x64`, …),
+# so the target lists below stay arch-agnostic; without a flag electron-builder uses the
+# architecture of the machine it runs on.
+#
+# Artifact names always carry platform and architecture so that release uploads from the
+# six matrix jobs never overwrite each other.
+#
 # Data (raw/, data/, exports/) is NOT bundled: the app asks for a library folder on
 # first launch and remembers it in %APPDATA%/manga-memo/config.json.
 appId: com.payayakamo.komayomi
@@ -19,10 +27,8 @@ files:
 win:
   target:
     - target: nsis
-      arch: [x64]
     - target: portable
-      arch: [x64]
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
 nsis:
   oneClick: false
   perMachine: false
@@ -31,4 +37,17 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: KomaYomi
 portable:
-  artifactName: ${productName}-${version}-portable.${ext}
+  artifactName: ${productName}-${version}-win-portable-${arch}.${ext}
+mac:
+  target:
+    - target: dmg
+    - target: zip
+  category: public.app-category.education
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+linux:
+  target:
+    - target: AppImage
+    - target: deb
+  category: Office
+  maintainer: PayayaKamo
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
