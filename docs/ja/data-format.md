@@ -100,7 +100,7 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 | `alignMode` | `page \| panel \| anchors \| grid` | 無効な値は `page` になります。 |
 | `panelOffsets` | `Record<panelId, Record<Lang, AlignOffset>>` | コマ単位の位置合わせ。 |
 | `gridStep` | number | パーセント。`0.1..10` にクランプされ、既定は `1`。 |
-| `readingDirection` | `rtl \| ltr \| ttb` | 無効な値は `rtl` になります。 |
+| `readingDirection` | `rtl \| ltr \| ttb \| horizontal-rl \| horizontal-lr \| vertical-rl \| vertical-lr` | 無効な値は `rtl` になります。削除された `continuous-vertical` を含む古いファイルも `rtl` として読み込まれます。 |
 | `detectorVersion` | string | 例: `xycut-1.3`、`layout:<id>`、`plugin:<name>`。 |
 | `detectedAt` | ISO string | 最後の検出時刻。 |
 | `detectSource` | `auto \| template \| plugin \| manual` | どの経路がコマを生成したか。 |

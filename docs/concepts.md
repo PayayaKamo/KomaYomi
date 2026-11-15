@@ -79,11 +79,15 @@ The data model, normalization and project import/export support annotations, inc
 
 | Value | Meaning |
 | --- | --- |
-| `rtl` | Right-to-left, top-to-bottom (default for Japanese manga). |
-| `ltr` | Left-to-right, top-to-bottom. |
-| `ttb` | Vertical columns, right-to-left. |
+| `rtl` | Rows top to bottom, right to left within a row (legacy name for `horizontal-rl`; the default for Japanese manga). |
+| `ltr` | Rows top to bottom, left to right within a row (legacy name for `horizontal-lr`). |
+| `ttb` | Columns right to left, top to bottom within a column (legacy name for `vertical-rl`). |
+| `horizontal-rl` | Rows top to bottom, right to left within a row. |
+| `horizontal-lr` | Rows top to bottom, left to right within a row. |
+| `vertical-rl` | Columns right to left, top to bottom within a column. |
+| `vertical-lr` | Columns left to right, top to bottom within a column. |
 
-It determines panel numbering and the order of notes in the export.
+`rtl` is used when a page does not specify a direction. It determines panel numbering and the order of notes in the export.
 
 ## Language codes
 

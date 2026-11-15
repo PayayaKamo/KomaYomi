@@ -59,7 +59,7 @@
 | `gap` | 否 | 比例，限制在 `0`–`0.08`，默认 `0.012`。 |
 | `colWeights` | 否 | 相对列宽；默认等宽。 |
 | `pageOverrides` | 否 | 键是**从 1 开始**的页码；可以覆盖 `grid`、`margin`、`gap`、`colWeights`。 |
-| `readingDirection` | 否 | `rtl`（默认）、`ltr`、`ttb`。 |
+| `readingDirection` | 否 | `rtl`（默认）、`ltr`、`ttb`、`horizontal-rl`、`horizontal-lr`、`vertical-rl`、`vertical-lr`。 |
 
 服务器会把网格展开为归一化的分格矩形。行和单元格在边距内布局，扣除间距，并遵循跨列与权重。
 

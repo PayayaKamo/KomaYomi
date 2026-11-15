@@ -100,7 +100,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 | `alignMode` | `page \| panel \| anchors \| grid` | Invalid values become `page`. |
 | `panelOffsets` | `Record<panelId, Record<Lang, AlignOffset>>` | Panel-level alignment. |
 | `gridStep` | number | Percent, clamped to `0.1..10`, default `1`. |
-| `readingDirection` | `rtl \| ltr \| ttb` | Invalid values become `rtl`. |
+| `readingDirection` | `rtl \| ltr \| ttb \| horizontal-rl \| horizontal-lr \| vertical-rl \| vertical-lr` | Invalid values become `rtl`; older files that stored the removed `continuous-vertical` value are read as `rtl`. |
 | `detectorVersion` | string | e.g. `xycut-1.3`, `layout:<id>`, `plugin:<name>`. |
 | `detectedAt` | ISO string | Last detection time. |
 | `detectSource` | `auto \| template \| plugin \| manual` | Which path produced the panels. |

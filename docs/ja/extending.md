@@ -59,7 +59,7 @@
 | `gap` | いいえ | 比率。`0`–`0.08` にクランプされ、既定は `0.012`。 |
 | `colWeights` | いいえ | 相対的な列幅。既定では均等。 |
 | `pageOverrides` | いいえ | キーは**1 始まり**のページ番号。`grid`、`margin`、`gap`、`colWeights` を上書きできます。 |
-| `readingDirection` | いいえ | `rtl`（既定）、`ltr`、`ttb`。 |
+| `readingDirection` | いいえ | `rtl`（既定）、`ltr`、`ttb`、`horizontal-rl`、`horizontal-lr`、`vertical-rl`、`vertical-lr`。 |
 
 サーバーはグリッドを正規化されたコマ矩形に展開します。行とセルはマージンの内側に、間隔を差し引き、スパンと重みを尊重して配置されます。
 

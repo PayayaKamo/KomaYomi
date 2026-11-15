@@ -106,7 +106,7 @@ All coordinates are normalized to the page, so a panel stays in the same place a
 ## Numbering and reading direction
 
 - **Numbers** toggles the index badges.
-- Reading direction is stored per page: `rtl` (right to left, top to bottom), `ltr` (left to right, top to bottom) or `ttb` (right to left, vertical columns). Change it in the top bar.
+- Reading direction is stored per page and is one of seven values: `rtl`, `ltr`, `ttb`, `horizontal-rl`, `horizontal-lr`, `vertical-rl` and `vertical-lr`. The first three are legacy names for the horizontal and vertical forms. Change it in the top bar.
 - A panel may carry an explicit `number` that overrides automatic reading order; otherwise numbering is derived from the rectangle and the direction.
 - The same order drives the compare reader, the notes overview and HTML export.
 

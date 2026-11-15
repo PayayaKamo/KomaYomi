@@ -59,7 +59,7 @@ Layout templates describe the page as a grid of rows and cells. They are ideal f
 | `gap` | no | Fraction, clamped to `0`–`0.08`, default `0.012`. |
 | `colWeights` | no | Relative column widths; equal by default. |
 | `pageOverrides` | no | Keys are **1-based** page numbers; may override `grid`, `margin`, `gap`, `colWeights`. |
-| `readingDirection` | no | `rtl` (default), `ltr`, `ttb`. |
+| `readingDirection` | no | One of `rtl` (default), `ltr`, `ttb`, `horizontal-rl`, `horizontal-lr`, `vertical-rl`, `vertical-lr`. |
 
 The server expands the grid into normalized panel rectangles. Rows and cells are laid out inside the margins, subtracting gaps and respecting spans and weights.
 

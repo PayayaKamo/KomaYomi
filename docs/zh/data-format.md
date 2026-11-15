@@ -100,7 +100,7 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 | `alignMode` | `page \| panel \| anchors \| grid` | 无效值会变成 `page`。 |
 | `panelOffsets` | `Record<panelId, Record<Lang, AlignOffset>>` | 分格级对齐。 |
 | `gridStep` | number | 百分比，限制在 `0.1..10`，默认 `1`。 |
-| `readingDirection` | `rtl \| ltr \| ttb` | 无效值会变成 `rtl`。 |
+| `readingDirection` | `rtl \| ltr \| ttb \| horizontal-rl \| horizontal-lr \| vertical-rl \| vertical-lr` | 无效值会变成 `rtl`；旧文件中已移除的 `continuous-vertical` 也按 `rtl` 读取。 |
 | `detectorVersion` | string | 例如 `xycut-1.3`、`layout:<id>`、`plugin:<name>`。 |
 | `detectedAt` | ISO string | 最后一次检测的时间。 |
 | `detectSource` | `auto \| template \| plugin \| manual` | 分格是由哪条路径产生的。 |
