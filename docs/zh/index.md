@@ -41,8 +41,8 @@ KomaYomi（**Manga Learner**）是一个用漫画学语言、做笔记的**本�
 KomaYomi 目前处于 **0.1.0 版本，正在积极开发中**。本文档会区分“今天已经存在”与“计划中”的功能。
 
 <div class="status-list">
-  <div><strong>当前可用</strong> —— 图库扫描、XY-cut 分格检测、手动编辑分格、分格/布局模板、矢量标注（矩形、椭圆、箭头、文本）、带遮罩和四种对齐模式的对照阅读、可搜索的 Markdown 笔记、HTML 与 PNG 导出、备份 ZIP 及上传到 WebDAV/网络目标、带按需 LRU 缓存的 WebDAV/网络图片源、`.mnproj` 项目导出/导入、CLI 批处理工具。</div>
-  <div><strong>计划中</strong> —— 应用内的分格分组编辑；PDF、Word（docx）与词表导出；离线写入队列；定时备份；原生移动端应用；更广泛的集成测试。</div>
+  <div><strong>当前可用</strong> —— 图库扫描、XY-cut 分格检测、手动编辑分格、分格分组与页面历史、分格/布局模板、矢量标注（矩形、椭圆、箭头、文本）、带遮罩和四种对齐模式的对照阅读、可搜索的 Markdown 笔记、HTML / PNG / PDF（打印）/ Word 导出、备份 ZIP 及上传到 WebDAV/网络目标、带按需 LRU 缓存和离线写入队列的 WebDAV/网络图片源、`.mnproj` 项目导出/导入、CLI 批处理工具。</div>
+  <div><strong>计划中</strong> —— 词表导出；定时备份；原生移动端应用；更广泛的集成测试。</div>
 </div>
 
 本站中标记为 <Badge type="warning" text="计划中" /> 的任何内容都**尚未实现**。如果某个页面描述了代码中并不存在的行为，请以本条说明为准，并视该功能为不可用。

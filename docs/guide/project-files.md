@@ -139,7 +139,7 @@ Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Re
 
 ## What is not implemented
 
-- **PDF and Word (`.docx`) export**, and vocabulary-list export. Use the HTML export and the browser's print-to-PDF.
+- **Vocabulary-list export.** PDF and Word are handled by the **PDF (print)** and **Word document** formats in the export dialog.
 - **Scheduled backups.** Backups and uploads to a backup target are started manually.
 - **An in-app image converter or batch renamer.** Prepare files before importing; see [Preparing & Renaming Images](/guide/preprocess).
 

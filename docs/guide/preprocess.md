@@ -35,7 +35,7 @@ Work on a copy if the originals matter. The order below matters more than the to
 
 ## Renaming a chapter in bulk
 
-There is no in-app batch rename or image converter yet — <Badge type="warning" text="Planned" />. Use the file manager or a shell. On Windows, PowerShell can renumber a folder after sorting:
+There is no in-app batch rename or image converter yet — <Badge type="warning" text="Planned" />. The **Preprocess…** dialog can rename a volume or chapter for display and reorder or exclude pages, but it only writes the library config (`library.json`); file names on disk stay as they are. For real renames, use the file manager or a shell. On Windows, PowerShell can renumber a folder after sorting:
 
 ```powershell
 # Preview first: -WhatIf prints the planned renames and changes nothing.

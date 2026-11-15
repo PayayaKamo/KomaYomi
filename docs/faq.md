@@ -97,9 +97,14 @@ Delete `data/cache/thumbs/`. It is a cache and is rebuilt on demand. The backup 
 
 The desktop window may be using a different data directory than the repository. Check the window title (it includes the data path) and press `Ctrl+Shift+D` to switch. `MANGA_DATA_DIR` overrides the stored setting.
 
-## Why can't I export PDF or Word?
+## How do I export PDF or Word?
 
-Only HTML and PNG are implemented. PDF, `.docx` and vocabulary lists are <Badge type="warning" text="Planned" />. As a workaround, open the exported HTML in a browser and use **Print → Save as PDF**; the HTML has print styles that break pages and avoid splitting panels or notes.
+Press `E` and choose **PDF (print)** or **Word document** in the export dialog.
+
+- **PDF (print)** opens a print view and brings up the browser print dialog; choose **Save as PDF** there.
+- **Word document** downloads a `.docx` containing the page images and the page/panel notes as editable text. Annotations are not embedded in the `.docx` yet.
+
+Vocabulary-list export is still <Badge type="warning" text="Planned" />.
 
 ## How do I create panel groups?
 

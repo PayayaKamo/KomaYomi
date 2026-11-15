@@ -87,11 +87,11 @@ It determines panel numbering and the order of notes in the export.
 
 ## Language codes
 
-The app knows exactly three languages: `ja` (日本語), `zh` (中文) and `en` (English). A volume can have one, two or three; the UI disables languages a page does not have.
+The app ships with three built-in languages: `ja` (日本語), `zh` (中文) and `en` (English). A library may detect more at scan time — any language folder is accepted, and its normalized folder name becomes the language id. A volume can have one, two or three built-in languages; the UI disables languages a page does not have.
 
 ## Page document
 
-Everything above is persisted in a single **page document** (`PageDoc`) per page, with `version: 1`. See [Data Formats](/data-format) for every field.
+Everything above is persisted in a single **page document** (`PageDoc`) per page, with `schemaVersion: 1`. See [Data Formats](/data-format) for every field.
 
 ## Project package
 

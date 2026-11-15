@@ -58,7 +58,7 @@ A page can be in one, two or three languages. The language chips in the compare 
   <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, page-level visibility switch, PNG export support.</div>
   <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order.</div>
   <div><strong>Notes</strong> — page/panel notes, Markdown with a toolbar and live preview, tags, sources, attached images, overview search, copy-for-LLM, scratchpad.</div>
-  <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), panel-border overlay, print styles, export templates.</div>
+  <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), PDF via the browser print dialog, Word (`.docx`) with page images and notes, panel-border overlay, print styles, export templates.</div>
   <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching and a bounded LRU cache.</div>
   <div><strong>Portability</strong> — `.mnproj` project packages, `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas.</div>
 </div>
@@ -67,8 +67,8 @@ A page can be in one, two or three languages. The language chips in the compare 
 
 These items are marked <Badge type="warning" text="Planned" /> wherever they appear:
 
-- PDF, Word (`.docx`) and vocabulary-list export. Use the HTML export and the browser's print-to-PDF.
-- An offline write queue and scheduled automatic backups.
+- Vocabulary-list export. PDF and Word are available as **PDF (print)** and **Word document** in the export dialog.
+- Scheduled automatic backups.
 - An in-app image converter or batch renamer. Prepare files before importing (see [Preparing & Renaming Images](/guide/preprocess)).
 - A native mobile app. The web UI does work in a narrow browser window (see below).
 

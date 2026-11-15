@@ -41,8 +41,8 @@ It is designed for study and translation review rather than for hosting copyrigh
 KomaYomi is at **0.1.0 and under active development**. The documentation distinguishes what exists today from what is planned.
 
 <div class="status-list">
-  <div><strong>Working today</strong> — library scanning, XY-cut panel detection, manual panel editing, panel/layout templates, vector annotations (rectangle, ellipse, arrow, text), compare reader with masks and four alignment modes, Markdown notes with search, HTML and PNG export, backup ZIP plus upload to a WebDAV/network target, a WebDAV/network image source with on-demand LRU caching, `.mnproj` project export/import, CLI batch tools.</div>
-  <div><strong>Planned</strong> — in-app panel-group editing; PDF, Word (docx) and vocabulary-list export; an offline write queue; scheduled backups; a native mobile app; broader integration tests.</div>
+  <div><strong>Working today</strong> — library scanning, XY-cut panel detection, manual panel editing, panel grouping and page history, panel/layout templates, vector annotations (rectangle, ellipse, arrow, text), compare reader with masks and four alignment modes, Markdown notes with search, HTML / PNG / PDF (print) / Word export, backup ZIP plus upload to a WebDAV/network target, a WebDAV/network image source with on-demand LRU caching and an offline write queue, `.mnproj` project export/import, CLI batch tools.</div>
+  <div><strong>Planned</strong> — vocabulary-list export; scheduled backups; a native mobile app; broader integration tests.</div>
 </div>
 
 Anything marked <Badge type="warning" text="Planned" /> in this site is **not implemented yet**. If a page describes behavior that is not in the code, treat this note as authoritative and the feature as unavailable.

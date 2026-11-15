@@ -73,7 +73,7 @@ Files are written to the project's `exports/` folder. The HTML opens directly fr
 The generated HTML includes print styles: backgrounds are removed, the page width is unconstrained, and page blocks avoid breaking mid-image. Open the file in a browser and use the normal **Print** command to produce a PDF via the browser's print dialog.
 
 ::: tip Printing to PDF
-Browser "Save as PDF" is the supported way to get a PDF today. A native PDF exporter is not implemented — see [PDF and Word](#pdf-and-word).
+Choose **PDF (print)** in the export dialog — the print view opens with the browser print dialog, where you pick **Save as PDF**. See [PDF and Word](#pdf-and-word).
 :::
 
 ## PNG export
@@ -101,15 +101,27 @@ PNGs are generated in the browser and land in the browser's download folder. The
 
 ## PDF and Word
 
-Native PDF and Word (`.docx`) writers are not implemented <Badge type="warning" text="Planned" />. The supported route is the HTML export plus the receiving application:
+The export dialog has three output formats: **HTML**, **Word document** and **PDF (print)**.
 
-| Target | How to produce it |
-| --- | --- |
-| **PDF** | Generate the HTML, open it in a browser, then **Print → Save as PDF**. The print styles remove backgrounds, unclamp the page width and avoid breaking inside an image. |
-| **Word** | Generate the HTML and open it in Word, or paste the rendered page into a document. Notes are real HTML, so headings, lists, images and tables survive the paste. |
-| **Plain text / Markdown** | Use **Copy page context** or the **Rendered / Source** toggle on a note; the note body is Markdown. |
+### Word (`.docx`)
 
-Both routes are offline and keep the image/notes pairing. A dedicated exporter would add page-size presets and a style file; that is tracked as planned work, not a hidden option.
+1. Press `E` and choose **Word document**.
+2. Set the scope, languages and note tag filter as usual.
+3. Click **Generate Word**, then **Download .docx**.
+
+The document keeps the page images and turns page and panel notes into editable Word text. Annotations are **not** embedded in the `.docx` yet — use a PNG or the HTML export when you need the marks.
+
+### PDF (print)
+
+1. Choose **PDF (print)** and click **Generate print view**.
+2. The print view opens in a new tab and brings up the browser print dialog.
+3. Choose **Save as PDF**.
+
+Images are fitted to one page and notes stay with their page. Backgrounds are removed, the page width is unconstrained and page blocks avoid breaking mid-image.
+
+### Plain text / Markdown
+
+Use **Copy page context** or the **Rendered / Source** toggle on a note; the note body is Markdown.
 
 ## Export templates
 
@@ -123,7 +135,7 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
 - **Panel borders are not in the PNG.** PNG export uses the annotation toggle; enable **Include annotations**, and remember that panel borders are drawn from the panel rectangles, not from annotations.
 - **Print output is cropped.** Set the browser print scale to “Fit to page” and enable background graphics only if you need the shading.
 - **Word ignored the layout.** Paste the rendered HTML rather than the Markdown source; Word keeps HTML tables and images but not the two-column drag width.
-- **There is no .docx or .pdf button.** Those exporters are planned. Use the HTML plus Print / Word route above.
+- **The `.docx` or PDF button is missing.** Both are in the export dialog: choose **Word document** or **PDF (print)** at the top. Annotations are not embedded in Word yet.
 - **The output folder is not writable.** In a packaged desktop build, `exports/` lives inside the chosen library folder.
 
 <figure class="shot">

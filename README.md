@@ -67,11 +67,13 @@ All captures use the self-made sample volume in [`samples/demo-library/`](sample
 - HTML export in two modes: a `.html` file plus a sibling `<name>.files/` image folder (default), or a single file with images inlined.
 - Export a whole page or a whole chapter, choose which languages to include, and pick a layout template. Print styles avoid splitting panels and notes across pages.
 - PNG export: the whole page, the current panel, or a three-language collage.
+- PDF through the browser print dialog, and Word (`.docx`) export with page images and notes; annotations are not embedded in the `.docx` yet.
 - Backup ZIP of `data/` with an inspection step before restore, and `.mnproj` projects in reference mode (paths + SHA-1) or packaged mode (images embedded, with relink on import).
 
 **Desktop, offline and interface**
 
 - Runs in the browser against a local Node server, or in an Electron window.
+- WebDAV, network drives and local folders as remote image sources, with on-demand caching and a browser-side outbox that replays failed writes.
 - Light and dark palettes, English / Chinese / Japanese interface, drawer navigation and touch zoom on narrow screens.
 - Installable PWA; the web manifest ships with the web build.
 
@@ -246,9 +248,8 @@ What to expect when it does:
 
 ## Roadmap
 
-- PDF, Word (`.docx`) and vocabulary-list export. Today, print the exported HTML to PDF from the browser.
-- WebDAV / network-drive library with on-demand image caching and an offline write queue.
-- Annotation groups in the UI; the JSON format already carries them.
+- Vocabulary-list export; PDF and Word are available in the export dialog today.
+- Scheduled backups; backups are started manually today.
 - Automated integration tests for the import / export round trip.
 
 ## Known limitations

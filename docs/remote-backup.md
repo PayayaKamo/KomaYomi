@@ -58,7 +58,6 @@ You can put `raw/`, `data/` and `exports/` on a network drive or in a synced fol
 
 The following are **not implemented** and are listed here so expectations are clear:
 
-- <Badge type="warning" text="Planned" /> **Offline write queue** — queue annotation and note writes while disconnected, then reconcile on reconnect. Today writes always go to the local `data/` folder; when a remote source is offline only reads degrade.
 - <Badge type="warning" text="Planned" /> **Scheduled backups** — automatic periodic snapshots, locally or to a configured target.
 - <Badge type="warning" text="Planned" /> **Remote sync of `data/` with version history** — the WebDAV target currently serves images and receives backup ZIPs; it does not version the annotation database itself.
 

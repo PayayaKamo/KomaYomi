@@ -64,7 +64,14 @@ The network is allowed to disappear:
 | Thumbnail of an uncached page, remote offline | HTTP **502** `ERR_THUMB_FETCH_FAILED`. |
 | Annotations, notes, panels | Always local; you can keep editing pages whose images are cached. |
 
-There is no offline **write** queue: writes go to the local `data/` folder, which is always on the machine running the app.
+If a save fails — offline, a restarting server, a 5xx — the page document is not lost. It goes into a local **outbox** in browser storage and is replayed later:
+
+- One entry per page; a newer write replaces the older one, so replay is safe to repeat.
+- Capped at 100 pages. If browser storage fills up, pasted screenshots are dropped first so the note text survives.
+- Replay runs on load, when the browser reconnects, every 30 seconds while anything is pending, and on demand from the pending-count chip.
+- Replay stops at the first failure to keep the version history in order, and tries again later.
+
+This is a browser-side buffer, not a remote sync: every write still lands in the local `data/` folder.
 
 ::: tip Practical offline use
 Before going offline, open the pages you plan to study. They stay readable because the originals and thumbnails are cached. The cache limit determines how much you can carry.
@@ -104,7 +111,6 @@ See [Remote Storage & Backup (reference)](/remote-backup) for the file-level con
 
 The following are **not implemented** and remain <Badge type="warning" text="Planned" />:
 
-- An offline write queue: edits always target the local data folder.
 - Scheduled or automatic backups: backups are started manually.
 - Cloud providers other than WebDAV (no Dropbox / Google Drive / S3 integration).
 

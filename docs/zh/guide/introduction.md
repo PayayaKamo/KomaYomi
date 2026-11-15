@@ -58,7 +58,7 @@ KomaYomi 补的就是中间缺的那一层：
   <div><strong>标注</strong> —— 箭头、矩形、椭圆、荧光笔、自由笔迹、文字、编号圆标和马赛克，页面级显示开关，支持 PNG 导出。</div>
   <div><strong>对照</strong> —— 2–3 种语言，并排或叠加，按语言模糊 / 色块遮蔽，滚轮缩放，平移，整页 / 逐格 / 锚点 / 网格对齐，已保存的预设，自定义语言顺序。</div>
   <div><strong>笔记</strong> —— 整页 / 格级笔记，带工具栏和实时预览的 Markdown，标签，来源，附图，总览搜索，复制给大模型，随手记暂存。</div>
-  <div><strong>导出</strong> —— HTML（图片目录或单文件）、PNG（整页、当前格、三语拼图）、分格边框叠加、打印样式、导出模板。</div>
+  <div><strong>导出</strong> —— HTML（图片目录或单文件）、PNG（整页、当前格、三语拼图）、经浏览器打印对话框的 PDF、含页图与笔记的 Word（`.docx`）、分格边框叠加、打印样式、导出模板。</div>
   <div><strong>存储</strong> —— 本地文件夹、挂载的网络共享和 WebDAV，按需拉取图片并使用有上限的 LRU 缓存。</div>
   <div><strong>可移植性</strong> —— `.mnproj` 工程包，`.mntpl` / `.mnexp` / `.mnpage.json` 交换文件，备份与恢复 ZIP，带版本的 schema。</div>
 </div>
@@ -67,8 +67,8 @@ KomaYomi 补的就是中间缺的那一层：
 
 以下内容在出现的位置都标记为 <Badge type="warning" text="计划中" />：
 
-- PDF、Word（`.docx`）和词表导出。请先用 HTML 导出，再用浏览器打印成 PDF。
-- 离线写入队列与定时自动备份。
+- 词表导出。PDF 与 Word 分别用导出对话框里的 **PDF（打印）** 和 **Word 文档**。
+- 定时自动备份。
 - 应用内的图片转换或批量重命名。请在导入前整理文件（见[预处理与重命名](/zh/guide/preprocess)）。
 - 原生移动端应用。Web 界面在窄浏览器窗口里确实可用（见下文）。
 
