@@ -66,7 +66,7 @@ function paneAtPoint(x: number, y: number): HTMLElement | null {
   return null;
 }
 
-/* ---------- 拖动/缩放作用域 ---------- */
+/* ---------- Drag/zoom scope ---------- */
 type DragScope = 'page' | 'panel';
 const DRAG_SCOPE_KEY = 'manga-memo.drag-scope';
 
@@ -78,7 +78,7 @@ function loadDragScope(): DragScope {
   }
 }
 
-/* ---------- 语言遮蔽偏好（跨会话记住，导出不读取） ---------- */
+/* ---------- Language mask preferences (remembered across sessions; never read by exports) ---------- */
 type MaskPrefs = {
   master: boolean;
   masked: Record<Lang, boolean>;
@@ -106,7 +106,7 @@ function loadMaskPrefs(): MaskPrefs {
   }
 }
 
-/* ---------- 叠加透明度/混合模式（按语言记住，跨会话保留） ---------- */
+/* ---------- Overlay opacity/blend mode (remembered per language across sessions) ---------- */
 type OverlayPrefs = { opacities: Partial<Record<Lang, number>>; blend: boolean };
 const OVERLAY_KEY = 'manga-memo.overlay-prefs';
 const DEFAULT_OPACITIES: Record<Lang, number> = { ja: 1, zh: 0.55, en: 0.45 };
@@ -229,14 +229,14 @@ export function CompareTab({
   const [maskPrefs, setMaskPrefs] = useState<MaskPrefs>(loadMaskPrefs);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [maskDefaultsOpen, setMaskDefaultsOpen] = useState(false);
-  // 语言栏拖动排序（仅拖已启用的语言）
+  // Drag-to-reorder the language bar (only enabled languages are draggable)
   const [langDragIndex, setLangDragIndex] = useState<number | null>(null);
   const [langDropIndex, setLangDropIndex] = useState<number | null>(null);
   const langMovedRef = useRef(false);
   const langStartX = useRef(0);
   const suppressChipClick = useRef(false);
   const langChipRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  // 默认作用域跨会话记住；当前页仍以 doc.alignMode 为准
+  // Default scope is remembered across sessions; the current page still follows doc.alignMode
   const [scopePref, setScopePref] = useState<DragScope>(loadDragScope);
   const [activeDrag, setActiveDrag] = useState<{ panelId: string; lang: Lang; scope: DragScope } | null>(null);
   const movedRef = useRef(false);
@@ -278,10 +278,6 @@ export function CompareTab({
   const [annLang, setAnnLang] = useState<Lang>(langs[0] ?? 'ja');
   const [moreOpen, setMoreOpen] = useState(false);
 
-  useEffect(() => {
-    if (!activeLangs.includes(annLang)) setAnnLang(activeLangs[0] ?? 'ja');
-  }, [activeLangs, annLang]);
-
   const annotations = doc.annotations ?? [];
   const annotationsVisible = doc.annotationsVisible !== false && annOn;
   const applyAnnotations = (
@@ -308,11 +304,11 @@ export function CompareTab({
     try {
       localStorage.setItem(DRAG_SCOPE_KEY, scopePref);
     } catch {
-      /* 隐私模式下忽略 */
+      /* Ignored in private mode */
     }
   }, [scopePref]);
 
-  // 打开新页时沿用上次选择的作用域（取点/网格这类特殊模式不覆盖）
+  // Reuse the last chosen scope when opening a new page (special modes such as anchors/grid are not overridden)
   useEffect(() => {
     if (mode === 'anchors' || mode === 'grid') return;
     if (mode !== scopePref) mutate((d) => ({ ...d, alignMode: scopePref }));
@@ -333,25 +329,29 @@ export function CompareTab({
   const baseLang = useMemo(() => activeLangs[0] ?? 'ja', [activeLangs]);
 
   useEffect(() => {
+    if (!activeLangs.includes(annLang)) setAnnLang(activeLangs[0] ?? 'ja');
+  }, [activeLangs, annLang]);
+
+  useEffect(() => {
     if (!activeLangs.includes(dragLang)) setDragLang(activeLangs[0] ?? 'ja');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangs.join(','), dragLang]);
 
-  // 遮蔽是阅读偏好：跨会话记住；翻页只清掉「临时显形」，不重置开关
+  // Masking is a reading preference: remembered across sessions; paging only clears temporary reveals, not the switches
   useEffect(() => {
     try {
       localStorage.setItem(MASK_KEY, JSON.stringify(maskPrefs));
     } catch {
-      /* 隐私模式下忽略 */
+      /* Ignored in private mode */
     }
   }, [maskPrefs]);
 
-  // 叠加透明度与混合模式也是阅读偏好：按语言记住，刷新与重开工程后保持一致
+  // Overlay opacity and blend mode are reading preferences too: per language, kept across refreshes and project reloads
   useEffect(() => {
     try {
       localStorage.setItem(OVERLAY_KEY, JSON.stringify(overlayPrefs));
     } catch {
-      /* 隐私模式下忽略 */
+      /* Ignored in private mode */
     }
   }, [overlayPrefs]);
   useEffect(() => {
@@ -365,7 +365,7 @@ export function CompareTab({
   const toggleMaskLang = (lang: Lang) =>
     setMaskPrefs((p) => ({ ...p, master: true, masked: { ...p.masked, [lang]: !p.masked[lang] } }));
 
-  // H 全部遮住（清空临时显形），Shift+H 全部显示
+  // H hides everything (clears temporary reveals), Shift+H shows everything
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -380,7 +380,7 @@ export function CompareTab({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 页面或语言变化时，缺少的语言只在本页隐藏（见 activeLangs），不改持久化配置
+  // When the page or languages change, missing languages are hidden for this page only (see activeLangs); persisted config is untouched
   const loadPresets = () => {
     api
       .alignPresets()
@@ -389,7 +389,7 @@ export function CompareTab({
   };
   useEffect(loadPresets, []);
 
-  // 整页偏移与逐格偏移分开存：scope 决定读写哪一份，Alt 临时覆盖时不会污染另一份
+  // Whole-page and per-panel offsets are stored separately: scope decides which one is read/written, and an Alt override never pollutes the other
   const offsetOf = (lang: Lang, panel: Panel, scope: DragScope = scopeOfMode): AlignOffset =>
     scope === 'panel'
       ? (doc.panelOffsets?.[panel.id]?.[lang] ?? DEFAULT_OFFSET)
@@ -439,7 +439,7 @@ export function CompareTab({
     };
     const up = () => {
       const d = dragRef.current;
-      // 没有拖动 = 一次点击：把临时显形的语言重新遮住
+      // No movement = a click: hide the temporarily revealed language again
       if (d && !movedRef.current) {
         setRevealed((r) => {
           const key = `${d.panelId}:${d.lang}`;
@@ -480,7 +480,7 @@ export function CompareTab({
         });
         return;
       }
-      // 两次点击：参考点 → 目标点，直接算出目标语言需要的平移量
+      // Two clicks: reference point, then target point; the required translation is computed directly
       const tx = (e.clientX - rect.left) / rect.width;
       const ty = (e.clientY - rect.top) / rect.height;
       const current = offsetOf(lang, panel, 'panel');
@@ -500,7 +500,7 @@ export function CompareTab({
     }
     e.preventDefault();
     movedRef.current = false;
-    // Alt 是临时覆盖：本次手势只改当前格，松手后回到原作用域
+    // Alt is a temporary override: this gesture only affects the current panel and reverts to the active scope on release
     const scope: DragScope = e.altKey ? 'panel' : scopeOfMode;
     dragRef.current = {
       lang,
@@ -523,9 +523,9 @@ export function CompareTab({
     setOffset(lang, panel, { ...current, scale: next }, scope);
   };
 
-  // 滚轮缩放：只在指针真正落在某一语言的图格内时接管，其他位置让页面正常滚动。
-  // React 的 onWheel 在根节点上是 passive 的，无法阻止页面滚动，所以用原生非 passive 监听；
-  // 挂在 window 的捕获阶段，避免滚动容器或任何内层元素先消费事件造成「又缩放又滚动」。
+  // Wheel zoom: take over only when the pointer is really inside a language pane; everywhere else the page scrolls normally.
+  // React's onWheel is passive on the root node and cannot prevent page scrolling, so use a native non-passive listener;
+  // attach it in the window capture phase so scroll containers or inner elements cannot consume the event first (causing zoom + scroll).
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
   wheelRef.current = (e: WheelEvent) => {
     if (!e.deltaY) return;
@@ -536,7 +536,7 @@ export function CompareTab({
     if (!lang || !panel) return;
     e.preventDefault();
     e.stopPropagation();
-    // Alt+滚轮同样只缩放当前格，避免为了微调一格而改整栏
+    // Alt+wheel also only zooms the current panel, so fine-tuning one panel does not shift the whole column
     zoomBy(lang, panel, e.deltaY, e.altKey ? 'panel' : scopeOfMode);
   };
 
@@ -558,13 +558,13 @@ export function CompareTab({
     mutate((d) => ({ ...d, offsets: { ...d.offsets, [lang]: DEFAULT_OFFSET } }));
   };
 
-  /** 清空本页所有格子的逐格偏移（不影响整页偏移） */
+  /** Clear per-panel offsets for every panel on this page (whole-page offsets are untouched). */
   const resetAllPanelOffsets = () => {
     setPendingAnchor(null);
     mutate((d) => ({ ...d, panelOffsets: {} }));
   };
 
-  /** 只清当前格的逐格偏移（不影响整页偏移与其他格） */
+  /** Clear the per-panel offset of the current panel only (whole-page and other panels are untouched). */
   const resetCurrentPanelOffsets = () => {
     const panel = doc.panels.find((p) => p.id === selected[0]) ?? ordered[0];
     if (!panel) return;
@@ -653,7 +653,7 @@ export function CompareTab({
 
   const changeMode = (next: AlignMode) => {
     setPendingAnchor(null);
-    // 整页/当前格是高频选择，记为下次打开页面时的默认作用域
+    // Whole page / current panel are the common choices; remember them as the default scope for the next page
     if (next === 'page' || next === 'panel') setScopePref(next);
     mutate((d) => ({ ...d, alignMode: next }));
   };
@@ -683,7 +683,7 @@ export function CompareTab({
       setPresetId(res.preset.id);
       loadPresets();
     } catch {
-      /* 保存失败在状态栏不打断阅读 */
+      /* Keep reading; a failed save only shows in the status bar */
     } finally {
       setPresetBusy(false);
     }
@@ -697,7 +697,7 @@ export function CompareTab({
       if (target === 'page') reload();
       else reload();
     } catch {
-      /* 保持当前状态 */
+      /* Keep the current state */
     } finally {
       setPresetBusy(false);
     }
@@ -710,8 +710,8 @@ export function CompareTab({
     loadPresets();
   };
 
-  // 渲染时把两层偏移叠加：整页偏移打底，逐格偏移叠加在它之上，
-  // 这样 Alt 临时微调的格子在整页模式下也能立刻看到效果，而两份数据仍然分开存。
+  // Stack both offset layers when rendering: the whole-page offset is the base and per-panel offsets are added on top,
+  // so a panel tweaked temporarily with Alt still shows its effect in page mode while the two datasets stay separate.
   const offsetsOf = (lang: Lang, panel: Panel): AlignOffset => {
     const base = doc.offsets[lang] ?? DEFAULT_OFFSET;
     const extra = doc.panelOffsets?.[panel.id]?.[lang];
@@ -730,7 +730,7 @@ export function CompareTab({
     setOffset(lang, panel, { ...current, scale: next }, scopeOfMode);
   };
 
-  // 提前载入三种语言的页面尺寸，用于计算每个格子的真实长宽比
+  // Preload page dimensions for all three languages to compute each panel's real aspect ratio
   const sizes: Record<Lang, { w: number; h: number } | null> = {
     ja: useImageSize(page.files.ja),
     zh: useImageSize(page.files.zh),
@@ -1203,16 +1203,167 @@ export function CompareTab({
           </span>
         </div>
 
+        <div className="tb-group ann-group">
+          <button
+            type="button"
+            className={`btn tiny ${annOn ? 'on' : ''}`}
+            aria-pressed={annOn}
+            title={annOn ? t('ann.hide') : t('ann.show')}
+            onClick={() => {
+              setAnnOn(!annOn);
+              if (annOn) {
+                setAnnTool('select');
+                setAnnSelected(null);
+              }
+            }}
+          >
+            {t('ann.layer')}
+          </button>
+          {annOn && (
+            <>
+              <div className="ann-tools">
+                {ANNOTATION_TOOL_ORDER.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
+                    title={t(ANNOTATION_TOOLS[item].labelKey)}
+                    aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
+                    aria-pressed={annTool === item}
+                    onClick={() => {
+                      setAnnTool(item);
+                      setAnnSelected(null);
+                    }}
+                  >
+                    {ANNOTATION_TOOLS[item].icon}
+                  </button>
+                ))}
+              </div>
+              <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+                {ANNOTATION_COLORS.map((swatch) => (
+                  <button
+                    key={swatch}
+                    type="button"
+                    className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+                    style={{ background: swatch }}
+                    title={t('ann.color')}
+                    aria-label={t('ann.color')}
+                    onClick={() => {
+                      setAnnColor(swatch);
+                      // Recolour the selected mark, same shortcut as the panel workspace.
+                      if (annSelected) {
+                        applyAnnotations((list) =>
+                          list.map((a) =>
+                            a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
+                          ),
+                        );
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="seg ann-scope-seg" title={t('ann.sharedHint')}>
+                <button
+                  type="button"
+                  className={annScope === 'page' ? 'on' : ''}
+                  onClick={() => setAnnScope('page')}
+                  title={`${t('ann.scopePage')} · ${t('ann.sharedHint')}`}
+                >
+                  ▦
+                </button>
+                <button
+                  type="button"
+                  className={annScope === 'panel' ? 'on' : ''}
+                  onClick={() => setAnnScope('panel')}
+                  title={`${t('ann.scopePanelShort')} · ${t('ann.sharedHint')}`}
+                >
+                  ▣
+                </button>
+              </div>
+              <button
+                type="button"
+                className="btn icon tiny"
+                onClick={deleteAnnotation}
+                disabled={!annSelected}
+                title={t('ann.delete')}
+                aria-label={t('ann.delete')}
+              >
+                ✕
+              </button>
+              <button
+                type="button"
+                className="btn icon tiny"
+                onClick={clearAnnotations}
+                disabled={!annotations.length}
+                title={t('ann.clear')}
+                aria-label={t('ann.clear')}
+              >
+                ⊗
+              </button>
+              <button
+                type="button"
+                className="btn icon tiny"
+                onClick={onUndo}
+                disabled={!canUndo}
+                title={t('panels.undoTitle')}
+                aria-label={t('panels.undoTitle')}
+              >
+                ↶
+              </button>
+              <button
+                type="button"
+                className="btn icon tiny"
+                onClick={onRedo}
+                disabled={!canRedo}
+                title={t('panels.redoTitle')}
+                aria-label={t('panels.redoTitle')}
+              >
+                ↷
+              </button>
+              <span className="muted tiny ann-hint">
+                {t('ann.laneHint', { lang: LANG_SHORT[overlay ? dragLang : annLang] })}
+              </span>
+            </>
+          )}
+        </div>
+
         <div className="tb-group right">
           <span className="muted tiny">{readingLabel(doc.readingDirection)}</span>
-          <button type="button" className="btn tiny" onClick={() => goTo(-1)}>
-            {t('compare.prevPanel')}
+          <button
+            type="button"
+            className="btn icon tiny"
+            onClick={() => goTo(-1)}
+            title={t('compare.prevPanel')}
+            aria-label={t('compare.prevPanel')}
+          >
+            ‹
           </button>
-          <button type="button" className="btn tiny" onClick={() => goTo(1)}>
-            {t('compare.nextPanel')}
+          <button
+            type="button"
+            className="btn icon tiny"
+            onClick={() => goTo(1)}
+            title={t('compare.nextPanel')}
+            aria-label={t('compare.nextPanel')}
+          >
+            ›
           </button>
-          <button type="button" className="btn tiny" onClick={resetAll}>
-            {t('compare.resetAll')}
+          <button
+            type="button"
+            className="btn icon tiny"
+            onClick={resetAll}
+            title={t('compare.resetAll')}
+            aria-label={t('compare.resetAll')}
+          >
+            ↺
+          </button>
+          <button
+            type="button"
+            className="btn tiny tb-more-btn"
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+            title={t('toolbar.more')}
+          >
+            {t('toolbar.more')}
           </button>
         </div>
       </div>

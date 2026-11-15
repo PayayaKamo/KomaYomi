@@ -828,6 +828,7 @@ export const en = {
   'ann.clearConfirm': 'Delete all {count} annotations on this page?',
   'ann.scopePage': 'New marks cover the whole page',
   'ann.scopePanel': 'New marks go inside panel {n}',
+  'ann.scopePanelShort': 'Panel scope',
   'ann.hiddenHint': 'Annotation layer is hidden; stored marks are kept',
   'ann.textPrompt': 'Text',
   'ann.badgePrompt': 'Number',

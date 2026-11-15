@@ -789,6 +789,7 @@ export const zh = {
   'ann.clearConfirm': '删除本页全部 {count} 个标注？',
   'ann.scopePage': '新标注作用于整页',
   'ann.scopePanel': '新标注画在格 {n} 内',
+  'ann.scopePanelShort': '格作用域',
   'ann.hiddenHint': '标注图层已隐藏，已有标注仍保留',
   'ann.textPrompt': '文字',
   'ann.badgePrompt': '编号',

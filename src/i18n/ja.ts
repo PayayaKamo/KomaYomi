@@ -823,6 +823,7 @@ export const ja = {
   'ann.clearConfirm': 'このページの注釈 {count} 件をすべて削除しますか？',
   'ann.scopePage': '新しい注釈はページ全体に描画',
   'ann.scopePanel': '新しい注釈は {n} コマ目の中に描画',
+  'ann.scopePanelShort': 'コマ単位',
   'ann.hiddenHint': '注釈レイヤーは非表示です。データは保持されています',
   'ann.textPrompt': 'テキスト',
   'ann.badgePrompt': '番号',

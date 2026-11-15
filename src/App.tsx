@@ -529,6 +529,10 @@ export default function App() {
                 setLangs={setLangs}
                 overlay={overlay}
                 setOverlay={setOverlay}
+                canUndo={pageState.canUndo}
+                canRedo={pageState.canRedo}
+                onUndo={pageState.undo}
+                onRedo={pageState.redo}
               />
             )
           ) : (
