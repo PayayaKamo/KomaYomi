@@ -807,7 +807,7 @@ export const zh = {
   'ann.laneHint': '正在 {lang} 栏绘制',
   'ann.compareDefault': '对照视图默认开启标注',
 
-  /* ---- 分组 ---- */
+  /* ---- panel groups ---- */
   'groups.title': '分组（{n}）',
   'groups.toggle': '展开或收起分组面板',
   'groups.create': '成组',

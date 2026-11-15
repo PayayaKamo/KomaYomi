@@ -77,13 +77,13 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
   const previewRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
 
-  // 自定义导出模板
+  // Custom export templates
   const [templates, setTemplates] = useState<ExportTemplate[]>([]);
   const [tplName, setTplName] = useState('');
   const [tplMsg, setTplMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // PNG 导出状态
+  // PNG export state
   const [pngBusy, setPngBusy] = useState<string | null>(null);
   const [pngMsg, setPngMsg] = useState<string | null>(null);
   const [pngIncludeAnn, setPngIncludeAnn] = useState(true);
@@ -144,7 +144,7 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
     try {
       localStorage.setItem(LAYOUT_KEY, JSON.stringify(layoutOf(next)));
     } catch {
-      /* 隐私模式等场景忽略 */
+      /* Ignored in private mode and similar contexts */
     }
   };
 

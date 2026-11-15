@@ -250,7 +250,7 @@ export function importExportTemplate(opts: { rootDir: string; data: unknown }): 
   return { template, migratedFrom: prepared.migratedFrom, backup, warnings: prepared.warnings };
 }
 
-/* ---------------- 单页 .mnpage.json ---------------- */
+/* ---------------- Single page .mnpage.json ---------------- */
 
 export function exportPage(opts: {
   rootDir: string;

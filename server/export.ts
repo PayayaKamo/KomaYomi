@@ -113,7 +113,7 @@ function cropStyle(rect: PanelRect, pageAspect: number): string {
   return `aspect-ratio:${aspect};background-size:${bsX}% ${bsY}%;background-position:${posX}% ${posY}%`;
 }
 
-/** 把页面级的对齐偏移换算成实际要裁切的区域（与界面上 translate + scale 的效果一致） */
+/** Convert a page-level alignment offset into the area to crop, matching the translate + scale effect in the UI. */
 function offsetRect(rect: PanelRect, off: AlignOffset | undefined): PanelRect {
   const scale = off?.scale && off.scale > 0 ? off.scale : 1;
   const w = Math.min(1, rect.w / scale);
@@ -126,8 +126,8 @@ function offsetRect(rect: PanelRect, off: AlignOffset | undefined): PanelRect {
 }
 
 /**
- * 与对照视图一致：整页偏移打底，逐格偏移叠加在上面。
- * 导出曾经只读整页偏移，导致界面对齐好、导出却错位。
+ * Match the compare view: the whole-page offset is the base and per-panel offsets are added on top.
+ * Exports used to read only the page offset, so pages looked aligned in the UI but came out shifted.
  */
 function combinedOffset(page: AlignOffset | undefined, panel: AlignOffset | undefined): AlignOffset | undefined {
   if (!panel) return page;
@@ -142,9 +142,9 @@ function combinedOffset(page: AlignOffset | undefined, panel: AlignOffset | unde
 const PAGE_RECT: PanelRect = { x: 0, y: 0, w: 1, h: 1 };
 
 /**
- * 把标注图层渲染成矢量 SVG。
- * 坐标沿用界面约定：page 作用域是整页 0..1，panel 作用域是该格内部 0..1；
- * 线宽按页宽比例、字号按页高比例，因此放大裁切时比例仍然正确。
+ * Render the annotation layer as vector SVG.
+ * Coordinates follow the UI convention: page scope is 0..1 of the whole page, panel scope is 0..1 inside that panel;
+ * stroke widths scale with page width and font sizes with page height, so proportions stay correct when cropping at a larger scale.
  */
 function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuffix: string): string {
   const annotations = doc.annotations ?? [];
@@ -267,7 +267,7 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .note-images img{max-width:100%;max-height:180px;border:1px solid var(--line);border-radius:4px}
 .tags{display:inline-flex;gap:4px;margin-right:6px;vertical-align:middle}
 .tag{background:#fdece3;color:#9a3412;border-radius:99px;padding:0 7px;font-size:11px}
-/* Markdown 笔记：导出后保留标题、列表、引用、代码与表格样式 */
+/* Markdown notes: exports keep heading, list, quote, code and table styles */
 .md{line-height:1.75;line-break:strict;overflow-wrap:anywhere}
 .md h1,.md h2,.md h3,.md h4{margin:12px 0 5px;line-height:1.35;color:var(--ink)}
 .md h1{font-size:18px}.md h2{font-size:16px}.md h3{font-size:15px}
@@ -374,7 +374,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
         const mime = mimeOf(buf.subarray(0, 4), path.extname(file).toLowerCase());
         src = `data:${mime};base64,${buf.toString('base64')}`;
       } else {
-        // 目录模式：图片复制到同名 .files 目录，HTML 用相对路径引用，体积小且无需 dev server
+        // Directory mode: copy images into a sibling .files directory and reference them relatively; output stays small and needs no dev server
         const ext = path.extname(file).toLowerCase() || '.jpg';
         const name = `p${String(index + 1).padStart(3, '0')}-${lang}${ext}`;
         fs.mkdirSync(path.join(exportRoot, assetDir), { recursive: true });
@@ -392,8 +392,8 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     const labels = new Map<Panel, string>();
     ordered.forEach((p, i) => labels.set(p, t('EXPORT_PANEL_NO', { n: i + 1 })));
 
-    // 每种语言的整页图只写一次 CSS 规则，格子用 background-position/size 裁切。
-    // 不用 CSS 变量：Chrome 对超大 var() 值（>4MB 的 base64）会静默失效。
+    // Write one CSS rule per language for the full-page image; panels crop it with background-position/size.
+    // Avoid CSS variables: Chrome silently fails on huge var() values (base64 over 4MB).
     const bgRules = Object.entries(images)
       .map(([lang, img]) => `.pg-${index} .lang-${lang}{background-image:url('${img.url}')}`)
       .join('\n');

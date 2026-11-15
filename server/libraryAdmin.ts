@@ -16,7 +16,7 @@ function assertName(name: string): string {
   return clean;
 }
 
-/** 判断一个目录是否像「一卷」（里面有语言目录，或语言目录里还有话目录） */
+/** Whether a directory looks like a volume (it contains language folders, or its language folders contain chapter folders). */
 function looksLikeVolume(dir: string): boolean {
   const subs = listDirs(dir);
   if (subs.some((d) => guessLang(d))) return true;
@@ -26,11 +26,11 @@ function looksLikeVolume(dir: string): boolean {
 export type AddVolumeResult = { added: string[]; warnings: string[] };
 
 /**
- * 添加漫画：
- * - 只给 name：在 raw 下建空目录，提示用户放图
- * - 给 sourcePath：在 raw 下建 junction 指向外部目录（不复制文件，不占用额外空间）
- *   · 选中的就是一卷 → 挂一卷
- *   · 选中的是包含多卷的父目录 → 逐卷挂载
+ * Add manga:
+ * - name only: create an empty directory under raw and ask the user to drop images in
+ * - sourcePath: create a junction under raw pointing at an external directory (no copying, no extra disk usage)
+ *   - the selection is a single volume -> link that one volume
+ *   - the selection is a parent directory holding several volumes -> link each volume
  */
 export function addVolume(rawRoot: string, sourcePath?: string, rawName?: string): AddVolumeResult {
   fs.mkdirSync(rawRoot, { recursive: true });
@@ -51,7 +51,7 @@ export function addVolume(rawRoot: string, sourcePath?: string, rawName?: string
     throw new AppError('ERR_DIR_NOT_FOUND', { path: source }, 400);
   }
 
-  // 选中父目录时，把里面的每一卷分别挂进 raw
+  // When a parent directory is selected, link each volume inside it into raw separately
   let candidates: { name: string; dir: string }[] = [];
   if (looksLikeVolume(source) || !listDirs(source).length) {
     const name = assertName(rawName ?? path.basename(source));
@@ -95,7 +95,7 @@ export function addVolume(rawRoot: string, sourcePath?: string, rawName?: string
   return { added, warnings };
 }
 
-/** 从图库移除：只删 junction，绝不删除真实目录里的图片 */
+/** Remove from the library: delete only the junction, never the images in the real directory. */
 export function removeVolume(
   rawRoot: string,
   dataRoot: string,
@@ -125,7 +125,7 @@ export function removeVolume(
   return { removed: true, warnings };
 }
 
-/** 指定某卷的「语言 → 目录」映射；传 null 表示恢复自动识别 */
+/** Set the language -> directory mapping for a volume; pass null to restore automatic detection. */
 export function setVolumeDirs(
   rawRoot: string,
   dataRoot: string,

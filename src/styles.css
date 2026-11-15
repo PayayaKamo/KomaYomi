@@ -1590,16 +1590,6 @@ body.pane-resizing * {
   outline-offset: -2px;
 }
 
-.ann-crop-editable {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.ann-crop-editable .ann-layer {
-  pointer-events: none;
-}
-
 /* Narrow screens collapse the secondary toolbar groups into a "more" menu. */
 .tb-more-btn {
   display: none;
