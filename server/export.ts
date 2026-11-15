@@ -5,6 +5,7 @@ import { readPageDoc } from './storage.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
 import type {
   AlignOffset,
+  Annotation,
   ExportConfig,
   Library,
   Note,
@@ -13,6 +14,7 @@ import type {
   PanelRect,
   ReadingDirection,
 } from '../shared/types.ts';
+import { DEFAULT_OFFSET } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { currentLang, langName, t } from './messages/index.ts';
 import type { MessageLang } from './messages/index.ts';
@@ -62,10 +64,23 @@ function notesHtml(notes: Note[], filterTags: string[]): string {
         .filter((img) => img.dataUrl.startsWith('data:image/'))
         .map((img) => `<img src="${img.dataUrl}" alt="${esc(img.name)}" loading="lazy">`)
         .join('');
+      // Source line mirrors the notes panel: title links to the URL, free text follows.
+      const src = n.source;
+      const hasSource = Boolean(src && (src.title || src.url || src.text));
+      const sourceHtml = hasSource
+        ? `<div class="note-src">${esc(t('EXPORT_SOURCE'))}${
+            src!.url
+              ? `<a href="${esc(src!.url)}" target="_blank" rel="noreferrer noopener">${esc(
+                  src!.title || src!.url,
+                )}</a>`
+              : esc(src!.title ?? '')
+          }${src!.text ? `${src!.url || src!.title ? ' · ' : ''}${esc(src!.text)}` : ''}</div>`
+        : '';
       return `<li class="note">
         ${n.tags.length ? `<span class="tags">${n.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</span>` : ''}
         <div class="text md">${renderMarkdown(n.text)}</div>
         ${imgs ? `<div class="note-images">${imgs}</div>` : ''}
+        ${sourceHtml}
       </li>`;
     })
     .join('');
@@ -107,6 +122,120 @@ function offsetRect(rect: PanelRect, off: AlignOffset | undefined): PanelRect {
   x = Math.min(1 - w, Math.max(0, x));
   y = Math.min(1 - h, Math.max(0, y));
   return { x, y, w, h };
+}
+
+/**
+ * 与对照视图一致：整页偏移打底，逐格偏移叠加在上面。
+ * 导出曾经只读整页偏移，导致界面对齐好、导出却错位。
+ */
+function combinedOffset(page: AlignOffset | undefined, panel: AlignOffset | undefined): AlignOffset | undefined {
+  if (!panel) return page;
+  const base = page ?? DEFAULT_OFFSET;
+  return {
+    x: base.x + panel.x,
+    y: base.y + panel.y,
+    scale: Math.round(base.scale * panel.scale * 10000) / 10000,
+  };
+}
+
+const PAGE_RECT: PanelRect = { x: 0, y: 0, w: 1, h: 1 };
+
+/**
+ * 把标注图层渲染成矢量 SVG。
+ * 坐标沿用界面约定：page 作用域是整页 0..1，panel 作用域是该格内部 0..1；
+ * 线宽按页宽比例、字号按页高比例，因此放大裁切时比例仍然正确。
+ */
+function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuffix: string): string {
+  const annotations = doc.annotations ?? [];
+  // The visibility switch on the panel editor also controls exports.
+  if (doc.annotationsVisible === false || !annotations.length) return '';
+
+  const vw = 1000;
+  const vh = Math.max(1, Math.round((vw * view.h) / (Math.max(0.001, view.w) * Math.max(0.001, pageAspect))));
+  const toView = (p: { x: number; y: number }, rect: PanelRect) => ({
+    x: ((rect.x + p.x * rect.w - view.x) / view.w) * vw,
+    y: ((rect.y + p.y * rect.h - view.y) / view.h) * vh,
+  });
+  const sw = (fraction: number) => Math.max(0.5, (fraction * vw) / view.w);
+  const fs = (fraction: number) => Math.max(3, (fraction * vh) / view.h);
+  const patternId = `ann-mosaic-${idSuffix}`;
+
+  const shapes = annotations
+    .map((a: Annotation) => {
+      const rect = a.scope === 'panel' ? (doc.panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
+      const pts = a.points.map((p) => toView(p, rect));
+      if (!pts.length) return '';
+      const color = a.color || '#e0453a';
+      const width = sw(a.width ?? 0.0035);
+      const font = fs(a.fontSize ?? 0.035);
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      switch (a.kind) {
+        case 'arrow': {
+          if (pts.length < 2) return '';
+          const angle = Math.atan2(last.y - first.y, last.x - first.x);
+          const size = Math.max(8, width * 4);
+          const spread = Math.PI / 7;
+          const p1 = { x: last.x - size * Math.cos(angle - spread), y: last.y - size * Math.sin(angle - spread) };
+          const p2 = { x: last.x - size * Math.cos(angle + spread), y: last.y - size * Math.sin(angle + spread) };
+          return `<g stroke="${esc(color)}" fill="none" stroke-width="${num(width)}" stroke-linecap="round">
+            <line x1="${num(first.x)}" y1="${num(first.y)}" x2="${num(last.x)}" y2="${num(last.y)}" />
+            <polygon points="${num(last.x)},${num(last.y)} ${num(p1.x)},${num(p1.y)} ${num(p2.x)},${num(
+              p2.y,
+            )}" fill="${esc(color)}" stroke="none" />
+          </g>`;
+        }
+        case 'rect':
+          return `<rect x="${num(Math.min(first.x, last.x))}" y="${num(Math.min(first.y, last.y))}" width="${num(
+            Math.abs(last.x - first.x),
+          )}" height="${num(Math.abs(last.y - first.y))}" fill="none" stroke="${esc(color)}" stroke-width="${num(
+            width,
+          )}" />`;
+        case 'ellipse':
+          return `<ellipse cx="${num((first.x + last.x) / 2)}" cy="${num((first.y + last.y) / 2)}" rx="${num(
+            Math.abs(last.x - first.x) / 2,
+          )}" ry="${num(Math.abs(last.y - first.y) / 2)}" fill="none" stroke="${esc(color)}" stroke-width="${num(
+            width,
+          )}" />`;
+        case 'highlight':
+          if (pts.length < 2) return '';
+          return `<line x1="${num(first.x)}" y1="${num(first.y)}" x2="${num(last.x)}" y2="${num(
+            last.y,
+          )}" stroke="${esc(color)}" stroke-width="${num(Math.max(6, width * 4))}" stroke-opacity="0.35" stroke-linecap="round" />`;
+        case 'pen':
+          return `<polyline points="${pts.map((p) => `${num(p.x)},${num(p.y)}`).join(' ')}" fill="none" stroke="${esc(
+            color,
+          )}" stroke-width="${num(width)}" stroke-linecap="round" stroke-linejoin="round" />`;
+        case 'text':
+          return `<text x="${num(first.x)}" y="${num(first.y)}" fill="${esc(color)}" font-size="${num(
+            font,
+          )}" font-weight="600" paint-order="stroke" stroke="rgba(255,255,255,0.9)" stroke-width="${num(
+            Math.max(2, font / 8),
+          )}" stroke-linejoin="round">${esc(a.text ?? '')}</text>`;
+        case 'badge':
+          return `<g><circle cx="${num(first.x)}" cy="${num(first.y)}" r="${num(
+            font * 0.62,
+          )}" fill="${esc(color)}" /><text x="${num(first.x)}" y="${num(first.y)}" fill="#fff" font-size="${num(
+            font,
+          )}" font-weight="700" text-anchor="middle" dominant-baseline="central">${esc(a.text ?? '1')}</text></g>`;
+        case 'mosaic':
+          return `<rect x="${num(Math.min(first.x, last.x))}" y="${num(Math.min(first.y, last.y))}" width="${num(
+            Math.abs(last.x - first.x),
+          )}" height="${num(Math.abs(last.y - first.y))}" fill="url(#${patternId})" />`;
+        default:
+          return '';
+      }
+    })
+    .join('');
+
+  if (!shapes) return '';
+  return `<svg class="ann-overlay" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none" aria-hidden="true">
+    <defs><pattern id="${patternId}" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#9aa0a6" /><rect width="5" height="5" fill="#6b7280" />
+      <rect x="5" y="5" width="5" height="5" fill="#6b7280" />
+    </pattern></defs>
+    ${shapes}
+  </svg>`;
 }
 
 const CSS = `
@@ -160,9 +289,13 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .panel-row .row-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;color:var(--muted)}
 .panel-row .row-head b{color:var(--accent)}
 .crops{display:grid;gap:10px;align-items:start}
-.crop{background-repeat:no-repeat;border:1px solid var(--line);border-radius:4px;min-height:60px}
+.crop{position:relative;overflow:hidden;background-repeat:no-repeat;border:1px solid var(--line);border-radius:4px;min-height:60px}
+.ann-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .crop-label{font-size:11px;color:var(--muted);margin-bottom:4px}
 .crop-wrap{display:flex;flex-direction:column}
+.note-src{margin-top:5px;font-size:12px;color:var(--muted)}
+.note-src a{color:var(--accent);text-decoration:none}
+.note-src a:hover{text-decoration:underline}
 .empty{color:var(--muted);font-size:13px;padding:8px 0}
 footer.doc{margin-top:48px;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:12px}
 @media print{body{background:#fff}.wrap{max-width:none;padding:0}
@@ -212,7 +345,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     const notesAll = doc.notes;
     const hasContent = doc.panels.length > 0 || notesAll.length > 0;
     if (!hasContent) {
-      warnings.push(t('WARN_PAGE_SKIPPED_NO_ANNOTATIONS', { page: index + 1 }));
+      warnings.push(t('WARN_PAGE_SKIPPED_NO_CONTENT', { page: index + 1 }));
       continue;
     }
 
@@ -276,10 +409,17 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
             .map((lang) => {
               const img = images[lang];
               const langAspect = img.width / img.height;
-              const eff = offsetRect(panel.rect, doc.offsets[lang]);
+              // Page offset from the page itself, falling back to the dialog snapshot.
+              const pageOff = doc.offsets[lang] ?? config.offsets?.[lang];
+              const eff = offsetRect(panel.rect, combinedOffset(pageOff, doc.panelOffsets?.[panel.id]?.[lang]));
               return `<div class="crop-wrap">
                 <div class="crop-label">${esc(langName(lang))}</div>
-                <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}"></div>
+                <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}">${annotationSvg(
+                  doc,
+                  eff,
+                  langAspect,
+                  `${index}-${panel.id}-${lang}`,
+                )}</div>
               </div>`;
             })
             .join('');
@@ -305,20 +445,24 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
         rows || `<div class="empty">${esc(t('EXPORT_EMPTY_PANELS'))}</div>`
       }</div>`;
     } else if (config.template === 'stack') {
-      const shot = images[config.languages[0]]
-        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="${esc(
+      const mainImg = images[config.languages[0]];
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, `${index}-page`) : '';
+      const shot = mainImg
+        ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
             t('EXPORT_PAGE_ALT', { n: index + 1 }),
-          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}</div>`
+          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
         : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))
         .join('')}`;
       body = `<div class="page-body stack">${shot}${notes ? `<div class="notes">${notes}</div>` : ''}</div>`;
     } else {
-      const shot = images[config.languages[0]]
-        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="${esc(
+      const mainImg = images[config.languages[0]];
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, `${index}-page`) : '';
+      const shot = mainImg
+        ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
             t('EXPORT_PAGE_ALT', { n: index + 1 }),
-          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}</div>`
+          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
         : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))

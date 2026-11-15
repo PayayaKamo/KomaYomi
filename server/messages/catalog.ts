@@ -564,15 +564,20 @@ export const MESSAGES = {
     zh: '抓取标题失败（可能被网络限制），可以手动填写',
     ja: 'タイトルを取得できませんでした（ネットワーク制限の可能性）。手動で入力できます',
   },
+  EXPORT_SOURCE: {
+    en: 'Source: ',
+    zh: '来源：',
+    ja: '出典：',
+  },
   WARN_PAGE_SKIPPED_NO_PANELS: {
     en: 'Page {page} has no panel data yet — skipped',
     zh: '第 {page} 页还没有分格数据，已跳过',
     ja: '{page} ページにはまだコマデータがありません。スキップしました',
   },
-  WARN_PAGE_SKIPPED_NO_ANNOTATIONS: {
-    en: 'Page {page} has no annotations yet — skipped',
-    zh: '第 {page} 页还没有任何标注，已跳过',
-    ja: '{page} ページにはまだ注釈がありません。スキップしました',
+  WARN_PAGE_SKIPPED_NO_CONTENT: {
+    en: 'Page {page} has no panels or notes yet — skipped',
+    zh: '第 {page} 页还没有分格或笔记，已跳过',
+    ja: '{page} ページにはまだコマもノートもありません。スキップしました',
   },
   WARN_PAGE_IMAGE_UNREADABLE: {
     en: 'Page {page}: the {lang} image cannot be decoded',
