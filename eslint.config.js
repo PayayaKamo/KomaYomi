@@ -66,5 +66,12 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    // The offline worker is not a page or a node module: cache and client globals live here.
+    files: ['public/sw.js'],
+    languageOptions: {
+      globals: globals.serviceworker,
+    },
+  },
   prettier,
 );
