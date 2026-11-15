@@ -218,14 +218,31 @@ exports/            生成的 HTML / PNG、备份、工程包（已 gitignore）
 
 ## 文档
 
-完整文档发布在 [payayakamo.github.io/KomaYomi-docs](https://payayakamo.github.io/KomaYomi-docs/zh/)，源码在 [`docs/`](docs/) 中，是一个 VitePress 站点，可以在本地预览：
+完整用户手册发布在 **https://payayakamo.github.io/KomaYomi-docs/**：
+
+| 语言    | 入口                                           |
+| ------- | ---------------------------------------------- |
+| English | https://payayakamo.github.io/KomaYomi-docs/    |
+| 中文    | https://payayakamo.github.io/KomaYomi-docs/zh/ |
+| 日本語  | https://payayakamo.github.io/KomaYomi-docs/ja/ |
+
+源码在 [`docs/`](docs/) 中，是一个 VitePress 站点，可以在本地预览：
 
 ```bash
 npm run docs:dev     # http://127.0.0.1:5174
 npm run docs:build
 ```
 
-提供[英文版](https://payayakamo.github.io/KomaYomi-docs/)、[中文版](https://payayakamo.github.io/KomaYomi-docs/zh/)与[日文版](https://payayakamo.github.io/KomaYomi-docs/ja/)；英文为主语言，译文源码分别在 `zh/` 与 `ja/`。
+## 在线体验（开发中）
+
+纯浏览器版本仍在开发中，暂时没有公开的体验地址。源码位于 `https://github.com/PayayaKamo/KomaYomi-online`；上线后会在本节补上正式入口。
+
+目前的定位和边界：
+
+- **纯静态页面，没有服务端。** 它能打开 `.mnproj` 工程文件查看和编辑，但不能扫描你电脑上的目录，自动切格也还没有移植到浏览器。
+- **数据在 IndexedDB 里。** 你的工作保存在浏览器的 IndexedDB 中；换设备或清理站点数据、缓存前，请先导出工程。
+- **选文件夹只有 Chromium 系支持。** 阶段 2 落地后，Chromium 系浏览器可以选择文件夹；Safari 和 Firefox 需要手动选择文件。
+- **漫画始终留在你自己机器上。** 本项目不托管任何漫画内容。
 
 ## 路线图
 

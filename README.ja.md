@@ -218,14 +218,31 @@ exports/            生成した HTML・PNG、バックアップ、プロジェ�
 
 ## ドキュメント
 
-完全なドキュメントは [payayakamo.github.io/KomaYomi-docs](https://payayakamo.github.io/KomaYomi-docs/ja/) で公開されています。ソースは VitePress サイトとして [`docs/`](docs/) にあり、ローカルでもプレビューできます。
+完全なユーザーガイドは **https://payayakamo.github.io/KomaYomi-docs/** で公開されています。
+
+| 言語    | 入口                                           |
+| ------- | ---------------------------------------------- |
+| English | https://payayakamo.github.io/KomaYomi-docs/    |
+| 中文    | https://payayakamo.github.io/KomaYomi-docs/zh/ |
+| 日本語  | https://payayakamo.github.io/KomaYomi-docs/ja/ |
+
+ソースは VitePress サイトとして [`docs/`](docs/) にあり、ローカルでもプレビューできます。
 
 ```bash
 npm run docs:dev     # http://127.0.0.1:5174
 npm run docs:build
 ```
 
-[英語版](https://payayakamo.github.io/KomaYomi-docs/)、[中国語版](https://payayakamo.github.io/KomaYomi-docs/zh/)、[日本語版](https://payayakamo.github.io/KomaYomi-docs/ja/) を公開しています。英語が主言語で、翻訳のソースは `zh/` と `ja/` にあります。
+## オンライン体験（開発中）
+
+ブラウザだけで動く版はまだ開発中で、公開デモの URL はありません。ソースは `https://github.com/PayayaKamo/KomaYomi-online` にあります。リリース後にこの節へ正式な入口を追加します。
+
+できることと制限:
+
+- **静的ページのみ、サーバーなし。** `.mnproj` プロジェクトを開いて閲覧・編集できますが、お使いの PC のフォルダを走査することはできず、コマの自動検出もブラウザ版にはまだ移植されていません。
+- **データは IndexedDB。** 作業内容はブラウザの IndexedDB に保存されます。機種変更やサイトデータ・キャッシュの削除前に、プロジェクトをエクスポートしてください。
+- **フォルダ選択は Chromium 系のみ。** フェーズ 2 の実装後、Chromium 系ブラウザではフォルダを選択できます。Safari と Firefox ではファイルを手動で選ぶ必要があります。
+- **漫画は常にあなたの手元に。** 漫画画像はお使いのマシンから出ません。本プロジェクトは漫画コンテンツを一切ホストしません。
 
 ## ロードマップ
 

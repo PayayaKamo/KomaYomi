@@ -218,14 +218,31 @@ See [Layout Templates & Plugins](https://payayakamo.github.io/KomaYomi-docs/exte
 
 ## Documentation
 
-The full documentation is published at [payayakamo.github.io/KomaYomi-docs](https://payayakamo.github.io/KomaYomi-docs/). Its sources live in [`docs/`](docs/) as a VitePress site and can be previewed locally:
+The full user guide is published at **https://payayakamo.github.io/KomaYomi-docs/**:
+
+| Language | Entry point                                    |
+| -------- | ---------------------------------------------- |
+| English  | https://payayakamo.github.io/KomaYomi-docs/    |
+| 中文     | https://payayakamo.github.io/KomaYomi-docs/zh/ |
+| 日本語   | https://payayakamo.github.io/KomaYomi-docs/ja/ |
+
+Its sources live in [`docs/`](docs/) as a VitePress site and can be previewed locally:
 
 ```bash
 npm run docs:dev     # http://127.0.0.1:5174
 npm run docs:build
 ```
 
-Published in English, [Chinese](https://payayakamo.github.io/KomaYomi-docs/zh/) and [Japanese](https://payayakamo.github.io/KomaYomi-docs/ja/); the translation sources are under `zh/` and `ja/`.
+## Try it online (in development)
+
+The browser-only edition is still in development and has no public demo URL yet. Its source lives at `https://github.com/PayayaKamo/KomaYomi-online`; this section will get a working link once it ships.
+
+What to expect when it does:
+
+- **Static pages, no server.** It can open a `.mnproj` project file for viewing and editing, but it cannot scan a folder on your computer, and automatic panel detection has not been ported to the browser yet.
+- **Data lives in IndexedDB.** Your work is stored in the browser's IndexedDB. Export the project before switching devices or clearing site data or cache.
+- **Folder access is Chromium-only.** Picking a folder will be supported in Chromium-based browsers once phase 2 lands; Safari and Firefox have to select files manually.
+- **Your manga stays yours.** Manga images always stay on your own machine; this project hosts no manga content.
 
 ## Roadmap
 
