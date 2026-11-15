@@ -64,11 +64,8 @@ raw/
 一个文件夹只能归一种语言；已经被占用的文件夹会从其他下拉框里消失。如果一个语言文件夹都没识别出来，对话框会直说，并把这一卷的警告原因复述一遍。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>待补截图：卷设置对话框</strong>
-    这里将放一张包含语言下拉框、警告条以及“保存 / 移除”按钮的截图。
-  </div>
-  <figcaption>计划截图：把文件夹映射到语言。</figcaption>
+  <img src="/assets/screenshots/volume-settings.png" alt="卷设置对话框：ja、zh、en 各有一个下拉框，底部有“从图库移除”“取消”“保存”">
+  <figcaption>卷设置：每种语言的下拉框指向对应的子目录。保存后会重新扫描本卷；“从图库移除”只删除 raw/ 下的链接。</figcaption>
 </figure>
 
 ::: tip 先定好映射，再开始标注

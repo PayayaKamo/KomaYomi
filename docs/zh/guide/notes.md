@@ -117,11 +117,8 @@
 - **文字看起来像代码。** 围栏代码块的首尾两行各要三个反引号。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>截图待补：带工具栏与附图的笔记编辑器</strong>
-    Markdown 工具栏、标签行和图片缩略图的特写将补在这里。
-  </div>
-  <figcaption>计划中的截图：编辑器工具栏、标签与附件。</figcaption>
+  <img src="/assets/screenshots/notes-toolbar-tags.png" alt="笔记编辑器：整页与分格范围切换、Markdown 工具栏、实时预览、附件缩略图与标签输入行">
+  <figcaption>笔记编辑器：整页 / 分格范围、Markdown 工具栏、实时预览、附件缩略图与标签输入行。</figcaption>
 </figure>
 
 ## 缺失的截图

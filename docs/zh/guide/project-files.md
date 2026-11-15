@@ -152,11 +152,8 @@ data/.backup-meta.json
 - **`.mnpage.json` 导入后没有图片。** 页面数据从不包含图片；图片来自 `raw/` 或打包工程。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>截图待补：工程导入摘要</strong>
-    含清单计数、冲突策略和补链字段的导入对话框截图将补在这里。
-  </div>
-  <figcaption>计划中的截图：工程导入摘要。</figcaption>
+  <img src="/assets/screenshots/project-import.png" alt="工程导入摘要：存储方式、清单计数、冲突处理、重新关联目录与“导入”按钮">
+  <figcaption>工程导入摘要：存储方式、清单计数、冲突处理、重新关联目录与“导入”按钮。</figcaption>
 </figure>
 
 ## 缺失的截图
@@ -164,7 +161,6 @@ data/.backup-meta.json
 | 图 | 用于 |
 | --- | --- |
 | 工程导出表单 | 模式、名称与备注 |
-| 工程导入摘要 | 计数、冲突、补链 |
 | 交换文件对话框 | 三种文件类型 |
 
 ## 相关

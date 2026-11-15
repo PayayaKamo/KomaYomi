@@ -114,11 +114,8 @@
 - 缺失的语言显示占位，而不是空白栏。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>截图待补：对照工具栏特写</strong>
-    语言标签、遮蔽控件、对齐模式和作用域切换的裁剪截图将补在这里。
-  </div>
-  <figcaption>计划中的截图：带编号标注的对照工具栏。</figcaption>
+  <img src="/assets/screenshots/compare-toolbar.png" alt="对照工具栏：语言开关、遮蔽模式、并排与叠放、对齐范围，以及只拖动当前格的切换">
+  <figcaption>对照工具栏：语言开关、遮蔽模式、并排 / 叠放、对齐范围，以及只拖动当前格的切换。</figcaption>
 </figure>
 
 ## 常见坑
@@ -134,7 +131,6 @@
 
 | 图 | 用于 |
 | --- | --- |
-| 对照工具栏特写 | 语言顺序、遮蔽、对齐模式、作用域 |
 | 锚点模式步骤 1 / 步骤 2 | 参考点与算出的偏移 |
 
 ## 相关

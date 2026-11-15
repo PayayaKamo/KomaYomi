@@ -74,11 +74,8 @@ Current limitations:
 - There is no auto-update channel.
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: first launch</strong>
-    A screenshot of the first window with an empty library and the “Add manga” entry point will be added here.
-  </div>
-  <figcaption>Planned screenshot: first launch and the empty library.</figcaption>
+  <img src="/assets/screenshots/first-launch-empty.png" alt="First launch with an empty library: the sidebar shows Add manga and the main area shows a four-step tour">
+  <figcaption>First launch with an empty library. ＋ Add manga is the way in; the four cards outline the workflow.</figcaption>
 </figure>
 
 ## Build outputs

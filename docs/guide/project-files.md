@@ -152,11 +152,8 @@ Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Re
 - **A `.mnpage.json` import has no images.** Page data never contains images; those come from `raw/` or a packaged project.
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: project import summary</strong>
-    A screenshot of the import dialog with inventory counts, conflict policy and relink field will be added here.
-  </div>
-  <figcaption>Planned screenshot: project import summary.</figcaption>
+  <img src="/assets/screenshots/project-import.png" alt="Project import summary with storage mode, inventory counts, conflict policy, relink folder and the Import button">
+  <figcaption>Project import summary: storage mode, inventory counts, conflict policy, relink folder and the Import button.</figcaption>
 </figure>
 
 ## Missing screenshots
@@ -164,7 +161,6 @@ Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Re
 | Figure | Needed for |
 | --- | --- |
 | project export form | Mode, name and note |
-| project import summary | Counts, conflicts, relink |
 | exchange files dialog | Three file types |
 
 ## Related

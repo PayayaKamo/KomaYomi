@@ -114,11 +114,8 @@ The annotation toolbar works here too, and compare view is the fastest place to 
 - Missing languages show placeholders rather than empty panes.
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: compare toolbar close-up</strong>
-    A cropped screenshot of the language chips, mask controls, alignment modes and scope switch will be added here.
-  </div>
-  <figcaption>Planned screenshot: compare toolbar with callouts.</figcaption>
+  <img src="/assets/screenshots/compare-toolbar.png" alt="Compare toolbar with language chips, mask mode, side-by-side and overlay, alignment scope and the drag switch for the current panel">
+  <figcaption>The compare toolbar: language chips, mask mode, side-by-side / overlay, alignment scope and the drag switch for the current panel.</figcaption>
 </figure>
 
 ## Common pitfalls
@@ -134,7 +131,6 @@ The annotation toolbar works here too, and compare view is the fastest place to 
 
 | Figure | Needed for |
 | --- | --- |
-| compare toolbar close-up | Language order, masks, alignment mode, scope |
 | anchor mode step 1 / step 2 | Reference point and computed offset |
 
 ## Related

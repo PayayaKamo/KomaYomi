@@ -64,11 +64,8 @@ Volume settings is the repair bay for a volume whose folders did not introduce t
 A folder can belong to only one language; folders already taken disappear from the other dropdowns. If no language folder was detected at all, the dialog says so and repeats the volume warnings that explain why.
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: volume settings dialog</strong>
-    A capture of the language dropdowns, the warning banner and the Save / Remove buttons will be added here.
-  </div>
-  <figcaption>Planned screenshot: mapping folders to languages.</figcaption>
+  <img src="/assets/screenshots/volume-settings.png" alt="Volume settings dialog with one dropdown per language: ja, zh and en, plus Remove from library, Cancel and Save">
+  <figcaption>Volume settings. Each dropdown maps a language to its subfolder; Save rescans the volume, and Remove from library only deletes the link under raw/.</figcaption>
 </figure>
 
 ::: tip Fix the mapping before annotating

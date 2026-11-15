@@ -117,11 +117,8 @@ Each saved note has **Edit**, **Copy context**, **Filter by tag** and delete act
 - **Text looks like code.** Fenced blocks need three backticks on their own lines.
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: note editor with toolbar and attached image</strong>
-    A close-up of the Markdown toolbar, tag row and image thumbnails will be added here.
-  </div>
-  <figcaption>Planned screenshot: editor toolbar, tags and attachments.</figcaption>
+  <img src="/assets/screenshots/notes-toolbar-tags.png" alt="Note editor with the page and panel scope switch, Markdown toolbar, live preview, an attached screenshot and the tag row">
+  <figcaption>The note editor: page / panel scope, Markdown toolbar, live preview, an attached screenshot and the tag row.</figcaption>
 </figure>
 
 ## Missing screenshots

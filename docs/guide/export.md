@@ -139,18 +139,14 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
 - **The output folder is not writable.** In a packaged desktop build, `exports/` lives inside the chosen library folder.
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: exported HTML and PNG results</strong>
-    A screenshot of the generated HTML in a browser and the three PNG modes side by side will be added here.
-  </div>
-  <figcaption>Planned screenshot: exported document and PNG outputs.</figcaption>
+  <img src="/assets/screenshots/export-result.png" alt="Exported HTML opened in a browser: manga pages on the left and page and panel notes on the right">
+  <figcaption>The exported HTML opened in a browser: manga on the left, page and panel notes on the right.</figcaption>
 </figure>
 
 ## Missing screenshots
 
 | Figure | Needed for |
 | --- | --- |
-| exported HTML page | Two-column and stacked layouts |
 | PNG mode comparison | Whole page / panel / collage |
 | export template controls | Save, import and apply |
 

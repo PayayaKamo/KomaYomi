@@ -115,11 +115,8 @@ The following are **not implemented** and remain <Badge type="warning" text="Pla
 - Cloud providers other than WebDAV (no Dropbox / Google Drive / S3 integration).
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>Screenshot pending: remote storage settings</strong>
-    A screenshot of the Backup / restore dialog with a WebDAV source, cache usage and a backup target will be added here.
-  </div>
-  <figcaption>Planned screenshot: remote source, cache usage and backup targets.</figcaption>
+  <img src="/assets/screenshots/remote-storage.png" alt="Remote storage section of the Backup / restore dialog: WebDAV source, cache usage and a backup target">
+  <figcaption>Remote storage in Backup / restore: a WebDAV source, cache usage and a backup target.</figcaption>
 </figure>
 
 ## Common pitfalls
@@ -129,14 +126,6 @@ The following are **not implemented** and remain <Badge type="warning" text="Pla
 - **Disk usage keeps growing.** The cache cap is 512 MB by default; raise it deliberately, or clear the cache when you switch libraries.
 - **A backup is missing a password.** That is by design; re-enter the password after restoring on another machine.
 - **A network path works in Explorer but not here.** Network drives must be reachable from the account that runs the app — this matters for a service or a different desktop user.
-
-## Missing screenshots
-
-| Figure | Needed for |
-| --- | --- |
-| remote source form | Type, URL, credentials, read-only |
-| cache usage strip | Usage, limit, clear button |
-| backup target list | Add, test, upload |
 
 ## Related
 

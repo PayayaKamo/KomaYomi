@@ -117,11 +117,8 @@
 - **テキストがコードのように見える。** コードブロックには、それぞれ独立した行に3つのバッククォートが必要です。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>スクリーンショット未掲載：ツールバーと添付画像付きのノートエディター</strong>
-    Markdown ツールバー、タグの行、画像のサムネイルを拡大したものを、ここに追加する予定です。
-  </div>
-  <figcaption>掲載予定：エディターのツールバー、タグ、添付画像。</figcaption>
+  <img src="/assets/screenshots/notes-toolbar-tags.png" alt="ノートエディター。ページとコマの範囲切り替え、Markdown ツールバー、ライブプレビュー、添付画像、タグ入力欄">
+  <figcaption>ノートエディター。ページ / コマの範囲、Markdown ツールバー、ライブプレビュー、添付画像、タグ入力欄。</figcaption>
 </figure>
 
 ## スクリーンショット未掲載

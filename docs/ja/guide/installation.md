@@ -109,11 +109,8 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 - Electron ウィンドウは一時的な localhost ポートと通信します。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>スクリーンショット準備中: 初回起動</strong>
-    初回起動時、ライブラリが空で「漫画を追加」の入口が見える画面を追加します。
-  </div>
-  <figcaption>予定しているスクリーンショット: 初回起動と空のライブラリ。</figcaption>
+  <img src="/assets/screenshots/first-launch-empty.png" alt="初回起動の空のライブラリ。サイドバーに「＋ 漫画を追加」、中央に 4 ステップの案内">
+  <figcaption>初回起動でライブラリが空の状態。「＋ 漫画を追加」が入口で、中央の 4 枚のカードが流れを説明します。</figcaption>
 </figure>
 
 ## 初回起動

@@ -139,18 +139,14 @@ PNG 在浏览器中生成，落在浏览器的下载目录。可以直接粘贴�
 - **输出文件夹不可写。** 在打包的桌面版中，`exports/` 位于所选的图库文件夹内。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>截图待补：导出的 HTML 与 PNG 结果</strong>
-    浏览器中生成的 HTML 以及三种 PNG 模式的并排截图将补在这里。
-  </div>
-  <figcaption>计划中的截图：导出的文档与 PNG 输出。</figcaption>
+  <img src="/assets/screenshots/export-result.png" alt="在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记">
+  <figcaption>在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记。</figcaption>
 </figure>
 
 ## 缺失的截图
 
 | 图 | 用于 |
 | --- | --- |
-| 导出的 HTML 页面 | 两栏与上下堆叠版式 |
 | PNG 模式对比 | 整页 / 单格 / 拼图 |
 | 导出模板控件 | 保存、导入与套用 |
 

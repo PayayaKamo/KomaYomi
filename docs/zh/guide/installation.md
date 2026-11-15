@@ -109,11 +109,8 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 - Electron 窗口连接一个临时的 localhost 端口。
 
 <figure class="shot">
-  <div class="shot-missing">
-    <strong>待补截图：首次启动</strong>
-    将补上首次打开、图库为空且能看到“添加漫画”入口的界面截图。
-  </div>
-  <figcaption>计划截图：首次启动与空图库。</figcaption>
+  <img src="/assets/screenshots/first-launch-empty.png" alt="首次启动的空图库：侧栏显示“＋ 添加漫画”，主区域显示四步导览">
+  <figcaption>首次启动时图库为空：左侧的“＋ 添加漫画”是入口，中间四张卡片概述了使用流程。</figcaption>
 </figure>
 
 ## 首次运行
