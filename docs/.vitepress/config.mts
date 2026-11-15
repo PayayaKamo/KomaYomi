@@ -367,6 +367,18 @@ const enSidebar = [
       { text: 'Server & CLI Message Codes', link: '/server/error-codes' },
     ],
   },
+  {
+    text: 'Development',
+    items: [
+      { text: 'Overview & Architecture', link: '/development/' },
+      { text: 'Data Formats', link: '/development/data-formats' },
+      { text: 'Panel Plugins', link: '/development/plugins' },
+      { text: 'Folder Rules', link: '/development/folder-rules' },
+      { text: 'Export Templates', link: '/development/export-templates' },
+      { text: 'Build & Packaging', link: '/development/build' },
+      { text: 'Contributing', link: '/development/contributing' },
+    ],
+  },
   { text: 'Help', items: [{ text: 'FAQ & Troubleshooting', link: '/faq' }] },
 ]
 
@@ -400,6 +412,18 @@ const zhSidebar = [
       { text: '错误码参考', link: '/zh/server/error-codes' },
     ],
   },
+  {
+    text: '二次开发',
+    items: [
+      { text: '总览与架构', link: '/zh/development/' },
+      { text: '数据格式', link: '/zh/development/data-formats' },
+      { text: '分格插件', link: '/zh/development/plugins' },
+      { text: '目录规则', link: '/zh/development/folder-rules' },
+      { text: '导出模板', link: '/zh/development/export-templates' },
+      { text: '构建与打包', link: '/zh/development/build' },
+      { text: '贡献指南', link: '/zh/development/contributing' },
+    ],
+  },
   { text: '帮助', items: [{ text: '常见问题与故障排查', link: '/zh/faq' }] },
 ]
 
@@ -431,6 +455,18 @@ const jaSidebar = [
       { text: 'レイアウトテンプレートとプラグイン', link: '/ja/extending' },
       { text: 'リモート保存とバックアップ', link: '/ja/remote-backup' },
       { text: 'エラーコード', link: '/ja/server/error-codes' },
+    ],
+  },
+  {
+    text: 'カスタマイズ開発',
+    items: [
+      { text: '概要とアーキテクチャ', link: '/ja/development/' },
+      { text: 'データ形式', link: '/ja/development/data-formats' },
+      { text: 'コマ分割プラグイン', link: '/ja/development/plugins' },
+      { text: 'フォルダー判定ルール', link: '/ja/development/folder-rules' },
+      { text: 'エクスポートテンプレート', link: '/ja/development/export-templates' },
+      { text: 'ビルドとパッケージング', link: '/ja/development/build' },
+      { text: 'コントリビュート', link: '/ja/development/contributing' },
     ],
   },
   { text: 'ヘルプ', items: [{ text: 'FAQ とトラブルシューティング', link: '/ja/faq' }] },
@@ -467,6 +503,18 @@ const enTheme = {
         { text: 'Layout Templates & Plugins', link: '/extending' },
         { text: 'Remote Storage & Backup', link: '/remote-backup' },
         { text: 'Server & CLI Message Codes', link: '/server/error-codes' },
+      ],
+    },
+    {
+      text: 'Development',
+      items: [
+        { text: 'Overview & Architecture', link: '/development/' },
+        { text: 'Data Formats', link: '/development/data-formats' },
+        { text: 'Panel Plugins', link: '/development/plugins' },
+        { text: 'Folder Rules', link: '/development/folder-rules' },
+        { text: 'Export Templates', link: '/development/export-templates' },
+        { text: 'Build & Packaging', link: '/development/build' },
+        { text: 'Contributing', link: '/development/contributing' },
       ],
     },
     { text: 'FAQ', link: '/faq' },
@@ -539,6 +587,18 @@ const zhTheme = {
         { text: '错误码参考', link: '/zh/server/error-codes' },
       ],
     },
+    {
+      text: '二次开发',
+      items: [
+        { text: '总览与架构', link: '/zh/development/' },
+        { text: '数据格式', link: '/zh/development/data-formats' },
+        { text: '分格插件', link: '/zh/development/plugins' },
+        { text: '目录规则', link: '/zh/development/folder-rules' },
+        { text: '导出模板', link: '/zh/development/export-templates' },
+        { text: '构建与打包', link: '/zh/development/build' },
+        { text: '贡献指南', link: '/zh/development/contributing' },
+      ],
+    },
     { text: '常见问题', link: '/zh/faq' },
   ],
   search: {
@@ -607,6 +667,18 @@ const jaTheme = {
         { text: 'レイアウトテンプレートとプラグイン', link: '/ja/extending' },
         { text: 'リモート保存とバックアップ', link: '/ja/remote-backup' },
         { text: 'エラーコード', link: '/ja/server/error-codes' },
+      ],
+    },
+    {
+      text: 'カスタマイズ開発',
+      items: [
+        { text: '概要とアーキテクチャ', link: '/ja/development/' },
+        { text: 'データ形式', link: '/ja/development/data-formats' },
+        { text: 'コマ分割プラグイン', link: '/ja/development/plugins' },
+        { text: 'フォルダー判定ルール', link: '/ja/development/folder-rules' },
+        { text: 'エクスポートテンプレート', link: '/ja/development/export-templates' },
+        { text: 'ビルドとパッケージング', link: '/ja/development/build' },
+        { text: 'コントリビュート', link: '/ja/development/contributing' },
       ],
     },
     { text: 'FAQ', link: '/ja/faq' },
