@@ -448,7 +448,10 @@ export const api = {
       warnings: string[];
     }>('/api/exchange/page/import', json(input)),
 
-  plugins: () => request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
+  plugins: () =>
+    request<{
+      plugins: { file: string; name: string; match?: Record<string, string>; error?: string; errorCode?: string }[];
+    }>('/api/plugins'),
 
   /* ---- Export templates ---- */
   exportTemplates: () => request<{ templates: ExportTemplate[] }>('/api/export-templates'),

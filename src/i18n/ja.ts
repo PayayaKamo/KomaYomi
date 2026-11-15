@@ -192,6 +192,8 @@ export const ja = {
   'sidebar.backupTitle': 'data/ のバックアップ / 復元',
   'sidebar.preprocess': '前処理…',
   'sidebar.preprocessTitle': '巻の前処理：名前変更・並べ替え・ページ除外',
+  'sidebar.plugins': 'プラグイン…',
+  'sidebar.pluginsTitle': 'コマ分割プラグイン：導入済みファイル・一致規則・読み込みエラー',
 
   /* ---- 前処理ウィザード ---- */
   'preprocess.title': '巻の前処理',
@@ -229,6 +231,25 @@ export const ja = {
   'preprocess.backupAvailable': '復元できる前回の設定があります。',
   'preprocess.noVolumes': '前処理できる巻がまだありません。',
   'preprocess.close': '閉じる',
+
+  /* ---- コマ分割プラグイン ---- */
+  'plugins.title': 'コマ分割プラグイン',
+  'plugins.subtitle':
+    'プラグインは一致するページで内蔵のコマ検出を置き換えられます。ここでは読み取り専用で、失敗してもページは開けます。',
+  'plugins.hintBefore': 'プラグインファイルを ',
+  'plugins.hintBetween': ' または ',
+  'plugins.hintAfter': ' に置いてください。.mjs / .cjs / .js に対応し、編集後は更新で反映されます。',
+  'plugins.count': '{count} 個のプラグイン',
+  'plugins.refresh': '更新',
+  'plugins.refreshing': '更新中…',
+  'plugins.loading': 'プラグインを読み込み中…',
+  'plugins.empty': 'プラグインが見つかりません',
+  'plugins.emptyHint': 'plugins/ または data/plugins/ にファイルを置いて更新してください。',
+  'plugins.allPages': 'すべてのページに一致',
+  'plugins.matchVolume': '巻：{value}',
+  'plugins.matchChapter': '話：{value}',
+  'plugins.matchFile': 'ファイル：{value}',
+  'plugins.fallbackHint': '失敗またはタイムアウトしたプラグインは内蔵検出に戻ります。',
 
   /* ---- notes panel ---- */
   'notes.title': '学習ノート',

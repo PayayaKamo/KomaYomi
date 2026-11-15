@@ -194,6 +194,8 @@ export const en = {
   'sidebar.backupTitle': 'Backup / restore data/',
   'sidebar.preprocess': 'Preprocess…',
   'sidebar.preprocessTitle': 'Preprocess volume: rename, reorder, exclude pages',
+  'sidebar.plugins': 'Plugins…',
+  'sidebar.pluginsTitle': 'Panel plugins: installed files, match rules, load errors',
 
   /* ---- preprocessing wizard ---- */
   'preprocess.title': 'Preprocess volume',
@@ -231,6 +233,25 @@ export const en = {
   'preprocess.backupAvailable': 'A previous config is available to restore.',
   'preprocess.noVolumes': 'No volumes to preprocess yet.',
   'preprocess.close': 'Close',
+
+  /* ---- panel plugins ---- */
+  'plugins.title': 'Panel plugins',
+  'plugins.subtitle':
+    'Plugins can replace the built-in panel detector for matching pages. This list is read-only; a failing plugin never blocks a page.',
+  'plugins.hintBefore': 'Drop a plugin file into ',
+  'plugins.hintBetween': ' or ',
+  'plugins.hintAfter': '. Files ending in .mjs, .cjs or .js are loaded; refresh after editing.',
+  'plugins.count': '{count} plugins',
+  'plugins.refresh': 'Refresh',
+  'plugins.refreshing': 'Refreshing…',
+  'plugins.loading': 'Loading plugins…',
+  'plugins.empty': 'No plugins found',
+  'plugins.emptyHint': 'Add a plugin file to plugins/ or data/plugins/, then refresh.',
+  'plugins.allPages': 'Matches all pages',
+  'plugins.matchVolume': 'volume: {value}',
+  'plugins.matchChapter': 'chapter: {value}',
+  'plugins.matchFile': 'file: {value}',
+  'plugins.fallbackHint': 'A plugin that fails or times out falls back to the built-in detector.',
 
   /* ---- notes panel ---- */
   'notes.title': 'Study notes',

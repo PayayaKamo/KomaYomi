@@ -10,6 +10,7 @@ import { ProjectDialog } from './ProjectDialog';
 import { ExchangeDialog } from './ExchangeDialog';
 import { DirRulesDialog } from './DirRulesDialog';
 import { PreprocessDialog } from './PreprocessDialog';
+import { PluginsDialog } from './PluginsDialog';
 
 type Props = {
   library: Library | null;
@@ -33,7 +34,7 @@ function pickFile(page: PageEntry, volume?: VolumeEntry): { url: string; lang: L
   return null;
 }
 
-type FootIconName = 'project' | 'exchange' | 'rules' | 'backup' | 'preprocess';
+type FootIconName = 'project' | 'exchange' | 'rules' | 'backup' | 'preprocess' | 'plugins';
 
 /** Logo, product name and the localised tagline (two lines at most). */
 function Brand() {
@@ -96,6 +97,9 @@ function FootIcon({ name }: { name: FootIconName }) {
           <path d="M2.4 10.2v1.8h9.2v-1.8" />
         </>
       )}
+      {name === 'plugins' && (
+        <path d="M2.4 2.4h3.6v1.3a1 1 0 1 0 2 0V2.4h3.6v3.6h-1.3a1 1 0 1 0 0 2h1.3v3.6H6.4v-1.3a1 1 0 1 1-2 0v1.3H2.4z" />
+      )}
     </svg>
   );
 }
@@ -110,6 +114,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [dirRulesOpen, setDirRulesOpen] = useState(false);
   const [preprocessOpen, setPreprocessOpen] = useState(false);
+  const [pluginsOpen, setPluginsOpen] = useState(false);
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
@@ -338,6 +343,16 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           <button
             type="button"
             className="btn tiny foot-btn"
+            onClick={() => setPluginsOpen(true)}
+            title={t('sidebar.pluginsTitle')}
+            aria-label={t('sidebar.pluginsTitle')}
+          >
+            <FootIcon name="plugins" />
+            <span className="foot-label">{t('sidebar.plugins')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
             onClick={() => setDirRulesOpen(true)}
             title={t('sidebar.dirRulesTitle')}
             aria-label={t('sidebar.dirRulesTitle')}
@@ -398,6 +413,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           onDone={(lib) => onReload(lib)}
         />
       )}
+      {pluginsOpen && <PluginsDialog onClose={() => setPluginsOpen(false)} />}
     </aside>
   );
 }

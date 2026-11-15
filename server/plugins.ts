@@ -41,10 +41,17 @@ export type PanelPlugin = {
     | Promise<PanelRect[] | { panels: PanelRect[]; warnings?: string[] }>;
 };
 
+/** Serializable match description; regular expressions become `/source/flags` strings. */
+export type PluginMatchSummary = {
+  volume?: string;
+  chapter?: string;
+  file?: string;
+};
+
 export type PluginSummary = {
   file: string;
   name: string;
-  match?: PluginMatch;
+  match?: PluginMatchSummary;
   error?: string;
   errorCode?: string;
 };
@@ -113,6 +120,15 @@ async function importPlugin(file: string): Promise<PanelPlugin | null> {
   return null;
 }
 
+function summarizeMatch(match?: PluginMatch): PluginMatchSummary | undefined {
+  if (!match) return undefined;
+  const summary: PluginMatchSummary = {};
+  if (match.volume !== undefined) summary.volume = String(match.volume);
+  if (match.chapter !== undefined) summary.chapter = String(match.chapter);
+  if (match.file !== undefined) summary.file = String(match.file);
+  return Object.keys(summary).length ? summary : undefined;
+}
+
 export async function listPlugins(rootDir: string, dataRoot: string): Promise<PluginSummary[]> {
   const out: PluginSummary[] = [];
   for (const file of listPluginFiles(rootDir, dataRoot)) {
@@ -127,7 +143,11 @@ export async function listPlugins(rootDir: string, dataRoot: string): Promise<Pl
         });
         continue;
       }
-      out.push({ file: path.basename(file), name: plugin.name ?? path.basename(file), match: plugin.match });
+      out.push({
+        file: path.basename(file),
+        name: plugin.name ?? path.basename(file),
+        match: summarizeMatch(plugin.match),
+      });
     } catch (err) {
       out.push({
         file: path.basename(file),

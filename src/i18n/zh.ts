@@ -189,6 +189,8 @@ export const zh = {
   'sidebar.backupTitle': '备份 / 恢复 data/',
   'sidebar.preprocess': '预处理…',
   'sidebar.preprocessTitle': '卷预处理：重命名、调序、排除页面',
+  'sidebar.plugins': '插件…',
+  'sidebar.pluginsTitle': '分格插件：已安装文件、匹配规则、加载错误',
 
   /* ---- 预处理向导 ---- */
   'preprocess.title': '卷预处理',
@@ -226,6 +228,24 @@ export const zh = {
   'preprocess.backupAvailable': '存在可回滚的上一次配置。',
   'preprocess.noVolumes': '还没有可预处理的卷。',
   'preprocess.close': '关闭',
+
+  /* ---- 分格插件 ---- */
+  'plugins.title': '分格插件',
+  'plugins.subtitle': '插件可以为匹配的页面替换内建分格检测。此处只读；插件出错不会阻塞页面。',
+  'plugins.hintBefore': '将插件文件放入 ',
+  'plugins.hintBetween': ' 或 ',
+  'plugins.hintAfter': '，支持 .mjs、.cjs、.js；修改后点刷新即可生效。',
+  'plugins.count': '{count} 个插件',
+  'plugins.refresh': '刷新',
+  'plugins.refreshing': '刷新中…',
+  'plugins.loading': '正在加载插件…',
+  'plugins.empty': '没有找到插件',
+  'plugins.emptyHint': '把插件文件放进 plugins/ 或 data/plugins/，然后刷新。',
+  'plugins.allPages': '匹配所有页面',
+  'plugins.matchVolume': '卷：{value}',
+  'plugins.matchChapter': '话：{value}',
+  'plugins.matchFile': '文件：{value}',
+  'plugins.fallbackHint': '插件失败或超时会回退到内建检测。',
 
   /* ---- notes panel ---- */
   'notes.title': '学习笔记',
