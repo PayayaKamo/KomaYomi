@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { HistorySource } from '../api';
 import { t } from '../i18n';
 import { dropOutbox, enqueueOutbox, outboxKeyOf } from '../lib/outbox';
+import { keepaliveFits } from '../lib/keepalive';
 import type { PageDoc, PageEntry } from '../types';
 
 export type Selection = { volume: string; chapter: string; pageIndex: number };
@@ -334,13 +335,27 @@ export function usePage(sel: Selection | null) {
 
   useEffect(() => {
     const onUnload = () => {
-      if (pending.current) {
+      const doc = pending.current;
+      if (!doc) return;
+      const body = JSON.stringify(doc);
+      // A keepalive body over the browser's 64 KiB cap is rejected silently, so queue
+      // that write for the outbox instead of pretending it was sent.
+      const fallback = () => {
+        enqueueOutbox(doc, pendingSource.current);
+      };
+      if (!keepaliveFits(body)) {
+        fallback();
+        return;
+      }
+      try {
         void fetch('/api/page', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pending.current),
+          body,
           keepalive: true,
-        });
+        }).catch(fallback);
+      } catch {
+        fallback();
       }
     };
     window.addEventListener('beforeunload', onUnload);
