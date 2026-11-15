@@ -16,6 +16,24 @@ const SITE_NAME = 'KomaYomi'
 const SITE_SUBTITLE = 'Manga Learner'
 const AUTHOR = 'PayayaKamo'
 const SOCIAL_IMAGE = `${SITE_URL}/social-card.png`
+const MAIL_ADDRESS = 'PayayaKamo@gmail.com'
+
+/**
+ * Social icons in the top navigation. The mail icon is inlined so the site
+ * does not depend on an external icon CDN, and its tooltip follows the locale.
+ */
+function socialLinks(mailLabel: string) {
+  return [
+    { icon: 'github', link: 'https://github.com/payayakamo', ariaLabel: 'GitHub: PayayaKamo' },
+    {
+      icon: {
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>',
+      },
+      link: `mailto:${MAIL_ADDRESS}`,
+      ariaLabel: mailLabel,
+    },
+  ]
+}
 
 /**
  * Build stamp rendered in the footer, so a reader can tell which build a page
@@ -478,6 +496,7 @@ const enTheme = {
     },
   },
   sidebar: enSidebar,
+  socialLinks: socialLinks('Email'),
   outline: { level: [2, 3], label: localeMeta.en.outlineLabel },
   docFooter: localeMeta.en.docFooter,
   lastUpdated: { text: localeMeta.en.lastUpdatedText },
@@ -547,6 +566,7 @@ const zhTheme = {
     },
   },
   sidebar: zhSidebar,
+  socialLinks: socialLinks('邮件'),
   outline: { level: [2, 3], label: localeMeta.zh.outlineLabel },
   docFooter: localeMeta.zh.docFooter,
   lastUpdated: { text: localeMeta.zh.lastUpdatedText },
@@ -616,6 +636,7 @@ const jaTheme = {
     },
   },
   sidebar: jaSidebar,
+  socialLinks: socialLinks('メール'),
   outline: { level: [2, 3], label: localeMeta.ja.outlineLabel },
   docFooter: localeMeta.ja.docFooter,
   lastUpdated: { text: localeMeta.ja.lastUpdatedText },
@@ -782,13 +803,8 @@ export default defineConfig({
   themeConfig: {
     logo: '/logo.svg',
     externalLinkIcon: true,
-    // Social icons in the top navigation, shared by all locales.
-    // To add another platform later, append one entry here — no layout change
-    // is needed. VitePress resolves the icon name from its built-in set
-    // (for example: github, x, bluesky, discord, youtube).
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/payayakamo', ariaLabel: 'GitHub: PayayaKamo' },
-    ],
+    // Social icons live on each locale theme so their tooltips match the
+    // language; see `socialLinks()` above.
     ...enTheme,
   },
 })
