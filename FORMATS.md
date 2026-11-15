@@ -107,6 +107,28 @@ to be written:
 This is what makes “open in a newer build, save in an older build, reopen in the newer build”
 lossless for fields the older build does not understand.
 
+## Panel groups
+
+Groups live in the page document (`page`) and ride along with project packaging, backups and
+`.mnpage.json` exports. They are optional, so no version bump was needed:
+
+```json
+{
+  "groups": [{ "id": "grp1a2b", "name": "Scene A", "panelIds": ["p1", "p2"], "color": "#e11d48" }]
+}
+```
+
+- `panelIds` is ordered. The order inside a group drives export order and compare-view panel
+  stepping, not the geometric reading order.
+- A panel belongs to at most one group. Grouping a selection removes those panels from earlier
+  groups; groups with no members are dropped.
+- A group is anchored at the reading position of its first member. Panels outside any group keep
+  their natural position, and each group is emitted as one contiguous run there.
+- `color` is `#rrggbb`; it only affects the editing canvas, never exports.
+- Sorting uses `shared/panelOrder.ts`: `applyGroupOrder` for display/export/stepping and
+  `normalizeGroupOrder` for “sort by group”, which reorders members and groups by reading order.
+- Deleting a group never deletes panels.
+
 ## Changing a field without breaking old files
 
 Adding an **optional** field does not need a version bump:
