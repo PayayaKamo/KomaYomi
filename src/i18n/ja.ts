@@ -444,6 +444,7 @@ export const ja = {
   'panels.grpEdit': '編集',
   'panels.grpView': '表示',
   'panels.infoTitle': 'コマ検出の詳細',
+  'panels.moreTitle': 'その他のコマ操作',
   'panels.sourceLabel': 'データソース',
   'panels.saveCountLabel': '保存回数',
   'panels.lastSavedLabel': '最終保存',

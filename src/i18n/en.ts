@@ -448,6 +448,7 @@ export const en = {
   'panels.grpEdit': 'Edit',
   'panels.grpView': 'View',
   'panels.infoTitle': 'Panel detection details',
+  'panels.moreTitle': 'More panel actions',
   'panels.sourceLabel': 'Source',
   'panels.saveCountLabel': 'Saves',
   'panels.lastSavedLabel': 'Last saved',

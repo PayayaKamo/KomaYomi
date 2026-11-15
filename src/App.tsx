@@ -451,17 +451,6 @@ export default function App() {
               {outbox.syncing ? t('outbox.syncing') : t('outbox.pending', { count: formatNumber(outbox.count) })}
             </button>
           )}
-          {sel && (
-            <button
-              type="button"
-              className="btn tiny history-btn"
-              onClick={() => setHistoryOpen(true)}
-              title={t('app.historyTitle')}
-            >
-              <span aria-hidden>≡</span>
-              <span className="history-btn-label">{t('app.historyButton')}</span>
-            </button>
-          )}
         </div>
 
         <div className="tb-center">
@@ -618,6 +607,7 @@ export default function App() {
                 canRedo={pageState.canRedo}
                 onUndo={pageState.undo}
                 onRedo={pageState.redo}
+                onHistory={() => setHistoryOpen(true)}
                 allLangs={allLangs}
               />
             ) : (

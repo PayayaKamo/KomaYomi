@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
 import {
@@ -46,6 +46,8 @@ type Props = {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** Opens the page history dialog from the overflow menu. */
+  onHistory: () => void;
   /** Library language order; the page's own files decide which columns exist. */
   allLangs: Lang[];
 };
@@ -152,9 +154,10 @@ export function PanelsTab({
   canRedo,
   onUndo,
   onRedo,
+  onHistory,
   allLangs,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const availableLangs = useMemo(() => {
     const files = Object.keys(page.files);
     const ordered = allLangs.filter((l) => files.includes(l));
@@ -188,8 +191,11 @@ export function PanelsTab({
   const [secMenuOpen, setSecMenuOpen] = useState(false);
   const secMenuRef = useRef<HTMLDivElement>(null);
   const folds = useToolbarFolds();
-  const [metaOpen, setMetaOpen] = useState(false);
-  const metaRef = useRef<HTMLDivElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  /** 0 = everything visible; higher levels hide labels, view, edit, extra split actions, then split. */
+  const [fit, setFit] = useState(0);
   const [orderOpen, setOrderOpen] = useState(false);
   const [splitId, setSplitId] = useState<string | null>(null);
   const sectionLabels: Record<PanelSection, string> = {
@@ -217,12 +223,12 @@ export function PanelsTab({
   }, [secMenuOpen]);
 
   useEffect(() => {
-    if (!metaOpen) return;
+    if (!moreOpen) return;
     const onPointer = (e: PointerEvent) => {
-      if (!metaRef.current?.contains(e.target as Node)) setMetaOpen(false);
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMetaOpen(false);
+      if (e.key === 'Escape') setMoreOpen(false);
     };
     document.addEventListener('pointerdown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -230,11 +236,55 @@ export function PanelsTab({
       document.removeEventListener('pointerdown', onPointer);
       document.removeEventListener('keydown', onKey);
     };
-  }, [metaOpen]);
+  }, [moreOpen]);
 
   const annotations = doc.annotations ?? [];
   // Older pages have no flag; annotations were visible by default before the toggle existed.
   const annotationsVisible = annAllowed && doc.annotationsVisible !== false && sections.ann;
+
+  /**
+   * Keep the workspace toolbar on one line. The groups stay in the DOM; increasing
+   * `data-fit` hides labels, then the view, edit and secondary split actions, and
+   * finally the whole split group; the overflow menu exposes whatever it dropped.
+   */
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const measure = () => {
+      let level = 0;
+      for (; level <= 5; level += 1) {
+        el.dataset.fit = String(level);
+        if (el.scrollWidth <= el.clientWidth + 1) break;
+      }
+      setFit(Math.min(level, 5));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [
+    locale,
+    folds.split,
+    folds.save,
+    folds.view,
+    doc.panels.length,
+    selected.length,
+    saveMode,
+    dirty,
+    showNumbers,
+    zoom,
+    detecting,
+    imgLoaded,
+  ]);
+
+  const splitHidden = !folds.split || fit >= 5;
+  const splitExtrasHidden = fit >= 4;
+  const editHidden = !folds.save || fit >= 3;
+  const viewHidden = !folds.view || fit >= 2;
+  const runFromMenu = (action: () => void) => {
+    setMoreOpen(false);
+    action();
+  };
 
   useEffect(() => {
     if (!annAllowed) {
@@ -858,7 +908,7 @@ export function PanelsTab({
         </div>
       )}
 
-      <div className="stage-toolbar panels-toolbar">
+      <div className="stage-toolbar panels-toolbar" ref={barRef}>
         <div className="tb-group tb-base">
           <label className="tb-label">{t('panels.baseImage')}</label>
           <select value={refLang} onChange={(e) => setRefLang(e.target.value as Lang)} className="tb-select">
@@ -889,24 +939,34 @@ export function PanelsTab({
               <button type="button" className="btn" onClick={() => addPanel()} disabled={!imgLoaded}>
                 {t('panels.addPanel')}
               </button>
-              <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
+              <button type="button" className="btn tb-extra" onClick={mergeSelected} disabled={selected.length < 2}>
                 {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
               </button>
               <button
                 type="button"
-                className="btn"
+                className="btn tb-extra"
                 onClick={() => setSplitId(selected[0])}
                 disabled={selected.length !== 1 || !imgLoaded}
               >
                 {t('panels.split')}
               </button>
-              <button type="button" className="btn" onClick={() => setOrderOpen(true)} disabled={doc.panels.length < 2}>
+              <button
+                type="button"
+                className="btn tb-extra"
+                onClick={() => setOrderOpen(true)}
+                disabled={doc.panels.length < 2}
+              >
                 {t('panels.order')}
               </button>
-              <button type="button" className="btn" onClick={createGroup} disabled={!selected.length}>
+              <button type="button" className="btn tb-extra" onClick={createGroup} disabled={!selected.length}>
                 {t('groups.create')} {selected.length ? `(${formatNumber(selected.length)})` : ''}
               </button>
-              <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
+              <button
+                type="button"
+                className="btn danger tb-extra"
+                onClick={deleteSelected}
+                disabled={!selected.length}
+              >
                 {t('common.delete')}
               </button>
             </>
@@ -983,22 +1043,22 @@ export function PanelsTab({
           )}
         </div>
 
-        {/* Detection details are status, not controls: keep them behind ⓘ so the
-            primary row stays a single line. */}
-        <div className="tb-group tb-info" ref={metaRef}>
+        {/* Metadata plus any group the current width could not keep on the row. */}
+        <div className="tb-group tb-overflow" ref={moreRef}>
           <button
             type="button"
-            className={`btn icon ${metaOpen ? 'on' : ''}`}
-            aria-expanded={metaOpen}
-            aria-haspopup="dialog"
-            title={t('panels.infoTitle')}
-            aria-label={t('panels.infoTitle')}
-            onClick={() => setMetaOpen((v) => !v)}
+            className={`btn icon ${moreOpen ? 'on' : ''}`}
+            aria-expanded={moreOpen}
+            aria-haspopup="menu"
+            title={t('panels.moreTitle')}
+            aria-label={t('panels.moreTitle')}
+            onClick={() => setMoreOpen((v) => !v)}
           >
-            ⓘ
+            ≡
           </button>
-          {metaOpen && (
-            <div className="meta-pop" role="dialog" aria-label={t('panels.infoTitle')}>
+          {moreOpen && (
+            <div className="more-pop" role="menu" aria-label={t('panels.moreTitle')}>
+              <div className="more-head">{t('panels.infoTitle')}</div>
               <dl className="meta-list">
                 <dt>{t('panels.detectLabel')}</dt>
                 <dd>
@@ -1021,6 +1081,178 @@ export function PanelsTab({
                   </>
                 )}
               </dl>
+              <div className="more-sep" />
+              <button type="button" role="menuitem" className="more-item" onClick={() => runFromMenu(onHistory)}>
+                {t('app.historyButton')}
+              </button>
+
+              {(splitHidden || splitExtrasHidden) && (
+                <>
+                  <div className="more-sep" />
+                  <div className="more-head">{t('panels.grpSplit')}</div>
+                  {splitHidden && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="more-item"
+                        disabled={detecting || !url}
+                        onClick={() => runFromMenu(requestDetect)}
+                      >
+                        {detecting ? t('panels.detecting') : t('panels.autoSplit')}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="more-item"
+                        disabled={!imgLoaded}
+                        onClick={() => runFromMenu(() => addPanel())}
+                      >
+                        {t('panels.addPanel')}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item"
+                    disabled={selected.length < 2}
+                    onClick={() => runFromMenu(mergeSelected)}
+                  >
+                    {t('panels.merge')}
+                    {selected.length >= 2 ? ` (${formatNumber(selected.length)})` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item"
+                    disabled={selected.length !== 1 || !imgLoaded}
+                    onClick={() => runFromMenu(() => setSplitId(selected[0]))}
+                  >
+                    {t('panels.split')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item"
+                    disabled={doc.panels.length < 2}
+                    onClick={() => runFromMenu(() => setOrderOpen(true))}
+                  >
+                    {t('panels.order')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item"
+                    disabled={!selected.length}
+                    onClick={() => runFromMenu(createGroup)}
+                  >
+                    {t('groups.create')}
+                    {selected.length ? ` (${formatNumber(selected.length)})` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item danger"
+                    disabled={!selected.length}
+                    onClick={() => runFromMenu(deleteSelected)}
+                  >
+                    {t('common.delete')}
+                  </button>
+                </>
+              )}
+
+              {editHidden && (
+                <>
+                  <div className="more-sep" />
+                  <div className="more-head">{t('panels.grpEdit')}</div>
+                  <div className="more-row seg">
+                    <button
+                      type="button"
+                      className={saveMode === 'auto' ? 'on' : ''}
+                      onClick={() => runFromMenu(() => setSaveMode('auto'))}
+                    >
+                      {t('panels.saveAuto')}
+                    </button>
+                    <button
+                      type="button"
+                      className={saveMode === 'confirm' ? 'on' : ''}
+                      onClick={() => runFromMenu(() => setSaveMode('confirm'))}
+                    >
+                      {t('panels.saveConfirm')}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item"
+                    disabled={!canUndo}
+                    onClick={() => runFromMenu(onUndo)}
+                  >
+                    ↶ {t('panels.undoTitle')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="more-item"
+                    disabled={!canRedo}
+                    onClick={() => runFromMenu(onRedo)}
+                  >
+                    ↷ {t('panels.redoTitle')}
+                  </button>
+                  {saveMode === 'confirm' && dirty && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="more-item"
+                        disabled={saving}
+                        onClick={() => runFromMenu(onCommit)}
+                      >
+                        ✓ {t('panels.commitTitle')}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="more-item danger"
+                        onClick={() => runFromMenu(onDiscard)}
+                      >
+                        × {t('panels.discardTitle')}
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+
+              {viewHidden && (
+                <>
+                  <div className="more-sep" />
+                  <div className="more-head">{t('panels.grpView')}</div>
+                  <label className="more-check">
+                    <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
+                    <span>{t('panels.numbers')}</span>
+                  </label>
+                  <div className="more-zoom">
+                    <button
+                      type="button"
+                      title={t('compare.zoomOut')}
+                      aria-label={t('compare.zoomOut')}
+                      onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}
+                    >
+                      −
+                    </button>
+                    <span>{Math.round(zoom * 100)}%</span>
+                    <button
+                      type="button"
+                      title={t('compare.zoomIn')}
+                      aria-label={t('compare.zoomIn')}
+                      onClick={() => setZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))}
+                    >
+                      ＋
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

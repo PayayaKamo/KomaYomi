@@ -436,6 +436,7 @@ export const zh = {
   'panels.grpEdit': '编辑',
   'panels.grpView': '视图',
   'panels.infoTitle': '切格数据详情',
+  'panels.moreTitle': '更多切格操作',
   'panels.sourceLabel': '数据来源',
   'panels.saveCountLabel': '保存次数',
   'panels.lastSavedLabel': '最后保存',

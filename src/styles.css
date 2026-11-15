@@ -5537,3 +5537,176 @@ kbd {
     max-height: 180px;
   }
 }
+
+/* ---- Panel toolbar: one row at every width, overflow goes into ≡ ---- */
+.panels-toolbar {
+  flex-wrap: nowrap;
+}
+
+.panels-toolbar .tb-group {
+  flex-wrap: nowrap;
+  flex: none;
+}
+
+.panels-toolbar .btn,
+.panels-toolbar .tb-label,
+.panels-toolbar .tb-select {
+  flex: none;
+  white-space: nowrap;
+}
+
+.panels-toolbar .tb-group.tb-view {
+  margin-left: 0;
+}
+
+.panels-toolbar .tb-overflow {
+  order: 99;
+  margin-left: auto;
+}
+
+/* Measured by the component: shed labels first, then view, edit and split. */
+.panels-toolbar[data-fit='1'],
+.panels-toolbar[data-fit='2'],
+.panels-toolbar[data-fit='3'],
+.panels-toolbar[data-fit='4'],
+.panels-toolbar[data-fit='5'] {
+  gap: 8px 7px;
+}
+
+.panels-toolbar[data-fit='1'] .tb-group-label,
+.panels-toolbar[data-fit='2'] .tb-group-label,
+.panels-toolbar[data-fit='3'] .tb-group-label,
+.panels-toolbar[data-fit='4'] .tb-group-label,
+.panels-toolbar[data-fit='5'] .tb-group-label {
+  display: none;
+}
+
+.panels-toolbar[data-fit='2'] .tb-view,
+.panels-toolbar[data-fit='3'] .tb-view,
+.panels-toolbar[data-fit='4'] .tb-view,
+.panels-toolbar[data-fit='5'] .tb-view {
+  display: none;
+}
+
+.panels-toolbar[data-fit='3'] .tb-edit,
+.panels-toolbar[data-fit='4'] .tb-edit,
+.panels-toolbar[data-fit='5'] .tb-edit {
+  display: none;
+}
+
+/* Level 4 keeps "auto split" and "add panel", dropping the rarer split tools. */
+.panels-toolbar[data-fit='4'] .tb-extra,
+.panels-toolbar[data-fit='5'] .tb-extra {
+  display: none;
+}
+
+.panels-toolbar[data-fit='5'] .tb-split {
+  display: none;
+}
+
+.more-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 45;
+  width: min(330px, calc(100vw - 20px));
+  max-height: min(70vh, 440px);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 35%);
+  text-align: left;
+}
+
+.more-head {
+  padding: 4px 6px 6px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.more-head + .meta-list {
+  padding: 0 6px 4px;
+}
+
+.more-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--line);
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.more-item:hover:not(:disabled),
+.more-item:focus-visible {
+  background: var(--panel-2);
+}
+
+.more-item:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.more-item.danger {
+  color: var(--danger-text);
+}
+
+.more-row {
+  padding: 2px 4px;
+}
+
+.more-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.more-check:hover {
+  background: var(--panel-2);
+}
+
+.more-zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+}
+
+.more-zoom button {
+  width: 28px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: inherit;
+  cursor: pointer;
+}
+
+.more-zoom span {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
