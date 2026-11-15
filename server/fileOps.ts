@@ -321,10 +321,11 @@ export function renameChapterFiles(rawRoot: string, dataRoot: string, input: Ren
   }
 
   const at = new Date().toISOString();
+  const tag = stamp();
   fs.mkdirSync(fileOpsRoot(dataRoot), { recursive: true });
   const manifestFile = path.join(
     fileOpsRoot(dataRoot),
-    `${stamp()}-rename-${volume.replace(INVALID_NAME, '_')}-${chapter.replace(INVALID_NAME, '_')}.json`,
+    `${tag}-rename-${volume.replace(INVALID_NAME, '_')}-${chapter.replace(INVALID_NAME, '_')}.json`,
   );
   const docMoves: DocMove[] = [];
   for (const [oldIndex, position] of positionOf) {
@@ -357,7 +358,12 @@ export function renameChapterFiles(rawRoot: string, dataRoot: string, input: Ren
     const docs = movePageData(dataRoot, volume, chapter, docMoves);
     undoDocs = docs.undo;
     remapChapterPages(dataRoot, volume, chapter, (index) => positionOf.get(index) ?? null);
-    writeManifest(dataRoot, manifestFile, manifest, 'applied');
+    // The moves are already committed; a failed status write must not undo them.
+    try {
+      writeManifest(dataRoot, manifestFile, manifest, 'applied');
+    } catch {
+      /* the pending manifest still lists every move */
+    }
     return {
       at,
       manifest: relPath(dataRoot, manifestFile),
@@ -573,12 +579,13 @@ export function splitPage(rawRoot: string, dataRoot: string, input: SplitInput):
   });
 
   const at = new Date().toISOString();
+  const tag = stamp();
   fs.mkdirSync(fileOpsRoot(dataRoot), { recursive: true });
   const manifestFile = path.join(
     fileOpsRoot(dataRoot),
-    `${stamp()}-split-${volume.replace(INVALID_NAME, '_')}-${chapter.replace(INVALID_NAME, '_')}-${pageIndex + 1}.json`,
+    `${tag}-split-${volume.replace(INVALID_NAME, '_')}-${chapter.replace(INVALID_NAME, '_')}-${pageIndex + 1}.json`,
   );
-  const backupRoot = path.join(fileOpsRoot(dataRoot), `${stamp()}-split-${pageIndex + 1}`);
+  const backupRoot = path.join(fileOpsRoot(dataRoot), `${tag}-split-${pageIndex + 1}`);
 
   const written: string[] = [];
   const backups: Backup[] = [];
@@ -674,7 +681,12 @@ export function splitPage(rawRoot: string, dataRoot: string, input: SplitInput):
       entryBackup.removed = true;
     }
 
-    writeManifest(dataRoot, manifestFile, manifest, 'applied');
+    // The split is already committed; a failed status write must not undo it.
+    try {
+      writeManifest(dataRoot, manifestFile, manifest, 'applied');
+    } catch {
+      /* the pending manifest still lists every move */
+    }
     return {
       at,
       manifest: relPath(dataRoot, manifestFile),
