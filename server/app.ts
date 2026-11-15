@@ -78,7 +78,7 @@ import { currentLang, resolveRequestLang, runWithLang, t } from './messages/inde
 import type { MessageCode, MessageParams } from './messages/index.ts';
 import { AppError, errorBody, toErrorResponse } from './errors.ts';
 import { requireChapter, requirePage } from './pageTargets.ts';
-import { assertTrustedRequest, isLoopbackHost } from './requestGuard.ts';
+import { assertTrustedOrigin, assertTrustedRequest, isLoopbackHost } from './requestGuard.ts';
 import type { RequestGuardOptions } from './requestGuard.ts';
 import { setFormatAppVersion } from '../shared/format.ts';
 
@@ -319,6 +319,8 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
       // ---- Exported files (HTML plus the sibling .files directory) ----
       if (pathname.startsWith('/exports/')) {
         const rel = decodeURIComponent(pathname.slice('/exports/'.length));
+        // Backups contain the whole library and must not be fetchable by other sites.
+        if (/\.zip$/i.test(rel)) assertTrustedOrigin(req, guard);
         const file = safeResolve(exportRoot, rel);
         if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
           fail(res, 404, 'ERR_EXPORT_FILE_NOT_FOUND', { path: rel });

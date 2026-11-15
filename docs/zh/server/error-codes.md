@@ -168,6 +168,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_REMOTE_SOURCE_MISSING`    | 400  | 尚未配置远端素材目录         | 没配置就请求同步         | 到「设置 → 存储」配置来源。                 |
 | `ERR_STORAGE_TARGET_NOT_FOUND` | 404  | 存储目标不存在：{targetId}   | 目标被删、标签页过期     | 重新加载存储设置。                          |
 | `ERR_STORAGE_LIST_FAILED`      | 503  | 无法列出目录：{detail}       | 共享离线、权限不足       | 检查连通性和凭据。                          |
+| `ERR_SECRETS_DECRYPT_FAILED`   | 500  | 无法解密已保存的凭据         | `.secret.key` 被替换或丢失、凭据文件被改 | 恢复匹配的 `.secret.key` 后重新输入密码；文件不会被改动。 |
 | `ERR_BACKUP_UPLOAD_FAILED`     | 503  | 备份上传失败：{detail}       | WebDAV 出错、磁盘满      | 查看 `detail` 参数和目标设置。              |
 | `ERR_AUTO_BACKUP_FAILED`       | 500  | 定时备份失败：{detail}       | 触发时目标不可写、磁盘满 | 查看 `detail`；备份目标列表会保留失败信息。 |
 

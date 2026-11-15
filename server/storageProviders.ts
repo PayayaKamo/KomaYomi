@@ -124,11 +124,11 @@ const sanitizeTarget = (t: StorageTarget): StorageTarget => ({
 
 function keyFor(dataRoot: string): Buffer {
   const file = path.join(dataRoot, KEY_FILE);
-  try {
+  if (fs.existsSync(file)) {
     const raw = fs.readFileSync(file);
     if (raw.length === 32) return raw;
-  } catch {
-    /* create below */
+    // Never replace a damaged key: doing so would make every stored secret unrecoverable.
+    throw new AppError('ERR_SECRETS_DECRYPT_FAILED', {}, 500);
   }
   const key = crypto.randomBytes(32);
   fs.mkdirSync(dataRoot, { recursive: true });
@@ -136,19 +136,30 @@ function keyFor(dataRoot: string): Buffer {
   return key;
 }
 
+/**
+ * Decrypt the secrets file.
+ *
+ * A missing file means "no passwords stored yet" and returns an empty map. Anything else
+ * (missing/rotated key, tampered payload, truncated file) is an error: returning `{}`
+ * here used to make the next save silently overwrite every stored password.
+ */
 function readSecrets(dataRoot: string): Record<string, string> {
+  const file = path.join(dataRoot, SECRET_FILE);
+  if (!fs.existsSync(file)) return {};
   try {
-    const raw = JSON.parse(fs.readFileSync(path.join(dataRoot, SECRET_FILE), 'utf8')) as {
+    const key = keyFor(dataRoot);
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as {
       iv: string;
       tag: string;
       data: string;
     };
-    const decipher = crypto.createDecipheriv('aes-256-gcm', keyFor(dataRoot), Buffer.from(raw.iv, 'base64'));
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(raw.iv, 'base64'));
     decipher.setAuthTag(Buffer.from(raw.tag, 'base64'));
     const plain = Buffer.concat([decipher.update(Buffer.from(raw.data, 'base64')), decipher.final()]);
     return JSON.parse(plain.toString('utf8')) as Record<string, string>;
   } catch {
-    return {};
+    // Keep the original file byte-for-byte; the caller decides how to recover.
+    throw new AppError('ERR_SECRETS_DECRYPT_FAILED', {}, 500);
   }
 }
 
@@ -172,6 +183,8 @@ function writeSecrets(dataRoot: string, secrets: Record<string, string>): void {
 
 /** Store (or, with an empty value, forget) a password for a target id. */
 export function setSecret(dataRoot: string, id: string, secret: string | null): void {
+  // Throws instead of writing when the existing file cannot be decrypted, so a failed
+  // unlock never turns into "all other passwords were just deleted".
   const secrets = readSecrets(dataRoot);
   if (secret) secrets[id] = secret;
   else delete secrets[id];

@@ -62,29 +62,7 @@ export function assertTrustedRequest(req: IncomingMessage, opts: RequestGuardOpt
 
   if (SAFE_METHODS.has(String(req.method ?? 'GET').toUpperCase())) return;
 
-  // ---- Sec-Fetch-Site: browsers label cross-site requests explicitly ----
-  const site = headerValue(req, 'sec-fetch-site').toLowerCase();
-  if (site && !ALLOWED_SITES.has(site)) {
-    throw new AppError('ERR_UNTRUSTED_ORIGIN', { origin: site }, 403);
-  }
-
-  // ---- Origin: same host, a loopback origin, or an explicitly allowed one ----
-  const origin = headerValue(req, 'origin');
-  if (origin) {
-    const originName = hostnameOf(origin);
-    const local = LOOPBACK_HOSTS.has(originName);
-    const sameHost = originName !== '' && originName === hostName;
-    const listed = (opts.allowedOrigins ?? []).some((allowed) => {
-      try {
-        return new URL(allowed).origin === new URL(origin).origin;
-      } catch {
-        return false;
-      }
-    });
-    if (!local && !sameHost && !listed) {
-      throw new AppError('ERR_UNTRUSTED_ORIGIN', { origin }, 403);
-    }
-  }
+  assertTrustedOrigin(req, opts);
 
   // ---- Content type: JSON only, unless the body is an explicit binary upload ----
   const length = Number(headerValue(req, 'content-length') || 0);
@@ -93,5 +71,38 @@ export function assertTrustedRequest(req: IncomingMessage, opts: RequestGuardOpt
   const type = headerValue(req, 'content-type').toLowerCase();
   if (!ALLOWED_TYPES.some((allowed) => type.startsWith(allowed))) {
     throw new AppError('ERR_UNSUPPORTED_CONTENT_TYPE', { type: type.split(';')[0] || '(missing)' }, 415);
+  }
+}
+
+/**
+ * Origin / Sec-Fetch-Site check on its own.
+ *
+ * Used for every non-GET request and for GET downloads of backup archives, where the
+ * response body itself must not be readable by another site.
+ */
+export function assertTrustedOrigin(req: IncomingMessage, opts: RequestGuardOptions = {}): void {
+  const hostName = hostnameOf(headerValue(req, 'host'));
+
+  // ---- Sec-Fetch-Site: browsers label cross-site requests explicitly ----
+  const site = headerValue(req, 'sec-fetch-site').toLowerCase();
+  if (site && !ALLOWED_SITES.has(site)) {
+    throw new AppError('ERR_UNTRUSTED_ORIGIN', { origin: site }, 403);
+  }
+
+  // ---- Origin: same host, a loopback origin, or an explicitly allowed one ----
+  const origin = headerValue(req, 'origin');
+  if (!origin) return;
+  const originName = hostnameOf(origin);
+  const local = LOOPBACK_HOSTS.has(originName);
+  const sameHost = originName !== '' && originName === hostName;
+  const listed = (opts.allowedOrigins ?? []).some((allowed) => {
+    try {
+      return new URL(allowed).origin === new URL(origin).origin;
+    } catch {
+      return false;
+    }
+  });
+  if (!local && !sameHost && !listed) {
+    throw new AppError('ERR_UNTRUSTED_ORIGIN', { origin }, 403);
   }
 }

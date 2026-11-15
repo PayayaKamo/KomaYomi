@@ -5,6 +5,7 @@ import type { IncomingMessage } from 'node:http';
 import { afterAll, describe, expect, it } from 'vitest';
 import { assertTrustedRequest } from '../../server/requestGuard.ts';
 import { startMangaServer } from '../../server/app.ts';
+import { readZip } from '../../server/zip.ts';
 import { AppError } from '../../server/errors.ts';
 import { makeTempDir, removeDir, writeFile } from '../helpers/tmp.ts';
 
@@ -156,5 +157,38 @@ describe('live HTTP guard', () => {
     });
     expect(crossSite.status).toBe(403);
     expect(fs.existsSync(path.join(root, 'data', 'pages', 'Vol1', 'ch1', '0.json'))).toBe(true);
+  });
+
+  it('serves backup zips only to local/same-origin callers', async () => {
+    writeFile(path.join(root, 'exports', 'backup.zip'), 'PK-not-a-real-zip');
+
+    const local = await fetch(`http://127.0.0.1:${port}/exports/backup.zip`);
+    expect(local.status).toBe(200);
+
+    const crossSite = await fetch(`http://127.0.0.1:${port}/exports/backup.zip`, {
+      headers: { origin: 'https://evil.example' },
+    });
+    expect(crossSite.status).toBe(403);
+
+    const metadata = await fetch(`http://127.0.0.1:${port}/exports/backup.zip`, {
+      headers: { 'sec-fetch-site': 'cross-site' },
+    });
+    expect(metadata.status).toBe(403);
+  });
+
+  it('leaves storage credentials out of a real backup archive', async () => {
+    writeFile(path.join(root, 'data', 'pages', 'Vol1', 'ch1', '0.json'), '{"panels":[]}');
+    writeFile(path.join(root, 'data', 'secrets.json.enc'), '{"v":1,"iv":"a","tag":"b","data":"c"}');
+    writeFile(path.join(root, 'data', '.secret.key'), Buffer.alloc(32, 3));
+
+    const resp = await fetch(`http://127.0.0.1:${port}/api/backup`, { method: 'POST' });
+    expect(resp.status).toBe(200);
+    const { url } = (await resp.json()) as { url: string };
+    const zip = await fetch(`http://127.0.0.1:${port}${url}`);
+    expect(zip.status).toBe(200);
+    const names = readZip(Buffer.from(await zip.arrayBuffer())).map((entry) => entry.name);
+    expect(names.some((name) => name.endsWith('secrets.json.enc'))).toBe(false);
+    expect(names.some((name) => name.endsWith('.secret.key'))).toBe(false);
+    expect(names.some((name) => name.includes('pages/Vol1/ch1/0.json'))).toBe(true);
   });
 });

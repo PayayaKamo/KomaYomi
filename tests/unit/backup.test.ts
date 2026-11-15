@@ -125,4 +125,34 @@ describe('backup', () => {
     expect(fs.existsSync(path.join(root, 'evil.txt'))).toBe(false);
     expect(fs.existsSync(path.join(dataRoot, 'safe.json'))).toBe(true);
   });
+
+  it('never packs storage credentials', () => {
+    const dataRoot = tempDir('backup-secrets');
+    seedData(dataRoot);
+    writeFile(path.join(dataRoot, 'secrets.json.enc'), '{"v":1,"iv":"a","tag":"b","data":"c"}');
+    writeFile(path.join(dataRoot, '.secret.key'), Buffer.alloc(32, 7));
+
+    const { buffer } = createBackupBuffer(dataRoot);
+    const names = readZip(buffer).map((e) => e.name);
+    expect(names).toContain('data/pages/Vol1/172/0.json');
+    expect(names.some((n) => n.endsWith('secrets.json.enc'))).toBe(false);
+    expect(names.some((n) => n.endsWith('.secret.key'))).toBe(false);
+  });
+
+  it('ignores credential entries in old archives when restoring', () => {
+    const root = tempDir('backup-secrets-restore');
+    const dataRoot = path.join(root, 'data');
+    const keyBytes = Buffer.alloc(32, 1);
+    writeFile(path.join(dataRoot, '.secret.key'), keyBytes);
+    const buffer = createZip([
+      { name: 'data/secrets.json.enc', data: Buffer.from('{"v":1,"iv":"x","tag":"y","data":"z"}') },
+      { name: 'data/.secret.key', data: Buffer.alloc(32, 9) },
+      { name: 'data/library.json', data: Buffer.from('{"volumes":{}}') },
+    ]);
+
+    const result = restoreBackup(dataRoot, path.join(root, 'exports'), buffer, { snapshot: false });
+    expect(result.restored).toBe(1);
+    expect(fs.existsSync(path.join(dataRoot, 'secrets.json.enc'))).toBe(false);
+    expect(fs.readFileSync(path.join(dataRoot, '.secret.key')).equals(keyBytes)).toBe(true);
+  });
 });

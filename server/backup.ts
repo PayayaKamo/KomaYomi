@@ -8,10 +8,12 @@ import { t } from './messages/index.ts';
 /** Backup layout: every entry is prefixed with `data/` so the archive is self-describing. */
 const SKIP_DIRS = new Set(['cache']);
 const SKIP_EXT = /\.(tmp|log)$/i;
+/** Credentials never leave the machine in a backup archive. */
+const SKIP_FILES = new Set(['secrets.json.enc', '.secret.key']);
 
 function walk(dir: string, rel: string, out: ZipEntryInput[]) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP_DIRS.has(entry.name) || SKIP_EXT.test(entry.name)) continue;
+    if (SKIP_DIRS.has(entry.name) || SKIP_FILES.has(entry.name) || SKIP_EXT.test(entry.name)) continue;
     const abs = path.join(dir, entry.name);
     const relPath = rel ? `${rel}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
@@ -118,6 +120,9 @@ export function restoreBackup(
   for (const entry of entries) {
     if (!entry.name.startsWith('data/') || entry.name.endsWith('/')) continue;
     const rel = entry.name.slice('data/'.length);
+    // Old archives may still contain credentials; never write them back over the live
+    // key/secrets pair (and never import a foreign key by restoring a zip).
+    if (SKIP_FILES.has(path.basename(rel))) continue;
     const target = path.resolve(dataRoot, rel);
     if (!target.startsWith(path.resolve(dataRoot) + path.sep)) {
       warnings.push(t('WARN_SUSPICIOUS_PATH', { name: entry.name }));
