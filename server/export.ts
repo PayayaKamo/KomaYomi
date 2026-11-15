@@ -54,7 +54,6 @@ const DIRECTION_KEY = {
   'horizontal-lr': 'EXPORT_DIRECTION_HORIZONTAL_LR',
   'vertical-rl': 'EXPORT_DIRECTION_VERTICAL_RL',
   'vertical-lr': 'EXPORT_DIRECTION_VERTICAL_LR',
-  'continuous-vertical': 'EXPORT_DIRECTION_CONTINUOUS',
 } as const;
 
 const dirLabel = (direction: ReadingDirection): string => t(DIRECTION_KEY[direction]);

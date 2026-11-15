@@ -49,16 +49,7 @@
     },
     "gridStep": { "type": "number" },
     "readingDirection": {
-      "enum": [
-        "rtl",
-        "ltr",
-        "ttb",
-        "horizontal-rl",
-        "horizontal-lr",
-        "vertical-rl",
-        "vertical-lr",
-        "continuous-vertical"
-      ]
+      "enum": ["rtl", "ltr", "ttb", "horizontal-rl", "horizontal-lr", "vertical-rl", "vertical-lr"]
     },
     "updatedAt": { "type": "string" },
     "detectorVersion": { "type": "string" },

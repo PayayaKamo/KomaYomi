@@ -736,6 +736,8 @@ export function prepareExchange(
     value = migrate(value);
     version++;
   }
+  // The `continuous-vertical` direction was removed; older files read as the default rtl.
+  if (value.readingDirection === 'continuous-vertical') value = { ...value, readingDirection: 'rtl' };
   value = finalizeEnvelope(kind, value);
   if (options.strict !== false) {
     const result = validateExchange(kind, value);

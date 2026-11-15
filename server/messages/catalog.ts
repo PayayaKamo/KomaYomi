@@ -905,11 +905,6 @@ export const MESSAGES = {
     zh: '阅读方向：从左到右 · 竖排',
     ja: '読み方向：左から右 · 縦書き',
   },
-  EXPORT_DIRECTION_CONTINUOUS: {
-    en: 'Reading direction: continuous vertical strip',
-    zh: '阅读方向：条漫 · 连续向下',
-    ja: '読み方向：連続スクロール（縦）',
-  },
   EXPORT_PAGE_NOTES: {
     en: 'Page notes',
     zh: '整页批注',

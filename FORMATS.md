@@ -69,6 +69,9 @@ the schema files are a readable mirror for editors and external tools.
 
 There is no v2 yet. The chain is designed so v2 can be added without touching call sites.
 
+Removed field values do not need a version bump: `continuous-vertical` was removed from
+`readingDirection`, and files that still contain it are read as `rtl`.
+
 ## Reading a file
 
 ### Exchange files (import)

@@ -2047,60 +2047,6 @@ body.pane-resizing * {
   font-size: 13px;
 }
 
-/* ---------------- continuous scroll (webtoon) ---------------- */
-.scroll-tab {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 14px 0 40px;
-  background: var(--bg-2);
-}
-
-.scroll-page {
-  position: relative;
-  margin: 0 auto 10px;
-  width: min(860px, calc(100% - 28px));
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--panel);
-}
-
-.scroll-page.current {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.scroll-page img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.scroll-tag {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 1;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.62);
-  color: #fff;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.scroll-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 /* ---------------- welcome ---------------- */
 .welcome {
   flex: 1;

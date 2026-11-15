@@ -15,16 +15,7 @@
     "name": { "type": "string", "minLength": 1 },
     "scope": { "const": "template" },
     "readingDirection": {
-      "enum": [
-        "rtl",
-        "ltr",
-        "ttb",
-        "horizontal-rl",
-        "horizontal-lr",
-        "vertical-rl",
-        "vertical-lr",
-        "continuous-vertical"
-      ]
+      "enum": ["rtl", "ltr", "ttb", "horizontal-rl", "horizontal-lr", "vertical-rl", "vertical-lr"]
     },
     "margin": { "$ref": "#/$defs/margin" },
     "gap": { "type": "number" },

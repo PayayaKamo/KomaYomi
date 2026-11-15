@@ -17,9 +17,6 @@ export const ja = {
   'app.nextPage': '次のページ',
   'app.tabPanels': 'コマ',
   'app.tabCompare': '比較読み',
-  'app.tabScroll': 'スクロール',
-  /* ---- continuous scroll view ---- */
-  'scroll.noImage': 'このページに画像はありません',
   'app.saveSaving': '保存中…',
   'app.saveUnsaved': '未保存の変更',
   'app.savePending': '保存待ち',
@@ -126,7 +123,7 @@ export const ja = {
   'app.help.global': '全体',
   'app.help.prevNext': '前 / 次のページ（話をまたげます）',
   'app.help.arrowNav': '方向キーでもページ送りできます：右開きは ←、左開きは →、縦読みは ↓ が次ページ',
-  'app.help.switchViews': 'コマ編集 / 比較読み / 連続スクロールに切り替え',
+  'app.help.switchViews': 'コマ編集 / 比較読みに切り替え',
   'app.help.toggleSidebar': 'ライブラリサイドバーの表示を切り替え',
   'app.help.toggleNotes': 'ノート欄の表示を切り替え',
   'app.help.openExport': 'エクスポート画面を開く',
@@ -413,7 +410,6 @@ export const ja = {
   'reading.horizontalLr': '左から右 · 横書き',
   'reading.verticalRl': '右から左 · 縦書き',
   'reading.verticalLr': '左から右 · 縦書き',
-  'reading.continuousVertical': 'webtoon · 縦スクロール',
 
   /* ---- locale switcher (autonyms, identical in every locale) ---- */
   'locale.en': 'English',

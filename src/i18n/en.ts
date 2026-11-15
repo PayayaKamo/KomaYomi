@@ -18,9 +18,6 @@ export const en = {
   'app.nextPage': 'Next page',
   'app.tabPanels': 'Panels',
   'app.tabCompare': 'Compare',
-  'app.tabScroll': 'Scroll',
-  /* ---- continuous scroll view ---- */
-  'scroll.noImage': 'No image on this page',
   'app.saveSaving': 'Saving…',
   'app.saveUnsaved': 'Unsaved changes',
   'app.savePending': 'Pending save',
@@ -128,7 +125,7 @@ export const en = {
   'app.help.global': 'Global',
   'app.help.prevNext': 'Previous / next page (crosses chapters)',
   'app.help.arrowNav': 'Arrow keys follow the reading direction: ← in RTL, → in LTR, ↓ in TTB turn forward',
-  'app.help.switchViews': 'Switch to panel editing / compare reading / continuous scroll',
+  'app.help.switchViews': 'Switch to panel editing / compare reading',
   'app.help.toggleSidebar': 'Show or hide the library sidebar',
   'app.help.toggleNotes': 'Show or hide the notes column',
   'app.help.openExport': 'Open the export dialog',
@@ -417,7 +414,6 @@ export const en = {
   'reading.horizontalLr': 'Left to right · horizontal',
   'reading.verticalRl': 'Right to left · vertical',
   'reading.verticalLr': 'Left to right · vertical',
-  'reading.continuousVertical': 'Webtoon · continuous scroll',
 
   /* ---- locale switcher (autonyms, identical in every locale) ---- */
   'locale.en': 'English',

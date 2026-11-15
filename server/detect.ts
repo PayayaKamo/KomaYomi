@@ -392,10 +392,6 @@ export function sortReadingOrder<T>(
 ): T[] {
   const list = [...items];
   const rects = list.map((item) => ({ item, rect: getRect(item) }));
-  // A webtoon strip has no rows or columns: panels simply go down the page.
-  if (dir === 'continuous-vertical') {
-    return [...rects].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x).map((r) => r.item);
-  }
   if (isVerticalReading(dir)) {
     const medianW = median(rects.map((r) => r.rect.w)) || 0.2;
     const columns: (typeof rects)[] = [];

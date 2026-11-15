@@ -64,6 +64,15 @@ describe('schema versioning', () => {
     expect(prepared.value.schemaVersion).toBe(1);
   });
 
+  it('reads the removed continuous-vertical direction as rtl', () => {
+    const prepared = prepareExchange('page', {
+      ...legacyPage(),
+      schemaVersion: 1,
+      readingDirection: 'continuous-vertical',
+    });
+    expect(prepared.value.readingDirection).toBe('rtl');
+  });
+
   it('keeps unknown fields on a read/write round trip, including panel extras', () => {
     const previous = {
       panels: [{ id: 'p1', rect: { x: 0, y: 0, w: 1, h: 1 }, futurePanelField: 'keep-me' }],

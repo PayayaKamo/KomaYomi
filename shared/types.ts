@@ -70,10 +70,9 @@ export type Note = {
  * - `horizontal-lr` / legacy `ltr`: rows top-to-bottom, left-to-right within a row
  * - `vertical-rl` / legacy `ttb`: columns right-to-left, top-to-bottom within a column
  * - `vertical-lr`: columns left-to-right, top-to-bottom within a column
- * - `continuous-vertical`: one long strip read downwards (webtoon); no page pairing
  */
 export type ReadingDirection =
-  'rtl' | 'ltr' | 'ttb' | 'horizontal-rl' | 'horizontal-lr' | 'vertical-rl' | 'vertical-lr' | 'continuous-vertical';
+  'rtl' | 'ltr' | 'ttb' | 'horizontal-rl' | 'horizontal-lr' | 'vertical-rl' | 'vertical-lr';
 
 /** Canonical order used by the selectors; legacy values stay first for familiarity. */
 export const READING_DIRECTIONS: readonly ReadingDirection[] = [
@@ -84,7 +83,6 @@ export const READING_DIRECTIONS: readonly ReadingDirection[] = [
   'horizontal-lr',
   'vertical-rl',
   'vertical-lr',
-  'continuous-vertical',
 ];
 
 export const READING_LABEL: Record<ReadingDirection, string> = {
@@ -95,7 +93,6 @@ export const READING_LABEL: Record<ReadingDirection, string> = {
   'horizontal-lr': '从左到右 · 横排',
   'vertical-rl': '从右到左 · 竖排',
   'vertical-lr': '从左到右 · 竖排',
-  'continuous-vertical': '条漫 · 连续向下',
 };
 
 /** True when rows/columns progress right-to-left. */
@@ -103,14 +100,9 @@ export function isRightToLeft(direction: ReadingDirection): boolean {
   return direction === 'rtl' || direction === 'ttb' || direction === 'horizontal-rl' || direction === 'vertical-rl';
 }
 
-/** True when the strip is read downwards (vertical columns or webtoon). */
+/** True when the strip is read downwards (vertical columns). */
 export function isVerticalReading(direction: ReadingDirection): boolean {
-  return (
-    direction === 'ttb' ||
-    direction === 'vertical-rl' ||
-    direction === 'vertical-lr' ||
-    direction === 'continuous-vertical'
-  );
+  return direction === 'ttb' || direction === 'vertical-rl' || direction === 'vertical-lr';
 }
 
 /**
