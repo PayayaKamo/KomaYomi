@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirection } from '../shared/types.ts';
 import { DEFAULT_OFFSET } from '../shared/types.ts';
+import { preserveUnknown } from '../shared/format.ts';
+import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 import { t } from './messages/index.ts';
 
 export function pageFilePath(dataRoot: string, volume: string, chapter: string, pageIndex: number): string {
@@ -10,7 +12,7 @@ export function pageFilePath(dataRoot: string, volume: string, chapter: string, 
 
 export function createEmptyDoc(volume: string, chapter: string, pageIndex: number): PageDoc {
   return {
-    version: 1,
+    schemaVersion: 1,
     volume,
     chapter,
     pageIndex,
@@ -156,7 +158,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
     .filter((a) => a.points.length > 0);
 
   return {
-    version: 1,
+    schemaVersion: 1,
     volume: String(input.volume ?? ''),
     chapter: String(input.chapter ?? ''),
     pageIndex: Number(input.pageIndex) || 0,
@@ -184,8 +186,10 @@ export function readPageDoc(dataRoot: string, volume: string, chapter: string, p
   const file = pageFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(file)) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as PageDoc;
-    return normalizeDoc(parsed);
+    const stored = readStoredFile<PageDoc>(file, 'page');
+    if (!stored) return null;
+    // Keep fields written by a future build so a save never silently drops them.
+    return preserveUnknown(stored.data, normalizeDoc(stored.data));
   } catch {
     return null;
   }
@@ -231,6 +235,10 @@ function summarize(prev: PageDoc | null, next: PageDoc): string {
 }
 
 export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
+  const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
+  // A page written by a newer build stays untouched instead of being downgraded.
+  assertWritableFile(file, 'page');
+  const prevRaw = readRawRecord(file);
   const prev = readPageDoc(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
   const normalized = normalizeDoc(doc);
   const now = new Date().toISOString();
@@ -253,12 +261,9 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
     (meta?.detect ? t('HISTORY_DETECTED', { version: meta.detect.version }) : summarize(prev, normalized));
   normalized.updatedAt = now;
 
-  const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(normalized, null, 2), 'utf8');
-  fs.renameSync(tmp, file);
-  return normalized;
+  const merged = preserveUnknown(prevRaw, normalized);
+  writeStoredFile(file, 'page', merged);
+  return merged;
 }
 
 export function ensureOffset(doc: PageDoc, lang: Lang): AlignOffset {

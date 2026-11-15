@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LANGUAGES, LANG_LABEL, SINGLE_CHAPTER } from '../shared/types.ts';
+import { preserveUnknown } from '../shared/format.ts';
+import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 import type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry } from '../shared/types.ts';
 import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
 import type { DirRule, UnmatchedFile } from './dirRules.ts';
@@ -44,6 +46,9 @@ const normalizeDir = (name: string) =>
 
 /** data/library.json：语言目录映射与目录识别规则 */
 export type LibraryConfig = {
+  $schema?: string;
+  schemaVersion?: number;
+  kind?: 'mnconfig';
   volumes?: Record<string, { dirs?: Partial<Record<Lang, string>> }>;
   /** Declarative scan rules, tried in order. Empty/absent means DEFAULT_RULES. */
   rules?: DirRule[];
@@ -65,17 +70,18 @@ export function normalizeLangOrder(value: Lang[] | undefined): Lang[] {
 
 export function readLibraryConfig(dataRoot: string): LibraryConfig {
   try {
-    const raw = fs.readFileSync(path.join(dataRoot, 'library.json'), 'utf8');
-    const parsed = JSON.parse(raw) as LibraryConfig;
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    const stored = readStoredFile<LibraryConfig>(path.join(dataRoot, 'library.json'), 'mnconfig');
+    return stored?.data && typeof stored.data === 'object' ? stored.data : {};
   } catch {
     return {};
   }
 }
 
 export function writeLibraryConfig(dataRoot: string, cfg: LibraryConfig): void {
-  fs.mkdirSync(dataRoot, { recursive: true });
-  fs.writeFileSync(path.join(dataRoot, 'library.json'), JSON.stringify(cfg, null, 2), 'utf8');
+  const file = path.join(dataRoot, 'library.json');
+  assertWritableFile(file, 'mnconfig');
+  // Unknown keys from a newer build survive this save.
+  writeStoredFile(file, 'mnconfig', preserveUnknown(readRawRecord(file), cfg));
 }
 
 /** 猜测目录名对应哪门语言 */

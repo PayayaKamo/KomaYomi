@@ -359,6 +359,16 @@ export const MESSAGES = {
     zh: 'library.json 不是 JSON 对象',
     ja: 'library.json が JSON オブジェクトではありません',
   },
+  ERR_SCHEMA_TOO_NEW: {
+    en: 'This file was written by a newer KomaYomi (schema v{found}, this build supports v{supported}); it stays read-only until you upgrade',
+    zh: '该文件来自更高版本（schema v{found}，当前支持 v{supported}），升级前保持只读',
+    ja: 'このファイルは新しいバージョンの KomaYomi で作成されています（schema v{found}、対応 v{supported}）。更新するまで読み取り専用です',
+  },
+  ERR_SCHEMA_MIGRATION: {
+    en: 'Could not migrate {file} from schema v{from}: {detail}',
+    zh: '无法把 {file} 从 schema v{from} 迁移：{detail}',
+    ja: '{file} を schema v{from} から移行できません：{detail}',
+  },
   ERR_BACKUP_NOT_KOMAYOMI: {
     en: 'The archive has no data/ directory — this may not be a KomaYomi backup',
     zh: '压缩包里没有 data/ 目录，可能不是本工具的备份',

@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 3,
@@ -97,5 +96,9 @@
   "detectSource": "auto",
   "editCount": 1,
   "lastEditedAt": "2026-11-14T19:46:13.209Z",
-  "lastEditSummary": "创建页面数据"
+  "lastEditSummary": "创建页面数据",
+  "schemaVersion": 1,
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "appVersion": "0.1.0",
+  "kind": "page"
 }

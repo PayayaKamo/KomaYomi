@@ -1,3 +1,11 @@
 {
-  "volumes": {}
+  "volumes": {},
+  "langOrder": [
+    "ja",
+    "zh",
+    "en"
+  ],
+  "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnconfig"
 }

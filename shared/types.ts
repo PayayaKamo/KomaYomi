@@ -164,7 +164,7 @@ export type NoteImage = {
 };
 
 export type PageDoc = {
-  version: 1;
+  schemaVersion: 1;
   volume: string;
   chapter: string;
   pageIndex: number;

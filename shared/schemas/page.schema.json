@@ -23,7 +23,7 @@
     "$schema": { "type": "string" },
     "schemaVersion": { "type": "integer", "minimum": 0 },
     "kind": { "const": "page" },
-    "version": { "type": "integer", "minimum": 1 },
+    "appVersion": { "type": "string" },
     "volume": { "type": "string", "minLength": 1 },
     "chapter": { "type": "string", "minLength": 1 },
     "pageIndex": { "type": "integer", "minimum": 0 },

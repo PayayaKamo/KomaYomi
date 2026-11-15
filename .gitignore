@@ -22,6 +22,10 @@ data/tmp/
 data/backups/
 .tmp/
 
+# Schema-migration backups (pre-upgrade bytes, kept next to the migrated file)
+*.v[0-9].bak
+*.v[0-9][0-9].bak
+
 # Editor / OS files
 .vscode/
 .idea/

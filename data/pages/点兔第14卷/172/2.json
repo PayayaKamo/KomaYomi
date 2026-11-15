@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 2,
@@ -97,5 +96,9 @@
   "panelOffsets": {},
   "gridStep": 1,
   "readingDirection": "rtl",
-  "updatedAt": "2026-11-14T19:20:11.324Z"
+  "updatedAt": "2026-11-14T19:20:11.324Z",
+  "schemaVersion": 1,
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "appVersion": "0.1.0",
+  "kind": "page"
 }

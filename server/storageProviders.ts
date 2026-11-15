@@ -14,8 +14,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { preserveUnknown } from '../shared/format.ts';
 import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
+import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 
 export type StorageKind = 'local' | 'network' | 'webdav';
 
@@ -36,7 +38,7 @@ export type StorageTarget = {
 };
 
 export type StorageConfig = {
-  version: 1;
+  schemaVersion: 1;
   /** Optional remote library root. When set, pages are fetched on demand and cached. */
   rawSource?: StorageTarget;
   /** Backup destinations shown in the UI. */
@@ -70,35 +72,35 @@ const SECRET_FILE = 'secrets.json.enc';
 const KEY_FILE = '.secret.key';
 
 export const DEFAULT_STORAGE_CONFIG: StorageConfig = {
-  version: 1,
+  schemaVersion: 1,
   backups: [],
   cacheLimitMb: 512,
 };
 
 export function readStorageConfig(dataRoot: string): StorageConfig {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(path.join(dataRoot, CONFIG_FILE), 'utf8')) as Partial<StorageConfig>;
-    return {
-      version: 1,
-      rawSource: parsed.rawSource,
-      backups: Array.isArray(parsed.backups) ? parsed.backups : [],
-      cacheLimitMb: clampLimit(parsed.cacheLimitMb),
-    };
-  } catch {
-    return { ...DEFAULT_STORAGE_CONFIG };
-  }
+  const stored = readStoredFile<Partial<StorageConfig>>(path.join(dataRoot, CONFIG_FILE), 'mnstorage');
+  const parsed = stored?.data ?? {};
+  return {
+    schemaVersion: 1,
+    rawSource: parsed.rawSource,
+    backups: Array.isArray(parsed.backups) ? parsed.backups : [],
+    cacheLimitMb: clampLimit(parsed.cacheLimitMb),
+  };
 }
 
 export function writeStorageConfig(dataRoot: string, cfg: StorageConfig): StorageConfig {
+  const file = path.join(dataRoot, CONFIG_FILE);
+  assertWritableFile(file, 'mnstorage');
   const clean: StorageConfig = {
-    version: 1,
+    schemaVersion: 1,
     rawSource: cfg.rawSource ? sanitizeTarget(cfg.rawSource) : undefined,
     backups: (cfg.backups ?? []).map(sanitizeTarget),
     cacheLimitMb: clampLimit(cfg.cacheLimitMb),
   };
-  fs.mkdirSync(dataRoot, { recursive: true });
-  atomicWrite(path.join(dataRoot, CONFIG_FILE), Buffer.from(JSON.stringify(clean, null, 2)));
-  return clean;
+  // Unknown keys from a newer build survive this save.
+  const merged = preserveUnknown(readRawRecord(file), clean) as StorageConfig;
+  writeStoredFile(file, 'mnstorage', merged);
+  return merged;
 }
 
 const clampLimit = (n: unknown) => {

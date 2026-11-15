@@ -76,16 +76,27 @@
     }
   ],
   "notes": [],
-  "offsets": {},
+  "offsets": {
+    "en": {
+      "x": 0,
+      "y": 0,
+      "scale": 0.73
+    },
+    "zh": {
+      "x": 0,
+      "y": 0,
+      "scale": 0.881
+    }
+  },
   "alignMode": "page",
   "panelOffsets": {},
   "gridStep": 1,
   "readingDirection": "rtl",
-  "updatedAt": "2026-11-14T20:19:56.197Z",
+  "updatedAt": "2026-11-15T05:41:08.806Z",
   "detectorVersion": "xycut-1.3",
   "detectedAt": "2026-11-14T20:19:55.474Z",
   "detectSource": "auto",
-  "editCount": 1,
-  "lastEditedAt": "2026-11-14T20:19:56.197Z",
-  "lastEditSummary": "创建页面数据"
+  "editCount": 5,
+  "lastEditedAt": "2026-11-15T05:41:08.806Z",
+  "lastEditSummary": "对齐偏移"
 }

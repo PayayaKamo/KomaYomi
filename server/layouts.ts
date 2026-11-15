@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { LayoutTemplate, PanelRect } from '../shared/types.ts';
+import { preserveUnknown } from '../shared/format.ts';
 import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
+import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 
 /**
  * Declarative layout templates live in `data/layouts/*.json`.
@@ -63,8 +65,9 @@ export function listLayouts(dataRoot: string): LayoutTemplate[] {
   for (const file of fs.readdirSync(dir)) {
     if (!file.endsWith('.json')) continue;
     try {
-      const raw = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as Partial<LayoutTemplate>;
-      const layout = normalizeLayout(raw);
+      const stored = readStoredFile<Partial<LayoutTemplate>>(path.join(dir, file), 'mnlayout');
+      if (!stored) continue;
+      const layout = normalizeLayout(stored.data);
       if (layout) out.push(layout);
     } catch {
       /* Ignore a single broken file so the rest of the library keeps working. */
@@ -77,7 +80,8 @@ export function readLayout(dataRoot: string, id: string): LayoutTemplate | null 
   const file = path.join(layoutDir(dataRoot), `${path.basename(id)}.json`);
   if (!fs.existsSync(file)) return null;
   try {
-    return normalizeLayout(JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<LayoutTemplate>);
+    const stored = readStoredFile<Partial<LayoutTemplate>>(file, 'mnlayout');
+    return stored ? normalizeLayout(stored.data) : null;
   } catch {
     return null;
   }
@@ -86,12 +90,10 @@ export function readLayout(dataRoot: string, id: string): LayoutTemplate | null 
 export function saveLayout(dataRoot: string, input: Partial<LayoutTemplate>): LayoutTemplate {
   const layout = normalizeLayout(input);
   if (!layout) throw new AppError('ERR_LAYOUT_SAVE_INVALID', {}, 400);
-  const dir = layoutDir(dataRoot);
-  fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `${path.basename(layout.id)}.json`);
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(layout, null, 2), 'utf8');
-  fs.renameSync(tmp, file);
+  const file = path.join(layoutDir(dataRoot), `${path.basename(layout.id)}.json`);
+  assertWritableFile(file, 'mnlayout');
+  // Unknown keys written by a newer build survive this save.
+  writeStoredFile(file, 'mnlayout', preserveUnknown(readRawRecord(file), layout));
   return layout;
 }
 

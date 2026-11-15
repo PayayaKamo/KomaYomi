@@ -264,10 +264,9 @@ export function exportPage(opts: {
   if (!doc) throw new AppError('ERR_PAGE_NOT_SAVED', {}, 400);
 
   const value: Record<string, unknown> = {
-    $schema: SCHEMA_URLS.page,
-    schemaVersion: CURRENT_SCHEMA_VERSION.page,
-    kind: 'page',
     ...doc,
+    $schema: SCHEMA_URLS.page,
+    kind: 'page',
   };
   const check = validateExchange('page', value);
   if (!check.ok) {

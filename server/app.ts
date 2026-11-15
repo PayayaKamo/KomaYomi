@@ -62,6 +62,7 @@ import { LANGUAGES } from '../shared/types.ts';
 import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
 import type { MessageCode, MessageParams } from './messages/index.ts';
 import { AppError, errorBody, toErrorResponse } from './errors.ts';
+import { setFormatAppVersion } from '../shared/format.ts';
 
 const MIME: Record<string, string> = {
   png: 'image/png',
@@ -183,6 +184,8 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       return fallback;
     }
   })();
+  // Every exported/own file records which build produced it.
+  setFormatAppVersion(appMeta.version);
 
   /**
    * Fetch a page image from the configured remote source into the local cache.

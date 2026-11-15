@@ -99,7 +99,7 @@ export type StorageTarget = {
 };
 
 export type StorageConfig = {
-  version: 1;
+  schemaVersion: 1;
   rawSource?: StorageTarget;
   backups: StorageTarget[];
   cacheLimitMb: number;

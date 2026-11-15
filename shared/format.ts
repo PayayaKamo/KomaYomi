@@ -15,6 +15,12 @@ export const SCHEMA_URLS = {
   mntpl: `${SCHEMA_BASE}mntpl.schema.json`,
   mnexp: `${SCHEMA_BASE}mnexp.schema.json`,
   page: `${SCHEMA_BASE}page.schema.json`,
+  /* Stored-only formats: same envelope rules, never imported from disk by the user. */
+  mntp: `${SCHEMA_BASE}mntp.schema.json`,
+  mnalign: `${SCHEMA_BASE}mnalign.schema.json`,
+  mnlayout: `${SCHEMA_BASE}mnlayout.schema.json`,
+  mnconfig: `${SCHEMA_BASE}mnconfig.schema.json`,
+  mnstorage: `${SCHEMA_BASE}mnstorage.schema.json`,
 } as const;
 
 export type ExchangeKind = keyof typeof SCHEMA_URLS;
@@ -24,6 +30,11 @@ export const FORMAT_LABEL: Record<ExchangeKind, string> = {
   mntpl: '版式模板',
   mnexp: '导出模板',
   page: '页面 JSON',
+  mntp: '分格模板',
+  mnalign: '对齐预设',
+  mnlayout: '版式模板',
+  mnconfig: '目录配置',
+  mnstorage: '存储配置',
 };
 
 export const CURRENT_SCHEMA_VERSION: Record<ExchangeKind, number> = {
@@ -31,6 +42,11 @@ export const CURRENT_SCHEMA_VERSION: Record<ExchangeKind, number> = {
   mntpl: 1,
   mnexp: 1,
   page: 1,
+  mntp: 1,
+  mnalign: 1,
+  mnlayout: 1,
+  mnconfig: 1,
+  mnstorage: 1,
 };
 
 export const FORMAT_EXTENSION: Record<ExchangeKind, string> = {
@@ -38,6 +54,12 @@ export const FORMAT_EXTENSION: Record<ExchangeKind, string> = {
   mntpl: '.mntpl',
   mnexp: '.mnexp',
   page: '.mnpage.json',
+  /* Stored files keep their own on-disk names; no user-facing extension. */
+  mntp: '',
+  mnalign: '',
+  mnlayout: '',
+  mnconfig: '',
+  mnstorage: '',
 };
 
 export type LayoutTemplateExchange = Omit<LayoutTemplate, 'scope' | 'volume' | 'chapter' | 'pageIndex'> & {
@@ -259,10 +281,10 @@ const annotationSpec = object(
 
 const pageSpec = object(
   {
-    version: int({ min: 1 }),
     $schema: str(),
     schemaVersion: int({ min: 0 }),
     kind: str({ enum: ['page'] }),
+    appVersion: str(),
     volume: str({ minLength: 1 }),
     chapter: str({ minLength: 1 }),
     pageIndex: int({ min: 0 }),
@@ -408,11 +430,107 @@ const manifestSpec = object(
   ['schemaVersion', 'storageMode', 'language', 'inventory'],
 );
 
+/* ---------- stored-only formats (data/*.json, no user-facing extension) ---------- */
+
+const envelopeFields = {
+  $schema: str(),
+  schemaVersion: int({ min: 0 }),
+  appVersion: str(),
+};
+
+const panelTemplateSpec = object(
+  {
+    ...envelopeFields,
+    kind: str({ enum: ['mntp'] }),
+    id: str({ minLength: 1 }),
+    name: str({ minLength: 1 }),
+    panels: array(rectSpec),
+    readingDirection: str({ enum: ['rtl', 'ltr', 'ttb'] }),
+    createdAt: str(),
+  },
+  ['$schema', 'schemaVersion', 'kind', 'id', 'panels'],
+);
+
+const alignPresetSpec = object(
+  {
+    ...envelopeFields,
+    kind: str({ enum: ['mnalign'] }),
+    id: str({ minLength: 1 }),
+    name: str({ minLength: 1 }),
+    scope: str({ enum: ['page', 'chapter'] }),
+    mode: str({ enum: ['page', 'panel', 'anchors', 'grid'] }),
+    offsets: record(offsetSpec),
+    panelOffsets: record(record(offsetSpec)),
+    gridStep: num(),
+    createdAt: str(),
+  },
+  ['$schema', 'schemaVersion', 'kind', 'id', 'offsets'],
+);
+
+const storedLayoutSpec = object(
+  {
+    ...envelopeFields,
+    kind: str({ enum: ['mnlayout'] }),
+    id: str({ minLength: 1 }),
+    name: str({ minLength: 1 }),
+    scope: str({ enum: ['volume', 'chapter', 'page'] }),
+    volume: str(),
+    chapter: str(),
+    pageIndex: int({ min: 0 }),
+    readingDirection: str({ enum: ['rtl', 'ltr', 'ttb'] }),
+    margin: marginSpec,
+    gap: num(),
+    colWeights: array(num()),
+    grid: gridSpec,
+    pageOverrides: record(pageOverrideSpec),
+    createdAt: str(),
+    notes: str(),
+  },
+  ['$schema', 'schemaVersion', 'kind', 'id', 'grid'],
+);
+
+const dirRuleSpec = object(
+  {
+    id: str({ minLength: 1 }),
+    name: str(),
+    pattern: str({ minLength: 1 }),
+    ignore: array(str()),
+    extensions: array(str()),
+    language: str({ enum: LANGUAGES }),
+    enabled: bool(),
+  },
+  ['id', 'pattern'],
+);
+
+const libraryConfigSpec = object(
+  {
+    ...envelopeFields,
+    kind: str({ enum: ['mnconfig'] }),
+    volumes: record(object({ dirs: record(str()) }, [])),
+    rules: array(dirRuleSpec),
+    langOrder: array(str({ enum: LANGUAGES })),
+  },
+  ['$schema', 'schemaVersion', 'kind'],
+);
+
+const storageConfigSpec = object(
+  {
+    ...envelopeFields,
+    kind: str({ enum: ['mnstorage'] }),
+  },
+  ['$schema', 'schemaVersion', 'kind'],
+);
+
 const SPECS: Record<ExchangeKind, Spec> = {
   mnproj: manifestSpec,
   mntpl: layoutSpec,
   mnexp: exportTemplateSpec,
   page: pageSpec,
+  mntp: panelTemplateSpec,
+  mnalign: alignPresetSpec,
+  mnlayout: storedLayoutSpec,
+  mnconfig: libraryConfigSpec,
+  mnstorage: storageConfigSpec,
 };
 
 /** 只做校验，不迁移。返回的 errors 直接带字段路径。 */
@@ -446,12 +564,33 @@ const MIGRATIONS: Record<ExchangeKind, Record<number, (value: Record<string, unk
   mntpl: { 0: migrateLayoutTemplateV0 },
   mnexp: { 0: migrateExportTemplateV0 },
   page: { 0: migratePageV0 },
+  /* Stored formats had no envelope before v1, so v0 only needs the fields added. */
+  mntp: { 0: (value) => ({ ...value }) },
+  mnalign: { 0: (value) => ({ ...value }) },
+  mnlayout: { 0: (value) => ({ ...value }) },
+  mnconfig: { 0: (value) => ({ ...value }) },
+  mnstorage: {
+    0: (value) => {
+      const out: Record<string, unknown> = { ...value };
+      // `version` was the pre-1.0 spelling of the envelope field.
+      delete out.version;
+      return out;
+    },
+  },
 };
+
+let exportAppVersion = '';
+
+/** The server sets this once, so every file it writes records the producing app version. */
+export function setFormatAppVersion(version: string): void {
+  exportAppVersion = version;
+}
 
 function finalizeEnvelope(kind: ExchangeKind, value: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...value };
   out.$schema = SCHEMA_URLS[kind];
   out.schemaVersion = CURRENT_SCHEMA_VERSION[kind];
+  if (exportAppVersion) out.appVersion = exportAppVersion;
   if (kind !== 'mnproj') out.kind = kind;
   if (kind === 'mntpl') {
     delete out.volume;
@@ -463,10 +602,52 @@ function finalizeEnvelope(kind: ExchangeKind, value: Record<string, unknown>): R
 }
 
 /**
+ * 未知字段透传：读入旧文件时保留我们还不认识的字段，写回时不会丢。
+ * 数组按 `id` 合并元素，其余数组原样取新值（顺序与删除语义由新数据决定）。
+ */
+export function preserveUnknown<T>(previous: unknown, next: T): T {
+  if (!isRecord(previous) || !isRecord(next)) return next;
+  const out: Record<string, unknown> = { ...next };
+  for (const [key, prevValue] of Object.entries(previous)) {
+    if (!(key in out)) {
+      out[key] = prevValue;
+      continue;
+    }
+    const nextValue = out[key];
+    if (Array.isArray(prevValue) && Array.isArray(nextValue)) {
+      out[key] = mergeById(prevValue, nextValue);
+    } else if (isRecord(prevValue) && isRecord(nextValue)) {
+      out[key] = preserveUnknown(prevValue, nextValue);
+    }
+  }
+  return out as T;
+}
+
+function mergeById(prev: unknown[], next: unknown[]): unknown[] {
+  const prevById = new Map<string, unknown>();
+  for (const item of prev) if (isRecord(item) && typeof item.id === 'string') prevById.set(item.id, item);
+  if (!prevById.size) return next;
+  let matched = false;
+  const merged = next.map((item) => {
+    if (!isRecord(item)) return item;
+    const old = typeof item.id === 'string' ? prevById.get(item.id) : undefined;
+    if (!old) return item;
+    matched = true;
+    return preserveUnknown(old, item);
+  });
+  return matched ? merged : next;
+}
+
+/**
  * 解析 → 版本检查 → 迁移链 → 补齐 envelope → 全量校验。
  * 任何一步失败都会抛错，不会返回半成品，调用方因此可以「先校验再写盘」。
+ * `strict: false` 用于读取自有数据文件：只做版本迁移，不因字段缺失拒绝整份文件。
  */
-export function prepareExchange(kind: ExchangeKind, input: unknown): PreparedExchange {
+export function prepareExchange(
+  kind: ExchangeKind,
+  input: unknown,
+  options: { strict?: boolean } = {},
+): PreparedExchange {
   if (!isRecord(input)) throw new Error(`${FORMAT_LABEL[kind]}不是 JSON 对象`);
   const declared = checkSchemaVersion(kind, input.schemaVersion);
   let value: Record<string, unknown> = input;
@@ -480,8 +661,10 @@ export function prepareExchange(kind: ExchangeKind, input: unknown): PreparedExc
     version++;
   }
   value = finalizeEnvelope(kind, value);
-  const result = validateExchange(kind, value);
-  if (!result.ok) throw new Error(`${FORMAT_LABEL[kind]}格式不正确：${result.errors.join('；')}`);
+  if (options.strict !== false) {
+    const result = validateExchange(kind, value);
+    if (!result.ok) throw new Error(`${FORMAT_LABEL[kind]}格式不正确：${result.errors.join('；')}`);
+  }
   return {
     kind,
     value,

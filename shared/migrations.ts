@@ -43,7 +43,9 @@ export function migrateManifestV0(raw: Record<string, unknown>): Record<string, 
     volumes.set(img.volume, vol);
   }
 
-  return {
+  const migrated: Record<string, unknown> = {
+    // Unknown top-level fields survive a v0 → v1 round trip.
+    ...raw,
     schemaVersion: 1,
     appVersion: typeof raw.appVersion === 'string' ? raw.appVersion : APP_FALLBACK_VERSION,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
@@ -62,6 +64,11 @@ export function migrateManifestV0(raw: Record<string, unknown>): Record<string, 
       images,
     },
   };
+  // Known v0 spellings are folded into `inventory`; anything else is kept as unknown.
+  delete migrated.images;
+  delete migrated.langDirs;
+  delete migrated.pageCount;
+  return migrated;
 }
 
 /** v0 版式模板：裸 LayoutTemplate（可能带 volume/chapter/pageIndex 绑定） */
@@ -70,6 +77,7 @@ export function migrateLayoutTemplateV0(raw: Record<string, unknown>): Record<st
   const grid = isRecord(layout.grid) ? layout.grid : undefined;
   if (!grid) throw new Error('版式模板缺少 grid，无法迁移');
   return {
+    ...layout,
     id: typeof layout.id === 'string' && layout.id ? layout.id : `tpl${Date.now().toString(36)}`,
     name: typeof layout.name === 'string' && layout.name.trim() ? layout.name : '导入的版式模板',
     scope: 'template',
@@ -93,6 +101,7 @@ export function migrateExportTemplateV0(raw: Record<string, unknown>): Record<st
       ? source
       : {};
   return {
+    ...source,
     id: typeof source.id === 'string' && source.id ? source.id : `ext${Date.now().toString(36)}`,
     name: typeof source.name === 'string' && source.name.trim() ? source.name : '导入的导出模板',
     createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString(),
@@ -102,8 +111,8 @@ export function migrateExportTemplateV0(raw: Record<string, unknown>): Record<st
 
 /** v0 页面 JSON：旧 data/pages 里的裸 PageDoc，只缺 envelope 字段 */
 export function migratePageV0(raw: Record<string, unknown>): Record<string, unknown> {
-  return {
-    ...raw,
-    version: Number.isFinite(Number(raw.version)) ? Number(raw.version) : 1,
-  };
+  const migrated: Record<string, unknown> = { ...raw, schemaVersion: 1 };
+  // `version` was the pre-1.0 spelling; `schemaVersion` is now the single source.
+  delete migrated.version;
+  return migrated;
 }
