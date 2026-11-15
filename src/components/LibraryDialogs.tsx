@@ -83,7 +83,7 @@ export function AddVolumeDialog({ onClose, onDone }: AddProps) {
               onChange={(e) => setName(e.target.value)}
             />
           </label>
-          <p className="muted tiny">{t('addVolume.hint')}</p>
+          <p className="field-hint">{t('addVolume.hint')}</p>
           {error && <div className="banner error">{error}</div>}
           {added.length > 0 && (
             <div className="banner info">{t('addVolume.added', { names: added.join(t('common.listSeparator')) })}</div>

@@ -198,6 +198,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
               />
             </div>
             {previewError && <div className="banner error">{previewError}</div>}
+            {error && <div className="banner error">{error}</div>}
             {preview && (
               <>
                 <div className="dirrules-summary">
@@ -257,7 +258,6 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
         <footer className="modal-foot">
           <span className="muted tiny">{dirty ? t('dirRules.dirty') : t('dirRules.inSync')}</span>
           <span className="spacer" />
-          {error && <span className="dirrules-error">{error}</span>}
           {message && <span className="muted tiny">{message}</span>}
           <button type="button" className="btn" onClick={onClose}>
             {t('common.close')}
