@@ -38,7 +38,7 @@ _导出：整页或整话的 HTML，可带图片目录或打成单文件，也�
 
 _宽度小于 1024 px 时图库变成抽屉，对照视图改为纵向堆叠；Web 版可作为 PWA 安装。_
 
-所有截图都使用 [`samples/demo-library/`](samples/demo-library/README.md) 里的自制示例卷：日 / 中 / 英各三页，由脚本绘制并以 CC0 发布，不包含任何第三方漫画。
+示例漫画仅用于演示，所有权利归原作者所有。
 
 ## 主要功能
 
@@ -257,4 +257,4 @@ exports/            生成的 HTML / PNG、备份、工程包（已 gitignore）
 
 KomaYomi 由 **PayayaKamo** 开发，基于 [MIT License](LICENSE) 发布。
 
-KomaYomi 是独立项目，与任何同名或近名的项目、产品或组织无关。截图中的漫画页面来自 `samples/demo-library/` 里的自制示例卷（CC0），仓库不包含第三方漫画。
+KomaYomi 是独立项目，与任何同名或近名的项目、产品或组织无关。截图中的漫画页面仅用于演示，所有权利归原作者所有。仓库不包含第三方漫画。
