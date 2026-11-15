@@ -16,6 +16,9 @@ export const en = {
   'app.nextPageTitle': 'Next page (])',
   'app.tabPanels': 'Panels',
   'app.tabCompare': 'Compare',
+  'app.tabScroll': 'Scroll',
+  /* ---- continuous scroll view ---- */
+  'scroll.noImage': 'No image on this page',
   'app.saveSaving': 'Saving…',
   'app.saveUnsaved': 'Unsaved changes',
   'app.savePending': 'Pending save',
@@ -120,7 +123,7 @@ export const en = {
   'app.help.global': 'Global',
   'app.help.prevNext': 'Previous / next page (crosses chapters)',
   'app.help.arrowNav': 'Arrow keys follow the reading direction: ← in RTL, → in LTR, ↓ in TTB turn forward',
-  'app.help.switchViews': 'Switch to panel editing / compare reading',
+  'app.help.switchViews': 'Switch to panel editing / compare reading / continuous scroll',
   'app.help.toggleSidebar': 'Show or hide the library sidebar',
   'app.help.toggleNotes': 'Show or hide the notes column',
   'app.help.openExport': 'Open the export dialog',

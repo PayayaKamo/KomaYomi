@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { CrumbNav } from './components/CrumbNav';
 import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
+import { ScrollTab } from './components/ScrollTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
@@ -40,7 +41,7 @@ export default function App() {
   const [rootPath, setRootPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
-  const [view, setView] = useState<'panels' | 'compare'>('panels');
+  const [view, setView] = useState<'panels' | 'compare' | 'scroll'>('panels');
   const [langs, setLangsState] = useState<Lang[]>([...DEFAULT_LANGUAGES]);
   const [overlay, setOverlay] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -105,7 +106,7 @@ export default function App() {
       const [volume, chapter, pageNo, mode] = raw.split('/');
       if (!volume || !chapter) return;
       const n = Math.max(1, Number.parseInt(pageNo ?? '1', 10) || 1);
-      if (mode === 'compare' || mode === 'panels') setView(mode);
+      if (mode === 'compare' || mode === 'panels' || mode === 'scroll') setView(mode);
       setSel((prev) =>
         prev && prev.volume === volume && prev.chapter === chapter && prev.pageIndex === n - 1
           ? prev
@@ -282,6 +283,7 @@ export default function App() {
         goPage(1);
       } else if (key === 'p') setView('panels');
       else if (key === 'c') setView('compare');
+      else if (key === 'v') setView('scroll');
       else if (key === 's') setSidebarOpen((v) => !v);
       else if (key === 'n') setNotesOpen((v) => !v);
       else if (key === 'e' && doc) setExportOpen(true);
@@ -306,6 +308,18 @@ export default function App() {
     return volume?.languages?.length ? volume.languages : allLangs;
   }, [allLangs, library, sel]);
   const missingLangs = expectedLangs.filter((l) => !pageLangs.includes(l));
+
+  /** All pages of the open chapter, used by the continuous scroll view. */
+  const chapterPages = useMemo(() => {
+    if (!sel || !library) return [];
+    const chapter = library.volumes.find((v) => v.id === sel.volume)?.chapters.find((c) => c.chapter === sel.chapter);
+    return chapter?.pages ?? [];
+  }, [library, sel]);
+
+  /** Scrolling only moves the page cursor; the volume/chapter stay put. */
+  const pickScrollPage = useCallback((index: number) => {
+    setSel((prev) => (prev && prev.pageIndex !== index ? { ...prev, pageIndex: index } : prev));
+  }, []);
 
   const saveLabel = !doc
     ? ''
@@ -409,6 +423,9 @@ export default function App() {
             </button>
             <button type="button" className={view === 'compare' ? 'on' : ''} onClick={() => setView('compare')}>
               {t('app.tabCompare')}
+            </button>
+            <button type="button" className={view === 'scroll' ? 'on' : ''} onClick={() => setView('scroll')}>
+              {t('app.tabScroll')}
             </button>
           </div>
         </div>
@@ -533,6 +550,16 @@ export default function App() {
 
           {!sel ? (
             <Welcome library={library} onOpen={openSelection} />
+          ) : view === 'scroll' ? (
+            // Kept outside the loading branch: turning pages must not remount the reader,
+            // or the scroll position (and the page the user is looking at) would reset.
+            <ScrollTab
+              key={`${sel.volume}/${sel.chapter}`}
+              pages={chapterPages}
+              langs={langs.length ? langs : allLangs}
+              current={sel.pageIndex}
+              onPick={pickScrollPage}
+            />
           ) : pageState.loading ? (
             <div className="stage-loading">{t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}</div>
           ) : doc && page ? (

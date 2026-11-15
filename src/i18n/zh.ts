@@ -16,6 +16,9 @@ export const zh = {
   'app.nextPageTitle': '下一页（]）',
   'app.tabPanels': '分格',
   'app.tabCompare': '对照阅读',
+  'app.tabScroll': '条漫',
+  /* ---- continuous scroll view ---- */
+  'scroll.noImage': '本页暂无图片',
   'app.saveSaving': '保存中…',
   'app.saveUnsaved': '未保存改动',
   'app.savePending': '待保存',
@@ -119,7 +122,7 @@ export const zh = {
   'app.help.global': '全局',
   'app.help.prevNext': '上一页 / 下一页（可跨话）',
   'app.help.arrowNav': '方向键同样翻页，随阅读方向变化：右→左用 ←，左→右用 →，竖排用 ↓ 翻到下一页',
-  'app.help.switchViews': '切换到分格编辑 / 对照阅读',
+  'app.help.switchViews': '切换到分格编辑 / 对照阅读 / 条漫滚动',
   'app.help.toggleSidebar': '显示或收起图库侧栏',
   'app.help.toggleNotes': '显示或收起批注栏',
   'app.help.openExport': '打开导出窗',
