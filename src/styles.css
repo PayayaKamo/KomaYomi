@@ -4732,3 +4732,19 @@ kbd {
   font-size: 11px;
   opacity: 0.6;
 }
+.preprocess-toolbar {
+  padding: 12px 18px 0;
+}
+.preprocess-toolbar .field {
+  max-width: 360px;
+  margin: 0;
+}
+.preprocess-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.preprocess-chapter-title {
+  max-width: 420px;
+  margin: 0 0 10px;
+}

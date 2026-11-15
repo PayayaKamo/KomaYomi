@@ -178,9 +178,10 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         >
           <span className={`chev ${isOpen ? 'open' : ''}`}>▸</span>
           <span className="ch-name">
-            {chapter.chapter === SINGLE_CHAPTER
-              ? t('sidebar.singleChapter')
-              : t('format.chapter', { chapter: chapter.chapter })}
+            {chapter.title?.trim() ||
+              (chapter.chapter === SINGLE_CHAPTER
+                ? t('sidebar.singleChapter')
+                : t('format.chapter', { chapter: chapter.chapter }))}
           </span>
           <span className="ch-meta">
             {annotated > 0 && <span className="chip-mini ok">{formatNumber(annotated)}</span>}

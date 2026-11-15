@@ -209,10 +209,12 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
   if (!library) return null;
 
   const volumeLabel = volume?.title ?? selection.volume;
+  const currentChapter = volume?.chapters.find((c) => c.chapter === selection.chapter);
   const chapterLabel =
-    selection.chapter === SINGLE_CHAPTER
+    currentChapter?.title?.trim() ||
+    (selection.chapter === SINGLE_CHAPTER
       ? t('sidebar.singleChapter')
-      : t('format.chapter', { chapter: selection.chapter || '—' });
+      : t('format.chapter', { chapter: selection.chapter || '—' }));
   const volumeIndex = volumeItems.findIndex((v) => v.id === selection.volume);
   const chapterIndex = chapterItems.findIndex((c) => c.chapter === selection.chapter);
 
@@ -301,9 +303,10 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
             <div className="crumb-pop-list">
               {chapterItems.map((c, i) => {
                 const label =
-                  c.chapter === SINGLE_CHAPTER
+                  c.title?.trim() ||
+                  (c.chapter === SINGLE_CHAPTER
                     ? t('sidebar.singleChapter')
-                    : t('format.chapter', { chapter: c.chapter });
+                    : t('format.chapter', { chapter: c.chapter }));
                 return (
                   <button
                     key={c.chapter}
