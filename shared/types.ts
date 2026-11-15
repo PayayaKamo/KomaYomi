@@ -114,6 +114,18 @@ export function isVerticalReading(direction: ReadingDirection): boolean {
 }
 
 /**
+ * Put requested page indices into the chapter's reading order, so exports list pages
+ * (and number their image files) the same way the reader shows them. Indices that the
+ * chapter does not know keep their original place at the end.
+ */
+export function orderPageIndices(requested: readonly number[], pages: readonly { index: number }[]): number[] {
+  const wanted = new Set(requested);
+  const ordered = pages.map((page) => page.index).filter((index) => wanted.has(index));
+  const seen = new Set(ordered);
+  return [...ordered, ...[...new Set(requested)].filter((index) => !seen.has(index))];
+}
+
+/**
  * Per-language alignment offset. x/y are fractions of the container width/height
  * and scale is a zoom factor; together they line up the same panel in compare view.
  */

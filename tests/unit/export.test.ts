@@ -263,6 +263,56 @@ describe('exportChapter', () => {
     expect(html).toContain('max-height:150mm');
   });
 
+  it('exports pages and asset files in the chapter reading order', async () => {
+    const { root, dataRoot } = seedExportRoot();
+    writePageDoc(dataRoot, { ...noteDoc(), pageIndex: 1 });
+    // The preprocessing order puts the second file first; the export must follow it.
+    writeLibraryConfig(dataRoot, { volumes: { Vol1: { chapters: { 172: { order: [1, 0] } } } } });
+    const library = createLibrary(path.join(root, 'raw'), dataRoot);
+    const exportRoot = path.join(root, 'exports');
+
+    const result = await runWithLang('en', () =>
+      exportChapter({
+        rootDir: root,
+        rawRoot: path.join(root, 'raw'),
+        dataRoot,
+        exportRoot,
+        // Deliberately unsorted: the chapter order wins.
+        config: config({ pageIndices: [0, 1], languages: ['ja'] }),
+        library,
+      }),
+    );
+
+    expect(result.pages).toBe(2);
+    const html = fs.readFileSync(path.join(exportRoot, result.file), 'utf8');
+    expect(html.indexOf('<span class="idx">P2</span>')).toBeLessThan(html.indexOf('<span class="idx">P1</span>'));
+
+    const assets = fs.readdirSync(path.join(exportRoot, result.assetDir!)).sort();
+    expect(assets).toEqual(['p001-ja.png', 'p002-ja.png']);
+    const first = fs.readFileSync(path.join(exportRoot, result.assetDir!, 'p001-ja.png'));
+    expect(first.equals(solidPng(60, 90, 210))).toBe(true);
+  });
+
+  it('labels the extended reading directions in the header', async () => {
+    const { root, dataRoot } = seedExportRoot();
+    writePageDoc(dataRoot, { ...noteDoc(), readingDirection: 'vertical-lr' });
+    const library = createLibrary(path.join(root, 'raw'), dataRoot);
+
+    const result = await runWithLang('en', () =>
+      exportChapter({
+        rootDir: root,
+        rawRoot: path.join(root, 'raw'),
+        dataRoot,
+        exportRoot: path.join(root, 'exports'),
+        config: config(),
+        library,
+      }),
+    );
+
+    const html = fs.readFileSync(path.join(root, 'exports', result.file), 'utf8');
+    expect(html).toContain('Reading direction: left to right · vertical');
+  });
+
   it('fails loudly for a missing chapter and for an empty export', async () => {
     const { root, dataRoot, library } = seedExportRoot();
     const exportRoot = path.join(root, 'exports');

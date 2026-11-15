@@ -880,6 +880,31 @@ export const MESSAGES = {
     zh: '阅读方向：从右到左 · 竖排',
     ja: '読み方向：右から左 · 縦書き',
   },
+  EXPORT_DIRECTION_HORIZONTAL_RL: {
+    en: 'Reading direction: right to left · horizontal',
+    zh: '阅读方向：从右到左 · 横排',
+    ja: '読み方向：右から左 · 横書き',
+  },
+  EXPORT_DIRECTION_HORIZONTAL_LR: {
+    en: 'Reading direction: left to right · horizontal',
+    zh: '阅读方向：从左到右 · 横排',
+    ja: '読み方向：左から右 · 横書き',
+  },
+  EXPORT_DIRECTION_VERTICAL_RL: {
+    en: 'Reading direction: right to left · vertical',
+    zh: '阅读方向：从右到左 · 竖排',
+    ja: '読み方向：右から左 · 縦書き',
+  },
+  EXPORT_DIRECTION_VERTICAL_LR: {
+    en: 'Reading direction: left to right · vertical',
+    zh: '阅读方向：从左到右 · 竖排',
+    ja: '読み方向：左から右 · 縦書き',
+  },
+  EXPORT_DIRECTION_CONTINUOUS: {
+    en: 'Reading direction: continuous vertical strip',
+    zh: '阅读方向：条漫 · 连续向下',
+    ja: '読み方向：連続スクロール（縦）',
+  },
   EXPORT_PAGE_NOTES: {
     en: 'Page notes',
     zh: '整页批注',

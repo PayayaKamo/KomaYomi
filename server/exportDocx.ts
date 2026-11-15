@@ -5,6 +5,7 @@ import { decodeGray, sortReadingOrder } from './detect.ts';
 import { readPageDoc } from './storage.ts';
 import { applyGroupOrder } from '../shared/panelOrder.ts';
 import type { ExportConfig, Library, Note, PageDoc } from '../shared/types.ts';
+import { orderPageIndices } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { currentLang, langName, t } from './messages/index.ts';
 import type { MessageLang } from './messages/index.ts';
@@ -168,7 +169,10 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
   const chapter = volume?.chapters.find((c) => c.chapter === config.chapter);
   if (!chapter) throw new AppError('ERR_CHAPTER_NOT_FOUND', { volume: config.volume, chapter: config.chapter }, 404);
 
-  const indices = config.pageIndices?.length ? config.pageIndices : chapter.pages.map((page) => page.index);
+  // Requested pages follow the chapter's reading order, the same as the HTML export.
+  const indices = config.pageIndices?.length
+    ? orderPageIndices(config.pageIndices, chapter.pages)
+    : chapter.pages.map((page) => page.index);
   const warnings: string[] = [];
   const children: Paragraph[] = [];
   const lang = currentLang();

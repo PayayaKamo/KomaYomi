@@ -15,7 +15,7 @@ import type {
   PanelRect,
   ReadingDirection,
 } from '../shared/types.ts';
-import { DEFAULT_OFFSET } from '../shared/types.ts';
+import { DEFAULT_OFFSET, orderPageIndices } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { currentLang, langName, t } from './messages/index.ts';
 import type { MessageLang } from './messages/index.ts';
@@ -45,14 +45,18 @@ type ExportArgs = {
   library: Library;
 };
 
-const dirLabel = (direction: ReadingDirection): string =>
-  t(
-    direction === 'ltr'
-      ? 'EXPORT_DIRECTION_LTR'
-      : direction === 'ttb'
-        ? 'EXPORT_DIRECTION_TTB'
-        : 'EXPORT_DIRECTION_RTL',
-  );
+const DIRECTION_KEY = {
+  rtl: 'EXPORT_DIRECTION_RTL',
+  ltr: 'EXPORT_DIRECTION_LTR',
+  ttb: 'EXPORT_DIRECTION_TTB',
+  'horizontal-rl': 'EXPORT_DIRECTION_HORIZONTAL_RL',
+  'horizontal-lr': 'EXPORT_DIRECTION_HORIZONTAL_LR',
+  'vertical-rl': 'EXPORT_DIRECTION_VERTICAL_RL',
+  'vertical-lr': 'EXPORT_DIRECTION_VERTICAL_LR',
+  'continuous-vertical': 'EXPORT_DIRECTION_CONTINUOUS',
+} as const;
+
+const dirLabel = (direction: ReadingDirection): string => t(DIRECTION_KEY[direction]);
 
 function notesHtml(notes: Note[], filterTags: string[]): string {
   if (!notes.length) return '';
@@ -332,7 +336,9 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   const assetDir = `${base}.files`;
   const imageMode: 'files' | 'embed' = config.embedImages ? 'embed' : 'files';
 
-  const indices = config.pageIndices?.length ? config.pageIndices : chapter.pages.map((p) => p.index);
+  const indices = config.pageIndices?.length
+    ? orderPageIndices(config.pageIndices, chapter.pages)
+    : chapter.pages.map((p) => p.index);
   const warnings: string[] = [];
   const sections: string[] = [];
   const styleBlocks: string[] = [];
@@ -385,7 +391,9 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
       } else {
         // Directory mode: copy images into a sibling .files directory and reference them relatively; output stays small and needs no dev server
         const ext = path.extname(file).toLowerCase() || '.jpg';
-        const name = `p${String(index + 1).padStart(3, '0')}-${lang}${ext}`;
+        // Number assets by export position, so the folder sorts in reading order even
+        // when the chapter config reorders pages; section headings keep the real page.
+        const name = `p${String(exported + 1).padStart(3, '0')}-${lang}${ext}`;
         fs.mkdirSync(path.join(exportRoot, assetDir), { recursive: true });
         fs.copyFileSync(file, path.join(exportRoot, assetDir, name));
         src = `./${encodeURI(assetDir)}/${name}`;
