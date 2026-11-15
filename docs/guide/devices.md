@@ -9,7 +9,7 @@ One app, several shapes. KomaYomi reflows instead of hiding features behind a se
   <figcaption>1440 px: sidebar on the left, three language panes in the middle, notes column on the right.</figcaption>
 </figure>
 
-At 1440 px the sidebar (around 240 px), the compare stage and the notes column are all visible at once. The three language panes sit side by side, so a whole exchange fits without scrolling, and the notes column stays open above 1180 px — drag its splitter to widen it, or close it with **Notes** (`N`).
+At 1440 px the sidebar (around 270 px), the compare stage and the notes column are all visible at once. The three language panes sit side by side, so a whole exchange fits without scrolling, and the notes column opens by default when the window starts wider than 1180 px — drag its splitter to widen it, or close it with **Notes** (`N`).
 
 ## PC, portrait — 900 × 1200
 
@@ -23,20 +23,20 @@ At 900 px the layout switches to its narrow mode: the library folds into a drawe
 ## Phone, portrait — 390 × 844
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-phone-portrait.png" alt="390 by 844 phone window with one compare column, language chips and a toolbar wrapped over several rows">
-  <figcaption>390 × 844: one compare column; the Language chips pick JA, EN or ZH; the toolbar wraps onto several rows.</figcaption>
+  <img src="/assets/screenshots/device-phone-portrait.png" alt="390 by 844 window with the top bar and toolbar wrapped over several rows">
+  <figcaption>390 × 844: the top bar wraps onto three rows and the toolbar onto several more; the touch layout shows one language lane at a time.</figcaption>
 </figure>
 
-On a 390 px phone the top bar wraps into three rows — navigation and page controls, then interface language and export, then the **Panels / Compare** switch. The compare stage keeps a single column: each panel lists its chosen languages one below another, and the **Language** chips (JA / EN / ZH) decide which of them appear, because there is no room for two panes side by side. Toolbar groups wrap onto extra rows instead of scrolling out of reach, and the library and notes both open as full-width drawers.
+On a 390 px touch phone the top bar wraps into three rows — navigation and page controls, then interface language and export, then the **Panels / Compare** switch. The compare stage shows one language lane at a time. The language tab bar above the stage (JA / EN / ZH) picks which active language is in view; when more than one language is active you can also swipe left or right to switch, and the hint next to the tabs says so. The language toggles in the toolbar decide which languages are active in the first place. Toolbar groups wrap onto extra rows instead of scrolling out of reach; the library opens as a left drawer and notes as a full-width drawer. Turn the phone sideways and it uses the same two-lane touch layout as a portrait tablet.
 
 ## Tablet, portrait — 820 × 1180
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-portrait.png" alt="820 by 1180 tablet window with the top bar on one row and a single, full-width compare column">
-  <figcaption>820 × 1180: top bar on one row, sidebar in a drawer, compare still a single column, toolbar over two rows.</figcaption>
+  <img src="/assets/screenshots/device-tablet-portrait.png" alt="820 by 1180 window with the top bar on one row and the compare panes stacked">
+  <figcaption>820 × 1180: top bar on one row, sidebar in a drawer; a mouse-driven window stacks the panes, while a touch tablet pairs them two per row.</figcaption>
 </figure>
 
-At 820 px the top bar stays on a single row and the sidebar stays a drawer, but the compare stage is still one column wide — the language panes are stacked rather than side by side. The **Language** chips work as on the phone, and the toolbar folds into two rows: language and view controls first, then the annotation tools. Notes open as a drawer over the stage.
+KomaYomi picks the compare layout from the pointer type and the aspect ratio, not the width alone. In a fine-pointer window at 820 px the panes stack in a single column. On a touch tablet in portrait, each panel shows two language lanes side by side; when more than two languages are active, the tab bar above the stage chooses which pair is visible, starting from the focused language. Phones in landscape up to 900 px wide use the same two-lane layout. The top bar stays on one row, the sidebar stays a drawer, the toolbar wraps and folds the actions that no longer fit under **More**, and notes open as a drawer over the stage.
 
 ## Tablet, landscape — 1180 × 820
 
@@ -45,7 +45,11 @@ At 820 px the top bar stays on a single row and the sidebar stays a drawer, but 
   <figcaption>1180 × 820: sidebar open, three language panes side by side, notes as a drawer.</figcaption>
 </figure>
 
-At 1180 px the sidebar (240 px) is back, and the three language panes sit in one row at roughly 290 px each. Notes stay a drawer at this width and open over the stage. The toolbar keeps two rows — language and alignment controls on top, annotation tools below — while **Export HTML** stays in the top bar.
+At 1180 px the sidebar (240 px) is back, and the three language panes sit in one row at roughly 290 px each. On a touch tablet in landscape, KomaYomi shows two lanes up to 900 px wide and three lanes above 900 px up to 1199 px; the language tab bar only appears when you have more languages enabled than there are lanes. Notes stay a drawer at this width and open over the stage. The toolbar keeps two rows — language and alignment controls on top, annotation tools below — while **Export HTML** stays in the top bar.
+
+::: info About the phone and portrait-tablet captures
+The 390 × 844 and 820 × 1180 captures above were taken in a mouse-driven browser window, so they show the desktop stacking rule. On a touch phone or tablet KomaYomi uses the touch layouts described here: one lane on a phone, two side by side on a portrait tablet.
+:::
 
 ::: tip Capturing your own layouts
 Resize the browser window rather than zooming the page: the breakpoints follow the viewport width, and the notes column and sidebar only change places when the window itself crosses them.
