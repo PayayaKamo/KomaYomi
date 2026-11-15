@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LANGUAGES, LANG_LABEL, PAGE_KINDS, SINGLE_CHAPTER } from '../shared/types.ts';
 import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
-import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
+import {
+  assertWritableFile,
+  backupUnreadableFile,
+  readRawRecord,
+  readStoredFile,
+  writeStoredFile,
+} from './schemaStore.ts';
 import type { Lang, Library, PageEntry, PageKind, ChapterEntry, VolumeEntry, VolumeOverride } from '../shared/types.ts';
 import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
 import type { DirRule, UnmatchedFile } from './dirRules.ts';
@@ -77,16 +83,20 @@ export function normalizeLangOrder(value: Lang[] | undefined, discovered: readon
 }
 
 export function readLibraryConfig(dataRoot: string): LibraryConfig {
-  try {
-    const stored = readStoredFile<LibraryConfig>(path.join(dataRoot, 'library.json'), 'mnconfig');
-    return stored?.data && typeof stored.data === 'object' ? stored.data : {};
-  } catch {
-    return {};
+  const file = path.join(dataRoot, 'library.json');
+  if (!fs.existsSync(file)) return {};
+  const stored = readStoredFile<LibraryConfig>(file, 'mnconfig');
+  // A damaged config is an explicit error: treating it as `{}` makes the next save
+  // silently reset every volume, chapter and backup setting.
+  if (!stored?.data || typeof stored.data !== 'object') {
+    throw new AppError('ERR_LIBRARY_CONFIG_CORRUPT', {}, 500);
   }
+  return stored.data;
 }
 
 export function writeLibraryConfig(dataRoot: string, cfg: LibraryConfig): void {
   const file = path.join(dataRoot, 'library.json');
+  backupUnreadableFile(file);
   assertWritableFile(file, 'mnconfig');
   // Unknown keys from a newer build survive this save.
   writeStoredFile(file, 'mnconfig', preserveUnknown(readRawRecord(file), cfg));

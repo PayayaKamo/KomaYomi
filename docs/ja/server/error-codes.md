@@ -98,6 +98,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_VOLUME_NOT_FOUND`        | 404  | 巻が見つかりません：{volume}                               | フォルダ名の変更、URL の期限切れ   | ライブラリを更新し、巻 id を確認する。              |
 | `ERR_CHAPTER_NOT_FOUND`       | 404  | 話が見つかりません：{volume} / {chapter}                   | 話番号の誤り、空の巻               | `/api/library` の `chapters` を確認する。           |
 | `ERR_PAGE_NOT_FOUND`          | 404  | ページが見つかりません：{volume} / {chapter} {page} ページ | 番号は 0 始まり、ページ一覧が古い  | ライブラリが返す `page.index` を使う。              |
+| `ERR_PAGE_CORRUPT`            | 422  | ページの保存データが破損しています                         | 書き込み中断、JSON の手編集        | ページは読み取り専用になります。バックアップから復元するか、ファイルを削除してください。次回書き込み時に `.corrupt.bak` を残します。 |
+| `ERR_HISTORY_CORRUPT`         | 422  | 版履歴が破損しています                                     | 書き込み中断、JSON の手編集        | バックアップから履歴を復元してください。ページ自体は開けます。次回保存時に `.corrupt.bak` を残します。 |
+| `ERR_LIBRARY_CONFIG_CORRUPT`  | 500  | `library.json` を解析できません                            | 書き込み中断、JSON の手編集        | 設定を変更する前にバックアップから復元してください。自動リセットはされません。 |
 | `ERR_MISSING_VOLUME_CHAPTER`  | 400  | 巻と話の指定が不足しています                               | クライアントの送信漏れ             | `volume` と `chapter` の両方を送る。                |
 | `ERR_MISSING_VOLUME`          | 400  | 巻名が指定されていません                                   | 対象なしの破壊的操作               | `volume` を渡す。                                   |
 | `ERR_MISSING_VOLUME_DIRS`     | 400  | 巻名または言語ディレクトリ設定が不足しています             | ディレクトリなしで巻を作成         | `{ volume, dirs }` を送る。                         |

@@ -409,6 +409,21 @@ export const MESSAGES = {
     zh: '无法解密已保存的存储凭据；密钥与凭据文件均已原样保留。请恢复匹配的 .secret.key，或重新输入密码。',
     ja: '保存された認証情報を復号できませんでした。ファイルは変更していません。対応する .secret.key を復元するか、パスワードを再入力してください。',
   },
+  ERR_PAGE_CORRUPT: {
+    en: 'The saved data for page {page} of {volume}/{chapter} is damaged and was left untouched. Restore it from a backup, or delete the damaged file to start a new page.',
+    zh: '第 {page} 页（{volume}/{chapter}）的保存数据已损坏，文件保持原样。请从备份恢复，或删除损坏文件后重新开始该页。',
+    ja: '{volume}/{chapter} の {page} ページの保存データが破損しています。ファイルは変更していません。バックアップから復元するか、破損ファイルを削除してやり直してください。',
+  },
+  ERR_HISTORY_CORRUPT: {
+    en: 'The version history for page {page} of {volume}/{chapter} is damaged and was left untouched. The page itself can still be opened; restore history from a backup.',
+    zh: '第 {page} 页（{volume}/{chapter}）的版本历史已损坏，文件保持原样。页面本身仍可打开；请从备份恢复历史。',
+    ja: '{volume}/{chapter} の {page} ページの版履歴が破損しています。ファイルは変更していません。ページ自体は開けます。バックアップから履歴を復元してください。',
+  },
+  ERR_LIBRARY_CONFIG_CORRUPT: {
+    en: 'Library configuration (library.json) is damaged and was left untouched. Restore it from a backup before changing settings.',
+    zh: '库配置（library.json）已损坏，文件保持原样。请先从备份恢复，再修改设置。',
+    ja: 'ライブラリ設定（library.json）が破損しています。ファイルは変更していません。バックアップから復元してから設定を変更してください。',
+  },
   ERR_AUTO_BACKUP_FAILED: {
     en: 'Scheduled backup failed: {detail}',
     zh: '定时备份失败：{detail}',

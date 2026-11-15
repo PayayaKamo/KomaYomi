@@ -4,7 +4,13 @@ import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirecti
 import { DEFAULT_OFFSET } from '../shared/types.ts';
 import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
-import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
+import {
+  assertWritableFile,
+  backupUnreadableFile,
+  readRawRecord,
+  readStoredFile,
+  writeStoredFile,
+} from './schemaStore.ts';
 import { recordVersion } from './pageHistory.ts';
 import { assertSafeSegment, resolveWithin } from './pathSafety.ts';
 import { AppError } from './errors.ts';
@@ -191,17 +197,21 @@ function normalizeDoc(input: PageDoc): PageDoc {
   };
 }
 
+function parsePageDoc(file: string): PageDoc | null {
+  const stored = readStoredFile<PageDoc>(file, 'page');
+  if (!stored) return null;
+  // Keep fields written by a future build so a save never silently drops them.
+  return preserveUnknown(stored.data, normalizeDoc(stored.data));
+}
+
 export function readPageDoc(dataRoot: string, volume: string, chapter: string, pageIndex: number): PageDoc | null {
   const file = pageFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(file)) return null;
-  try {
-    const stored = readStoredFile<PageDoc>(file, 'page');
-    if (!stored) return null;
-    // Keep fields written by a future build so a save never silently drops them.
-    return preserveUnknown(stored.data, normalizeDoc(stored.data));
-  } catch {
-    return null;
-  }
+  const doc = parsePageDoc(file);
+  // A damaged file is not "no data": returning an empty document would let the next
+  // autosave replace it. Fail loudly so the UI can point at a backup instead.
+  if (!doc) throw new AppError('ERR_PAGE_CORRUPT', { volume, chapter, page: pageIndex + 1 }, 422);
+  return doc;
 }
 
 export type WriteMeta = {
@@ -249,10 +259,12 @@ function summarize(prev: PageDoc | null, next: PageDoc): string {
 
 export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
   const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
+  // Preserve a damaged predecessor before this write replaces it.
+  backupUnreadableFile(file);
   // A page written by a newer build stays untouched instead of being downgraded.
   assertWritableFile(file, 'page');
   const prevRaw = readRawRecord(file);
-  const prev = readPageDoc(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
+  const prev = parsePageDoc(file);
   const normalized = normalizeDoc(doc);
   const now = new Date().toISOString();
 

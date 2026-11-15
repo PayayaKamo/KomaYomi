@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { PageDoc, PanelRect } from '../shared/types.ts';
 import type { HistorySource } from '../shared/format.ts';
-import { assertWritableFile, readStoredFile, writeStoredFile } from './schemaStore.ts';
+import { assertWritableFile, backupUnreadableFile, readStoredFile, writeStoredFile } from './schemaStore.ts';
 import { assertSafeSegment, resolveWithin } from './pathSafety.ts';
 import { AppError } from './errors.ts';
 import { readLibraryConfig } from './library.ts';
@@ -103,17 +103,21 @@ const isEntry = (value: unknown): value is HistoryEntry => {
   return typeof entry.id === 'string' && typeof entry.at === 'string' && Boolean(entry.doc);
 };
 
-/** Read snapshots oldest-first. A corrupt file never blocks editing. */
+function parseHistory(file: string): HistoryEntry[] | null {
+  const stored = readStoredFile<HistoryFile>(file, HISTORY_KIND);
+  const entries = stored?.data?.entries;
+  if (!Array.isArray(entries)) return null;
+  return entries.filter(isEntry);
+}
+
+/** Read snapshots oldest-first. A missing file means "no history yet". */
 export function readHistory(dataRoot: string, volume: string, chapter: string, pageIndex: number): HistoryEntry[] {
   const file = historyFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(file)) return [];
-  try {
-    const stored = readStoredFile<HistoryFile>(file, HISTORY_KIND);
-    const entries = stored?.data?.entries;
-    return Array.isArray(entries) ? entries.filter(isEntry) : [];
-  } catch {
-    return [];
-  }
+  const entries = parseHistory(file);
+  // Never report a damaged file as an empty history: the next save would then wipe it.
+  if (!entries) throw new AppError('ERR_HISTORY_CORRUPT', { volume, chapter, page: pageIndex + 1 }, 422);
+  return entries;
 }
 
 function writeHistory(
@@ -124,6 +128,7 @@ function writeHistory(
   entries: HistoryEntry[],
 ): void {
   const file = historyFilePath(dataRoot, volume, chapter, pageIndex);
+  backupUnreadableFile(file);
   assertWritableFile(file, HISTORY_KIND);
   writeStoredFile(file, HISTORY_KIND, { volume, chapter, pageIndex, entries });
 }
@@ -180,7 +185,16 @@ export function recordVersion(
   prev: PageDoc | null,
   opts: RecordOptions,
 ): HistoryEntry | null {
-  const entries = readHistory(dataRoot, next.volume, next.chapter, next.pageIndex);
+  let entries: HistoryEntry[];
+  try {
+    entries = readHistory(dataRoot, next.volume, next.chapter, next.pageIndex);
+  } catch (err) {
+    if (!(err instanceof AppError) || err.code !== 'ERR_HISTORY_CORRUPT') throw err;
+    // Keep the damaged file as .corrupt.bak and start a fresh chain: the page save
+    // must still win, but the old snapshots stay recoverable on disk.
+    backupUnreadableFile(historyFilePath(dataRoot, next.volume, next.chapter, next.pageIndex));
+    entries = [];
+  }
   const at = opts.at ?? new Date().toISOString();
   const last = entries[entries.length - 1];
   const merge =

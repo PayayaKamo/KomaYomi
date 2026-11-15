@@ -114,6 +114,32 @@ export function readRawValue(file: string): unknown | null {
   }
 }
 
+/**
+ * True when the file exists but its JSON cannot be parsed.
+ *
+ * Missing files are normal (nothing saved yet); a file that is there but unreadable is
+ * data loss waiting to happen if the next save overwrites it with defaults.
+ */
+export function isUnreadableFile(file: string): boolean {
+  if (!fs.existsSync(file)) return false;
+  return parseRecord(file) === null;
+}
+
+/**
+ * Copy an unreadable file to `<file>.corrupt.bak` before a write replaces it.
+ * The first damaged copy wins so repeated saves cannot erase the evidence.
+ */
+export function backupUnreadableFile(file: string): boolean {
+  if (!isUnreadableFile(file)) return false;
+  try {
+    const backup = `${file}.corrupt.bak`;
+    if (!fs.existsSync(backup)) fs.copyFileSync(file, backup);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Copy the current bytes to `<file>.v<version>.bak` once, before an in-place migration. */
 export function writeBackupOnce(file: string, version: number): void {
   try {

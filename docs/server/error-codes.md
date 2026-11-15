@@ -108,6 +108,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_VOLUME_NOT_FOUND`        | 404  | Volume id is unknown                      | Renamed folder, stale URL                        | Refresh the library, check the volume id.              |
 | `ERR_CHAPTER_NOT_FOUND`       | 404  | Chapter id is unknown                     | Wrong chapter number, empty volume               | Check `chapters` in `/api/library`.                    |
 | `ERR_PAGE_NOT_FOUND`          | 404  | Page index out of range                   | Index is 0-based; stale page list                | Read `page.index` from the library instead.            |
+| `ERR_PAGE_CORRUPT`            | 422  | Saved page data is damaged                | Interrupted write, hand-edited JSON              | Page opens read-only; restore a backup or delete the file. A `.corrupt.bak` copy is kept on the next write. |
+| `ERR_HISTORY_CORRUPT`         | 422  | Version history is damaged                | Interrupted write, hand-edited JSON              | Restore history from a backup; the page itself still opens. A `.corrupt.bak` copy is kept on the next save. |
+| `ERR_LIBRARY_CONFIG_CORRUPT`  | 500  | `library.json` cannot be parsed           | Interrupted write, hand-edited JSON              | Restore the file from a backup before changing settings; it is not reset automatically. |
 | `ERR_MISSING_VOLUME_CHAPTER`  | 400  | Volume and/or chapter not supplied        | Client forgot a field                            | Send both `volume` and `chapter`.                      |
 | `ERR_MISSING_VOLUME`          | 400  | Volume name not supplied                  | Destructive action without a target              | Pass `volume`.                                         |
 | `ERR_MISSING_VOLUME_DIRS`     | 400  | Volume name or language dirs not supplied | Creating a volume without directories            | Send `{ volume, dirs }`.                               |
