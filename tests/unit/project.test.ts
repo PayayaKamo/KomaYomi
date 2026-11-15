@@ -133,7 +133,8 @@ describe('project packaging', () => {
     });
 
     expect(warnings).toEqual([]);
-    expect(entries).toBe(4);
+    // manifest + page + history + two de-duplicated images
+    expect(entries).toBe(5);
     expect(manifest.storageMode).toBe('packaged');
     expect(manifest.name).toBe('演示 工程');
     expect(manifest.inventory.pageCount).toBe(1);
@@ -145,6 +146,7 @@ describe('project packaging', () => {
     const names = readZip(buffer).map((e) => e.name);
     expect(names).toContain('manifest.json');
     expect(names).toContain('pages/Vol1/172/0.json');
+    expect(names).toContain('history/Vol1/172/0.json');
     expect(names.filter((n) => n.startsWith('assets/'))).toHaveLength(2);
   });
 
@@ -155,11 +157,13 @@ describe('project packaging', () => {
 
     const result = importProject({ rootDir: dest, buffer, snapshot: false });
     expect(result.storageMode).toBe('packaged');
-    expect(result.restored).toBe(1);
+    // page document + its version history file
+    expect(result.restored).toBe(2);
     expect(result.imagesWritten).toBe(2);
     expect(result.missing).toEqual([]);
     expect(fs.existsSync(path.join(dest, 'raw', 'Vol1', 'ja', '172', '01.png'))).toBe(true);
     expect(fs.existsSync(path.join(dest, 'data', 'pages', 'Vol1', '172', '0.json'))).toBe(true);
+    expect(fs.existsSync(path.join(dest, 'data', 'history', 'Vol1', '172', '0.json'))).toBe(true);
 
     const library = createLibrary(path.join(dest, 'raw'), path.join(dest, 'data'));
     expect(library.volumes[0].languages).toEqual(['ja', 'zh']);

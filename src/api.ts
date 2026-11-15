@@ -20,6 +20,38 @@ import type {
 } from './types';
 import { t } from './i18n';
 
+/* ---- page version history (cross-session) ---- */
+export type HistorySource =
+  'auto' | 'manual' | 'batch' | 'template' | 'align' | 'annotation' | 'import' | 'restore' | 'detect';
+
+export type HistoryDiff = {
+  panels: number;
+  panelsDelta: number;
+  added: number;
+  removed: number;
+  moved: number;
+  resized: number;
+  annotations: number;
+  annotationsDelta: number;
+  notes: number;
+  notesDelta: number;
+};
+
+export type PageVersion = {
+  id: string;
+  at: string;
+  source: HistorySource;
+  summary: string;
+  diff: HistoryDiff;
+  editCount: number;
+  panelCount: number;
+  annotationCount: number;
+  noteCount: number;
+  panels: { id: string; rect: PanelRect }[];
+};
+
+export type PageVersionList = { entries: PageVersion[]; limit: number };
+
 export type NotesIndex = {
   total: number;
   notes: {
@@ -236,12 +268,22 @@ export const api = {
       `/api/page?volume=${encodeURIComponent(volume)}&chapter=${encodeURIComponent(chapter)}&index=${index}`,
     ),
 
-  savePage: (doc: PageDoc) =>
-    request<{ doc: PageDoc }>('/api/page', {
+  savePage: (doc: PageDoc, source: HistorySource = 'auto') =>
+    request<{ doc: PageDoc }>(`/api/page?source=${encodeURIComponent(source)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
     }),
+
+  pageHistory: (volume: string, chapter: string, pageIndex: number) =>
+    request<PageVersionList>(
+      `/api/page-history?volume=${encodeURIComponent(volume)}&chapter=${encodeURIComponent(chapter)}&index=${pageIndex}`,
+    ),
+
+  restorePageVersion: (input: { volume: string; chapter: string; pageIndex: number; id: string }) =>
+    request<{ doc: PageDoc; previousId: string | null; targetId: string }>('/api/page-history/restore', json(input)),
+
+  setHistoryLimit: (limit: number) => request<{ limit: number }>('/api/history-limit', json({ limit })),
 
   detect: (volume: string, chapter: string, pageIndex: number, lang?: string) =>
     request<DetectResult & { lang?: string }>('/api/detect', json({ volume, chapter, pageIndex, lang })),

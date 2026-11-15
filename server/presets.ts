@@ -171,7 +171,7 @@ export function applyPanelTemplate(
     notes,
     readingDirection: template.readingDirection,
   };
-  return { doc: writePageDoc(dataRoot, next), droppedNotes };
+  return { doc: writePageDoc(dataRoot, next, { source: 'template' }), droppedNotes };
 }
 
 /* ---------------- 对齐预设 ---------------- */

@@ -33,20 +33,22 @@ The app version is injected once at startup (`setFormatAppVersion`) so it has a 
 
 ## Formats
 
-| `kind`      | Where it lives                                   | User extension | What it holds                                                                     |
-| ----------- | ------------------------------------------------ | -------------- | --------------------------------------------------------------------------------- |
-| `mnproj`    | `manifest.json` inside a `.mnproj` package       | `.mnproj`      | Project name, storage mode, language directories, image inventory, note counters. |
-| `mntpl`     | exported layout template                         | `.mntpl`       | Row/column grid, margins, gap, column weights, per-page overrides.                |
-| `mnexp`     | exported export-preset template                  | `.mnexp`       | Export dialog configuration (template, languages, notes/box toggles, typography). |
-| `page`      | `data/pages/<volume>/<chapter>/<pageIndex>.json` | `.mnpage.json` | Panels, page/panel notes, alignment offsets, groups, annotations, edit metadata.  |
-| `mntp`      | `data/templates/panels/<id>.json`                | —              | Saved panel layout (list of normalized rectangles) plus reading direction.        |
-| `mnalign`   | `data/presets/align/<id>.json`                   | —              | Shared alignment preset (page or panel offsets per language).                     |
-| `mnlayout`  | `data/layouts/<id>.json`                         | —              | Declarative layout bound to a volume, chapter, or page.                           |
-| `mnconfig`  | `data/library.json`                              | —              | Library volume directories, declarative directory rules, language order.          |
-| `mnstorage` | `data/storage.json`                              | —              | Storage provider (local / UNC / WebDAV), credentials, cache limits.               |
+| `kind`      | Where it lives                                     | User extension | What it holds                                                                     |
+| ----------- | -------------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
+| `mnproj`    | `manifest.json` inside a `.mnproj` package         | `.mnproj`      | Project name, storage mode, language directories, image inventory, note counters. |
+| `mntpl`     | exported layout template                           | `.mntpl`       | Row/column grid, margins, gap, column weights, per-page overrides.                |
+| `mnexp`     | exported export-preset template                    | `.mnexp`       | Export dialog configuration (template, languages, notes/box toggles, typography). |
+| `page`      | `data/pages/<volume>/<chapter>/<pageIndex>.json`   | `.mnpage.json` | Panels, page/panel notes, alignment offsets, groups, annotations, edit metadata.  |
+| `mntp`      | `data/templates/panels/<id>.json`                  | —              | Saved panel layout (list of normalized rectangles) plus reading direction.        |
+| `mnalign`   | `data/presets/align/<id>.json`                     | —              | Shared alignment preset (page or panel offsets per language).                     |
+| `mnlayout`  | `data/layouts/<id>.json`                           | —              | Declarative layout bound to a volume, chapter, or page.                           |
+| `mnconfig`  | `data/library.json`                                | —              | Library volume directories, declarative directory rules, language order.          |
+| `mnstorage` | `data/storage.json`                                | —              | Storage provider (local / UNC / WebDAV), credentials, cache limits.               |
+| `mnhistory` | `data/history/<volume>/<chapter>/<pageIndex>.json` | —              | Cross-session page versions: timestamp, source, diff summary, full page snapshot. |
 
 The four JSON Schemas under `shared/schemas/` describe the exchange formats (`mnproj`,
-`mntpl`, `mnexp`, `page`). The runtime validator in `shared/format.ts` is the source of truth;
+`mntpl`, `mnexp`, `page`). `mnhistory.schema.json` documents the version-history file.
+The runtime validator in `shared/format.ts` is the source of truth;
 the schema files are a readable mirror for editors and external tools.
 
 ## Version history

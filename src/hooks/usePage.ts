@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import type { HistorySource } from '../api';
 import { t } from '../i18n';
 import type { PageDoc, PageEntry } from '../types';
 
@@ -55,6 +56,8 @@ export function usePage(sel: Selection | null) {
   const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
 
   const pending = useRef<PageDoc | null>(null);
+  /** Why the pending save happened; forwarded to the cross-session version history. */
+  const pendingSource = useRef<HistorySource>('auto');
   const timer = useRef<number | null>(null);
   const lastKey = useRef<string>('');
   const docRef = useRef<PageDoc | null>(null);
@@ -95,10 +98,12 @@ export function usePage(sel: Selection | null) {
     clearTimer();
     const doc = pending.current;
     if (!doc) return;
+    const source = pendingSource.current;
+    pendingSource.current = 'auto';
     pending.current = null;
     setState((s) => ({ ...s, saving: true }));
     try {
-      const res = await api.savePage(doc);
+      const res = await api.savePage(doc, source);
       savedDoc.current = cloneDoc(res.doc);
       setState((s) => ({ ...s, saving: false, dirty: pending.current ? s.dirty : false, exists: true }));
     } catch (err) {
@@ -108,8 +113,9 @@ export function usePage(sel: Selection | null) {
   }, []);
 
   const scheduleSave = useCallback(
-    (doc: PageDoc) => {
+    (doc: PageDoc, source: HistorySource = 'auto') => {
       pending.current = doc;
+      pendingSource.current = source;
       clearTimer();
       timer.current = window.setTimeout(() => {
         void flush();
@@ -130,7 +136,7 @@ export function usePage(sel: Selection | null) {
   }, []);
 
   const mutate = useCallback(
-    (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean }) => {
+    (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean; source?: HistorySource }) => {
       const cur = docRef.current;
       if (!cur) return;
       const next = fn(cur);
@@ -138,8 +144,11 @@ export function usePage(sel: Selection | null) {
       if (opts?.history !== false) pushHistory(cur);
       docRef.current = next;
       setState((s) => ({ ...s, doc: next, dirty: true }));
-      if (saveModeRef.current === 'auto') scheduleSave(next);
-      else pending.current = next;
+      if (saveModeRef.current === 'auto') scheduleSave(next, opts?.source);
+      else {
+        pending.current = next;
+        pendingSource.current = opts?.source ?? 'auto';
+      }
     },
     [pushHistory, scheduleSave],
   );
@@ -149,6 +158,7 @@ export function usePage(sel: Selection | null) {
     const doc = docRef.current;
     if (!doc) return;
     pending.current = doc;
+    pendingSource.current = 'manual';
     await flush();
   }, [flush]);
 
@@ -210,13 +220,16 @@ export function usePage(sel: Selection | null) {
       try {
         const res = await api.detect(sel.volume, sel.chapter, sel.pageIndex, lang);
         const panels = res.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
-        mutate((doc) => ({
-          ...doc,
-          panels,
-          detectorVersion: res.version,
-          detectedAt: new Date().toISOString(),
-          detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
-        }));
+        mutate(
+          (doc) => ({
+            ...doc,
+            panels,
+            detectorVersion: res.version,
+            detectedAt: new Date().toISOString(),
+            detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
+          }),
+          { source: 'detect' },
+        );
         // Detector warnings come from the server in their own language; join them for display.
         setState((s) => ({
           ...s,
@@ -290,6 +303,7 @@ export function usePage(sel: Selection | null) {
               docRef.current = nextDoc;
               setState((s) => (s.doc ? { ...s, doc: nextDoc } : s));
               pending.current = nextDoc;
+              pendingSource.current = 'detect';
               if (timer.current !== null) window.clearTimeout(timer.current);
               timer.current = window.setTimeout(() => void flush(), 700);
             })

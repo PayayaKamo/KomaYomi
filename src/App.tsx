@@ -6,6 +6,7 @@ import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
 import { AboutDialog } from './components/AboutDialog';
+import { PageHistoryDialog } from './components/PageHistoryDialog';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
@@ -49,6 +50,7 @@ export default function App() {
   );
   const [helpOpen, setHelpOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
 
@@ -342,6 +344,17 @@ export default function App() {
             </div>
           )}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {sel && (
+            <button
+              type="button"
+              className="btn tiny history-btn"
+              onClick={() => setHistoryOpen(true)}
+              title={t('app.historyTitle')}
+            >
+              <span aria-hidden>≡</span>
+              <span className="history-btn-label">{t('app.historyButton')}</span>
+            </button>
+          )}
         </div>
 
         <div className="tb-center">
@@ -549,6 +562,14 @@ export default function App() {
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+
+      <PageHistoryDialog
+        open={historyOpen && Boolean(sel)}
+        sel={sel}
+        onClose={() => setHistoryOpen(false)}
+        onBeforeRestore={pageState.flush}
+        onRestored={pageState.reload}
+      />
 
       {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 

@@ -5,6 +5,7 @@ import { LANGUAGES } from '../types';
 import { applyDrag, clamp01, normalizeRect, sortPanels, uid, unionRects } from '../lib/geometry';
 import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
+import type { HistorySource } from '../api';
 import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
@@ -12,7 +13,7 @@ import type { AnnotationTool } from './AnnotationLayer';
 type Props = {
   doc: PageDoc;
   page: PageEntry;
-  mutate: (fn: (doc: PageDoc) => PageDoc) => void;
+  mutate: (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean; source?: HistorySource }) => void;
   detecting: boolean;
   onDetect: (lang?: string) => void;
   selected: string[];
@@ -153,7 +154,8 @@ export function PanelsTab({
 
   const applyAnnotations = useCallback(
     (updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>) => {
-      mutate((current) => ({ ...current, annotations: updater(current.annotations ?? []) }));
+      // Tag annotation changes so the page history panel can label them.
+      mutate((current) => ({ ...current, annotations: updater(current.annotations ?? []) }), { source: 'annotation' });
     },
     [mutate],
   );

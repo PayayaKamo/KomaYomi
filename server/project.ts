@@ -21,7 +21,7 @@ import { t } from './messages/index.ts';
 export const PROJECT_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION.mnproj;
 export type ProjectStorageMode = 'reference' | 'packaged';
 export type ProjectConflictMode = 'overwrite' | 'merge' | 'skip';
-export type ProjectFileKind = 'page' | 'template' | 'preset' | 'config';
+export type ProjectFileKind = 'page' | 'template' | 'preset' | 'config' | 'history';
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif)$/i;
 const APP_FALLBACK_VERSION = '0.1.0';
@@ -383,6 +383,8 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
   const pageFiles = walkDataFiles(path.join(dataRoot, 'pages'));
   const templateFiles = walkDataFiles(path.join(dataRoot, 'templates'));
   const presetFiles = walkDataFiles(path.join(dataRoot, 'presets'));
+  // Page version history travels with the project so reopening it keeps the audit trail.
+  const historyFiles = walkDataFiles(path.join(dataRoot, 'history'));
 
   let noteCount = 0;
   let annotationCount = 0;
@@ -443,6 +445,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
     ...pageFiles.map((file) => ({ name: `pages/${file.rel}`, data: file.data })),
     ...templateFiles.map((file) => ({ name: `templates/${file.rel}`, data: file.data })),
     ...presetFiles.map((file) => ({ name: `presets/${file.rel}`, data: file.data })),
+    ...historyFiles.map((file) => ({ name: `history/${file.rel}`, data: file.data })),
   ];
 
   if (fs.existsSync(path.join(dataRoot, 'library.json'))) {
@@ -466,6 +469,7 @@ function classifyEntry(name: string): { relDir: string; rel: string; kind: Proje
   if (name.startsWith('templates/'))
     return { relDir: 'templates', rel: name.slice('templates/'.length), kind: 'template' };
   if (name.startsWith('presets/')) return { relDir: 'presets', rel: name.slice('presets/'.length), kind: 'preset' };
+  if (name.startsWith('history/')) return { relDir: 'history', rel: name.slice('history/'.length), kind: 'history' };
   return null;
 }
 

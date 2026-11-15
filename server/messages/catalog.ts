@@ -218,6 +218,11 @@ export const MESSAGES = {
     zh: '找不到对齐预设：{presetId}',
     ja: '整列プリセットが見つかりません：{presetId}',
   },
+  ERR_HISTORY_VERSION_NOT_FOUND: {
+    en: 'That page version no longer exists (it may have been pruned)',
+    zh: '该页面版本已不存在（可能已按保留条数淘汰）',
+    ja: 'そのページ版は存在しません（保持件数により削除された可能性があります）',
+  },
   ERR_EXPORT_TEMPLATE_NOT_FOUND: {
     en: 'Export template not found: {templateId}',
     zh: '导出模板不存在：{templateId}',
@@ -832,6 +837,16 @@ export const MESSAGES = {
     en: 'panels detected by {version}',
     zh: '按 {version} 切格',
     ja: '{version} でコマ分割',
+  },
+  HISTORY_BEFORE_RESTORE: {
+    en: 'state before restore',
+    zh: '恢复前状态',
+    ja: '復元前の状態',
+  },
+  HISTORY_RESTORED: {
+    en: 'restored an earlier version',
+    zh: '恢复到较早版本',
+    ja: '以前の版に復元',
   },
 
   /* ----------------------------------- export ---------------------------------- */

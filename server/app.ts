@@ -9,6 +9,7 @@ import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrde
 import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
 import { listPlugins, runPlugin } from './plugins.ts';
 import { collectTagStats, createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
+import { findVersion, listVersions, readHistory, readHistoryLimit, recordVersion } from './pageHistory.ts';
 import { exportChapter } from './export.ts';
 import { createBackupBuffer, inspectBackup, restoreBackup } from './backup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
@@ -59,6 +60,8 @@ import type {
   PanelTemplate,
 } from '../shared/types.ts';
 import { LANGUAGES } from '../shared/types.ts';
+import { HISTORY_SOURCES } from '../shared/format.ts';
+import type { HistorySource } from '../shared/format.ts';
 import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
 import type { MessageCode, MessageParams } from './messages/index.ts';
 import { AppError, errorBody, toErrorResponse } from './errors.ts';
@@ -403,8 +406,61 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
-        const saved = writePageDoc(dataRoot, body);
+        const requested = url.searchParams.get('source') ?? '';
+        const source = HISTORY_SOURCES.includes(requested as HistorySource) ? (requested as HistorySource) : 'auto';
+        const saved = writePageDoc(dataRoot, body, { source });
         sendJson(res, 200, { doc: saved });
+        return true;
+      }
+
+      /* ---------------- 页面版本历史（跨会话，独立于撤销栈） ---------------- */
+      if (pathname === '/api/page-history' && req.method === 'GET') {
+        const volume = url.searchParams.get('volume') ?? '';
+        const chapter = url.searchParams.get('chapter') ?? '';
+        const index = Number(url.searchParams.get('index') ?? 0);
+        sendJson(res, 200, listVersions(dataRoot, volume, chapter, index));
+        return true;
+      }
+
+      if (pathname === '/api/page-history/restore' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+          id?: string;
+        };
+        const volume = String(body.volume ?? '');
+        const chapter = String(body.chapter ?? '');
+        const pageIndex = Math.max(0, Math.trunc(Number(body.pageIndex) || 0));
+        const entry = findVersion(dataRoot, volume, chapter, pageIndex, String(body.id ?? ''));
+        if (!entry) {
+          fail(res, 404, 'ERR_HISTORY_VERSION_NOT_FOUND', { id: String(body.id ?? '') });
+          return true;
+        }
+        // Snapshot the current state first: restoring must never destroy the latest work.
+        const current = readPageDoc(dataRoot, volume, chapter, pageIndex) ?? createEmptyDoc(volume, chapter, pageIndex);
+        const prior = readHistory(dataRoot, volume, chapter, pageIndex);
+        const snapshot = recordVersion(dataRoot, current, prior[prior.length - 1]?.doc ?? null, {
+          source: 'restore',
+          summary: t('HISTORY_BEFORE_RESTORE'),
+        });
+        const saved = writePageDoc(
+          dataRoot,
+          { ...entry.doc, volume, chapter, pageIndex },
+          { source: 'restore', summary: t('HISTORY_RESTORED') },
+        );
+        sendJson(res, 200, { doc: saved, previousId: snapshot?.id ?? null, targetId: entry.id });
+        return true;
+      }
+
+      if (pathname === '/api/history-limit' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { limit?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        const raw = Number(body.limit);
+        if (!Number.isFinite(raw) || raw <= 0) delete cfg.historyLimit;
+        else cfg.historyLimit = Math.min(200, Math.max(5, Math.round(raw)));
+        writeLibraryConfig(dataRoot, cfg);
+        sendJson(res, 200, { limit: readHistoryLimit(dataRoot) });
         return true;
       }
 
@@ -633,15 +689,19 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
                     return pos < 0 ? n : { ...n, panelId: panels[pos].id };
                   })
                 : doc.notes.filter((n) => n.scope !== 'panel');
-            writePageDoc(dataRoot, {
-              ...doc,
-              panels,
-              notes,
-              readingDirection: layout.readingDirection ?? doc.readingDirection,
-              detectorVersion: `layout:${layout.id}`,
-              detectedAt: new Date().toISOString(),
-              detectSource: 'template',
-            });
+            writePageDoc(
+              dataRoot,
+              {
+                ...doc,
+                panels,
+                notes,
+                readingDirection: layout.readingDirection ?? doc.readingDirection,
+                detectorVersion: `layout:${layout.id}`,
+                detectedAt: new Date().toISOString(),
+                detectSource: 'template',
+              },
+              { source: 'batch' },
+            );
             applied++;
           }
         }
@@ -711,13 +771,17 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         for (const ch of chapters) {
           for (const index of pageRange(body.pageIndices, ch.pages.length)) {
             const doc = readPageDoc(dataRoot, volume, ch.chapter, index) ?? createEmptyDoc(volume, ch.chapter, index);
-            writePageDoc(dataRoot, {
-              ...doc,
-              alignMode: preset.mode,
-              offsets: preset.offsets,
-              gridStep: preset.gridStep,
-              panelOffsets: preset.panelOffsets,
-            });
+            writePageDoc(
+              dataRoot,
+              {
+                ...doc,
+                alignMode: preset.mode,
+                offsets: preset.offsets,
+                gridStep: preset.gridStep,
+                panelOffsets: preset.panelOffsets,
+              },
+              { source: 'align' },
+            );
             applied++;
           }
         }

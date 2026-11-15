@@ -54,6 +54,8 @@ export type LibraryConfig = {
   rules?: DirRule[];
   /** Preferred language order for the compare view and exports. */
   langOrder?: Lang[];
+  /** How many page-history snapshots to keep per page (default 50, clamped 5..200). */
+  historyLimit?: number;
 };
 
 /** Keep only known languages, drop duplicates, and append anything missing. */

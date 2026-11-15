@@ -316,7 +316,7 @@ export function importPage(opts: {
   const dataRoot = path.join(opts.rootDir, 'data');
   const backup = backupExchangeFile(dataRoot, '.mnpage.json', parsed.text);
   const targetBackup = backupExistingPage(dataRoot, volume, chapter, pageIndex);
-  const doc = writePageDoc(dataRoot, bound as unknown as PageDoc);
+  const doc = writePageDoc(dataRoot, bound as unknown as PageDoc, { source: 'import' });
 
   return { doc, migratedFrom: prepared.migratedFrom, backup, targetBackup, warnings: prepared.warnings };
 }

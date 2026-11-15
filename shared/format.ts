@@ -21,6 +21,7 @@ export const SCHEMA_URLS = {
   mnlayout: `${SCHEMA_BASE}mnlayout.schema.json`,
   mnconfig: `${SCHEMA_BASE}mnconfig.schema.json`,
   mnstorage: `${SCHEMA_BASE}mnstorage.schema.json`,
+  mnhistory: `${SCHEMA_BASE}mnhistory.schema.json`,
 } as const;
 
 export type ExchangeKind = keyof typeof SCHEMA_URLS;
@@ -35,6 +36,7 @@ export const FORMAT_LABEL: Record<ExchangeKind, string> = {
   mnlayout: '版式模板',
   mnconfig: '目录配置',
   mnstorage: '存储配置',
+  mnhistory: '页面版本历史',
 };
 
 export const CURRENT_SCHEMA_VERSION: Record<ExchangeKind, number> = {
@@ -47,6 +49,7 @@ export const CURRENT_SCHEMA_VERSION: Record<ExchangeKind, number> = {
   mnlayout: 1,
   mnconfig: 1,
   mnstorage: 1,
+  mnhistory: 1,
 };
 
 export const FORMAT_EXTENSION: Record<ExchangeKind, string> = {
@@ -60,6 +63,7 @@ export const FORMAT_EXTENSION: Record<ExchangeKind, string> = {
   mnlayout: '',
   mnconfig: '',
   mnstorage: '',
+  mnhistory: '',
 };
 
 export type LayoutTemplateExchange = Omit<LayoutTemplate, 'scope' | 'volume' | 'chapter' | 'pageIndex'> & {
@@ -521,6 +525,62 @@ const storageConfigSpec = object(
   ['$schema', 'schemaVersion', 'kind'],
 );
 
+/** Why a page version was snapshotted. Kept in the file so the UI can label each entry. */
+export const HISTORY_SOURCES = [
+  'auto',
+  'manual',
+  'batch',
+  'template',
+  'align',
+  'annotation',
+  'import',
+  'restore',
+  'detect',
+] as const;
+
+export type HistorySource = (typeof HISTORY_SOURCES)[number];
+
+const historyDiffSpec = object(
+  {
+    panels: int({ min: 0 }),
+    panelsDelta: int(),
+    added: int({ min: 0 }),
+    removed: int({ min: 0 }),
+    moved: int({ min: 0 }),
+    resized: int({ min: 0 }),
+    annotations: int({ min: 0 }),
+    annotationsDelta: int(),
+    notes: int({ min: 0 }),
+    notesDelta: int(),
+  },
+  [],
+);
+
+const historyEntrySpec = object(
+  {
+    id: str({ minLength: 1 }),
+    at: str({ minLength: 1 }),
+    source: str({ enum: HISTORY_SOURCES }),
+    summary: str(),
+    diff: historyDiffSpec,
+    editCount: int({ min: 0 }),
+    doc: { kind: 'any' },
+  },
+  ['id', 'at', 'source', 'doc'],
+);
+
+const historySpec = object(
+  {
+    ...envelopeFields,
+    kind: str({ enum: ['mnhistory'] }),
+    volume: str({ minLength: 1 }),
+    chapter: str({ minLength: 1 }),
+    pageIndex: int({ min: 0 }),
+    entries: array(historyEntrySpec),
+  },
+  ['$schema', 'schemaVersion', 'kind', 'volume', 'chapter', 'pageIndex', 'entries'],
+);
+
 const SPECS: Record<ExchangeKind, Spec> = {
   mnproj: manifestSpec,
   mntpl: layoutSpec,
@@ -531,6 +591,7 @@ const SPECS: Record<ExchangeKind, Spec> = {
   mnlayout: storedLayoutSpec,
   mnconfig: libraryConfigSpec,
   mnstorage: storageConfigSpec,
+  mnhistory: historySpec,
 };
 
 /** 只做校验，不迁移。返回的 errors 直接带字段路径。 */
@@ -573,6 +634,13 @@ const MIGRATIONS: Record<ExchangeKind, Record<number, (value: Record<string, unk
     0: (value) => {
       const out: Record<string, unknown> = { ...value };
       // `version` was the pre-1.0 spelling of the envelope field.
+      delete out.version;
+      return out;
+    },
+  },
+  mnhistory: {
+    0: (value) => {
+      const out: Record<string, unknown> = { ...value };
       delete out.version;
       return out;
     },

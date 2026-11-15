@@ -3,7 +3,9 @@ import path from 'node:path';
 import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirection } from '../shared/types.ts';
 import { DEFAULT_OFFSET } from '../shared/types.ts';
 import { preserveUnknown } from '../shared/format.ts';
+import type { HistorySource } from '../shared/format.ts';
 import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
+import { recordVersion } from './pageHistory.ts';
 import { t } from './messages/index.ts';
 
 export function pageFilePath(dataRoot: string, volume: string, chapter: string, pageIndex: number): string {
@@ -200,6 +202,10 @@ export type WriteMeta = {
   summary?: string;
   /** 本次是切格结果：记录算法版本与来源 */
   detect?: { version: string; source: NonNullable<PageDoc['detectSource']>; lang?: string };
+  /** Why this save happened; stored on the cross-session version snapshot. */
+  source?: HistorySource;
+  /** Used by restore, which snapshots the previous state itself. */
+  skipHistory?: boolean;
 };
 
 const rectKey = (p: Panel) =>
@@ -263,6 +269,17 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
 
   const merged = preserveUnknown(prevRaw, normalized);
   writeStoredFile(file, 'page', merged);
+  if (!meta?.skipHistory) {
+    // Version history is an audit trail: a write failure there must never block the save.
+    try {
+      recordVersion(dataRoot, merged, prev, {
+        source: meta?.source ?? 'auto',
+        summary: normalized.lastEditSummary,
+      });
+    } catch {
+      /* ignore */
+    }
+  }
   return merged;
 }
 
