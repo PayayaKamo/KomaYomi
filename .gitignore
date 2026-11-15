@@ -20,6 +20,8 @@ raw/*
 # Local-only scratch data
 data/tmp/
 data/backups/
+data/history/
+data/pages/_uicheck/
 .tmp/
 
 # Schema-migration backups (pre-upgrade bytes, kept next to the migrated file)
