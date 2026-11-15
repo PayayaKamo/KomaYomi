@@ -98,6 +98,28 @@ function loadMaskPrefs(): MaskPrefs {
   }
 }
 
+/* ---------- 叠加透明度/混合模式（按语言记住，跨会话保留） ---------- */
+type OverlayPrefs = { opacities: Partial<Record<Lang, number>>; blend: boolean };
+const OVERLAY_KEY = 'manga-memo.overlay-prefs';
+const DEFAULT_OPACITIES: Record<Lang, number> = { ja: 1, zh: 0.55, en: 0.45 };
+const DEFAULT_OVERLAY_PREFS: OverlayPrefs = { opacities: {}, blend: true };
+
+function loadOverlayPrefs(): OverlayPrefs {
+  try {
+    const raw = localStorage.getItem(OVERLAY_KEY);
+    if (!raw) return DEFAULT_OVERLAY_PREFS;
+    const parsed = JSON.parse(raw) as Partial<OverlayPrefs>;
+    const opacities: Partial<Record<Lang, number>> = {};
+    for (const [lang, value] of Object.entries(parsed.opacities ?? {})) {
+      const n = Number(value);
+      if (Number.isFinite(n)) opacities[lang as Lang] = Math.min(1, Math.max(0.1, n));
+    }
+    return { opacities, blend: parsed.blend !== false };
+  } catch {
+    return DEFAULT_OVERLAY_PREFS;
+  }
+}
+
 function useImageSize(url: string | undefined) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(url ? (sizeCache.get(url) ?? null) : null);
   useEffect(() => {
@@ -175,8 +197,12 @@ export function CompareTab({
   const alignModeLabel = (m: AlignMode) => t(ALIGN_MODE_KEY[m]);
   const isPanelMode = mode === 'panel' || mode === 'anchors';
   const [dragLang, setDragLang] = useState<Lang>(langs[0] ?? 'ja');
-  const [opacities, setOpacities] = useState<Record<Lang, number>>({ ja: 1, zh: 0.55, en: 0.45 });
-  const [blend, setBlend] = useState(true);
+  const [overlayPrefs, setOverlayPrefs] = useState<OverlayPrefs>(loadOverlayPrefs);
+  const opacities = { ...DEFAULT_OPACITIES, ...overlayPrefs.opacities };
+  const blend = overlayPrefs.blend;
+  const setOpacity = (lang: Lang, value: number) =>
+    setOverlayPrefs((p) => ({ ...p, opacities: { ...p.opacities, [lang]: clamp(value, 0.1, 1) } }));
+  const setBlend = (value: boolean) => setOverlayPrefs((p) => ({ ...p, blend: value }));
   const [alignOpen, setAlignOpen] = useState(false);
   const [presets, setPresets] = useState<AlignPreset[]>([]);
   const [presetId, setPresetId] = useState('');
@@ -229,11 +255,22 @@ export function CompareTab({
   }, [doc.volume, doc.chapter, doc.pageIndex]);
 
   const availableLangs = useMemo(() => LANGUAGES.filter((l) => Boolean(page.files[l])), [page]);
-  const baseLang = useMemo(() => langs.find((l) => page.files[l]) ?? langs[0] ?? 'ja', [langs, page.files]);
+  /**
+   * Columns shown for this page. A language missing from the current page is hidden for
+   * this page only: the persisted order is user-owned and must never be rewritten by
+   * simply browsing to a page that lacks one language.
+   */
+  const activeLangs = useMemo(() => {
+    const kept = langs.filter((l) => availableLangs.includes(l));
+    if (kept.length) return kept;
+    return availableLangs.length ? availableLangs : langs;
+  }, [langs, availableLangs]);
+  const baseLang = useMemo(() => activeLangs[0] ?? 'ja', [activeLangs]);
 
   useEffect(() => {
-    if (!langs.includes(dragLang)) setDragLang(langs[0] ?? 'ja');
-  }, [langs, dragLang]);
+    if (!activeLangs.includes(dragLang)) setDragLang(activeLangs[0] ?? 'ja');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLangs.join(','), dragLang]);
 
   // 遮蔽是阅读偏好：跨会话记住；翻页只清掉「临时显形」，不重置开关
   useEffect(() => {
@@ -243,6 +280,15 @@ export function CompareTab({
       /* 隐私模式下忽略 */
     }
   }, [maskPrefs]);
+
+  // 叠加透明度与混合模式也是阅读偏好：按语言记住，刷新与重开工程后保持一致
+  useEffect(() => {
+    try {
+      localStorage.setItem(OVERLAY_KEY, JSON.stringify(overlayPrefs));
+    } catch {
+      /* 隐私模式下忽略 */
+    }
+  }, [overlayPrefs]);
   useEffect(() => {
     setRevealed({});
   }, [page.index, doc.chapter, doc.volume]);
@@ -269,15 +315,7 @@ export function CompareTab({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 页面或语言变化时，别让「已隐藏」的语言继续占用列
-  useEffect(() => {
-    if (!availableLangs.length) return;
-    const kept = langs.filter((l) => availableLangs.includes(l));
-    if (!kept.length) setLangs(availableLangs);
-    else if (kept.length !== langs.length) setLangs(kept);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableLangs.join(','), langs.join(',')]);
-
+  // 页面或语言变化时，缺少的语言只在本页隐藏（见 activeLangs），不改持久化配置
   const loadPresets = () => {
     api
       .alignPresets()
@@ -721,7 +759,7 @@ export function CompareTab({
   };
 
   const renderOverlayPane = (panel: Panel) => {
-    const first = langs.find((l) => page.files[l]);
+    const first = activeLangs[0];
     const aspect = first ? paneAspect(first, panel) : 0.72;
     return (
       <div
@@ -734,7 +772,7 @@ export function CompareTab({
         data-has-image="1"
         onPointerDown={(e) => startPan(e, dragLang, panel)}
       >
-        {langs.map((lang) => {
+        {activeLangs.map((lang) => {
           const url = page.files[lang];
           if (!url) return null;
           if (isHidden(panel.id, lang)) return null;
@@ -749,7 +787,7 @@ export function CompareTab({
             />
           );
         })}
-        {langs.some((l) => isHidden(panel.id, l)) && (
+        {activeLangs.some((l) => isHidden(panel.id, l)) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
             title={t('compare.someMaskedTitle')}
@@ -758,7 +796,7 @@ export function CompareTab({
               e.stopPropagation();
               setRevealed((r) => {
                 const next = { ...r };
-                for (const l of langs) if (maskOn(l)) next[revealKey(panel.id, l)] = true;
+                for (const l of activeLangs) if (maskOn(l)) next[revealKey(panel.id, l)] = true;
                 return next;
               });
             }}
@@ -771,7 +809,7 @@ export function CompareTab({
         )}
         <span className="lang-tag">
           {t('compare.overlayTag', {
-            langs: langs.map((l) => LANG_SHORT[l]).join(' + '),
+            langs: activeLangs.map((l) => LANG_SHORT[l]).join(' + '),
             lang: LANG_SHORT[dragLang],
           })}
         </span>
@@ -946,7 +984,7 @@ export function CompareTab({
               </label>
               <span className="muted tiny">{t('compare.alignTarget')}</span>
               <div className="lang-chips">
-                {langs.map((l) => (
+                {activeLangs.map((l) => (
                   <button
                     type="button"
                     key={l}
@@ -1210,7 +1248,7 @@ export function CompareTab({
 
       {overlay && (
         <div className="opacity-bar">
-          {langs.map((l) => (
+          {activeLangs.map((l) => (
             <label key={l}>
               <span>{LANG_SHORT[l]}</span>
               <input
@@ -1219,7 +1257,7 @@ export function CompareTab({
                 max={1}
                 step={0.05}
                 value={opacities[l] ?? 0.5}
-                onChange={(e) => setOpacities({ ...opacities, [l]: Number(e.target.value) })}
+                onChange={(e) => setOpacity(l, Number(e.target.value))}
               />
             </label>
           ))}
@@ -1254,8 +1292,11 @@ export function CompareTab({
               {overlay ? (
                 <div className="lang-grid overlay">{renderOverlayPane(panel)}</div>
               ) : (
-                <div className={`lang-grid cols-${langs.length}`} style={{ ['--cols' as string]: langs.length }}>
-                  {langs.map((l) => renderLangPane(l, panel))}
+                <div
+                  className={`lang-grid cols-${activeLangs.length}`}
+                  style={{ ['--cols' as string]: activeLangs.length }}
+                >
+                  {activeLangs.map((l) => renderLangPane(l, panel))}
                 </div>
               )}
 
