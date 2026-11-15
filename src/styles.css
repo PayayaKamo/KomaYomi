@@ -3708,6 +3708,45 @@ body.pane-resizing * {
   max-width: 94vw;
 }
 
+.settings-modal {
+  width: 480px;
+  max-width: 94vw;
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.settings-row > div {
+  min-width: 0;
+}
+
+.settings-row strong {
+  font-size: 13px;
+}
+
+.settings-row p {
+  margin: 3px 0 0;
+  max-width: 46ch;
+}
+
+.settings-row select {
+  flex: 0 0 auto;
+}
+
 .help-body {
   display: grid;
   grid-template-columns: 1fr 1fr;

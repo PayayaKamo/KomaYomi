@@ -17,6 +17,7 @@ import type { HistorySource } from '../api';
 import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
+import { useAnnSurface } from '../lib/annotationSurface';
 
 type Props = {
   doc: PageDoc;
@@ -164,28 +165,21 @@ export function PanelsTab({
   const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
   const [groupsOpen, setGroupsOpen] = useState(true);
 
-  /**
-   * The panel workspace keeps annotation tools collapsed by default so box selection
-   * stays unobstructed. Compare view has its own independent switch.
-   */
-  const [annOpen, setAnnOpen] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('manga-memo.panels-ann') === 'on';
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem('manga-memo.panels-ann', annOpen ? 'on' : 'off');
-    } catch {
-      /* private mode */
-    }
-  }, [annOpen]);
+  const annSurface = useAnnSurface();
+  /** Annotations belong to the reading view by default; the workspace opts in. */
+  const annAllowed = annSurface !== 'read';
+  const [annOpen, setAnnOpen] = useState(true);
 
   const annotations = doc.annotations ?? [];
   // Older pages have no flag; annotations were visible by default before the toggle existed.
-  const annotationsVisible = doc.annotationsVisible !== false && annOpen;
+  const annotationsVisible = annAllowed && doc.annotationsVisible !== false && annOpen;
+
+  useEffect(() => {
+    if (!annAllowed) {
+      setAnnTool('select');
+      setAnnSelected(null);
+    }
+  }, [annAllowed]);
 
   const applyAnnotations = useCallback(
     (updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>) => {
@@ -1009,100 +1003,107 @@ export function PanelsTab({
         </div>
       )}
 
-      <div className="ann-toolbar">
-        <button
-          type="button"
-          className="btn tiny"
-          aria-expanded={annOpen}
-          title={t('ann.toggleTools')}
-          onClick={() => {
-            setAnnOpen(!annOpen);
-            if (annOpen) {
-              setAnnTool('select');
-              setAnnSelected(null);
-            }
-          }}
-        >
-          {annOpen ? '▾' : '▸'} {t('ann.layer')}
-        </button>
-        {annOpen && (
-          <>
-            <button
-              type="button"
-              className={`btn tiny ${annotationsVisible ? 'on' : ''}`}
-              aria-pressed={annotationsVisible}
-              title={annotationsVisible ? t('ann.hide') : t('ann.show')}
-              onClick={() => {
-                mutate((current) => ({ ...current, annotationsVisible: !annotationsVisible }));
-                if (annotationsVisible) {
-                  setAnnTool('select');
-                  setAnnSelected(null);
-                }
-              }}
-            >
-              {annotationsVisible ? t('ann.on') : t('ann.off')}
-            </button>
-            <div className="ann-tools">
-              {ANNOTATION_TOOL_ORDER.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
-                  title={t(ANNOTATION_TOOLS[item].labelKey)}
-                  aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
-                  aria-pressed={annTool === item}
-                  disabled={!annotationsVisible}
-                  onClick={() => {
-                    setAnnTool(item);
-                    // Keep a single selected panel: it decides whether new marks use page
-                    // scope or panel scope. The text in the toolbar states which one.
+      {annAllowed && (
+        <div className="ann-toolbar">
+          <button
+            type="button"
+            className="btn tiny"
+            aria-expanded={annOpen}
+            title={t('ann.toggleTools')}
+            onClick={() => {
+              setAnnOpen(!annOpen);
+              if (annOpen) {
+                setAnnTool('select');
+                setAnnSelected(null);
+              }
+            }}
+          >
+            {annOpen ? '▾' : '▸'} {t('ann.layer')}
+          </button>
+          {annOpen && (
+            <>
+              <button
+                type="button"
+                className={`btn tiny ${annotationsVisible ? 'on' : ''}`}
+                aria-pressed={annotationsVisible}
+                title={annotationsVisible ? t('ann.hide') : t('ann.show')}
+                onClick={() => {
+                  mutate((current) => ({ ...current, annotationsVisible: !annotationsVisible }));
+                  if (annotationsVisible) {
+                    setAnnTool('select');
                     setAnnSelected(null);
-                  }}
-                >
-                  {ANNOTATION_TOOLS[item].icon}
-                </button>
-              ))}
-            </div>
-            <div className="ann-colors" role="group" aria-label={t('ann.color')}>
-              {ANNOTATION_COLORS.map((swatch) => (
-                <button
-                  key={swatch}
-                  type="button"
-                  className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
-                  style={{ background: swatch }}
-                  title={t('ann.color')}
-                  aria-label={t('ann.color')}
-                  onClick={() => {
-                    setAnnColor(swatch);
-                    // Changing a swatch recolours the selected annotation, which is the
-                    // quickest way to fix a wrong colour without deleting the shape.
-                    if (annSelected) {
-                      applyAnnotations((list) =>
-                        list.map((a) =>
-                          a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
-                        ),
-                      );
-                    }
-                  }}
-                />
-              ))}
-            </div>
-            <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
-              {t('ann.delete')}
-            </button>
-            <button type="button" className="btn tiny danger" onClick={clearAnnotations} disabled={!annotations.length}>
-              {t('ann.clear')}
-            </button>
-            <span className="muted tiny ann-hint">
-              {!annotationsVisible
-                ? t('ann.hiddenHint')
-                : singleSelected
-                  ? t('ann.scopePanel', { n: formatNumber(numberMap.get(singleSelected.id) ?? 0) })
-                  : t('ann.scopePage')}
-            </span>
-          </>
-        )}
-      </div>
+                  }
+                }}
+              >
+                {annotationsVisible ? t('ann.on') : t('ann.off')}
+              </button>
+              <div className="ann-tools">
+                {ANNOTATION_TOOL_ORDER.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
+                    title={t(ANNOTATION_TOOLS[item].labelKey)}
+                    aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
+                    aria-pressed={annTool === item}
+                    disabled={!annotationsVisible}
+                    onClick={() => {
+                      setAnnTool(item);
+                      // Keep a single selected panel: it decides whether new marks use page
+                      // scope or panel scope. The text in the toolbar states which one.
+                      setAnnSelected(null);
+                    }}
+                  >
+                    {ANNOTATION_TOOLS[item].icon}
+                  </button>
+                ))}
+              </div>
+              <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+                {ANNOTATION_COLORS.map((swatch) => (
+                  <button
+                    key={swatch}
+                    type="button"
+                    className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+                    style={{ background: swatch }}
+                    title={t('ann.color')}
+                    aria-label={t('ann.color')}
+                    onClick={() => {
+                      setAnnColor(swatch);
+                      // Changing a swatch recolours the selected annotation, which is the
+                      // quickest way to fix a wrong colour without deleting the shape.
+                      if (annSelected) {
+                        applyAnnotations((list) =>
+                          list.map((a) =>
+                            a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
+                          ),
+                        );
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+              <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
+                {t('ann.delete')}
+              </button>
+              <button
+                type="button"
+                className="btn tiny danger"
+                onClick={clearAnnotations}
+                disabled={!annotations.length}
+              >
+                {t('ann.clear')}
+              </button>
+              <span className="muted tiny ann-hint">
+                {!annotationsVisible
+                  ? t('ann.hiddenHint')
+                  : singleSelected
+                    ? t('ann.scopePanel', { n: formatNumber(numberMap.get(singleSelected.id) ?? 0) })
+                    : t('ann.scopePage')}
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="groups-panel">
         <div className="groups-head">
@@ -1229,7 +1230,7 @@ export function PanelsTab({
                 draggable={false}
                 onLoad={() => setImgLoaded(true)}
               />
-              {imgLoaded && (
+              {imgLoaded && annAllowed && (
                 <AnnotationLayer
                   annotations={annotations}
                   visible={annotationsVisible}

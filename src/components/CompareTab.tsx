@@ -10,6 +10,7 @@ import type { MessageKey } from '../i18n';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
+import { useAnnSurface } from '../lib/annotationSurface';
 
 type Props = {
   doc: PageDoc;
@@ -293,8 +294,17 @@ export function CompareTab({
   const [annLang, setAnnLang] = useState<Lang>(langs[0] ?? 'ja');
   const [moreOpen, setMoreOpen] = useState(false);
 
+  const annSurface = useAnnSurface();
+  /** Reading keeps annotations by default; "panels only" removes them here. */
+  const annAllowed = annSurface !== 'panels';
   const annotations = doc.annotations ?? [];
-  const annotationsVisible = doc.annotationsVisible !== false && annOn;
+  const annotationsVisible = annAllowed && doc.annotationsVisible !== false && annOn;
+  useEffect(() => {
+    if (!annAllowed) {
+      setAnnTool('select');
+      setAnnSelected(null);
+    }
+  }, [annAllowed]);
   const applyAnnotations = (
     updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>,
   ) => {
@@ -775,7 +785,7 @@ export function CompareTab({
       <div
         key={lang}
         className={`lang-pane ${dragging && dragLang === lang ? 'dragging' : ''} ${
-          annOn && !overlay && lang === annLang ? 'ann-lane' : ''
+          annAllowed && annOn && !overlay && lang === annLang ? 'ann-lane' : ''
         } ${
           activeDrag?.panelId === panel.id && activeDrag.lang === lang && activeDrag.scope === 'panel'
             ? 'scope-target'
@@ -786,9 +796,9 @@ export function CompareTab({
         data-panel-id={panel.id}
         data-has-image="1"
         onPointerDown={(e) => {
-          if (annOn && lang !== annLang) setAnnLang(lang);
+          if (annAllowed && annOn && lang !== annLang) setAnnLang(lang);
           // A drawing tool owns this pane, so it must not also start a pan.
-          if (annOn && annTool !== 'select') return;
+          if (annAllowed && annOn && annTool !== 'select') return;
           startPan(e, lang, panel);
         }}
       >
@@ -798,7 +808,7 @@ export function CompareTab({
           className="ann-crop-layer"
           style={{ transform: `translate(${off.x * 100}%, ${off.y * 100}%) scale(${off.scale})` }}
         >
-          {annOn && lang === annLang ? (
+          {annAllowed && annOn && lang === annLang ? (
             <AnnotationLayer
               annotations={annotations}
               visible={annotationsVisible}
@@ -888,7 +898,7 @@ export function CompareTab({
         data-panel-id={panel.id}
         data-has-image="1"
         onPointerDown={(e) => {
-          if (annOn && annTool !== 'select') return;
+          if (annAllowed && annOn && annTool !== 'select') return;
           startPan(e, dragLang, panel);
         }}
       >
@@ -916,7 +926,7 @@ export function CompareTab({
             }%) scale(${offsetsOf(dragLang, panel).scale})`,
           }}
         >
-          {annOn ? (
+          {annAllowed && annOn ? (
             <AnnotationLayer
               annotations={annotations}
               visible={annotationsVisible}
@@ -1220,129 +1230,131 @@ export function CompareTab({
           </span>
         </div>
 
-        <div className="tb-group ann-group">
-          <button
-            type="button"
-            className={`btn tiny ${annOn ? 'on' : ''}`}
-            aria-pressed={annOn}
-            title={annOn ? t('ann.hide') : t('ann.show')}
-            onClick={() => {
-              setAnnOn(!annOn);
-              if (annOn) {
-                setAnnTool('select');
-                setAnnSelected(null);
-              }
-            }}
-          >
-            {t('ann.layer')}
-          </button>
-          {annOn && (
-            <>
-              <div className="ann-tools">
-                {ANNOTATION_TOOL_ORDER.map((item) => (
+        {annAllowed && (
+          <div className="tb-group ann-group">
+            <button
+              type="button"
+              className={`btn tiny ${annOn ? 'on' : ''}`}
+              aria-pressed={annOn}
+              title={annOn ? t('ann.hide') : t('ann.show')}
+              onClick={() => {
+                setAnnOn(!annOn);
+                if (annOn) {
+                  setAnnTool('select');
+                  setAnnSelected(null);
+                }
+              }}
+            >
+              {t('ann.layer')}
+            </button>
+            {annOn && (
+              <>
+                <div className="ann-tools">
+                  {ANNOTATION_TOOL_ORDER.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
+                      title={t(ANNOTATION_TOOLS[item].labelKey)}
+                      aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
+                      aria-pressed={annTool === item}
+                      onClick={() => {
+                        setAnnTool(item);
+                        setAnnSelected(null);
+                      }}
+                    >
+                      {ANNOTATION_TOOLS[item].icon}
+                    </button>
+                  ))}
+                </div>
+                <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+                  {ANNOTATION_COLORS.map((swatch) => (
+                    <button
+                      key={swatch}
+                      type="button"
+                      className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+                      style={{ background: swatch }}
+                      title={t('ann.color')}
+                      aria-label={t('ann.color')}
+                      onClick={() => {
+                        setAnnColor(swatch);
+                        // Recolour the selected mark, same shortcut as the panel workspace.
+                        if (annSelected) {
+                          applyAnnotations((list) =>
+                            list.map((a) =>
+                              a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
+                            ),
+                          );
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="seg ann-scope-seg" title={t('ann.sharedHint')}>
                   <button
-                    key={item}
                     type="button"
-                    className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
-                    title={t(ANNOTATION_TOOLS[item].labelKey)}
-                    aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
-                    aria-pressed={annTool === item}
-                    onClick={() => {
-                      setAnnTool(item);
-                      setAnnSelected(null);
-                    }}
+                    className={annScope === 'page' ? 'on' : ''}
+                    onClick={() => setAnnScope('page')}
+                    title={`${t('ann.scopePage')} · ${t('ann.sharedHint')}`}
                   >
-                    {ANNOTATION_TOOLS[item].icon}
+                    ▦
                   </button>
-                ))}
-              </div>
-              <div className="ann-colors" role="group" aria-label={t('ann.color')}>
-                {ANNOTATION_COLORS.map((swatch) => (
                   <button
-                    key={swatch}
                     type="button"
-                    className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
-                    style={{ background: swatch }}
-                    title={t('ann.color')}
-                    aria-label={t('ann.color')}
-                    onClick={() => {
-                      setAnnColor(swatch);
-                      // Recolour the selected mark, same shortcut as the panel workspace.
-                      if (annSelected) {
-                        applyAnnotations((list) =>
-                          list.map((a) =>
-                            a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
-                          ),
-                        );
-                      }
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="seg ann-scope-seg" title={t('ann.sharedHint')}>
+                    className={annScope === 'panel' ? 'on' : ''}
+                    onClick={() => setAnnScope('panel')}
+                    title={`${t('ann.scopePanelShort')} · ${t('ann.sharedHint')}`}
+                  >
+                    ▣
+                  </button>
+                </div>
                 <button
                   type="button"
-                  className={annScope === 'page' ? 'on' : ''}
-                  onClick={() => setAnnScope('page')}
-                  title={`${t('ann.scopePage')} · ${t('ann.sharedHint')}`}
+                  className="btn icon tiny"
+                  onClick={deleteAnnotation}
+                  disabled={!annSelected}
+                  title={t('ann.delete')}
+                  aria-label={t('ann.delete')}
                 >
-                  ▦
+                  ✕
                 </button>
                 <button
                   type="button"
-                  className={annScope === 'panel' ? 'on' : ''}
-                  onClick={() => setAnnScope('panel')}
-                  title={`${t('ann.scopePanelShort')} · ${t('ann.sharedHint')}`}
+                  className="btn icon tiny"
+                  onClick={clearAnnotations}
+                  disabled={!annotations.length}
+                  title={t('ann.clear')}
+                  aria-label={t('ann.clear')}
                 >
-                  ▣
+                  ⊗
                 </button>
-              </div>
-              <button
-                type="button"
-                className="btn icon tiny"
-                onClick={deleteAnnotation}
-                disabled={!annSelected}
-                title={t('ann.delete')}
-                aria-label={t('ann.delete')}
-              >
-                ✕
-              </button>
-              <button
-                type="button"
-                className="btn icon tiny"
-                onClick={clearAnnotations}
-                disabled={!annotations.length}
-                title={t('ann.clear')}
-                aria-label={t('ann.clear')}
-              >
-                ⊗
-              </button>
-              <button
-                type="button"
-                className="btn icon tiny"
-                onClick={onUndo}
-                disabled={!canUndo}
-                title={t('panels.undoTitle')}
-                aria-label={t('panels.undoTitle')}
-              >
-                ↶
-              </button>
-              <button
-                type="button"
-                className="btn icon tiny"
-                onClick={onRedo}
-                disabled={!canRedo}
-                title={t('panels.redoTitle')}
-                aria-label={t('panels.redoTitle')}
-              >
-                ↷
-              </button>
-              <span className="muted tiny ann-hint">
-                {t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
-              </span>
-            </>
-          )}
-        </div>
+                <button
+                  type="button"
+                  className="btn icon tiny"
+                  onClick={onUndo}
+                  disabled={!canUndo}
+                  title={t('panels.undoTitle')}
+                  aria-label={t('panels.undoTitle')}
+                >
+                  ↶
+                </button>
+                <button
+                  type="button"
+                  className="btn icon tiny"
+                  onClick={onRedo}
+                  disabled={!canRedo}
+                  title={t('panels.redoTitle')}
+                  aria-label={t('panels.redoTitle')}
+                >
+                  ↷
+                </button>
+                <span className="muted tiny ann-hint">
+                  {t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="tb-group right">
           <span className="muted tiny">{readingLabel(doc.readingDirection)}</span>

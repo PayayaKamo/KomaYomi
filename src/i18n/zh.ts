@@ -918,6 +918,16 @@ export const zh = {
   'ann.laneHint': '正在 {lang} 栏绘制',
   'ann.compareDefault': '对照视图默认开启标注',
 
+  'settings.title': '设置',
+  'settings.openTitle': '设置',
+  'settings.subtitle': '偏好保存在当前浏览器中。',
+  'settings.close': '关闭设置',
+  'settings.annSurface': '标注工具',
+  'settings.annSurfaceHint': '选择在哪个视图显示标注工具；已有标注始终保留。',
+  'settings.annRead': '仅阅读',
+  'settings.annPanels': '仅切格',
+  'settings.annBoth': '两边',
+
   /* ---- panel groups ---- */
   'groups.title': '分组（{n}）',
   'groups.toggle': '展开或收起分组面板',

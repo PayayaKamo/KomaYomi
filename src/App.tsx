@@ -8,6 +8,7 @@ import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
 import { AboutDialog } from './components/AboutDialog';
+import { SettingsDialog } from './components/SettingsDialog';
 import { PageHistoryDialog } from './components/PageHistoryDialog';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
@@ -57,6 +58,7 @@ export default function App() {
     loadPaneWidth(NOTES_PANE.key, NOTES_PANE.min, NOTES_PANE.max),
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
@@ -377,6 +379,15 @@ export default function App() {
           </button>
           <button
             type="button"
+            className="btn icon settings-btn"
+            onClick={() => setSettingsOpen(true)}
+            title={t('settings.openTitle')}
+            aria-label={t('settings.title')}
+          >
+            ⚙
+          </button>
+          <button
+            type="button"
             className="btn icon"
             onClick={() => setAboutOpen(true)}
             title={t('about.openTitle')}
@@ -642,6 +653,7 @@ export default function App() {
       />
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
 

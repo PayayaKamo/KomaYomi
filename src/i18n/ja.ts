@@ -955,6 +955,16 @@ export const ja = {
   'ann.laneHint': '{lang} 列に描画中',
   'ann.compareDefault': '比較ビューでは注釈は既定でオンです',
 
+  'settings.title': '設定',
+  'settings.openTitle': '設定',
+  'settings.subtitle': '設定はこのブラウザーに保存されます。',
+  'settings.close': '設定を閉じる',
+  'settings.annSurface': '注釈ツール',
+  'settings.annSurfaceHint': '注釈ツールを表示するビューを選びます。既存の注釈は常に保持されます。',
+  'settings.annRead': '閲覧のみ',
+  'settings.annPanels': 'コマ切りのみ',
+  'settings.annBoth': '両方',
+
   /* ---- グループ ---- */
   'groups.title': 'グループ（{n}）',
   'groups.toggle': 'グループパネルの表示を切り替え',

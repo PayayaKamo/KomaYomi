@@ -960,6 +960,16 @@ export const en = {
   'ann.laneHint': 'Drawing in the {lang} column',
   'ann.compareDefault': 'Annotations are on by default in compare view',
 
+  'settings.title': 'Settings',
+  'settings.openTitle': 'Settings',
+  'settings.subtitle': 'Preferences are saved in this browser.',
+  'settings.close': 'Close settings',
+  'settings.annSurface': 'Annotation tools',
+  'settings.annSurfaceHint': 'Pick the view that offers annotation tools. Existing marks are always kept.',
+  'settings.annRead': 'Reading only',
+  'settings.annPanels': 'Grid only',
+  'settings.annBoth': 'Both views',
+
   /* ---- panel groups ---- */
   'groups.title': 'Groups ({n})',
   'groups.toggle': 'Show or hide groups',
