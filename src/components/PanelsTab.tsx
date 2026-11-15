@@ -18,6 +18,8 @@ import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
 import { useAnnSurface } from '../lib/annotationSurface';
+import { PANEL_SECTIONS, setPanelSection, togglePanelSection, usePanelSections } from '../lib/panelsSections';
+import type { PanelSection } from '../lib/panelsSections';
 
 type Props = {
   doc: PageDoc;
@@ -151,7 +153,6 @@ export function PanelsTab({
   const [dragging, setDragging] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [templates, setTemplates] = useState<PanelTemplate[]>([]);
-  const [tplOpen, setTplOpen] = useState(false);
   const [tplName, setTplName] = useState('');
   const [selectedTpl, setSelectedTpl] = useState('');
   const [tplBusy, setTplBusy] = useState(false);
@@ -163,16 +164,43 @@ export function PanelsTab({
   const [annTool, setAnnTool] = useState<AnnotationTool>('select');
   const [annSelected, setAnnSelected] = useState<string | null>(null);
   const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
-  const [groupsOpen, setGroupsOpen] = useState(true);
 
   const annSurface = useAnnSurface();
   /** Annotations belong to the reading view by default; the workspace opts in. */
   const annAllowed = annSurface !== 'read';
-  const [annOpen, setAnnOpen] = useState(true);
+
+  /* Collapsible sidebar sections share one stored state so the arrows and the
+     "Display" menu always agree. */
+  const sections = usePanelSections();
+  const [secMenuOpen, setSecMenuOpen] = useState(false);
+  const secMenuRef = useRef<HTMLDivElement>(null);
+  const sectionLabels: Record<PanelSection, string> = {
+    grid: t('panels.grid'),
+    template: t('panels.templates'),
+    path: t('panels.dataPath'),
+    ann: t('ann.layer'),
+    groups: t('panels.sectionGroups'),
+  };
+
+  useEffect(() => {
+    if (!secMenuOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!secMenuRef.current?.contains(e.target as Node)) setSecMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSecMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [secMenuOpen]);
 
   const annotations = doc.annotations ?? [];
   // Older pages have no flag; annotations were visible by default before the toggle existed.
-  const annotationsVisible = annAllowed && doc.annotationsVisible !== false && annOpen;
+  const annotationsVisible = annAllowed && doc.annotationsVisible !== false && sections.ann;
 
   useEffect(() => {
     if (!annAllowed) {
@@ -640,12 +668,13 @@ export function PanelsTab({
     loadTemplates();
   };
 
+  const jsonPath = `data/pages/${doc.volume}/${doc.chapter}/${doc.pageIndex}.json`;
+
   const copyJsonPath = async () => {
-    const rel = `data/pages/${doc.volume}/${doc.chapter}/${doc.pageIndex}.json`;
     try {
-      await navigator.clipboard.writeText(rel);
+      await navigator.clipboard.writeText(jsonPath);
     } catch {
-      window.prompt(t('panels.copyPrompt'), rel);
+      window.prompt(t('panels.copyPrompt'), jsonPath);
     }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
@@ -844,8 +873,8 @@ export function PanelsTab({
         </div>
       </div>
 
-      <div className="stage-toolbar sub">
-        {singleSelected && (
+      {singleSelected && (
+        <div className="stage-toolbar sub">
           <div className="tb-group rect-inputs">
             <span className="tb-label">{t('panels.panelRect')}</span>
             <label className="num">
@@ -889,9 +918,71 @@ export function PanelsTab({
               %
             </label>
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="tb-group">
+      {/* One rail keeps every collapsed section visible in a single row; a folded
+          section renders no body at all, so it costs no height. */}
+      <div className="sec-rail">
+        <button
+          type="button"
+          className="sec-tab"
+          aria-expanded={sections.grid}
+          title={t('panels.grid')}
+          onClick={() => togglePanelSection('grid')}
+        >
+          {sections.grid ? '▾' : '▸'} {t('panels.grid')}
+        </button>
+        <button
+          type="button"
+          className="sec-tab"
+          aria-expanded={sections.template}
+          title={t('panels.templates')}
+          onClick={() => togglePanelSection('template')}
+        >
+          {sections.template ? '▾' : '▸'} {t('panels.templates')}
+          {templates.length ? ` (${formatNumber(templates.length)})` : ''}
+        </button>
+        <button
+          type="button"
+          className="sec-tab"
+          aria-expanded={sections.path}
+          title={t('panels.dataPath')}
+          onClick={() => togglePanelSection('path')}
+        >
+          {sections.path ? '▾' : '▸'} {t('panels.dataPath')}
+        </button>
+        <div className="sec-menu" ref={secMenuRef}>
+          <button
+            type="button"
+            className={`btn tiny ${secMenuOpen ? 'on' : ''}`}
+            aria-expanded={secMenuOpen}
+            aria-haspopup="true"
+            title={t('panels.displayHint')}
+            onClick={() => setSecMenuOpen((v) => !v)}
+          >
+            {t('panels.display')} ▾
+          </button>
+          {secMenuOpen && (
+            <div className="sec-pop" role="group" aria-label={t('panels.display')}>
+              <div className="sec-pop-head">{t('panels.displayHint')}</div>
+              {PANEL_SECTIONS.filter((id) => id !== 'ann' || annAllowed).map((id) => (
+                <label key={id} className="sec-pop-item">
+                  <input
+                    type="checkbox"
+                    checked={sections[id]}
+                    onChange={(e) => setPanelSection(id, e.target.checked)}
+                  />
+                  <span>{sectionLabels[id]}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {sections.grid && (
+        <div className="sec-body">
           <span className="tb-label">{t('panels.grid')}</span>
           <label className="num">
             {t('panels.rows')}
@@ -929,11 +1020,11 @@ export function PanelsTab({
             {t('panels.makeGrid')}
           </button>
         </div>
+      )}
 
-        <div className="tb-group right">
-          <button type="button" className={`btn tiny ${tplOpen ? 'on' : ''}`} onClick={() => setTplOpen((v) => !v)}>
-            {t('panels.templates')} {templates.length ? `(${formatNumber(templates.length)})` : ''}
-          </button>
+      {sections.path && (
+        <div className="sec-body sec-path">
+          <code>{jsonPath}</code>
           <button
             type="button"
             className="btn tiny"
@@ -943,10 +1034,10 @@ export function PanelsTab({
             {copied ? t('panels.copiedPath') : t('panels.copyJsonPath')}
           </button>
         </div>
-      </div>
+      )}
 
-      {tplOpen && (
-        <div className="tpl-box">
+      {sections.template && (
+        <div className="sec-body tpl-box">
           <div className="tpl-row">
             <input
               className="preset-name"
@@ -1013,19 +1104,20 @@ export function PanelsTab({
           <button
             type="button"
             className="btn tiny"
-            aria-expanded={annOpen}
+            aria-expanded={sections.ann}
             title={t('ann.toggleTools')}
             onClick={() => {
-              setAnnOpen(!annOpen);
-              if (annOpen) {
+              const next = !sections.ann;
+              togglePanelSection('ann');
+              if (!next) {
                 setAnnTool('select');
                 setAnnSelected(null);
               }
             }}
           >
-            {annOpen ? '▾' : '▸'} {t('ann.layer')}
+            {sections.ann ? '▾' : '▸'} {t('ann.layer')}
           </button>
-          {annOpen && (
+          {sections.ann && (
             <>
               <button
                 type="button"
@@ -1115,11 +1207,11 @@ export function PanelsTab({
           <button
             type="button"
             className="btn tiny"
-            aria-expanded={groupsOpen}
+            aria-expanded={sections.groups}
             title={t('groups.toggle')}
-            onClick={() => setGroupsOpen(!groupsOpen)}
+            onClick={() => togglePanelSection('groups')}
           >
-            {groupsOpen ? '▾' : '▸'} {t('groups.title', { n: formatNumber((doc.groups ?? []).length) })}
+            {sections.groups ? '▾' : '▸'} {t('groups.title', { n: formatNumber((doc.groups ?? []).length) })}
           </button>
           <button
             type="button"
@@ -1131,7 +1223,7 @@ export function PanelsTab({
             {t('groups.sort')}
           </button>
         </div>
-        {groupsOpen &&
+        {sections.groups &&
           ((doc.groups ?? []).length ? (
             <div className="group-list">
               {(doc.groups ?? []).map((group, index) => (

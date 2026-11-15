@@ -852,7 +852,7 @@ code {
 /* While a menu, picker or dialog is up it owns the pointer: the handles below must not
    show the resize cursor or start a drag. Keyed off the overlays themselves so every
    popover entry (file menu, recent flyout, crumb pickers, dialogs) is covered at once. */
-.app:has(.file-pop, .file-sub, .crumb-pop, .modal-backdrop) .pane-splitter {
+.app:has(.file-pop, .file-sub, .crumb-pop, .sec-pop, .modal-backdrop) .pane-splitter {
   pointer-events: none;
 }
 
@@ -3458,6 +3458,114 @@ body.pane-resizing * {
 .tpl-msg {
   font-size: 11.5px;
   color: var(--ok);
+}
+
+/* ---- collapsible panel-workspace sections ---- */
+/* The rail keeps every section entry on one line; a folded section renders no body,
+   so it costs no height beyond its label. */
+.sec-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  max-width: 100%;
+}
+
+.sec-tab {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.sec-tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.sec-tab[aria-expanded='true'] {
+  background: var(--panel-3);
+  color: var(--text);
+}
+
+.sec-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.sec-pop {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 40;
+  width: 220px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px var(--shadow-lg);
+}
+
+.sec-pop-head {
+  padding: 4px 8px 6px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sec-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.sec-pop-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.sec-pop-item input {
+  margin: 0;
+}
+
+.sec-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  max-width: 100%;
+}
+
+.sec-path code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .sec-rail {
+    padding: 4px 10px;
+  }
+
+  .sec-tab {
+    padding: 2px 6px;
+    font-size: 10.5px;
+  }
 }
 
 .compare-empty {
