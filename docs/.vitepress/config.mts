@@ -606,8 +606,26 @@ export default defineConfig({
   srcExclude: ['README.md'],
   sitemap: {
     hostname: SITE_URL,
+    /**
+     * VitePress resolves every entry with `new URL(url, hostname)`, so an
+     * absolute path would drop the `/KomaYomi-docs` prefix. Building absolute
+     * URLs here keeps both `<loc>` and the `xhtml:link` alternates inside the
+     * GitHub Pages subpath.
+     */
     transformItems(items) {
-      return items.filter((item) => !/(^|\/)(404|README)(\.html)?$/.test(item.url))
+      const absolute = (url: string) => `${SITE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+      return items
+        .filter((item) => !/(^|\/)(404|README)(\.html)?$/.test(item.url))
+        .map((item) => {
+          const { links, ...rest } = item as { links?: Array<{ url: string }> }
+          return {
+            ...rest,
+            url: absolute(item.url),
+            ...(links?.length
+              ? { links: links.map((link) => ({ ...link, url: absolute(link.url) })) }
+              : {}),
+          }
+        })
     },
   },
   head: [

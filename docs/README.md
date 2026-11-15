@@ -59,20 +59,23 @@ English is the root locale. Chinese lives under `/zh/` and Japanese under `/ja/`
 - Local search, breadcrumbs, previous/next links and a custom 404 page are enabled.
 - External links open in a new tab (`markdown.externalLinks` plus a runtime handler in the theme).
 
-### Placeholders that must be replaced before launch
+### Site identity
 
-| Item | Current value | Action |
+| Item | Value | Notes |
 | --- | --- | --- |
-| Production domain | `https://komayomi.example.com` in `config.mts` (`SITE_URL`) | Replace with the real origin. It feeds canonical, hreflang, OG URLs, JSON-LD and sitemap. |
-| `robots.txt` sitemap URL | `https://komayomi.example.com/sitemap.xml` | Replace the host to match. |
-| Social share image | `public/social-card.png` (branded 1200×630 card, generated from `docs/`) | Replace with a designed image if needed; keep the filename or update `SOCIAL_IMAGE` in `config.mts`. |
+| Production URL | `https://payayakamo.github.io/KomaYomi-docs/` | Set once in `SITE_URL` inside `config.mts`. It feeds canonical, hreflang, OG/Twitter URLs, JSON-LD and the sitemap. |
+| Path prefix | `/KomaYomi-docs/` | `base` in `config.mts`. Builds use it; `npm run docs:dev` sets `DOCS_BASE=/` so local development runs at the server root. |
+| `robots.txt` sitemap URL | `https://payayakamo.github.io/KomaYomi-docs/sitemap.xml` | Keep in sync with `SITE_URL`. |
+| Social share image | `public/social-card.png` | Branded 1200×630 card. |
 | Screenshots | `public/assets/screenshots/*.png` | Add the remaining captures listed in each guide page's *Missing screenshots* table and swap the `.shot-missing` blocks for `<img>` tags. |
 
-After changing `SITE_URL`, rebuild and confirm `sitemap.xml`, canonical tags and OG URLs all use the new domain.
+Changing the production URL means updating `SITE_URL` in `config.mts` and the sitemap line in `public/robots.txt`, then rebuilding and confirming that `sitemap.xml`, canonical tags and OG URLs all use the new address.
 
 ## Screenshots
 
 Real captures live in `public/assets/screenshots/` and are referenced as `/assets/screenshots/<name>.png`. Use English hyphenated names and keep a consistent viewport (for example 1440×900) so figures line up across languages. Pages that still need a capture contain a `.shot-missing` block and list it under *Missing screenshots*; replace that block with a `<figure class="shot"><img …></figure>` using the same path in all three languages.
+
+> **Screenshots:** every current capture uses the CC0 `samples/demo-library/` (Star Cafe) and contains no third-party manga. `npm run docs:publish` still skips `public/assets/screenshots/` by default; pass `--with-screenshots` to include them.
 
 ## Status labels
 
@@ -84,9 +87,47 @@ The product is under active development. Features that are not in the code are m
 
 Before adding or changing a feature description, verify it in the source (`src/`, `server/`, `shared/`, `scripts/`). Do not describe planned behavior as shipped.
 
-## Deployment
+## Publishing to GitHub Pages
 
-`npm run docs:build` produces a static site in `.vitepress/dist/`. Serve it at the domain root, or set `base` in `config.mts` if it will live under a subpath. No server-side runtime is required.
+The public site lives in the separate repository `https://github.com/PayayaKamo/KomaYomi-docs` and is served from `https://payayakamo.github.io/KomaYomi-docs/`. This `docs/` directory is the only source of truth; the publishing script mirrors it into that repository.
+
+### How the sync works
+
+`npm run docs:publish` (from the repository root) runs `scripts/publish-docs.mjs`:
+
+1. Clones `KomaYomi-docs` into a temporary directory (nothing is added to the main repository's history).
+2. Empties the checkout except `.git` and `.github`, then copies the current `docs/` tree — so deleted pages disappear instead of lingering.
+3. Keeps any workflow that already exists in the target. If none is present, it installs `scripts/docs-pages-workflow.yml` as `.github/workflows/pages.yml`.
+4. Commits and pushes to `main` with a normal fast-forward push (never `--force`).
+
+Excluded from every publish: `node_modules`, `.vitepress/dist`, `.vitepress/cache`, `.template-tmp`, this `README.md`, and — unless `--with-screenshots` is passed — `public/assets/screenshots`.
+
+### First publish
+
+1. Create the empty `KomaYomi-docs` repository on GitHub (no README needed).
+2. Make sure your machine can push to it, for example with `gh auth login` or an SSH key plus `DOCS_REMOTE=git@github.com:PayayaKamo/KomaYomi-docs.git`.
+3. Preview the change set without pushing: `npm run docs:publish -- --dry-run`.
+4. Push: `npm run docs:publish`.
+5. In the repository settings, open **Pages** and set **Source** to **GitHub Actions** if it is not selected yet.
+6. The first deployment usually appears within 1–3 minutes after the workflow finishes; if Pages was just enabled, allow up to about 10 minutes.
+
+### Day-to-day updates
+
+```bash
+npm run docs:build            # verify locally first
+npm run docs:publish -- --dry-run
+npm run docs:publish
+```
+
+Every run replaces the target content wholesale, so reviews happen in the main repository. Add `--with-screenshots` to publish the sample-library captures (or remove the exclusion in `scripts/publish-docs.mjs`).
+
+### Useful overrides
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DOCS_REMOTE` | `https://github.com/PayayaKamo/KomaYomi-docs.git` | Target repository URL, e.g. to use SSH. |
+| `DOCS_BRANCH` | `main` | Target branch. |
+
 
 ## Reference template
 
