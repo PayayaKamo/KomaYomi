@@ -4,6 +4,8 @@ description: Fix missing pages, unrecognized language folders, inaccurate panel 
 
 # FAQ & Troubleshooting
 
+Something broke. This page starts from the symptom and walks back to the cause — no guessing required.
+
 ## The library is empty
 
 **Symptom:** the sidebar says no volumes were found.
@@ -120,7 +122,7 @@ Hand-edited or older JSON is normalized on read: missing ids are generated, rect
 
 ## Something else is wrong
 
-Collect this before asking for help:
+Collect this before asking for help — future you will be grateful:
 
 1. The terminal output where `npm run dev` or `npm run desktop` was started.
 2. The exact page path (`data/pages/<volume>/<chapter>/<index>.json`).

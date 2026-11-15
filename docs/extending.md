@@ -1,6 +1,6 @@
 # Layout Templates & Plugins
 
-Two extension points let you replace or constrain automatic panel detection without touching the app code.
+Two extension points let you replace or constrain automatic panel detection without touching the app code — useful when a magazine's layout is more stubborn than the average XY-cut.
 
 ## Priority
 
@@ -11,6 +11,8 @@ When a page is detected, the server tries in this order:
 3. **Built-in XY-cut detector**.
 
 A layout template always wins. A plugin that throws, times out (2.5 s) or returns no panels falls back to the built-in detector with a visible warning.
+
+Think of it as three witnesses: the template you wrote wins, the plugin you installed is consulted next, and the detector guesses last.
 
 ## Layout templates
 

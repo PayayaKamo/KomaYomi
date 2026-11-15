@@ -1,6 +1,8 @@
 # Terminology
 
-The three language versions of this manual use the terms below consistently. When a page and the UI disagree, the UI label wins; when in doubt, use the row in this table.
+The three language versions of this manual use the terms below consistently. When a page and the UI disagree, the UI label wins; when in doubt, consult the table.
+
+This is the shared dictionary for translators and for readers hopping between languages — yes, the panel / 分格 / コマ situation is real, and it is intentional.
 
 UI labels are quoted in the interface language, so a button may read differently from the prose. This table is the shared reference for translators and for readers switching languages.
 
@@ -67,7 +69,9 @@ UI labels are quoted in the interface language, so a button may read differently
 | Concept | English | 中文 | 日本語 |
 | --- | --- | --- | --- |
 | The generated document | HTML export | HTML 导出 | HTML エクスポート |
+| A Word document export | Word document | Word 文档 | Word 文書 |
 | A static image export | PNG export | PNG 导出 | PNG エクスポート |
+| The browser print view used for PDF | print view | 打印视图 | 印刷ビュー |
 | A reusable document style | export template | 导出模板 | エクスポートテンプレート |
 | A portable project archive | project package | 工程包 | プロジェクトパッケージ |
 | A single layout or page file | exchange file | 交换文件 | 交換ファイル |

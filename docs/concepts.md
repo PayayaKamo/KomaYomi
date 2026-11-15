@@ -1,6 +1,6 @@
 # Core Concepts
 
-Five objects explain almost everything in KomaYomi.
+Five objects explain almost everything in KomaYomi. They are also the five things people mix up most often, so the definitions here are worth a slow read.
 
 ## Volume → chapter → page
 
@@ -87,7 +87,7 @@ It determines panel numbering and the order of notes in the export.
 
 ## Language codes
 
-The app ships with three built-in languages: `ja` (日本語), `zh` (中文) and `en` (English). A library may detect more at scan time — any language folder is accepted, and its normalized folder name becomes the language id. A volume can have one, two or three built-in languages; the UI disables languages a page does not have.
+The app ships with three built-in languages: `ja` (日本語), `zh` (中文) and `en` (English). A library may detect more at scan time — any language folder is accepted, and its normalized folder name becomes the language id. A volume can have as many languages as you map; the UI disables languages a page does not have.
 
 ## Page document
 
@@ -111,4 +111,4 @@ Library
             └── Alignment offsets ─┘
 ```
 
-The image files are read-only inputs. All work is in `data/`.
+The image files are read-only inputs. All work is in `data/` — your scans stay yours, untouched.

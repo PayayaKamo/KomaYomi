@@ -1,6 +1,6 @@
 # 导出
 
-导出把一章的分格与笔记变成真能带走的东西：HTML 学习文档、用于幻灯片的 PNG、Word 用户会喜欢的 `.docx`，以及给 PDF 党准备的打印视图。
+导出把一话的分格与笔记变成真能带走的东西：HTML 学习文档、用于幻灯片的 PNG、Word 用户会喜欢的 `.docx`，以及给 PDF 党准备的打印视图。
 
 <figure class="shot">
   <img src="/assets/screenshots/export-dialog.png" alt="导出对话框：版式模板、范围、语言、图片方式与实时预览">

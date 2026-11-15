@@ -1,10 +1,10 @@
 # Keyboard Shortcuts
 
-One page for every key and mouse gesture. Single-key shortcuts are ignored while the focus is inside a text field, so typing a note never flips the view.
+One page for every key and mouse gesture. Single-key shortcuts are ignored while focus sits inside a text field, so typing a note never flips the view mid-sentence.
 
 ## What this page solves
 
-Shortcuts are spread across the library, the workbench, the compare reader and the notes editor. Instead of hunting through each chapter, keep this page open while you learn the workflow, or print it as a one-page reference.
+Shortcuts are scattered across the library, the workbench, the compare reader and the notes editor. Rather than hunting through each chapter, keep this page open while you learn the workflow, or print it and tape it next to the monitor.
 
 ## Global
 
