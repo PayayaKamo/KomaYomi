@@ -15,6 +15,7 @@ import { useAnnSurface } from '../lib/annotationSurface';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
 import { exportPng } from '../lib/pngExport';
+import { useCompareLayout } from '../hooks/useCompareLayout';
 
 type Props = {
   doc: PageDoc;
@@ -360,6 +361,65 @@ export function CompareTab({
     if (kept.length) return kept;
     return availableLangs.length ? availableLangs : langs;
   }, [langs, availableLangs]);
+
+  /*
+   * Touch layouts (phone / tablet) show a subset of the enabled languages:
+   * one lane on phones, a rotating pair on portrait tablets. The tab bar sets the
+   * focus language and the remaining lanes follow the configured order.
+   */
+  const layout = useCompareLayout();
+  const [focusLang, setFocusLang] = useState<Lang>(activeLangs[0] ?? 'ja');
+  useEffect(() => {
+    if (!activeLangs.includes(focusLang)) setFocusLang(activeLangs[0] ?? 'ja');
+  }, [activeLangs, focusLang]);
+  const mobileLangs = useMemo<Lang[]>(() => {
+    if (!activeLangs.length || layout.mode === 'desktop') return activeLangs;
+    const slots = layout.mode === 'phone' ? 1 : layout.columns;
+    if (activeLangs.length <= slots) return activeLangs;
+    const start = Math.max(0, activeLangs.indexOf(focusLang));
+    return [...activeLangs.slice(start), ...activeLangs.slice(0, start)].slice(0, slots);
+  }, [layout.mode, layout.columns, activeLangs, focusLang]);
+  const paneLangs = overlay ? activeLangs : mobileLangs;
+
+  // Keep new annotations on a lane that is actually on screen.
+  useEffect(() => {
+    if (paneLangs.length && !paneLangs.includes(annLang)) setAnnLang(paneLangs[0]);
+  }, [paneLangs, annLang]);
+
+  const compareScrollRef = useRef<HTMLDivElement>(null);
+  const swipeLangs = !overlay && layout.mode === 'phone' && paneLangs.length === 1 && activeLangs.length > 1;
+  useEffect(() => {
+    if (!swipeLangs) return;
+    const el = compareScrollRef.current;
+    if (!el) return;
+    let sx = 0;
+    let sy = 0;
+    let tracking = false;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+      tracking = true;
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - sx;
+      const dy = touch.clientY - sy;
+      // Only a clearly horizontal swipe flips languages; vertical gestures keep scrolling.
+      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      const from = Math.max(0, activeLangs.indexOf(paneLangs[0]));
+      const step = dx < 0 ? 1 : -1;
+      setFocusLang(activeLangs[(from + step + activeLangs.length) % activeLangs.length]);
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchend', onEnd);
+    };
+  }, [swipeLangs, activeLangs, paneLangs]);
   const baseLang = useMemo(() => activeLangs[0] ?? 'ja', [activeLangs]);
 
   useEffect(() => {
@@ -534,6 +594,9 @@ export function CompareTab({
       setPendingAnchor(null);
       return;
     }
+    // On touch layouts vertical drags scroll the page and horizontal swipes switch
+    // languages, so dragging must not capture the pointer to pan the image.
+    if (layout.mode !== 'desktop' && e.pointerType === 'touch') return;
     e.preventDefault();
     movedRef.current = false;
     // Alt is a temporary override: this gesture only affects the current panel and reverts to the active scope on release
@@ -882,6 +945,14 @@ export function CompareTab({
           if (annAllowed && annOn && annTool !== 'select') return;
           startPan(e, lang, panel);
         }}
+        onClick={() => {
+          // Touch panning is disabled in compact layouts, so taps still toggle masking.
+          if (layout.mode === 'desktop') return;
+          setRevealed((r) => {
+            const key = `${panel.id}:${lang}`;
+            return r[key] ? { ...r, [key]: false } : r;
+          });
+        }}
       >
         <CropLayer url={url} rect={panel.rect} offset={off} opacity={1} blend={false} />
         {/* Only the highlighted lane edits; other lanes mirror the same marks read-only. */}
@@ -1071,7 +1142,7 @@ export function CompareTab({
   }
 
   return (
-    <div className="compare-tab">
+    <div className={`compare-tab layout-${layout.mode}`}>
       <div className={`stage-toolbar ${moreOpen ? 'tb-more-open' : ''}`}>
         <div className="tb-group">
           <span className="tb-label">{t('compare.language')}</span>
@@ -1330,7 +1401,7 @@ export function CompareTab({
               {t('ann.layer')}
             </button>
             {annOn && (
-              <>
+              <div className="ann-tools-wrap">
                 <div className="ann-tools">
                   {ANNOTATION_TOOL_ORDER.map((item) => (
                     <button
@@ -1433,7 +1504,7 @@ export function CompareTab({
                 <span className="muted tiny ann-hint">
                   {t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
                 </span>
-              </>
+              </div>
             )}
           </div>
         )}
@@ -1667,7 +1738,26 @@ export function CompareTab({
         </div>
       )}
 
-      <div className="compare-scroll">
+      {!overlay && layout.tabs && activeLangs.length > layout.columns && (
+        <div className="compare-lang-tabs" role="tablist" aria-label={t('compare.switchLanguage')}>
+          {activeLangs.map((l) => (
+            <button
+              key={l}
+              type="button"
+              role="tab"
+              aria-selected={paneLangs.includes(l)}
+              className={`lang-tab ${paneLangs.includes(l) ? 'on' : ''} ${l === focusLang ? 'focus' : ''}`}
+              title={langLabel(l)}
+              onClick={() => setFocusLang(l)}
+            >
+              {langShort(l)}
+            </button>
+          ))}
+          {layout.mode === 'phone' && <span className="lang-tabs-hint">{t('compare.swipeLangHint')}</span>}
+        </div>
+      )}
+
+      <div className="compare-scroll" ref={compareScrollRef}>
         {ordered.map((panel, idx) => {
           const isSel = selected.includes(panel.id);
           const notes = doc.notes.filter((n) => n.scope === 'panel' && n.panelId === panel.id);
@@ -1696,10 +1786,10 @@ export function CompareTab({
                 <div className="lang-grid overlay">{renderOverlayPane(panel)}</div>
               ) : (
                 <div
-                  className={`lang-grid cols-${activeLangs.length}`}
-                  style={{ ['--cols' as string]: activeLangs.length }}
+                  className={`lang-grid cols-${paneLangs.length}`}
+                  style={{ ['--cols' as string]: paneLangs.length }}
                 >
-                  {activeLangs.map((l) => renderLangPane(l, panel))}
+                  {paneLangs.map((l) => renderLangPane(l, panel))}
                 </div>
               )}
 

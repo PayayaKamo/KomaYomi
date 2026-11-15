@@ -1935,12 +1935,23 @@ body.pane-resizing * {
   display: flex;
 }
 
-@media (max-width: 1100px) {
+/* Annotation tools share the row on wide screens (contents keeps the old flex
+   rhythm); narrow screens fold them behind the "more" button so the toolbar
+   stays on one line. */
+.ann-tools-wrap {
+  display: contents;
+}
+
+@media (max-width: 1199px) {
   .tb-more-btn {
     display: inline-flex;
   }
 
   .stage-toolbar:not(.tb-more-open) .tb-group.tb-collapsible {
+    display: none;
+  }
+
+  .stage-toolbar:not(.tb-more-open) .ann-tools-wrap {
     display: none;
   }
 
@@ -5786,4 +5797,74 @@ kbd {
   height: 1px;
   margin: 4px 6px;
   background: var(--line);
+}
+
+/* ================= Touch compare layouts (phone / tablet) ================= */
+
+.compare-lang-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.lang-tab {
+  flex: 0 0 auto;
+  min-width: 48px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.lang-tab.on {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.lang-tab.focus {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1016;
+}
+
+.lang-tabs-hint {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Touch layouts pick their own column count instead of the single-column fallback. */
+.compare-tab.layout-phone .lang-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.compare-tab.layout-tablet-portrait .lang-grid {
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+}
+
+.compare-tab.layout-tablet-landscape .lang-grid {
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+}
+
+/* Let vertical gestures scroll the page; horizontal swipes are read by the tab handler. */
+.compare-tab.layout-phone .lang-pane,
+.compare-tab.layout-tablet-portrait .lang-pane,
+.compare-tab.layout-tablet-landscape .lang-pane {
+  touch-action: pan-y;
+  cursor: default;
 }

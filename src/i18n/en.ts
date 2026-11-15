@@ -543,6 +543,8 @@ export const en = {
 
   /* ---- compare tab ---- */
   'compare.language': 'Language',
+  'compare.switchLanguage': 'Switch language pane',
+  'compare.swipeLangHint': 'Swipe left / right to switch language',
   'compare.missingLangImage': 'This page is missing the {lang} image',
   'compare.mask': 'Mask',
   'compare.maskToggleTitle': 'When on, mask per language below; H masks all, Shift+H reveals all',

@@ -526,6 +526,8 @@ export const zh = {
 
   /* ---- compare tab ---- */
   'compare.language': '语言',
+  'compare.switchLanguage': '切换语言栏',
+  'compare.swipeLangHint': '左右滑动切换语言',
   'compare.missingLangImage': '本页缺少{lang}图片',
   'compare.mask': '遮蔽',
   'compare.maskToggleTitle': '开启后按下方语言分别遮蔽；H 全部遮住，Shift+H 全部显示',

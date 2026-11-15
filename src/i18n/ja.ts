@@ -538,6 +538,8 @@ export const ja = {
 
   /* ---- compare tab ---- */
   'compare.language': '言語',
+  'compare.switchLanguage': '言語パネルを切り替え',
+  'compare.swipeLangHint': '左右スワイプで言語を切り替え',
   'compare.missingLangImage': 'このページには{lang}の画像がありません',
   'compare.mask': 'マスク',
   'compare.maskToggleTitle': 'オンにすると下の言語ごとにマスクします。H で全マスク、Shift+H で全表示',
