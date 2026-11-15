@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Note, NoteSource, PageDoc, Panel } from '../types';
+import type { ClipboardEvent, DragEvent } from 'react';
+import type { Note, NoteImage, NoteSource, PageDoc, Panel } from '../types';
 import type { Library } from '../types';
-import { formatTime, newNote, sourceDomain } from '../lib/geometry';
+import { newNote, sourceDomain, uid } from '../lib/geometry';
 import { renderMarkdown } from '../../shared/markdown';
 import { api } from '../api';
 import type { NotesIndex } from '../api';
 import type { Selection } from '../hooks/usePage';
+import { useI18n } from '../i18n';
+import type { MessageKey } from '../i18n';
 
 type Props = {
   doc: PageDoc | null;
@@ -14,24 +17,118 @@ type Props = {
   mutate: (fn: (doc: PageDoc) => PageDoc) => void;
   tagStats: { tag: string; count: number }[];
   library: Library | null;
-  /** 跳到某页的某格（总览/搜索命中后使用） */
+  /** Jump to a panel on some page (used by overview/search hits). */
   onJump: (sel: Selection, panelId: string | null) => void;
   onClose?: () => void;
 };
 
-/* ---------------- Markdown 编辑器：编辑 / 实时预览 ---------------- */
+/* ---------------- Note images: pasted/dropped screenshots ---------------- */
+
+/** Longest edge kept; bigger screenshots are downscaled so page JSON stays small. */
+const NOTE_IMAGE_MAX_EDGE = 1600;
+/** Small PNG/JPEG files are stored untouched; re-encoding them would only lose quality. */
+const NOTE_IMAGE_RAW_LIMIT = 400 * 1024;
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function decodeImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image decode failed'));
+    };
+    img.src = url;
+  });
+}
+
+/** Convert a clipboard/dropped file into a self-contained data URL. */
+async function fileToNoteImage(file: File): Promise<NoteImage | null> {
+  if (!file.type.startsWith('image/')) return null;
+  try {
+    if (file.size <= NOTE_IMAGE_RAW_LIMIT) {
+      return { id: uid('img'), name: file.name, dataUrl: await readAsDataUrl(file) };
+    }
+    const img = await decodeImage(file);
+    const scale = Math.min(1, NOTE_IMAGE_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // WebP keeps screenshots sharp with far smaller data URLs than PNG.
+    return { id: uid('img'), name: file.name, dataUrl: canvas.toDataURL('image/webp', 0.85) };
+  } catch {
+    return null;
+  }
+}
+
+function clipboardImageFiles(data: DataTransfer | null): File[] {
+  if (!data) return [];
+  return [...data.files].filter((f) => f.type.startsWith('image/'));
+}
+
+/* ---------------- Markdown editor: edit / split / preview ---------------- */
+
+type NoteViewMode = 'edit' | 'split' | 'preview';
+const NOTE_MODE_KEY = 'manga-memo.notes-mode';
+
+function readNoteMode(): NoteViewMode {
+  try {
+    const saved = localStorage.getItem(NOTE_MODE_KEY);
+    return saved === 'edit' || saved === 'preview' || saved === 'split' ? saved : 'split';
+  } catch {
+    return 'split';
+  }
+}
 
 type EditorProps = {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
-  rows?: number;
 };
 
-function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: EditorProps) {
-  const [preview, setPreview] = useState(false);
+const MODE_ORDER: { mode: NoteViewMode; label: MessageKey }[] = [
+  { mode: 'edit', label: 'notes.modeEdit' },
+  { mode: 'split', label: 'notes.modeSplit' },
+  { mode: 'preview', label: 'notes.modePreview' },
+];
+
+function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps) {
+  const { t } = useI18n();
+  const [mode, setMode] = useState<NoteViewMode>(readNoteMode);
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  const changeMode = (next: NoteViewMode) => {
+    setMode(next);
+    try {
+      localStorage.setItem(NOTE_MODE_KEY, next);
+    } catch {
+      /* private mode: the choice just lasts for this session */
+    }
+  };
+
+  // Grow with the content (capped) so a note never starts in a three-line box.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || mode === 'preview') return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 440)}px`;
+  }, [value, mode]);
 
   const apply = (transform: (sel: string) => string, fallback: string) => {
     const el = ref.current;
@@ -57,23 +154,25 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
   const prefixLines = (prefix: string) =>
     apply(
       (sel) =>
-        (sel || '列表项')
+        (sel || t('notes.listItem'))
           .split('\n')
           .map((line) => `${prefix}${line}`)
           .join('\n'),
-      `${prefix}列表项`,
+      `${prefix}${t('notes.listItem')}`,
     );
+
+  const insertRule = () => apply(() => '\n\n---\n\n', '\n\n---\n\n');
 
   const keydown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
-      wrap('**', '加粗');
+      wrap('**', t('notes.boldText'));
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
       e.preventDefault();
-      wrap('*', '斜体');
+      wrap('*', t('notes.italicText'));
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      apply((sel) => `[${sel || '链接文字'}](https://)`, '[链接文字](https://)');
+      apply((sel) => `[${sel || t('notes.linkText')}](https://)`, `[${t('notes.linkText')}](https://)`);
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       onSubmit?.();
@@ -83,56 +182,104 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit, rows = 4 }: Ed
     }
   };
 
+  const previewBody = value.trim() ? (
+    <div className="md-body md-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }} />
+  ) : (
+    <div className="md-preview muted tiny">{t('notes.emptyPreview')}</div>
+  );
+
   return (
-    <div className="md-editor">
+    <div className={`md-editor mode-${mode}`}>
       <div className="md-toolbar">
-        <button type="button" title="加粗（Ctrl+B）" onClick={() => wrap('**', '加粗')}>
+        <button type="button" title={t('notes.headingTitle')} onClick={() => prefixLines('## ')}>
+          H2
+        </button>
+        <button type="button" title={t('notes.boldTitle')} onClick={() => wrap('**', t('notes.boldText'))}>
           <b>B</b>
         </button>
-        <button type="button" title="斜体（Ctrl+I）" onClick={() => wrap('*', '斜体')}>
+        <button type="button" title={t('notes.italicTitle')} onClick={() => wrap('*', t('notes.italicText'))}>
           <i>I</i>
         </button>
-        <button type="button" title="无序列表" onClick={() => prefixLines('- ')}>
-          • 列表
+        <button type="button" title={t('notes.strikeTitle')} onClick={() => wrap('~~', t('notes.strikeText'))}>
+          <s>S</s>
         </button>
-        <button type="button" title="引用" onClick={() => prefixLines('> ')}>
-          ❝ 引用
+        <button type="button" title={t('notes.bulletTitle')} onClick={() => prefixLines('- ')}>
+          {t('notes.bulletLabel')}
         </button>
-        <button type="button" title="行内代码" onClick={() => wrap('`', 'code')}>
+        <button type="button" title={t('notes.orderedTitle')} onClick={() => prefixLines('1. ')}>
+          1.
+        </button>
+        <button type="button" title={t('notes.quoteTitle')} onClick={() => prefixLines('> ')}>
+          {t('notes.quoteLabel')}
+        </button>
+        <button type="button" title={t('notes.codeTitle')} onClick={() => wrap('`', 'code')}>
           {'</>'}
         </button>
-        <button type="button" title="链接（Ctrl+K）" onClick={() => apply((sel) => `[${sel || '链接文字'}](https://)`, '[链接文字](https://)')}>
-          ↗ 链接
+        <button
+          type="button"
+          title={t('notes.linkTitle')}
+          onClick={() =>
+            apply((sel) => `[${sel || t('notes.linkText')}](https://)`, `[${t('notes.linkText')}](https://)`)
+          }
+        >
+          {t('notes.linkLabel')}
+        </button>
+        <button type="button" title={t('notes.ruleTitle')} onClick={insertRule}>
+          —
         </button>
         <span className="spacer" />
-        <button type="button" className={preview ? 'on' : ''} onClick={() => setPreview((v) => !v)} title="切换编辑 / 预览">
-          {preview ? '编辑' : '预览'}
-        </button>
+        <div className="md-modes" role="group" aria-label={t('notes.togglePreviewTitle')}>
+          {MODE_ORDER.map(({ mode: m, label }) => (
+            <button
+              type="button"
+              key={m}
+              className={mode === m ? 'on' : ''}
+              title={t(label)}
+              onClick={() => changeMode(m)}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
       </div>
-      {preview ? (
-        value.trim() ? (
-          <div className="md-body md-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }} />
-        ) : (
-          <div className="md-preview muted tiny">（空）</div>
-        )
-      ) : (
-        <textarea
-          ref={ref}
-          value={value}
-          rows={rows}
-          placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={keydown}
-        />
-      )}
-      <div className="md-hint muted tiny">
-        Markdown：**加粗**、*斜体*、- 列表、&gt; 引用、``` 代码块 ```、| 表格 |；Ctrl+Enter 保存
+      <div className="md-panes">
+        {mode !== 'preview' && (
+          <textarea
+            ref={ref}
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={keydown}
+          />
+        )}
+        {mode !== 'edit' && previewBody}
       </div>
+      <div className="md-hint muted tiny">{t('notes.markdownHint')}</div>
     </div>
   );
 }
 
-/* ---------------- 随手记暂存 ---------------- */
+/** Rendered note body; long notes start collapsed so the list stays scannable. */
+function NoteBody({ text }: { text: string }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const long = text.length > 280;
+  return (
+    <>
+      <div
+        className={`note-text md-body ${long && !open ? 'collapsed' : ''}`}
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }}
+      />
+      {long && (
+        <button type="button" className="note-more" onClick={() => setOpen((v) => !v)}>
+          {open ? t('notes.collapse') : t('notes.expand')}
+        </button>
+      )}
+    </>
+  );
+}
+
+/* ---------------- Scratchpad draft ---------------- */
 
 type ScratchItem = { id: string; text: string; createdAt: string };
 const SCRATCH_KEY = 'manga-memo.scratchpad';
@@ -147,40 +294,43 @@ function loadScratch(): ScratchItem[] {
   }
 }
 
-/* ---------------- 复制给大模型的上下文 ---------------- */
+/* ---------------- Context copied for an LLM ---------------- */
 
 const TEMPLATE_KEY = 'manga-memo.context-template';
-const DEFAULT_TEMPLATE =
-  '我在精读《{volume}》第 {chapter} 话 第 {page} 页{panel}，下面是我记的笔记：\n\n{notes}\n\n请帮我解释其中的语言点、语气、文化背景，并指出我的理解是否有误。';
 
-function loadTemplate(): string {
+function loadTemplate(fallback: string): string {
   try {
-    return localStorage.getItem(TEMPLATE_KEY) || DEFAULT_TEMPLATE;
+    return localStorage.getItem(TEMPLATE_KEY) || fallback;
   } catch {
-    return DEFAULT_TEMPLATE;
+    return fallback;
   }
 }
 
-/* ---------------- 笔记面板 ---------------- */
+/* ---------------- Notes panel ---------------- */
 
 const ROW_H = 96;
 
-type FlatRow =
-  | { kind: 'header'; label: string; count: number }
-  | { kind: 'note'; note: NotesIndex['notes'][number] };
+type FlatHeader =
+  | { kind: 'header'; key: string; count: number; group: 'chapter'; volume: string; chapter: string }
+  | { kind: 'header'; key: string; count: number; group: 'tag'; tag: string | null }
+  | { kind: 'header'; key: string; count: number; group: 'source'; domain: string };
+
+type FlatRow = FlatHeader | { kind: 'note'; note: NotesIndex['notes'][number] };
 
 export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, onJump, onClose }: Props) {
+  const { t, formatDate, formatNumber } = useI18n();
   const [tab, setTab] = useState<'page' | 'all'>('page');
   const [scope, setScope] = useState<'page' | 'panel'>('page');
   const [text, setText] = useState('');
+  const [images, setImages] = useState<NoteImage[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [filterSource, setFilterSource] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string; images: NoteImage[] } | null>(null);
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
 
-  // 来源
+  // Source
   const [sourceOpen, setSourceOpen] = useState(false);
   const [srcUrl, setSrcUrl] = useState('');
   const [srcTitle, setSrcTitle] = useState('');
@@ -188,17 +338,17 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [titleBusy, setTitleBusy] = useState(false);
   const [titleMsg, setTitleMsg] = useState<string | null>(null);
 
-  // 随手记
+  // Scratchpad
   const [scratch, setScratch] = useState<ScratchItem[]>(loadScratch);
   const [scratchDraft, setScratchDraft] = useState('');
   const [scratchOpen, setScratchOpen] = useState(false);
 
-  // 复制上下文
+  // Copy context
   const [contextNotes, setContextNotes] = useState<{ notes: Note[]; single?: Note } | null>(null);
-  const [template, setTemplate] = useState(loadTemplate);
+  const [template, setTemplate] = useState(() => loadTemplate(t('notes.contextTemplateDefault')));
   const [copied, setCopied] = useState(false);
 
-  // 总览 / 搜索
+  // Overview / search
   const [query, setQuery] = useState('');
   const [fVolume, setFVolume] = useState('');
   const [fChapter, setFChapter] = useState('');
@@ -209,22 +359,28 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [scrollTop, setScrollTop] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Reset the composer when the target panel/page changes. Keying on primitives
+  // avoids re-running this whenever an unrelated field of the page doc mutates.
+  const currentPanelId = panel?.id ?? null;
+  const currentPageKey = `${doc?.chapter ?? ''}|${doc?.pageIndex ?? -1}`;
   useEffect(() => {
     setScope(panel ? 'panel' : 'page');
     setText('');
+    setImages([]);
     setTags([]);
     setTagInput('');
     setSourceOpen(false);
     setSrcUrl('');
     setSrcTitle('');
     setSrcText('');
-  }, [panel?.id, doc?.pageIndex, doc?.chapter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPanelId, currentPageKey]);
 
   useEffect(() => {
     try {
       localStorage.setItem(SCRATCH_KEY, JSON.stringify(scratch));
     } catch {
-      /* 忽略隐私模式 */
+      /* Ignore in private mode. */
     }
   }, [scratch]);
   useEffect(() => {
@@ -235,7 +391,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
   }, [template]);
 
-  // 粘贴/输入正文时自动识别第一个 URL（标题抓取仍是可选的按钮）
+  // Auto-detect the first URL while pasting/typing body text (fetching the title stays an optional button).
   useEffect(() => {
     if (srcUrl) return;
     const match = text.match(/https?:\/\/[^\s)>\]]+/);
@@ -245,7 +401,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
   }, [text, srcUrl]);
 
-  // 搜索（300ms 防抖），并随当前文档变化刷新总览
+  // Search (300ms debounce) and refresh the overview when the current document changes.
   useEffect(() => {
     if (tab !== 'all') return;
     let alive = true;
@@ -279,8 +435,8 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
 
   const allTags = useMemo(() => {
     const m = new Map<string, number>();
-    for (const t of tagStats) m.set(t.tag, t.count);
-    for (const n of doc?.notes ?? []) for (const t of n.tags) m.set(t, (m.get(t) ?? 0) + 1);
+    for (const tag of tagStats) m.set(tag.tag, tag.count);
+    for (const n of doc?.notes ?? []) for (const tag of n.tags) m.set(tag, (m.get(tag) ?? 0) + 1);
     return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([tag, count]) => ({ tag, count }));
   }, [doc, tagStats]);
 
@@ -296,12 +452,14 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const panelNotes = panel ? notes.filter((n) => n.scope === 'panel' && n.panelId === panel.id) : [];
   const pageNotes = notes.filter((n) => n.scope === 'page');
   const shown = (list: Note[]) =>
-    list.filter((n) => (!filterTag || n.tags.includes(filterTag)) && (!filterSource || sourceDomain(n.source) === filterSource));
+    list.filter(
+      (n) => (!filterTag || n.tags.includes(filterTag)) && (!filterSource || sourceDomain(n.source) === filterSource),
+    );
 
   const addTag = (tag: string) => {
-    const t = tag.trim();
-    if (!t) return;
-    setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
+    const next = tag.trim();
+    if (!next) return;
+    setTags((prev) => (prev.includes(next) ? prev : [...prev, next]));
     setTagInput('');
   };
 
@@ -314,12 +472,48 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     };
   };
 
+  const appendComposerImages = async (files: File[]) => {
+    const converted = await Promise.all(files.map(fileToNoteImage));
+    const usable = converted.filter((img): img is NoteImage => img !== null);
+    if (usable.length) setImages((prev) => [...prev, ...usable]);
+  };
+
+  const appendEditingImages = async (files: File[]) => {
+    const converted = await Promise.all(files.map(fileToNoteImage));
+    const usable = converted.filter((img): img is NoteImage => img !== null);
+    if (usable.length) setEditing((prev) => (prev ? { ...prev, images: [...prev.images, ...usable] } : prev));
+  };
+
+  const handlePasteImages = (e: ClipboardEvent, append: (files: File[]) => Promise<void>) => {
+    const files = clipboardImageFiles(e.clipboardData);
+    if (!files.length) return;
+    // Only swallow the paste when it actually carried images, so text still pastes normally.
+    e.preventDefault();
+    void append(files);
+  };
+
+  const handleDropImages = (e: DragEvent, append: (files: File[]) => Promise<void>) => {
+    const files = [...e.dataTransfer.files];
+    if (!files.length) return;
+    e.preventDefault();
+    void append(files);
+  };
+
   const submit = () => {
-    if (!doc || !text.trim()) return;
+    if (!doc) return;
+    if (!text.trim() && !images.length) return;
     if (scope === 'panel' && !panel) return;
-    const note = newNote(scope, scope === 'panel' && panel ? panel.id : null, text.trim(), tags, currentSource());
+    const note = newNote(
+      scope,
+      scope === 'panel' && panel ? panel.id : null,
+      text.trim(),
+      tags,
+      currentSource(),
+      images,
+    );
     mutate((d) => ({ ...d, notes: [...d.notes, note] }));
     setText('');
+    setImages([]);
     setTags([]);
     setTagInput('');
     setSrcUrl('');
@@ -337,7 +531,14 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     mutate((d) => ({
       ...d,
       notes: d.notes.map((n) =>
-        n.id === editing.id ? { ...n, text: editing.text, updatedAt: new Date().toISOString() } : n,
+        n.id === editing.id
+          ? {
+              ...n,
+              text: editing.text,
+              images: editing.images.length ? editing.images : undefined,
+              updatedAt: new Date().toISOString(),
+            }
+          : n,
       ),
     }));
     setEditing(null);
@@ -350,7 +551,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     try {
       const res = await api.fetchLinkTitle(srcUrl.trim());
       if (res.title) setSrcTitle(res.title);
-      setTitleMsg(res.title ? '已抓取标题' : res.warning ?? '没有找到标题，可手动填写');
+      setTitleMsg(res.title ? t('notes.titleFetched') : (res.warning ?? t('notes.titleNotFound')));
     } catch (err) {
       setTitleMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -381,7 +582,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
       : data.notes
           .map((n) => {
             const src = n.source
-              ? `\n  来源：${[n.source.title, n.source.url, n.source.text].filter(Boolean).join(' · ')}`
+              ? `\n  ${t('notes.sourceInline')}${[n.source.title, n.source.url, n.source.text].filter(Boolean).join(' · ')}`
               : '';
             return `- ${n.text}${src}`;
           })
@@ -407,41 +608,80 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
   };
 
+  /** Thumbnails for a note. `onRemove` turns the strip into the editor variant. */
+  const imageStrip = (list: NoteImage[], onRemove?: (id: string) => void) => (
+    <div className={`note-images ${onRemove ? 'editable' : ''}`}>
+      {list.map((img) => (
+        <figure key={img.id}>
+          {onRemove ? (
+            <img src={img.dataUrl} alt={img.name} />
+          ) : (
+            <a href={img.dataUrl} target="_blank" rel="noreferrer noopener" title={img.name}>
+              <img src={img.dataUrl} alt={img.name} loading="lazy" />
+            </a>
+          )}
+          {onRemove && (
+            <button type="button" title={t('notes.removeImage')} onClick={() => onRemove(img.id)}>
+              ×
+            </button>
+          )}
+        </figure>
+      ))}
+    </div>
+  );
+
   const renderNote = (note: Note) => (
     <div className="note" key={note.id}>
       <div className="note-top">
         <div className="note-tags">
-          {note.tags.map((t) => (
+          {note.tags.map((tag) => (
             <button
               type="button"
-              key={t}
-              className={`tag ${filterTag === t ? 'on' : ''}`}
-              onClick={() => setFilterTag(filterTag === t ? null : t)}
-              title="按标签筛选"
+              key={tag}
+              className={`tag ${filterTag === tag ? 'on' : ''}`}
+              onClick={() => setFilterTag(filterTag === tag ? null : tag)}
+              title={t('notes.filterByTag')}
             >
-              {t}
+              {tag}
             </button>
           ))}
         </div>
-        <span className="note-time">{formatTime(note.createdAt)}</span>
+        <span className="note-time">{formatDate(note.createdAt)}</span>
       </div>
       {editing?.id === note.id ? (
-        <div className="note-edit">
-          <MarkdownEditor value={editing.text} onChange={(v) => setEditing({ ...editing, text: v })} onSubmit={saveEdit} placeholder="Markdown 笔记…" />
+        <div
+          className="note-edit"
+          onPaste={(e) => handlePasteImages(e, appendEditingImages)}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          }}
+          onDrop={(e) => handleDropImages(e, appendEditingImages)}
+        >
+          <MarkdownEditor
+            value={editing.text}
+            onChange={(v) => setEditing({ ...editing, text: v })}
+            onSubmit={saveEdit}
+            placeholder={t('notes.markdownPlaceholder')}
+          />
+          {editing.images.length > 0 &&
+            imageStrip(editing.images, (id) =>
+              setEditing((prev) => (prev ? { ...prev, images: prev.images.filter((i) => i.id !== id) } : prev)),
+            )}
           <div className="row-actions">
             <button type="button" className="btn tiny primary" onClick={saveEdit}>
-              保存
+              {t('common.save')}
             </button>
             <button type="button" className="btn tiny" onClick={() => setEditing(null)}>
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         </div>
       ) : sourceIds[note.id] ? (
         <pre className="note-source">{note.text}</pre>
       ) : (
-        <div className="note-text md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.text) }} />
+        <NoteBody text={note.text} />
       )}
+      {note.images?.length ? imageStrip(note.images) : null}
       {note.source && (note.source.url || note.source.title || note.source.text) && (
         <div className="note-src-line" title={note.source.url}>
           {note.source.url ? (
@@ -457,39 +697,47 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
       )}
       {editing?.id !== note.id && (
         <div className="note-actions">
-          <button type="button" onClick={() => setEditing({ id: note.id, text: note.text })}>
-            编辑
+          <button type="button" onClick={() => setEditing({ id: note.id, text: note.text, images: note.images ?? [] })}>
+            {t('common.edit')}
           </button>
           <button
             type="button"
             onClick={() => setSourceIds((s) => ({ ...s, [note.id]: !s[note.id] }))}
-            title="在渲染结果与 Markdown 源码之间切换"
+            title={t('notes.toggleSource')}
           >
-            {sourceIds[note.id] ? '渲染' : '源码'}
+            {sourceIds[note.id] ? t('notes.rendered') : t('notes.source')}
           </button>
-          <button type="button" onClick={() => setContextNotes({ notes: [note], single: note })} title="复制卷/话/页/格与这条笔记">
-            复制上下文
+          <button
+            type="button"
+            onClick={() => setContextNotes({ notes: [note], single: note })}
+            title={t('notes.copyContextTitle')}
+          >
+            {t('notes.copyContext')}
           </button>
           <button type="button" onClick={() => removeNote(note.id)}>
-            删除
+            {t('common.delete')}
           </button>
         </div>
       )}
     </div>
   );
 
-  /* ---- 随手记面板（有页/无页都可用） ---- */
+  /* ---- Scratchpad panel (usable with or without a page) ---- */
   const scratchPanel = (
     <div className="scratch">
-      <button type="button" className={`scratch-toggle ${scratchOpen ? 'on' : ''}`} onClick={() => setScratchOpen((v) => !v)}>
-        随手记暂存 <em>{scratch.length}</em>
+      <button
+        type="button"
+        className={`scratch-toggle ${scratchOpen ? 'on' : ''}`}
+        onClick={() => setScratchOpen((v) => !v)}
+      >
+        {t('notes.scratchTitle')} <em>{formatNumber(scratch.length)}</em>
       </button>
       {scratchOpen && (
         <div className="scratch-body">
           <textarea
             rows={2}
             value={scratchDraft}
-            placeholder="先记下来，稍后归到具体的页/格…（Ctrl+Enter 记下）"
+            placeholder={t('notes.scratchPlaceholder')}
             onChange={(e) => setScratchDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -499,20 +747,29 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
             }}
           />
           <button type="button" className="btn tiny" onClick={addScratch} disabled={!scratchDraft.trim()}>
-            记下
+            {t('notes.scratchSave')}
           </button>
           {scratch.map((item) => (
             <div className="scratch-item" key={item.id}>
               <div className="scratch-text">{item.text}</div>
               <div className="scratch-actions">
-                <span className="muted tiny">{formatTime(item.createdAt)}</span>
+                <span className="muted tiny">{formatDate(item.createdAt)}</span>
                 <button type="button" className="btn tiny" onClick={() => placeScratch(item, 'page')} disabled={!doc}>
-                  归到本页
+                  {t('notes.scratchToPage')}
                 </button>
-                <button type="button" className="btn tiny" onClick={() => placeScratch(item, 'panel')} disabled={!panel}>
-                  归到本格
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => placeScratch(item, 'panel')}
+                  disabled={!panel}
+                >
+                  {t('notes.scratchToPanel')}
                 </button>
-                <button type="button" className="btn tiny" onClick={() => setScratch(scratch.filter((s) => s.id !== item.id))}>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => setScratch(scratch.filter((s) => s.id !== item.id))}
+                >
                   ×
                 </button>
               </div>
@@ -523,29 +780,28 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     </div>
   );
 
-  /* ---- 总览：按话 / 标签 / 来源聚合 + 虚拟滚动 ---- */
+  /* ---- Overview: grouped by chapter / tag / source, with virtual scrolling ---- */
+  // Keep localized labels out of the memo so a locale switch re-renders them,
+  // while grouping itself only depends on the search result.
   const flat = useMemo<FlatRow[]>(() => {
     if (!result) return [];
-    const headers = new Map<string, FlatRow & { kind: 'header' }>();
+    const headers = new Map<string, FlatHeader>();
     const rows: FlatRow[] = [];
     for (const note of result.notes) {
       const key =
         groupBy === 'chapter'
           ? `${note.volume}/${note.chapter}`
           : groupBy === 'tag'
-            ? note.tags[0] ?? '未打标签'
-            : note.domain || '无来源';
-      const label =
-        groupBy === 'chapter'
-          ? `${note.volume} · 第 ${note.chapter} 话`
-          : groupBy === 'tag'
-            ? key === '未打标签'
-              ? '未打标签'
-              : `# ${key}`
-            : key;
+            ? (note.tags[0] ?? '')
+            : note.domain || '';
       let header = headers.get(key);
       if (!header) {
-        header = { kind: 'header', label, count: 0 };
+        header =
+          groupBy === 'chapter'
+            ? { kind: 'header', key, count: 0, group: 'chapter', volume: note.volume, chapter: note.chapter }
+            : groupBy === 'tag'
+              ? { kind: 'header', key, count: 0, group: 'tag', tag: note.tags[0] ?? null }
+              : { kind: 'header', key, count: 0, group: 'source', domain: note.domain || '' };
         headers.set(key, header);
         rows.push(header);
       }
@@ -554,6 +810,12 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     }
     return rows;
   }, [result, groupBy]);
+
+  const headerLabel = (row: FlatHeader): string => {
+    if (row.group === 'chapter') return `${row.volume} · ${t('format.chapter', { chapter: row.chapter })}`;
+    if (row.group === 'tag') return row.tag ? `# ${row.tag}` : t('notes.untagged');
+    return row.domain || t('notes.noSource');
+  };
 
   const totalHeight = flat.length * ROW_H;
   const windowStart = Math.max(0, Math.floor(scrollTop / ROW_H) - 4);
@@ -568,11 +830,21 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     return (
       <aside className="notes-col">
         <div className="notes-head">
-          <div className="notes-title">学习笔记</div>
+          <div className="notes-title">{t('notes.title')}</div>
         </div>
-        <div className="notes-empty">选择一页后可以在这里写批注；也可以先记在暂存区。</div>
+        <div className="notes-empty">{t('notes.emptyNoDoc')}</div>
         {scratchPanel}
-        {contextNotes && <ContextDialog notes={contextNotes} build={buildContext} onClose={() => setContextNotes(null)} template={template} setTemplate={setTemplate} copied={copied} onCopy={copyContext} />}
+        {contextNotes && (
+          <ContextDialog
+            notes={contextNotes}
+            build={buildContext}
+            onClose={() => setContextNotes(null)}
+            template={template}
+            setTemplate={setTemplate}
+            copied={copied}
+            onCopy={copyContext}
+          />
+        )}
       </aside>
     );
   }
@@ -581,21 +853,24 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     <aside className="notes-col">
       <div className="notes-head">
         <div>
-          <div className="notes-title">学习笔记</div>
+          <div className="notes-title">{t('notes.title')}</div>
           <div className="notes-sub">
-            第 {doc.pageIndex + 1} 页 · {notes.length} 条
+            {t('notes.pageSummary', {
+              page: formatNumber(doc.pageIndex + 1),
+              count: formatNumber(notes.length),
+            })}
           </div>
         </div>
         <div className="notes-tabs">
           <button type="button" className={tab === 'page' ? 'on' : ''} onClick={() => setTab('page')}>
-            本页
+            {t('notes.tabPage')}
           </button>
           <button type="button" className={tab === 'all' ? 'on' : ''} onClick={() => setTab('all')}>
-            总览 / 搜索
+            {t('notes.tabAll')}
           </button>
         </div>
         {onClose && (
-          <button type="button" className="btn tiny notes-close" onClick={onClose} title="关闭笔记栏（N）">
+          <button type="button" className="btn tiny notes-close" onClick={onClose} title={t('notes.closeTitle')}>
             ✕
           </button>
         )}
@@ -607,7 +882,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
             <input
               className="search-input"
               value={query}
-              placeholder="全文搜索笔记、标签、来源…"
+              placeholder={t('notes.searchPlaceholder')}
               onChange={(e) => setQuery(e.target.value)}
             />
             <div className="search-filters">
@@ -618,7 +893,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                   setFChapter('');
                 }}
               >
-                <option value="">全部卷</option>
+                <option value="">{t('notes.allVolumes')}</option>
                 {library?.volumes.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.title}
@@ -626,10 +901,10 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 ))}
               </select>
               <select value={fChapter} onChange={(e) => setFChapter(e.target.value)} disabled={!fVolume}>
-                <option value="">全部话</option>
+                <option value="">{t('notes.allChapters')}</option>
                 {chaptersForVolume.map((c) => (
                   <option key={c} value={c}>
-                    第 {c} 话
+                    {t('format.chapter', { chapter: c })}
                   </option>
                 ))}
               </select>
@@ -638,33 +913,47 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 type="number"
                 min={1}
                 value={fPage}
-                placeholder="页"
+                placeholder={t('notes.pageNumberPlaceholder')}
                 onChange={(e) => setFPage(e.target.value)}
               />
               <select value={filterTag ?? ''} onChange={(e) => setFilterTag(e.target.value || null)}>
-                <option value="">全部标签</option>
-                {(result?.tags.length ? result.tags.map((t) => t.tag) : allTags.map((t) => t.tag)).map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
+                <option value="">{t('notes.allTags')}</option>
+                {(result?.tags.length ? result.tags.map((tag) => tag.tag) : allTags.map((tag) => tag.tag)).map(
+                  (tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ),
+                )}
               </select>
               <select value={filterSource ?? ''} onChange={(e) => setFilterSource(e.target.value || null)}>
-                <option value="">全部来源</option>
+                <option value="">{t('notes.allSources')}</option>
                 {(result?.sources ?? []).map((s) => (
                   <option key={s.domain} value={s.domain}>
-                    {s.domain} ({s.count})
+                    {s.domain} ({formatNumber(s.count)})
                   </option>
                 ))}
               </select>
-              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value === 'tag' ? 'tag' : e.target.value === 'source' ? 'source' : 'chapter')}>
-                <option value="chapter">按话聚合</option>
-                <option value="tag">按标签聚合</option>
-                <option value="source">按来源聚合</option>
+              <select
+                value={groupBy}
+                onChange={(e) =>
+                  setGroupBy(e.target.value === 'tag' ? 'tag' : e.target.value === 'source' ? 'source' : 'chapter')
+                }
+              >
+                <option value="chapter">{t('notes.groupByChapter')}</option>
+                <option value="tag">{t('notes.groupByTag')}</option>
+                <option value="source">{t('notes.groupBySource')}</option>
               </select>
             </div>
             <div className="muted tiny">
-              {loading ? '搜索中…' : result ? `命中 ${result.total} 条，覆盖 ${result.pages} 页` : '输入关键词开始搜索'}
+              {loading
+                ? t('notes.searching')
+                : result
+                  ? t('notes.searchResult', {
+                      count: formatNumber(result.total),
+                      pages: formatNumber(result.pages),
+                    })
+                  : t('notes.searchIdle')}
               {(filterTag || filterSource) && (
                 <button
                   type="button"
@@ -674,7 +963,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                     setFilterSource(null);
                   }}
                 >
-                  清除筛选
+                  {t('notes.clearFilters')}
                 </button>
               )}
             </div>
@@ -686,37 +975,48 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 const index = windowStart + i;
                 if (row.kind === 'header') {
                   return (
-                    <div className="note-group-head" key={`h-${row.label}-${index}`} style={{ top: index * ROW_H }}>
-                      {row.label}
-                      <span>{row.count}</span>
+                    <div className="note-group-head" key={`h-${row.key}-${index}`} style={{ top: index * ROW_H }}>
+                      {headerLabel(row)}
+                      <span>{formatNumber(row.count)}</span>
                     </div>
                   );
                 }
                 const n = row.note;
                 return (
-                  <div className="note-hit" key={`${n.volume}/${n.chapter}/${n.pageIndex}/${n.id}`} style={{ top: index * ROW_H }}>
+                  <div
+                    className="note-hit"
+                    key={`${n.volume}/${n.chapter}/${n.pageIndex}/${n.id}`}
+                    style={{ top: index * ROW_H }}
+                  >
                     <button
                       type="button"
                       className="note-hit-jump"
-                      onClick={() => onJump({ volume: n.volume, chapter: n.chapter, pageIndex: n.pageIndex }, n.panelId)}
-                      title="跳到这一页与对应格子"
+                      onClick={() =>
+                        onJump({ volume: n.volume, chapter: n.chapter, pageIndex: n.pageIndex }, n.panelId)
+                      }
+                      title={t('notes.jumpTitle')}
                     >
-                      第 {n.pageIndex + 1} 页{n.panelNo ? ` · 第 ${n.panelNo} 格` : ' · 整页'}
+                      {n.panelNo
+                        ? t('notes.jumpWithPanel', {
+                            page: formatNumber(n.pageIndex + 1),
+                            panel: formatNumber(n.panelNo),
+                          })
+                        : t('notes.jumpWholePage', { page: formatNumber(n.pageIndex + 1) })}
                     </button>
                     <div className="note-hit-text">{n.excerpt}</div>
                     <div className="note-hit-tags">
                       {n.domain && <span className="src-badge">{n.domain}</span>}
-                      {n.tags.map((t) => (
+                      {n.tags.map((tag) => (
                         <button
                           type="button"
-                          key={t}
+                          key={tag}
                           className="tag ghost"
                           onClick={() => {
-                            setFilterTag(t);
+                            setFilterTag(tag);
                             setTab('all');
                           }}
                         >
-                          {t}
+                          {tag}
                         </button>
                       ))}
                     </div>
@@ -728,65 +1028,116 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         </>
       ) : (
         <>
-          <div className="notes-compose">
+          <div
+            className="notes-compose"
+            onPaste={(e) => handlePasteImages(e, appendComposerImages)}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+            }}
+            onDrop={(e) => handleDropImages(e, appendComposerImages)}
+          >
             <div className="scope-toggle">
               <button type="button" className={scope === 'page' ? 'on' : ''} onClick={() => setScope('page')}>
-                整页
+                {t('notes.wholePage')}
               </button>
               <button
                 type="button"
                 className={scope === 'panel' ? 'on' : ''}
                 onClick={() => setScope('panel')}
                 disabled={!panel}
-                title={panel ? '' : '先在左侧选择一个格子'}
+                title={panel ? '' : t('notes.selectPanelHint')}
               >
-                {panel ? panelLabel : '本格'}
+                {panel ? panelLabel : t('notes.thisPanel')}
               </button>
               <span className="spacer" />
-              <button type="button" className="btn tiny" onClick={() => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] })} disabled={!notes.length}>
-                复制本页上下文
+              <button
+                type="button"
+                className="btn tiny"
+                onClick={() => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] })}
+                disabled={!notes.length}
+              >
+                {t('notes.copyPageContext')}
               </button>
             </div>
             <MarkdownEditor
               value={text}
               onChange={setText}
               onSubmit={submit}
-              placeholder={
-                scope === 'panel'
-                  ? '记录这一格的原文、翻译差异、语气……（Markdown，Ctrl+Enter 保存）'
-                  : '记录整页的观察、疑问、校对备注……（Markdown，Ctrl+Enter 保存）'
-              }
+              placeholder={scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')}
             />
+            {images.length > 0 && imageStrip(images, (id) => setImages((prev) => prev.filter((i) => i.id !== id)))}
+            <div className="note-image-row">
+              <span className="muted tiny note-image-hint">{t('notes.imageHint')}</span>
+              <label className="btn tiny note-image-pick">
+                {t('notes.addImages')}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    const files = [...(e.target.files ?? [])];
+                    e.target.value = '';
+                    void appendComposerImages(files);
+                  }}
+                />
+              </label>
+            </div>
             <div className="source-editor">
-              <button type="button" className={`link-btn ${sourceOpen ? 'on' : ''}`} onClick={() => setSourceOpen((v) => !v)}>
-                {sourceOpen ? '收起来源' : currentSource() ? `来源：${sourceDomain(currentSource())}` : '＋ 添加来源'}
+              <button
+                type="button"
+                className={`link-btn ${sourceOpen ? 'on' : ''}`}
+                onClick={() => setSourceOpen((v) => !v)}
+              >
+                {sourceOpen
+                  ? t('notes.hideSource')
+                  : currentSource()
+                    ? t('notes.sourceWith', { domain: sourceDomain(currentSource()) })
+                    : t('notes.addSource')}
               </button>
               {sourceOpen && (
                 <>
                   <div className="row-inline">
-                    <input value={srcUrl} placeholder="https://…（粘贴正文里的链接会自动填入）" onChange={(e) => setSrcUrl(e.target.value)} />
-                    <button type="button" className="btn tiny" disabled={!srcUrl.trim() || titleBusy} onClick={() => void grabTitle()}>
-                      {titleBusy ? '抓取中…' : '抓标题'}
+                    <input
+                      value={srcUrl}
+                      placeholder={t('notes.urlPlaceholder')}
+                      onChange={(e) => setSrcUrl(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      disabled={!srcUrl.trim() || titleBusy}
+                      onClick={() => void grabTitle()}
+                    >
+                      {titleBusy ? t('notes.grabbingTitle') : t('notes.grabTitle')}
                     </button>
                   </div>
-                  <input value={srcTitle} placeholder="标题（可选）" onChange={(e) => setSrcTitle(e.target.value)} />
-                  <input value={srcText} placeholder="自由来源，如「ChatGPT 对话 5/12」" onChange={(e) => setSrcText(e.target.value)} />
+                  <input
+                    value={srcTitle}
+                    placeholder={t('notes.titlePlaceholder')}
+                    onChange={(e) => setSrcTitle(e.target.value)}
+                  />
+                  <input
+                    value={srcText}
+                    placeholder={t('notes.sourceTextPlaceholder')}
+                    onChange={(e) => setSrcText(e.target.value)}
+                  />
                   {titleMsg && <span className="muted tiny">{titleMsg}</span>}
                 </>
               )}
             </div>
             <div className="tag-editor">
-              {tags.map((t) => (
-                <span className="tag on" key={t}>
-                  {t}
-                  <button type="button" onClick={() => setTags(tags.filter((x) => x !== t))}>
+              {tags.map((tag) => (
+                <span className="tag on" key={tag}>
+                  {tag}
+                  <button type="button" onClick={() => setTags(tags.filter((x) => x !== tag))}>
                     ×
                   </button>
                 </span>
               ))}
               <input
                 value={tagInput}
-                placeholder="添加标签后回车"
+                placeholder={t('notes.tagPlaceholder')}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -798,22 +1149,27 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                 list="tag-suggestions"
               />
               <datalist id="tag-suggestions">
-                {allTags.map((t) => (
-                  <option value={t.tag} key={t.tag} />
+                {allTags.map((tag) => (
+                  <option value={tag.tag} key={tag.tag} />
                 ))}
               </datalist>
             </div>
             {suggestions.length > 0 && (
               <div className="tag-suggest">
-                {suggestions.map((t) => (
-                  <button type="button" key={t.tag} className="tag ghost" onClick={() => addTag(t.tag)}>
-                    {t.tag}
+                {suggestions.map((tag) => (
+                  <button type="button" key={tag.tag} className="tag ghost" onClick={() => addTag(tag.tag)}>
+                    {tag.tag}
                   </button>
                 ))}
               </div>
             )}
-            <button type="button" className="btn primary block" onClick={submit} disabled={!text.trim()}>
-              添加笔记
+            <button
+              type="button"
+              className="btn primary block"
+              onClick={submit}
+              disabled={!text.trim() && !images.length}
+            >
+              {t('notes.addNote')}
             </button>
             {scratchPanel}
           </div>
@@ -821,7 +1177,8 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
           <div className="notes-scroll">
             {(filterTag || filterSource) && (
               <div className="banner info">
-                筛选：{filterTag ? `#${filterTag} ` : ''}
+                {t('notes.filterLabel')}
+                {filterTag ? `#${filterTag} ` : ''}
                 {filterSource}
                 <button
                   type="button"
@@ -831,7 +1188,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
                     setFilterSource(null);
                   }}
                 >
-                  清除
+                  {t('notes.clear')}
                 </button>
               </div>
             )}
@@ -839,16 +1196,25 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
               <section className="notes-section">
                 <h4>
                   {panelLabel}
-                  <span>{panelNotes.length}</span>
+                  <span>{formatNumber(panelNotes.length)}</span>
                 </h4>
-                {shown(panelNotes).length ? shown(panelNotes).map(renderNote) : <div className="notes-hint">这一格还没有笔记</div>}
+                {shown(panelNotes).length ? (
+                  shown(panelNotes).map(renderNote)
+                ) : (
+                  <div className="notes-hint">{t('notes.noPanelNotes')}</div>
+                )}
               </section>
             )}
             <section className="notes-section">
               <h4>
-                整页笔记<span>{pageNotes.length}</span>
+                {t('notes.pageNotes')}
+                <span>{formatNumber(pageNotes.length)}</span>
               </h4>
-              {shown(pageNotes).length ? shown(pageNotes).map(renderNote) : <div className="notes-hint">还没有整页笔记</div>}
+              {shown(pageNotes).length ? (
+                shown(pageNotes).map(renderNote)
+              ) : (
+                <div className="notes-hint">{t('notes.noPageNotes')}</div>
+              )}
             </section>
           </div>
         </>
@@ -869,7 +1235,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   );
 }
 
-/** 把本页所有笔记合成一个“上下文”请求；单条笔记时由调用方直接传入 */
+/** Merge all notes on this page into one "context" request; for a single note the caller passes it directly. */
 function panelNoteSource(_panelNotes: Note[], pageNotes: Note[]): Note {
   return {
     id: 'context-all',
@@ -893,14 +1259,15 @@ type ContextProps = {
 };
 
 function ContextDialog({ notes, build, onClose, template, setTemplate, copied, onCopy }: ContextProps) {
+  const { t } = useI18n();
   const preview = build(notes);
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal small">
         <header className="modal-head">
           <div>
-            <h2>复制给大模型的上下文</h2>
-            <p>模板支持 {'{volume} {chapter} {page} {panel} {notes} {text} {tags}'}；修改后自动记住</p>
+            <h2>{t('notes.contextTitle')}</h2>
+            <p>{t('notes.contextTemplateHint')}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             ×
@@ -908,21 +1275,21 @@ function ContextDialog({ notes, build, onClose, template, setTemplate, copied, o
         </header>
         <div className="modal-body">
           <label className="field">
-            <span>模板前缀</span>
+            <span>{t('notes.templateLabel')}</span>
             <textarea rows={4} value={template} onChange={(e) => setTemplate(e.target.value)} />
           </label>
           <label className="field">
-            <span>预览</span>
+            <span>{t('notes.preview')}</span>
             <textarea rows={8} readOnly value={preview} />
           </label>
-          <p className="muted tiny">复制内容包含卷 / 话 / 页 / 格编号、笔记正文、标签与来源，可直接粘贴给大模型。</p>
+          <p className="muted tiny">{t('notes.contextDesc')}</p>
         </div>
         <footer className="modal-foot">
           <button type="button" className="btn" onClick={onClose}>
-            关闭
+            {t('common.close')}
           </button>
           <button type="button" className="btn primary" onClick={onCopy}>
-            {copied ? '已复制 ✓' : '复制'}
+            {copied ? t('notes.copied') : t('notes.copy')}
           </button>
         </footer>
       </div>

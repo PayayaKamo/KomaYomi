@@ -2,7 +2,7 @@ export {};
 
 declare global {
   interface Window {
-    /** Electron 注入的桌面能力；浏览器里为 undefined */
+    /** Desktop bridge injected by Electron; undefined in the browser. */
     mangaDesktop?: {
       pickFolder: (title?: string) => Promise<string | null>;
       platform: string;

@@ -1,20 +1,25 @@
-// 把本地后端（server/app.ts）打包成 Electron 可直接 import 的 ESM 文件
+// Bundle the local backend (server/*.ts) into ESM files that Node/Electron can import.
+// Two entries share the same output folder:
+//   app.mjs        loaded by electron/main.cjs
+//   standalone.mjs used by Docker and `npm start`
 import { build } from 'esbuild';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(dir, '..');
+const serverDir = path.join(root, 'server');
 
 await build({
-  entryPoints: [path.join(root, 'server', 'app.ts')],
-  outfile: path.join(root, 'dist-server', 'app.mjs'),
+  entryPoints: [path.join(serverDir, 'app.ts'), path.join(serverDir, 'standalone.ts')],
+  outdir: path.join(root, 'dist-server'),
+  outExtension: { '.js': '.mjs' },
   bundle: true,
   platform: 'node',
   format: 'esm',
   target: 'node20',
   logLevel: 'info',
-  // 打包进来的 CJS 依赖（pngjs / jpeg-js）仍可能调用 require
+  // Bundled CJS dependencies (pngjs / jpeg-js) may still call require.
   banner: {
     js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
   },

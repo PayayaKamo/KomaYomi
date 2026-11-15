@@ -1,4 +1,5 @@
-import type { Note, NoteSource, Panel, PanelRect, ReadingDirection } from '../types';
+import type { Note, NoteImage, NoteSource, Panel, PanelRect, ReadingDirection } from '../types';
+import { formatDate } from '../i18n';
 
 export const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
@@ -10,7 +11,7 @@ export function normalizeRect(rect: PanelRect): PanelRect {
   return { x, y, w, h };
 }
 
-/** 鼠标位置换算成页面归一化坐标 */
+/** Convert a pointer position into page-normalized coordinates. */
 export function pointToNorm(el: HTMLElement, clientX: number, clientY: number): { x: number; y: number } {
   const r = el.getBoundingClientRect();
   return {
@@ -21,13 +22,7 @@ export function pointToNorm(el: HTMLElement, clientX: number, clientY: number): 
 
 export type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | 'move';
 
-export function applyDrag(
-  start: PanelRect,
-  handle: ResizeHandle,
-  dx: number,
-  dy: number,
-  minSize = 0.02,
-): PanelRect {
+export function applyDrag(start: PanelRect, handle: ResizeHandle, dx: number, dy: number, minSize = 0.02): PanelRect {
   let { x, y, w, h } = start;
   if (handle === 'move') {
     x = Math.min(1 - w, Math.max(0, x + dx));
@@ -68,7 +63,10 @@ function median(nums: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-/** 与服务器端一致的阅读顺序：rtl 行内右→左；ltr 行内左→右；ttb 列从右→左、列内上→下 */
+export { applyGroupOrder, normalizeGroupOrder } from '../../shared/panelOrder';
+
+/** Reading order matching the server: rtl = right-to-left within a row, ltr = left-to-right,
+ *  ttb = top-to-bottom within columns ordered right-to-left. */
 export function sortPanels(panels: Panel[], dir: ReadingDirection): Panel[] {
   if (panels.length < 2) return panels;
   if (dir === 'ttb') {
@@ -90,9 +88,7 @@ export function sortPanels(panels: Panel[], dir: ReadingDirection): Panel[] {
     if (group) group.push(p);
     else rows.push([p]);
   }
-  return rows.flatMap((g) =>
-    [...g].sort((a, b) => (dir === 'rtl' ? b.rect.x - a.rect.x : a.rect.x - b.rect.x)),
-  );
+  return rows.flatMap((g) => [...g].sort((a, b) => (dir === 'rtl' ? b.rect.x - a.rect.x : a.rect.x - b.rect.x)));
 }
 
 export const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -103,12 +99,24 @@ export function newNote(
   text: string,
   tags: string[],
   source?: NoteSource,
+  /** Pasted/dropped screenshots; kept inline so the page JSON stays self-contained. */
+  images?: NoteImage[],
 ): Note {
   const now = new Date().toISOString();
-  return { id: uid('n'), scope, panelId, text, tags, source, createdAt: now, updatedAt: now };
+  return {
+    id: uid('n'),
+    scope,
+    panelId,
+    text,
+    tags,
+    source,
+    images: images?.length ? images : undefined,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
-/** 从链接中取域名，用于快速区分资料来源 */
+/** Extract the hostname from a link so note sources can be told apart at a glance. */
 export function sourceDomain(source?: NoteSource): string {
   if (!source?.url) return source?.text?.slice(0, 24) ?? '';
   try {
@@ -118,10 +126,7 @@ export function sourceDomain(source?: NoteSource): string {
   }
 }
 
+/** Locale-aware note timestamp; kept as a named export for existing callers. */
 export function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(
-    d.getHours(),
-  ).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatDate(iso);
 }

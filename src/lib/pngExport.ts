@@ -1,22 +1,27 @@
-import type { Lang, PageEntry, PanelRect } from '../types';
-import { LANG_LABEL } from '../types';
+import type { Annotation, Lang, PageEntry, Panel, PanelRect } from '../types';
+import { langLabel, t } from '../i18n';
 
 export type PngMode = 'page' | 'panel' | 'collage';
 
 export type PngExportOptions = {
   page: PageEntry;
-  /** 单页/单格导出使用的语言 */
+  /** Language used for single-page / single-panel export. */
   lang: Lang;
-  /** 拼图使用的语言列表（按顺序） */
+  /** Languages for the collage, in order. */
   langs: Lang[];
-  /** 格子矩形，传入则裁切该格 */
+  /** Panel rect; when set, only that panel is cropped. */
   rect?: PanelRect | null;
   mode: PngMode;
-  /** 文件名前缀，例如 `点兔第14卷-172-P1` */
+  /** Filename prefix, e.g. `vol14-172-P1`. */
   filenameBase: string;
+  /** Page-level vector annotations; panel-scoped ones are mapped back to the full page via the rect in panels. */
+  annotations?: Annotation[];
+  /** Whether to bake annotations into the PNG (off = original image). */
+  includeAnnotations?: boolean;
+  panels?: Panel[];
 };
 
-/** 拼图布局常量（缩放前的逻辑像素） */
+/** Collage layout constants (logical pixels before scaling). */
 const PAD = 32;
 const GAP = 32;
 const LABEL_H = 48;
@@ -26,13 +31,13 @@ const MAX_WIDTH = 4200;
 
 type CropRect = { sx: number; sy: number; sw: number; sh: number };
 
-/** 加载图片（同源地址无需 crossOrigin） */
+/** Load an image (same-origin URLs need no crossOrigin). */
 function loadImage(src: string, lang: Lang): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`加载${LANG_LABEL[lang]}图片失败：${src}`));
+    img.onerror = () => reject(new Error(t('png.loadImageFailed', { lang: langLabel(lang), src })));
     img.src = src;
   });
 }
@@ -41,7 +46,7 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-/** 把归一化矩形换算成原图裁切像素，四舍五入并限制在图片范围内 */
+/** Convert a normalized rect into source-pixel crop bounds, rounding and clamping to the image. */
 function cropRect(img: HTMLImageElement, rect?: PanelRect | null): CropRect {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
@@ -62,7 +67,7 @@ function createCanvas(width: number, height: number): HTMLCanvasElement {
 
 function get2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('无法创建 Canvas 2D 上下文');
+  if (!ctx) throw new Error(t('png.canvasContext'));
   return ctx;
 }
 
@@ -70,12 +75,12 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
-      else reject(new Error('导出 PNG 失败：canvas.toBlob 返回空'));
+      else reject(new Error(t('png.canvasEmpty')));
     }, 'image/png');
   });
 }
 
-/** 通过临时 anchor 触发下载，用完立即移除 */
+/** Trigger a download through a temporary anchor, removed right after. */
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -85,33 +90,204 @@ function downloadBlob(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // 延迟释放，避免个别浏览器取消下载
+  // Release after a delay; some browsers cancel the download if the URL is revoked immediately.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function renderPage(img: HTMLImageElement): HTMLCanvasElement {
+function renderPage(img: HTMLImageElement, draw?: AnnDraw): HTMLCanvasElement {
   const canvas = createCanvas(img.naturalWidth, img.naturalHeight);
-  get2d(canvas).drawImage(img, 0, 0);
+  const ctx = get2d(canvas);
+  ctx.drawImage(img, 0, 0);
+  if (draw?.annotations.length) {
+    drawAnnotations(ctx, draw, img, img.naturalWidth, img.naturalHeight);
+  }
   return canvas;
 }
 
-function renderPanel(img: HTMLImageElement, rect: PanelRect): HTMLCanvasElement {
+function renderPanel(img: HTMLImageElement, rect: PanelRect, draw?: AnnDraw): HTMLCanvasElement {
   const crop = cropRect(img, rect);
   const canvas = createCanvas(crop.sw, crop.sh);
-  get2d(canvas).drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+  const ctx = get2d(canvas);
+  ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+  if (draw?.annotations.length) {
+    // Annotations are authored in full-page pixels, so shift the origin to the crop.
+    ctx.save();
+    ctx.translate(-crop.sx, -crop.sy);
+    drawAnnotations(ctx, draw, img, img.naturalWidth, img.naturalHeight);
+    ctx.restore();
+  }
   return canvas;
+}
+
+type AnnDraw = { annotations: Annotation[]; panels: Panel[] };
+
+/** Panel rect that owns an annotation's normalized coordinates. */
+function scopeRect(a: Annotation, panels: Panel[]): PanelRect {
+  if (a.scope !== 'panel' || !a.panelId) return { x: 0, y: 0, w: 1, h: 1 };
+  return panels.find((p) => p.id === a.panelId)?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+}
+
+/** Convert normalized annotation points to source-image pixels. */
+function annotationPoints(a: Annotation, panels: Panel[], imageW: number, imageH: number) {
+  const scope = scopeRect(a, panels);
+  return a.points.map((p) => ({
+    x: (scope.x + p.x * scope.w) * imageW,
+    y: (scope.y + p.y * scope.h) * imageH,
+  }));
+}
+
+/**
+ * Redaction: sample the region at a reduced size and blow it back up with smoothing
+ * off. This bakes real pixelation into the PNG instead of the live backdrop blur.
+ */
+function drawMosaic(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  if (w < 1 || h < 1) return;
+  const block = Math.max(6, Math.round(Math.min(w, h) / 14));
+  const small = createCanvas(Math.max(1, Math.floor(w / block)), Math.max(1, Math.floor(h / block)));
+  get2d(small).drawImage(img, x, y, w, h, 0, 0, small.width, small.height);
+  const previous = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0, small.width, small.height, x, y, w, h);
+  ctx.imageSmoothingEnabled = previous;
+}
+
+/** Rasterize every mark in source-image pixel space; callers set the transform. */
+function drawAnnotations(
+  ctx: CanvasRenderingContext2D,
+  draw: AnnDraw,
+  img: HTMLImageElement,
+  imageW: number,
+  imageH: number,
+): void {
+  for (const a of draw.annotations) {
+    const pts = annotationPoints(a, draw.panels, imageW, imageH);
+    if (pts.length === 0) continue;
+    const color = a.color ?? '#e0453a';
+    const lineWidth = Math.max(1, (a.width ?? 0.0035) * imageW);
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    switch (a.kind) {
+      case 'arrow': {
+        if (pts.length < 2) break;
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(last.x, last.y);
+        ctx.stroke();
+        const angle = Math.atan2(last.y - first.y, last.x - first.x);
+        const size = Math.max(10, lineWidth * 4);
+        const spread = Math.PI / 7;
+        ctx.beginPath();
+        ctx.moveTo(last.x, last.y);
+        ctx.lineTo(last.x - size * Math.cos(angle - spread), last.y - size * Math.sin(angle - spread));
+        ctx.lineTo(last.x - size * Math.cos(angle + spread), last.y - size * Math.sin(angle + spread));
+        ctx.closePath();
+        ctx.fill();
+        break;
+      }
+      case 'rect':
+        ctx.strokeRect(
+          Math.min(first.x, last.x),
+          Math.min(first.y, last.y),
+          Math.abs(last.x - first.x),
+          Math.abs(last.y - first.y),
+        );
+        break;
+      case 'ellipse':
+        ctx.beginPath();
+        ctx.ellipse(
+          (first.x + last.x) / 2,
+          (first.y + last.y) / 2,
+          Math.abs(last.x - first.x) / 2,
+          Math.abs(last.y - first.y) / 2,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.stroke();
+        break;
+      case 'highlight':
+        if (pts.length < 2) break;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = Math.max(6, lineWidth * 4);
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(last.x, last.y);
+        ctx.stroke();
+        break;
+      case 'pen':
+        if (pts.length < 2) break;
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        break;
+      case 'text': {
+        const fontSize = Math.max(10, (a.fontSize ?? 0.035) * imageH);
+        ctx.font = `600 ${fontSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+        ctx.lineWidth = Math.max(2, fontSize / 8);
+        // White halo keeps the text readable over dark screentones.
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.strokeText(a.text ?? '', first.x, first.y);
+        ctx.fillStyle = color;
+        ctx.fillText(a.text ?? '', first.x, first.y);
+        break;
+      }
+      case 'badge': {
+        const fontSize = Math.max(10, (a.fontSize ?? 0.035) * imageH);
+        const r = fontSize * 0.62;
+        ctx.beginPath();
+        ctx.arc(first.x, first.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = `700 ${fontSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(a.text ?? '1', first.x, first.y);
+        break;
+      }
+      case 'mosaic':
+        drawMosaic(
+          ctx,
+          img,
+          Math.min(first.x, last.x),
+          Math.min(first.y, last.y),
+          Math.abs(last.x - first.x),
+          Math.abs(last.y - first.y),
+        );
+        break;
+      default:
+        break;
+    }
+    ctx.restore();
+  }
 }
 
 async function renderCollage(
   page: PageEntry,
   langs: Lang[],
   rect?: PanelRect | null,
+  draw?: AnnDraw,
 ): Promise<HTMLCanvasElement> {
   const jobs = langs.flatMap((lang) => {
     const src = page.files[lang];
     return src ? [{ lang, src }] : [];
   });
-  if (jobs.length === 0) throw new Error('没有可导出的图片');
+  if (jobs.length === 0) throw new Error(t('png.noImages'));
 
   const items = await Promise.all(
     jobs.map(async ({ lang, src }) => {
@@ -121,13 +297,11 @@ async function renderCollage(
   );
 
   const targetH = rect ? PANEL_HEIGHT : PAGE_HEIGHT;
-  const widths = items.map((it) =>
-    Math.max(1, Math.round((it.crop.sw / it.crop.sh) * targetH)),
-  );
+  const widths = items.map((it) => Math.max(1, Math.round((it.crop.sw / it.crop.sh) * targetH)));
   const contentW = widths.reduce((sum, w) => sum + w, 0) + GAP * (items.length - 1);
   const totalW = PAD * 2 + contentW;
   const totalH = PAD * 2 + targetH + LABEL_H;
-  // 总宽超限时整体等比缩小
+  // Scale everything down proportionally when the total width exceeds the limit.
   const scale = totalW > MAX_WIDTH ? MAX_WIDTH / totalW : 1;
 
   const canvas = createCanvas(Math.round(totalW * scale), Math.round(totalH * scale));
@@ -144,33 +318,52 @@ async function renderCollage(
   items.forEach((it, i) => {
     const w = widths[i];
     ctx.drawImage(it.img, it.crop.sx, it.crop.sy, it.crop.sw, it.crop.sh, x, PAD, w, targetH);
-    // 底部标签带
+    if (draw?.annotations.length) {
+      // Map full-page pixel coordinates into this language's slot, then clip so marks
+      // never bleed into the neighbouring column.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, PAD, w, targetH);
+      ctx.clip();
+      ctx.translate(x, PAD);
+      ctx.scale(w / it.crop.sw, targetH / it.crop.sh);
+      ctx.translate(-it.crop.sx, -it.crop.sy);
+      drawAnnotations(ctx, draw, it.img, it.img.naturalWidth, it.img.naturalHeight);
+      ctx.restore();
+    }
+    // Label strip along the bottom.
     ctx.fillStyle = '#f2f2f2';
     ctx.fillRect(x, PAD + targetH, w, LABEL_H);
     ctx.fillStyle = '#000';
-    ctx.fillText(LANG_LABEL[it.lang], x + w / 2, PAD + targetH + LABEL_H / 2);
+    ctx.fillText(langLabel(it.lang), x + w / 2, PAD + targetH + LABEL_H / 2);
     x += w + GAP;
   });
 
   return canvas;
 }
 
-/** 导出并触发浏览器下载，出错时 reject(Error) */
+/** Export and trigger a browser download; rejects with Error on failure. */
 export async function exportPng(opts: PngExportOptions): Promise<void> {
   const { page, lang, langs, rect, mode, filenameBase } = opts;
+  // Callers pass annotations only when the user wants them baked in; an explicit
+  // false still wins, so "original image" is one checkbox away.
+  const draw =
+    opts.includeAnnotations !== false && opts.annotations?.length
+      ? { annotations: opts.annotations, panels: opts.panels ?? [] }
+      : undefined;
   let canvas: HTMLCanvasElement;
 
   if (mode === 'collage') {
-    canvas = await renderCollage(page, langs, rect);
+    canvas = await renderCollage(page, langs, rect, draw);
   } else {
     const src = page.files[lang];
-    if (!src) throw new Error(`缺少${LANG_LABEL[lang]}图片，无法导出`);
+    if (!src) throw new Error(t('png.missingImage', { lang: langLabel(lang) }));
     const img = await loadImage(src, lang);
     if (mode === 'panel') {
-      if (!rect) throw new Error('格子导出需要提供 rect');
-      canvas = renderPanel(img, rect);
+      if (!rect) throw new Error(t('png.panelRectRequired'));
+      canvas = renderPanel(img, rect, draw);
     } else {
-      canvas = renderPage(img);
+      canvas = renderPage(img, draw);
     }
   }
 

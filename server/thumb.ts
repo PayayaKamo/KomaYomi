@@ -4,6 +4,7 @@ import path from 'node:path';
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import { sniffFormat } from './detect.ts';
+import { AppError } from './errors.ts';
 
 type Decoded = { width: number; height: number; rgba: Uint8Array | Buffer };
 
@@ -17,10 +18,10 @@ function decode(buf: Buffer): Decoded {
     const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true });
     return { width: img.width, height: img.height, rgba: img.data as Uint8Array };
   }
-  throw new Error('缩略图暂不支持该格式');
+  throw new AppError('ERR_THUMB_UNSUPPORTED', {}, 415);
 }
 
-/** 面积平均的降采样，保证缩略图不出现锯齿 */
+/** Area-averaged downscale so thumbnails stay free of aliasing. */
 function resize(img: Decoded, targetW: number): Decoded {
   const scale = targetW / img.width;
   const w = Math.max(1, Math.round(targetW));
@@ -61,15 +62,10 @@ function resize(img: Decoded, targetW: number): Decoded {
 }
 
 /**
- * 生成（或读取缓存）缩略图。缓存键包含源文件路径、mtime 与目标宽度，
- * 原图更新后会自动失效，不需要手动清理。
+ * Generate (or read from cache) a thumbnail. The cache key covers the source path, mtime and
+ * target width, so an updated original invalidates it without manual cleanup.
  */
-export function thumbnailFile(
-  rawRoot: string,
-  cacheRoot: string,
-  rawRelPath: string,
-  width: number,
-): string | null {
+export function thumbnailFile(rawRoot: string, cacheRoot: string, rawRelPath: string, width: number): string | null {
   const rel = decodeURIComponent(rawRelPath.replace(/^\/raw\//, ''));
   const src = path.resolve(rawRoot, rel);
   const guard = rawRoot.endsWith(path.sep) ? rawRoot : rawRoot + path.sep;
@@ -78,7 +74,7 @@ export function thumbnailFile(
   const stat = fs.statSync(src);
   const key = crypto
     .createHash('sha1')
-    .update(`${src.toLowerCase()}|${stat.mtimeMs}|${width}`) // 兼容大小写不敏感文件系统
+    .update(`${src.toLowerCase()}|${stat.mtimeMs}|${width}`) // stays stable on case-insensitive filesystems
     .digest('hex');
   const file = path.join(cacheRoot, `${key}.jpg`);
   if (fs.existsSync(file)) return file;

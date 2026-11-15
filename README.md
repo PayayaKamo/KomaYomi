@@ -38,6 +38,8 @@ _Export: HTML for a page or a whole chapter, with an image folder or as a single
 
 _Below 1024 px the library becomes a drawer and the compare panes stack. The web build is installable as a PWA._
 
+All captures use the self-made sample volume in [`samples/demo-library/`](samples/demo-library/README.md) — three pages in Japanese, Chinese and English, drawn by a script for this project and released as CC0. No third-party manga is included.
+
 ## Features
 
 **Reading**
@@ -244,4 +246,4 @@ English is the primary language; Chinese and Japanese translations live under `z
 
 KomaYomi is built by **PayayaKamo** and released under the [MIT License](LICENSE).
 
-KomaYomi is an independent project and is not affiliated with, endorsed by, or connected to any similarly named project, product or organization. Manga pages shown in the screenshots belong to their respective rights holders and are not included in this repository.
+KomaYomi is an independent project and is not affiliated with, endorsed by, or connected to any similarly named project, product or organization. The manga pages in the screenshots come from the self-made sample volume under `samples/demo-library/` (CC0); the repository ships no third-party manga.

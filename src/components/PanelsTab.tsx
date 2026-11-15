@@ -1,29 +1,143 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { Lang, PageDoc, PageEntry, Panel, PanelRect, PanelTemplate } from '../types';
-import { LANG_LABEL, LANGUAGES } from '../types';
-import { applyDrag, normalizeRect, sortPanels, uid, unionRects } from '../lib/geometry';
+import type { Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
+import { LANGUAGES } from '../types';
+import {
+  applyDrag,
+  applyGroupOrder,
+  clamp01,
+  normalizeGroupOrder,
+  normalizeRect,
+  sortPanels,
+  uid,
+  unionRects,
+} from '../lib/geometry';
 import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
+import type { HistorySource } from '../api';
+import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
+import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
+import type { AnnotationTool } from './AnnotationLayer';
 
 type Props = {
   doc: PageDoc;
   page: PageEntry;
-  mutate: (fn: (doc: PageDoc) => PageDoc) => void;
+  mutate: (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean; source?: HistorySource }) => void;
   detecting: boolean;
   onDetect: (lang?: string) => void;
   selected: string[];
   setSelected: (ids: string[]) => void;
   onReload: () => void;
+  /** auto = debounced autosave; confirm = only saves via ✓ or Enter. */
+  saveMode: 'auto' | 'confirm';
+  setSaveMode: (mode: 'auto' | 'confirm') => void;
+  dirty: boolean;
+  saving: boolean;
+  onCommit: () => void;
+  onDiscard: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 };
 
 const HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
-export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, setSelected, onReload }: Props) {
-  const availableLangs = useMemo(
-    () => LANGUAGES.filter((l) => Boolean(page.files[l])),
-    [page],
-  );
+/** Snapping distance in screen pixels while drawing a new panel. */
+const SNAP_PX = 6;
+/** Pointer travel below this is treated as a click, so double-click still works. */
+const CLICK_SLOP_PX = 3;
+/** A marquee must be at least this large in both screen pixels and normalized size. */
+const MIN_MARQUEE_PX = 8;
+const MIN_MARQUEE_NORM = 0.01;
+
+type Marquee = { rect: PanelRect; wPx: number; hPx: number };
+
+/** Snap a normalized value to the nearest candidate that is within SNAP_PX screen pixels. */
+function snapValue(value: number, candidates: number[], pxPerUnit: number): number {
+  let best = value;
+  let bestDist = SNAP_PX + 1;
+  for (const c of candidates) {
+    const dist = Math.abs(c - value) * pxPerUnit;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+  return bestDist <= SNAP_PX ? best : value;
+}
+
+/** Candidate lines: page edges/center plus every existing panel edge/center on one axis. */
+function snapCandidates(panels: Panel[], axis: 'x' | 'y'): number[] {
+  const values = [0, 0.5, 1];
+  for (const p of panels) {
+    const start = axis === 'x' ? p.rect.x : p.rect.y;
+    const size = axis === 'x' ? p.rect.w : p.rect.h;
+    values.push(start, start + size / 2, start + size);
+  }
+  return values;
+}
+
+/** Build a clamped marquee from the fixed anchor and the moving pointer (normalized coords). */
+function buildMarquee(
+  anchor: { x: number; y: number },
+  point: { x: number; y: number },
+  box: DOMRect,
+  panels: Panel[],
+  shift: boolean,
+  disableSnap: boolean,
+): Marquee {
+  let ax = anchor.x;
+  let ay = anchor.y;
+  let px = point.x;
+  let py = point.y;
+  if (!disableSnap) {
+    const xs = snapCandidates(panels, 'x');
+    const ys = snapCandidates(panels, 'y');
+    ax = snapValue(ax, xs, box.width);
+    ay = snapValue(ay, ys, box.height);
+    px = snapValue(px, xs, box.width);
+    py = snapValue(py, ys, box.height);
+  }
+  if (shift) {
+    // Keep the marquee square on screen (equal pixel sides) while preserving drag direction.
+    const dx = (px - ax) * box.width;
+    const dy = (py - ay) * box.height;
+    const size = Math.max(Math.abs(dx), Math.abs(dy));
+    px = ax + ((Math.sign(dx) || 1) * size) / box.width;
+    py = ay + ((Math.sign(dy) || 1) * size) / box.height;
+  }
+  px = clamp01(px);
+  py = clamp01(py);
+  const x = Math.min(ax, px);
+  const y = Math.min(ay, py);
+  const w = Math.abs(px - ax);
+  const h = Math.abs(py - ay);
+  return { rect: { x, y, w, h }, wPx: w * box.width, hPx: h * box.height };
+}
+
+export function PanelsTab({
+  doc,
+  page,
+  mutate,
+  detecting,
+  onDetect,
+  selected,
+  setSelected,
+  onReload,
+  saveMode,
+  setSaveMode,
+  dirty,
+  saving,
+  onCommit,
+  onDiscard,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+}: Props) {
+  const { t } = useI18n();
+  const availableLangs = useMemo(() => LANGUAGES.filter((l) => Boolean(page.files[l])), [page]);
   const [refLang, setRefLang] = useState<Lang>(availableLangs[0] ?? 'ja');
   const [zoom, setZoom] = useState(1);
   const [showNumbers, setShowNumbers] = useState(true);
@@ -39,6 +153,41 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
   const [gridCols, setGridCols] = useState(2);
   const [gridGap, setGridGap] = useState(1.2);
   const [copied, setCopied] = useState(false);
+  const [annTool, setAnnTool] = useState<AnnotationTool>('select');
+  const [annSelected, setAnnSelected] = useState<string | null>(null);
+  const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
+  const [groupsOpen, setGroupsOpen] = useState(true);
+
+  /**
+   * The panel workspace keeps annotation tools collapsed by default so box selection
+   * stays unobstructed. Compare view has its own independent switch.
+   */
+  const [annOpen, setAnnOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('manga-memo.panels-ann') === 'on';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('manga-memo.panels-ann', annOpen ? 'on' : 'off');
+    } catch {
+      /* private mode */
+    }
+  }, [annOpen]);
+
+  const annotations = doc.annotations ?? [];
+  // Older pages have no flag; annotations were visible by default before the toggle existed.
+  const annotationsVisible = doc.annotationsVisible !== false && annOpen;
+
+  const applyAnnotations = useCallback(
+    (updater: (list: NonNullable<PageDoc['annotations']>) => NonNullable<PageDoc['annotations']>) => {
+      // Tag annotation changes so the page history panel can label them.
+      mutate((current) => ({ ...current, annotations: updater(current.annotations ?? []) }), { source: 'annotation' });
+    },
+    [mutate],
+  );
 
   const loadTemplates = () => {
     api
@@ -57,16 +206,29 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     sy: number;
     rect: DOMRect;
   } | null>(null);
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
+  const [marqueeActive, setMarqueeActive] = useState(false);
+  const marqueeStartRef = useRef<{
+    anchor: { x: number; y: number };
+    from: { x: number; y: number };
+    box: DOMRect;
+    moved: boolean;
+  } | null>(null);
+  const marqueeRectRef = useRef<Marquee | null>(null);
 
   useEffect(() => {
     setImgLoaded(false);
+    setAnnSelected(null);
   }, [refLang, page.index]);
 
   useEffect(() => {
     if (!availableLangs.includes(refLang)) setRefLang(availableLangs[0] ?? 'ja');
   }, [availableLangs, refLang]);
 
-  const ordered = useMemo(() => sortPanels(doc.panels, doc.readingDirection), [doc.panels, doc.readingDirection]);
+  const ordered = useMemo(
+    () => applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups),
+    [doc.panels, doc.readingDirection, doc.groups],
+  );
   const numberMap = useMemo(() => {
     const m = new Map<string, number>();
     ordered.forEach((p, i) => m.set(p.id, i + 1));
@@ -98,9 +260,58 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     };
   }, [dragging, mutate]);
 
+  useEffect(() => {
+    if (!marqueeActive) return;
+    const move = (e: PointerEvent) => {
+      const d = marqueeStartRef.current;
+      if (!d) return;
+      if (!d.moved && Math.hypot(e.clientX - d.from.x, e.clientY - d.from.y) < CLICK_SLOP_PX) return;
+      d.moved = true;
+      const point = {
+        x: clamp01((e.clientX - d.box.left) / d.box.width),
+        y: clamp01((e.clientY - d.box.top) / d.box.height),
+      };
+      const next = buildMarquee(d.anchor, point, d.box, doc.panels, e.shiftKey, e.altKey);
+      marqueeRectRef.current = next;
+      setMarquee(next);
+    };
+    const end = (commit: boolean) => {
+      const d = marqueeStartRef.current;
+      const m = marqueeRectRef.current;
+      marqueeStartRef.current = null;
+      marqueeRectRef.current = null;
+      setMarqueeActive(false);
+      setMarquee(null);
+      // A click without travel must not create anything, so double-click keeps working.
+      if (!commit || !d || !d.moved || !m) return;
+      if (m.rect.w < MIN_MARQUEE_NORM || m.rect.h < MIN_MARQUEE_NORM) return;
+      if (m.wPx < MIN_MARQUEE_PX || m.hPx < MIN_MARQUEE_PX) return;
+      const id = uid('p');
+      // One mutate call keeps undo/redo and confirm-save mode working like other edits.
+      mutate((doc2) => ({ ...doc2, panels: [...doc2.panels, { id, rect: m.rect, source: 'manual' }] }));
+      setSelected([id]);
+    };
+    const up = () => end(true);
+    const cancel = () => end(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') end(false);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [marqueeActive, doc.panels, mutate, setSelected]);
+
   const startDrag = (e: ReactPointerEvent, panel: Panel, handle: ResizeHandle) => {
     e.preventDefault();
     e.stopPropagation();
+    setAnnSelected(null);
     const el = shotRef.current;
     if (!el) return;
     const additive = e.ctrlKey || e.metaKey || e.shiftKey;
@@ -109,13 +320,51 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     } else if (!selected.includes(panel.id)) {
       setSelected([panel.id]);
     }
-    dragRef.current = { id: panel.id, handle, start: panel.rect, sx: e.clientX, sy: e.clientY, rect: el.getBoundingClientRect() };
+    dragRef.current = {
+      id: panel.id,
+      handle,
+      start: panel.rect,
+      sx: e.clientX,
+      sy: e.clientY,
+      rect: el.getBoundingClientRect(),
+    };
     setDragging(true);
+  };
+
+  /** Pointer down on empty page area: clear selection and arm a drag-to-draw marquee. */
+  const startMarquee = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // Drawing tools own the page surface; leaving this armed would draw both at once.
+    if (annTool !== 'select') return;
+    setAnnSelected(null);
+    if (e.button !== 0 || !e.isPrimary) return;
+    // Panels and handles stop propagation themselves; this guard keeps nested markers safe.
+    if ((e.target as HTMLElement).closest('.pbox')) return;
+    setSelected([]);
+    const el = shotRef.current;
+    if (!el || !imgLoaded) return;
+    const box = el.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    marqueeStartRef.current = {
+      anchor: {
+        x: clamp01((e.clientX - box.left) / box.width),
+        y: clamp01((e.clientY - box.top) / box.height),
+      },
+      from: { x: e.clientX, y: e.clientY },
+      box,
+      moved: false,
+    };
+    marqueeRectRef.current = null;
+    setMarqueeActive(true);
   };
 
   const addPanel = (center?: { x: number; y: number }) => {
     const rect: PanelRect = center
-      ? { x: Math.max(0, Math.min(0.75, center.x - 0.125)), y: Math.max(0, Math.min(0.8, center.y - 0.075)), w: 0.25, h: 0.15 }
+      ? {
+          x: Math.max(0, Math.min(0.75, center.x - 0.125)),
+          y: Math.max(0, Math.min(0.8, center.y - 0.075)),
+          w: 0.25,
+          h: 0.15,
+        }
       : { x: 0.3, y: 0.4, w: 0.4, h: 0.2 };
     const id = uid('p');
     mutate((d) => ({ ...d, panels: [...d.panels, { id, rect, source: 'manual' }] }));
@@ -128,6 +377,9 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
       ...d,
       panels: d.panels.filter((p) => !selected.includes(p.id)),
       notes: d.notes.filter((n) => !(n.scope === 'panel' && n.panelId && selected.includes(n.panelId))),
+      groups: (d.groups ?? [])
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !selected.includes(id)) }))
+        .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([]);
   };
@@ -143,8 +395,126 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
       notes: d.notes.map((n) =>
         n.scope === 'panel' && n.panelId && selected.includes(n.panelId) ? { ...n, panelId: id } : n,
       ),
+      groups: (d.groups ?? [])
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((pid) => !selected.includes(pid)) }))
+        .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([id]);
+  };
+
+  /* ---------------- groups ---------------- */
+
+  const groupColors = ['#e11d48', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#64748b'];
+
+  const groupColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const group of doc.groups ?? []) {
+      if (!group.color) continue;
+      for (const id of group.panelIds) if (!map.has(id)) map.set(id, group.color);
+    }
+    return map;
+  }, [doc.groups]);
+
+  const createGroup = () => {
+    const ids = ordered.filter((panel) => selected.includes(panel.id)).map((panel) => panel.id);
+    if (!ids.length) return;
+    const gid = uid('grp');
+    mutate((d) => {
+      // Grouping takes the panels out of any earlier group, so groups never overlap.
+      const kept = (d.groups ?? [])
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !ids.includes(id)) }))
+        .filter((g) => g.panelIds.length > 0);
+      return {
+        ...d,
+        groups: [
+          ...kept,
+          {
+            id: gid,
+            name: t('groups.defaultName', { n: formatNumber(kept.length + 1) }),
+            panelIds: ids,
+            color: groupColors[kept.length % groupColors.length],
+          },
+        ],
+      };
+    });
+    setSelected([]);
+  };
+
+  const patchGroup = (id: string, patch: Partial<PanelGroup>) => {
+    mutate((d) => ({ ...d, groups: (d.groups ?? []).map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
+  };
+
+  const removeFromGroup = (gid: string, pid: string) => {
+    mutate((d) => ({
+      ...d,
+      groups: (d.groups ?? [])
+        .map((g) => (g.id === gid ? { ...g, panelIds: g.panelIds.filter((id) => id !== pid) } : g))
+        .filter((g) => g.panelIds.length > 0),
+    }));
+  };
+
+  const dragChip = useRef<{ gid: string; index: number } | null>(null);
+
+  const dropChip = (gid: string, target: number) => {
+    const drag = dragChip.current;
+    dragChip.current = null;
+    if (!drag || drag.gid !== gid || drag.index === target) return;
+    mutate((d) => ({
+      ...d,
+      groups: (d.groups ?? []).map((g) => {
+        if (g.id !== gid) return g;
+        const ids = [...g.panelIds];
+        const [moved] = ids.splice(drag.index, 1);
+        ids.splice(target, 0, moved);
+        return { ...g, panelIds: ids };
+      }),
+    }));
+  };
+
+  const mergeGroupUp = (index: number) => {
+    if (index <= 0) return;
+    mutate((d) => {
+      const groups = [...(d.groups ?? [])];
+      const target = groups[index - 1];
+      const source = groups[index];
+      if (!target || !source) return d;
+      groups[index - 1] = { ...target, panelIds: [...target.panelIds, ...source.panelIds] };
+      groups.splice(index, 1);
+      return { ...d, groups };
+    });
+  };
+
+  const splitGroup = (id: string) => {
+    mutate((d) => {
+      const groups = d.groups ?? [];
+      const index = groups.findIndex((g) => g.id === id);
+      if (index < 0 || groups[index].panelIds.length < 2) return d;
+      const source = groups[index];
+      const pieces: PanelGroup[] = source.panelIds.map((pid, i) => ({
+        id: uid('grp'),
+        name: `${source.name || t('groups.defaultName', { n: formatNumber(index + 1) })} · ${i + 1}`,
+        panelIds: [pid],
+        color: source.color,
+      }));
+      const next = [...groups];
+      next.splice(index, 1, ...pieces);
+      return { ...d, groups: next };
+    });
+  };
+
+  const deleteGroup = (id: string) => {
+    // Removing a group never removes panels.
+    mutate((d) => ({ ...d, groups: (d.groups ?? []).filter((g) => g.id !== id) }));
+  };
+
+  const sortByGroup = () => {
+    mutate((d) => ({
+      ...d,
+      groups: normalizeGroupOrder(
+        d.groups ?? [],
+        ordered.map((panel) => panel.id),
+      ),
+    }));
   };
 
   const singleSelected = doc.panels.find((p) => p.id === selected[0]);
@@ -165,16 +535,17 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     if (
       doc.panels.length > 0 &&
       !window.confirm(
-        `将用${label}替换当前 ${doc.panels.length} 个格子。${
-          sameCount ? '格子数量一致，格级批注会按阅读顺序迁移。' : '格子数量不同，格级批注会被清除（整页批注保留）。'
-        }继续？`,
+        t(sameCount ? 'panels.replaceSame' : 'panels.replaceDifferent', {
+          count: formatNumber(doc.panels.length),
+          label,
+        }),
       )
     ) {
       return false;
     }
     mutate((d) => {
       if (!sameCount) {
-        return { ...d, panels, notes: d.notes.filter((n) => n.scope !== 'panel') };
+        return { ...d, panels, notes: d.notes.filter((n) => n.scope !== 'panel'), groups: [] };
       }
       const map = new Map(oldOrder.map((p, i) => [p.id, panels[i].id]));
       return {
@@ -183,6 +554,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
         notes: d.notes.map((n) =>
           n.scope === 'panel' && n.panelId && map.has(n.panelId) ? { ...n, panelId: map.get(n.panelId)! } : n,
         ),
+        groups: [],
       };
     });
     setSelected([panels[0].id]);
@@ -201,7 +573,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
         rects.push({ x: c * (w + gap), y: r * (h + gap), w, h });
       }
     }
-    replacePanels(rects, `${rows}×${cols} 网格`);
+    replacePanels(rects, t('panels.gridLabel', { rows: formatNumber(rows), cols: formatNumber(cols) }));
   };
 
   const saveTemplate = async () => {
@@ -209,7 +581,12 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     setTplBusy(true);
     try {
       const res = await api.savePanelTemplate({
-        name: tplName.trim() || `${doc.chapter} 第 ${doc.pageIndex + 1} 页`,
+        name:
+          tplName.trim() ||
+          t('panels.defaultTemplateName', {
+            chapter: doc.chapter,
+            page: formatNumber(doc.pageIndex + 1),
+          }),
         volume: doc.volume,
         chapter: doc.chapter,
         panels: doc.panels.map((p) => p.rect),
@@ -217,10 +594,10 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
       });
       setTplName('');
       setSelectedTpl(res.template.id);
-      setTplMsg(`已保存模板「${res.template.name}」`);
+      setTplMsg(t('panels.templateSaved', { name: res.template.name }));
       loadTemplates();
     } catch (err) {
-      setTplMsg(err instanceof Error ? err.message : '保存模板失败');
+      setTplMsg(err instanceof Error ? err.message : t('panels.templateSaveFailed'));
     } finally {
       setTplBusy(false);
     }
@@ -228,10 +605,10 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
 
   const applyTemplate = async (scope: 'page' | 'chapter') => {
     if (!selectedTpl) return;
-    if (scope === 'chapter' && !window.confirm('把该模板套用到整话？已有分格会被覆盖，格数相同的页面会迁移批注。')) return;
+    if (scope === 'chapter' && !window.confirm(t('panels.applyTemplateConfirm'))) return;
     setTplBusy(true);
     try {
-      // 先把当前页未保存的编辑落盘，避免被模板覆盖后丢失
+      // Flush unsaved edits first so applying a template cannot silently drop them.
       await api.savePage(doc);
       const res = await api.applyPanelTemplate(
         selectedTpl,
@@ -240,11 +617,16 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
         scope === 'page' ? [doc.pageIndex] : undefined,
       );
       setTplMsg(
-        `已套用 ${res.applied} 页${res.droppedNotes ? `，清除格级批注 ${res.droppedNotes} 条` : ''}`,
+        res.droppedNotes
+          ? t('panels.templateAppliedWithDropped', {
+              pages: formatNumber(res.applied),
+              notes: formatNumber(res.droppedNotes),
+            })
+          : t('panels.templateApplied', { pages: formatNumber(res.applied) }),
       );
       onReload();
     } catch (err) {
-      setTplMsg(err instanceof Error ? err.message : '套用模板失败');
+      setTplMsg(err instanceof Error ? err.message : t('panels.templateApplyFailed'));
     } finally {
       setTplBusy(false);
     }
@@ -254,7 +636,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     if (!selectedTpl) return;
     await api.deletePanelTemplate(selectedTpl).catch(() => null);
     setSelectedTpl('');
-    setTplMsg('模板已删除');
+    setTplMsg(t('panels.templateDeleted'));
     loadTemplates();
   };
 
@@ -263,15 +645,58 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
     try {
       await navigator.clipboard.writeText(rel);
     } catch {
-      window.prompt('复制该路径，用编辑器打开即可手改：', rel);
+      window.prompt(t('panels.copyPrompt'), rel);
     }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const deleteAnnotation = () => {
+    if (!annSelected) return;
+    applyAnnotations((list) => list.filter((a) => a.id !== annSelected));
+    setAnnSelected(null);
+  };
+
+  const clearAnnotations = () => {
+    if (!annotations.length) return;
+    if (!window.confirm(t('ann.clearConfirm', { count: formatNumber(annotations.length) }))) return;
+    applyAnnotations(() => []);
+    setAnnSelected(null);
+  };
+
   const onKeyDown = (e: ReactKeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    // Annotation focus is more specific than page-level actions: Esc only leaves the
+    // annotation mode, and Delete only removes the selected annotation.
+    if (e.key === 'Escape' && annSelected) {
+      e.preventDefault();
+      setAnnSelected(null);
+      return;
+    }
+    if (e.key === 'Escape' && annTool !== 'select') {
+      e.preventDefault();
+      setAnnTool('select');
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && annSelected) {
+      e.preventDefault();
+      deleteAnnotation();
+      return;
+    }
+    // In confirm mode Enter/Esc map to ✓/×; while marquee-selecting, Esc cancels the selection instead.
+    if (saveMode === 'confirm') {
+      if (e.key === 'Enter' && dirty) {
+        e.preventDefault();
+        onCommit();
+        return;
+      }
+      if (e.key === 'Escape' && dirty && !marqueeActive) {
+        e.preventDefault();
+        onDiscard();
+        return;
+      }
+    }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected.length) {
       e.preventDefault();
       deleteSelected();
@@ -305,54 +730,102 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
 
       <div className="stage-toolbar">
         <div className="tb-group">
-          <label className="tb-label">底图</label>
+          <label className="tb-label">{t('panels.baseImage')}</label>
           <select value={refLang} onChange={(e) => setRefLang(e.target.value as Lang)} className="tb-select">
             {availableLangs.map((l) => (
               <option value={l} key={l}>
-                {LANG_LABEL[l]}
+                {langLabel(l)}
               </option>
             ))}
           </select>
         </div>
 
         <div className="tb-group detect-meta">
-          <span className="tb-label">切格</span>
-          <span className="chip-mini" title="生成这一页格子所用的算法版本与最近一次编辑">
-            {doc.detectorVersion ?? '旧数据'}
+          <span className="tb-label">{t('panels.detectLabel')}</span>
+          <span className="chip-mini" title={t('panels.detectorVersionTitle')}>
+            {doc.detectorVersion ?? t('panels.legacyData')}
           </span>
           <span className="muted tiny">
             {doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
-              ? '手动改过'
+              ? t('panels.manualEdited')
               : doc.detectSource === 'template'
-                ? '按模板'
+                ? t('panels.fromTemplate')
                 : doc.detectSource === 'plugin'
-                  ? '按插件'
-                  : '自动'}
-            {doc.editCount ? ` · 保存 ${doc.editCount} 次` : ''}
-            {doc.lastEditedAt ? ` · ${new Date(doc.lastEditedAt).toLocaleString()}` : ''}
+                  ? t('panels.fromPlugin')
+                  : t('panels.autoDetectSource')}
+            {doc.editCount ? t('panels.editCount', { count: formatNumber(doc.editCount) }) : ''}
+            {doc.lastEditedAt ? t('panels.lastEditedAt', { date: formatDate(doc.lastEditedAt) }) : ''}
             {doc.lastEditSummary ? ` · ${doc.lastEditSummary}` : ''}
           </span>
         </div>
 
         <div className="tb-group">
           <button type="button" className="btn" onClick={() => onDetect(refLang)} disabled={detecting || !url}>
-            {detecting ? '检测中…' : '自动切格'}
+            {detecting ? t('panels.detecting') : t('panels.autoSplit')}
           </button>
           <button type="button" className="btn" onClick={() => addPanel()} disabled={!imgLoaded}>
-            添加格子
+            {t('panels.addPanel')}
           </button>
           <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
-            合并 {selected.length >= 2 ? `(${selected.length})` : ''}
+            {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
+          </button>
+          <button type="button" className="btn" onClick={createGroup} disabled={!selected.length}>
+            {t('groups.create')} {selected.length ? `(${formatNumber(selected.length)})` : ''}
           </button>
           <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
-            删除
+            {t('common.delete')}
           </button>
+        </div>
+
+        <div className="tb-group save-group">
+          <span className="tb-label">{t('common.save')}</span>
+          <div className="seg">
+            <button
+              type="button"
+              className={saveMode === 'auto' ? 'on' : ''}
+              onClick={() => setSaveMode('auto')}
+              title={t('panels.saveAutoTitle')}
+            >
+              {t('panels.saveAuto')}
+            </button>
+            <button
+              type="button"
+              className={saveMode === 'confirm' ? 'on' : ''}
+              onClick={() => setSaveMode('confirm')}
+              title={t('panels.saveConfirmTitle')}
+            >
+              {t('panels.saveConfirm')}
+            </button>
+          </div>
+          {saveMode === 'confirm' && dirty && <span className="unsaved-flag">{t('panels.unsaved')}</span>}
+          <button type="button" className="btn icon" disabled={!canUndo} onClick={onUndo} title={t('panels.undoTitle')}>
+            ↶
+          </button>
+          <button type="button" className="btn icon" disabled={!canRedo} onClick={onRedo} title={t('panels.redoTitle')}>
+            ↷
+          </button>
+          {saveMode === 'confirm' && dirty && (
+            <>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={onCommit}
+                disabled={saving}
+                title={t('panels.commitTitle')}
+              >
+                ✓
+              </button>
+              <button type="button" className="btn danger" onClick={onDiscard} title={t('panels.discardTitle')}>
+                ×
+              </button>
+            </>
+          )}
         </div>
 
         <div className="tb-group right">
           <label className="tb-check">
             <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
-            编号
+            {t('panels.numbers')}
           </label>
           <div className="zoom">
             <button type="button" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}>
@@ -369,7 +842,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
       <div className="stage-toolbar sub">
         {singleSelected && (
           <div className="tb-group rect-inputs">
-            <span className="tb-label">格子坐标</span>
+            <span className="tb-label">{t('panels.panelRect')}</span>
             <label className="num">
               X
               <input
@@ -391,7 +864,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
               %
             </label>
             <label className="num">
-              宽
+              {t('panels.width')}
               <input
                 type="number"
                 step={0.1}
@@ -401,7 +874,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
               %
             </label>
             <label className="num">
-              高
+              {t('panels.height')}
               <input
                 type="number"
                 step={0.1}
@@ -414,9 +887,9 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
         )}
 
         <div className="tb-group">
-          <span className="tb-label">网格</span>
+          <span className="tb-label">{t('panels.grid')}</span>
           <label className="num">
-            行
+            {t('panels.rows')}
             <input
               type="number"
               min={1}
@@ -426,7 +899,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
             />
           </label>
           <label className="num">
-            列
+            {t('panels.cols')}
             <input
               type="number"
               min={1}
@@ -436,7 +909,7 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
             />
           </label>
           <label className="num">
-            间距
+            {t('panels.gap')}
             <input
               type="number"
               min={0}
@@ -448,16 +921,21 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
             %
           </label>
           <button type="button" className="btn tiny" onClick={makeGrid}>
-            生成网格
+            {t('panels.makeGrid')}
           </button>
         </div>
 
         <div className="tb-group right">
           <button type="button" className={`btn tiny ${tplOpen ? 'on' : ''}`} onClick={() => setTplOpen((v) => !v)}>
-            分格模板 {templates.length ? `(${templates.length})` : ''}
+            {t('panels.templates')} {templates.length ? `(${formatNumber(templates.length)})` : ''}
           </button>
-          <button type="button" className="btn tiny" onClick={() => void copyJsonPath()} title="复制当前页标注 JSON 路径">
-            {copied ? '已复制路径' : '复制 JSON 路径'}
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={() => void copyJsonPath()}
+            title={t('panels.copyJsonPathTitle')}
+          >
+            {copied ? t('panels.copiedPath') : t('panels.copyJsonPath')}
           </button>
         </div>
       </div>
@@ -467,48 +945,273 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
           <div className="tpl-row">
             <input
               className="preset-name"
-              placeholder="模板名称，例如「四格无缝隙」"
+              placeholder={t('panels.templateNamePlaceholder')}
               value={tplName}
               onChange={(e) => setTplName(e.target.value)}
             />
-            <button type="button" className="btn tiny" onClick={() => void saveTemplate()} disabled={tplBusy || !doc.panels.length}>
-              把当前页存为模板
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => void saveTemplate()}
+              disabled={tplBusy || !doc.panels.length}
+            >
+              {t('panels.saveAsTemplate')}
             </button>
           </div>
           <div className="tpl-row">
             <select className="tb-select" value={selectedTpl} onChange={(e) => setSelectedTpl(e.target.value)}>
-              <option value="">选择模板…</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {t.panels.length} 格
+              <option value="">{t('panels.selectTemplate')}</option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name} · {t('panels.panelCount', { count: formatNumber(tpl.panels.length) })}
                 </option>
               ))}
             </select>
-            <button type="button" className="btn tiny" onClick={() => void applyTemplate('page')} disabled={tplBusy || !selectedTpl}>
-              套用本页
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => void applyTemplate('page')}
+              disabled={tplBusy || !selectedTpl}
+            >
+              {t('panels.applyPage')}
             </button>
-            <button type="button" className="btn tiny" onClick={() => void applyTemplate('chapter')} disabled={tplBusy || !selectedTpl}>
-              套用整话
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => void applyTemplate('chapter')}
+              disabled={tplBusy || !selectedTpl}
+            >
+              {t('panels.applyChapter')}
             </button>
-            <button type="button" className="btn tiny danger" onClick={() => void deleteTemplate()} disabled={tplBusy || !selectedTpl}>
-              删除模板
+            <button
+              type="button"
+              className="btn tiny danger"
+              onClick={() => void deleteTemplate()}
+              disabled={tplBusy || !selectedTpl}
+            >
+              {t('panels.deleteTemplate')}
             </button>
-            <span className="muted tiny">数据文件：data/pages/{doc.volume}/{doc.chapter}/{doc.pageIndex}.json</span>
+            <span className="muted tiny">
+              {t('panels.dataFile', {
+                volume: doc.volume,
+                chapter: doc.chapter,
+                page: String(doc.pageIndex),
+              })}
+            </span>
           </div>
           {tplMsg && <div className="tpl-msg">{tplMsg}</div>}
         </div>
       )}
 
+      <div className="ann-toolbar">
+        <button
+          type="button"
+          className="btn tiny"
+          aria-expanded={annOpen}
+          title={t('ann.toggleTools')}
+          onClick={() => {
+            setAnnOpen(!annOpen);
+            if (annOpen) {
+              setAnnTool('select');
+              setAnnSelected(null);
+            }
+          }}
+        >
+          {annOpen ? '▾' : '▸'} {t('ann.layer')}
+        </button>
+        {annOpen && (
+          <>
+            <button
+              type="button"
+              className={`btn tiny ${annotationsVisible ? 'on' : ''}`}
+              aria-pressed={annotationsVisible}
+              title={annotationsVisible ? t('ann.hide') : t('ann.show')}
+              onClick={() => {
+                mutate((current) => ({ ...current, annotationsVisible: !annotationsVisible }));
+                if (annotationsVisible) {
+                  setAnnTool('select');
+                  setAnnSelected(null);
+                }
+              }}
+            >
+              {annotationsVisible ? t('ann.on') : t('ann.off')}
+            </button>
+            <div className="ann-tools">
+              {ANNOTATION_TOOL_ORDER.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
+                  title={t(ANNOTATION_TOOLS[item].labelKey)}
+                  aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
+                  aria-pressed={annTool === item}
+                  disabled={!annotationsVisible}
+                  onClick={() => {
+                    setAnnTool(item);
+                    // Keep a single selected panel: it decides whether new marks use page
+                    // scope or panel scope. The text in the toolbar states which one.
+                    setAnnSelected(null);
+                  }}
+                >
+                  {ANNOTATION_TOOLS[item].icon}
+                </button>
+              ))}
+            </div>
+            <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+              {ANNOTATION_COLORS.map((swatch) => (
+                <button
+                  key={swatch}
+                  type="button"
+                  className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+                  style={{ background: swatch }}
+                  title={t('ann.color')}
+                  aria-label={t('ann.color')}
+                  onClick={() => {
+                    setAnnColor(swatch);
+                    // Changing a swatch recolours the selected annotation, which is the
+                    // quickest way to fix a wrong colour without deleting the shape.
+                    if (annSelected) {
+                      applyAnnotations((list) =>
+                        list.map((a) =>
+                          a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
+                        ),
+                      );
+                    }
+                  }}
+                />
+              ))}
+            </div>
+            <button type="button" className="btn tiny danger" onClick={deleteAnnotation} disabled={!annSelected}>
+              {t('ann.delete')}
+            </button>
+            <button type="button" className="btn tiny danger" onClick={clearAnnotations} disabled={!annotations.length}>
+              {t('ann.clear')}
+            </button>
+            <span className="muted tiny ann-hint">
+              {!annotationsVisible
+                ? t('ann.hiddenHint')
+                : singleSelected
+                  ? t('ann.scopePanel', { n: formatNumber(numberMap.get(singleSelected.id) ?? 0) })
+                  : t('ann.scopePage')}
+            </span>
+          </>
+        )}
+      </div>
+
+      <div className="groups-panel">
+        <div className="groups-head">
+          <button
+            type="button"
+            className="btn tiny"
+            aria-expanded={groupsOpen}
+            title={t('groups.toggle')}
+            onClick={() => setGroupsOpen(!groupsOpen)}
+          >
+            {groupsOpen ? '▾' : '▸'} {t('groups.title', { n: formatNumber((doc.groups ?? []).length) })}
+          </button>
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={sortByGroup}
+            disabled={(doc.groups ?? []).length < 1}
+            title={t('groups.sortHint')}
+          >
+            {t('groups.sort')}
+          </button>
+        </div>
+        {groupsOpen &&
+          ((doc.groups ?? []).length ? (
+            <div className="group-list">
+              {(doc.groups ?? []).map((group, index) => (
+                <div className="group-row" key={group.id}>
+                  <input
+                    type="color"
+                    className="group-color"
+                    value={group.color ?? groupColors[index % groupColors.length]}
+                    title={t('groups.color')}
+                    aria-label={t('groups.color')}
+                    onChange={(e) => patchGroup(group.id, { color: e.target.value })}
+                  />
+                  <input
+                    className="group-name"
+                    value={group.name ?? ''}
+                    placeholder={t('groups.namePlaceholder')}
+                    aria-label={t('groups.name')}
+                    onChange={(e) => patchGroup(group.id, { name: e.target.value })}
+                  />
+                  <div className="group-chips">
+                    {group.panelIds.map((pid, chipIndex) => (
+                      <div
+                        key={pid}
+                        className="group-chip"
+                        draggable
+                        title={t('groups.chipHint')}
+                        onDragStart={() => {
+                          dragChip.current = { gid: group.id, index: chipIndex };
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => dropChip(group.id, chipIndex)}
+                      >
+                        <span className="group-chip-num">{formatNumber(numberMap.get(pid) ?? 0)}</span>
+                        <button
+                          type="button"
+                          className="group-chip-x"
+                          title={t('groups.removePanel')}
+                          aria-label={t('groups.removePanel')}
+                          onClick={() => removeFromGroup(group.id, pid)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="group-actions">
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      title={t('groups.merge')}
+                      onClick={() => mergeGroupUp(index)}
+                      disabled={index === 0}
+                    >
+                      {t('groups.merge')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      title={t('groups.split')}
+                      onClick={() => splitGroup(group.id)}
+                      disabled={group.panelIds.length < 2}
+                    >
+                      {t('groups.split')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn tiny danger"
+                      title={t('groups.deleteHint')}
+                      onClick={() => deleteGroup(group.id)}
+                    >
+                      {t('groups.delete')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="muted tiny groups-empty">{t('groups.empty')}</div>
+          ))}
+      </div>
+
       <div className="stage-scroll">
         {!url ? (
-          <div className="stage-empty">这一页没有任何语言的图片</div>
+          <div className="stage-empty">{t('panels.emptyPage')}</div>
         ) : (
           <div className="canvas-wrap" style={{ width: `${zoom * 100}%` }}>
             <div
-              className="shot"
+              className={`shot ${annTool !== 'select' ? 'ann-drawing' : ''}`}
               ref={shotRef}
-              onPointerDown={() => setSelected([])}
+              onPointerDown={startMarquee}
               onDoubleClick={(e) => {
+                if (annTool !== 'select') return;
                 if ((e.target as HTMLElement).closest('.pbox')) return;
                 const r = e.currentTarget.getBoundingClientRect();
                 addPanel({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
@@ -516,22 +1219,37 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
             >
               <img
                 src={url}
-                alt={`第 ${doc.pageIndex + 1} 页`}
+                alt={t('format.page', { page: formatNumber(doc.pageIndex + 1) })}
                 draggable={false}
                 onLoad={() => setImgLoaded(true)}
               />
+              {imgLoaded && (
+                <AnnotationLayer
+                  annotations={annotations}
+                  visible={annotationsVisible}
+                  tool={annTool}
+                  color={annColor}
+                  width={0.0035}
+                  activePanel={singleSelected ?? null}
+                  panels={doc.panels}
+                  selectedId={annSelected}
+                  onSelect={setAnnSelected}
+                  onChange={applyAnnotations}
+                />
+              )}
               {imgLoaded &&
                 doc.panels.map((panel) => {
                   const isSel = selected.includes(panel.id);
                   return (
                     <div
                       key={panel.id}
-                      className={`pbox ${isSel ? 'sel' : ''}`}
+                      className={`pbox ${isSel ? 'sel' : ''} ${groupColorMap.has(panel.id) ? 'grouped' : ''}`}
                       style={{
                         left: `${panel.rect.x * 100}%`,
                         top: `${panel.rect.y * 100}%`,
                         width: `${panel.rect.w * 100}%`,
                         height: `${panel.rect.h * 100}%`,
+                        borderColor: groupColorMap.get(panel.id),
                       }}
                       onPointerDown={(e) => startDrag(e, panel, 'move')}
                       onDoubleClick={(e) => e.stopPropagation()}
@@ -539,33 +1257,44 @@ export function PanelsTab({ doc, page, mutate, detecting, onDetect, selected, se
                       {showNumbers && <em className="pnum">{numberMap.get(panel.id)}</em>}
                       {isSel &&
                         HANDLES.map((h) => (
-                          <span
-                            key={h}
-                            className={`handle h-${h}`}
-                            onPointerDown={(e) => startDrag(e, panel, h)}
-                          />
+                          <span key={h} className={`handle h-${h}`} onPointerDown={(e) => startDrag(e, panel, h)} />
                         ))}
                     </div>
                   );
                 })}
+              {marquee && (
+                <div
+                  className="marquee"
+                  style={{
+                    left: `${marquee.rect.x * 100}%`,
+                    top: `${marquee.rect.y * 100}%`,
+                    width: `${marquee.rect.w * 100}%`,
+                    height: `${marquee.rect.h * 100}%`,
+                  }}
+                >
+                  <span className="marquee-label">
+                    {(marquee.rect.w * 100).toFixed(1)}% × {(marquee.rect.h * 100).toFixed(1)}%
+                    <i>
+                      {Math.round(marquee.wPx)} × {Math.round(marquee.hPx)} px
+                    </i>
+                  </span>
+                </div>
+              )}
             </div>
-            {doc.panels.length === 0 && (
-              <div className="stage-hint">
-                还没有格子。点「自动切格」自动识别，或「添加格子」手动补框；双击页面空白处也能加一格。
-              </div>
-            )}
+            {doc.panels.length === 0 && <div className="stage-hint">{t('panels.stageHint')}</div>}
           </div>
         )}
       </div>
 
       <div className="stage-status">
         <span>
-          共 <b>{doc.panels.length}</b> 格
-          {selected.length > 0 && ` · 已选 ${selected.length}`}
+          {t('panels.statusTotalBefore')}
+          <b>{formatNumber(doc.panels.length)}</b>
+          {t('panels.statusTotalAfter')}
+          {selected.length > 0 && t('panels.statusSelected', { count: formatNumber(selected.length) })}
         </span>
-        <span className="muted">
-          拖动框体移动，拖角点缩放；Ctrl/Shift 点选多格后可合并；Delete 删除
-        </span>
+        <span className="muted">{t('panels.statusMarquee')}</span>
+        <span className="muted">{t('panels.statusEdit')}</span>
       </div>
     </div>
   );

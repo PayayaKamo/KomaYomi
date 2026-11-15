@@ -6,8 +6,8 @@ type Next = () => void;
 type Middleware = (req: IncomingMessage, res: ServerResponse, next: Next) => void;
 
 /**
- * Vite 适配层：把本地接口挂到 dev / preview 服务器上。
- * 具体路由全部在 server/app.ts，桌面端（Electron）复用同一套处理逻辑。
+ * Vite adapter: mounts the local API on the dev / preview server.
+ * All routes live in server/app.ts; the Electron desktop app reuses the same handlers.
  */
 export function mangaServer(rootDir: string): Plugin {
   const attach = (use: (fn: Middleware) => void) => {

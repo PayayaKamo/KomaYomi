@@ -12,11 +12,7 @@
  */
 
 export function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return input.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function inline(input: string): string {
@@ -40,6 +36,8 @@ function inline(input: string): string {
   s = s.replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>');
   s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
 
+  // NUL marks inline-code placeholders and is restored at the end, so the control character must be matched here.
+  // eslint-disable-next-line no-control-regex
   return s.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => codes[Number(i)] ?? '');
 }
 
@@ -83,9 +81,7 @@ function parseTable(lines: string[], start: number): { html: string; next: numbe
     i++;
   }
 
-  const th = head
-    .map((cell, idx) => `<th style="text-align:${aligns[idx] ?? 'left'}">${inline(cell)}</th>`)
-    .join('');
+  const th = head.map((cell, idx) => `<th style="text-align:${aligns[idx] ?? 'left'}">${inline(cell)}</th>`).join('');
   const body = rows
     .map(
       (row) =>

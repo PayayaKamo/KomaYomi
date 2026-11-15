@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirection } from '../shared/types.ts';
 import { DEFAULT_OFFSET } from '../shared/types.ts';
+import { preserveUnknown } from '../shared/format.ts';
+import type { HistorySource } from '../shared/format.ts';
+import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
+import { recordVersion } from './pageHistory.ts';
+import { t } from './messages/index.ts';
 
 export function pageFilePath(dataRoot: string, volume: string, chapter: string, pageIndex: number): string {
   return path.join(dataRoot, 'pages', volume, chapter, `${pageIndex}.json`);
@@ -9,7 +14,7 @@ export function pageFilePath(dataRoot: string, volume: string, chapter: string, 
 
 export function createEmptyDoc(volume: string, chapter: string, pageIndex: number): PageDoc {
   return {
-    version: 1,
+    schemaVersion: 1,
     volume,
     chapter,
     pageIndex,
@@ -131,6 +136,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
       name: typeof g.name === 'string' ? g.name : '',
       panelIds: Array.isArray(g.panelIds) ? g.panelIds.filter((id) => typeof id === 'string' && panelIds.has(id)) : [],
       number: Number.isFinite(g.number) ? Number(g.number) : undefined,
+      color: typeof g.color === 'string' && /^#[0-9a-f]{6}$/i.test(g.color) ? g.color : undefined,
     }))
     .filter((g) => g.panelIds.length > 0);
 
@@ -155,7 +161,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
     .filter((a) => a.points.length > 0);
 
   return {
-    version: 1,
+    schemaVersion: 1,
     volume: String(input.volume ?? ''),
     chapter: String(input.chapter ?? ''),
     pageIndex: Number(input.pageIndex) || 0,
@@ -179,60 +185,67 @@ function normalizeDoc(input: PageDoc): PageDoc {
   };
 }
 
-export function readPageDoc(
-  dataRoot: string,
-  volume: string,
-  chapter: string,
-  pageIndex: number,
-): PageDoc | null {
+export function readPageDoc(dataRoot: string, volume: string, chapter: string, pageIndex: number): PageDoc | null {
   const file = pageFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(file)) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as PageDoc;
-    return normalizeDoc(parsed);
+    const stored = readStoredFile<PageDoc>(file, 'page');
+    if (!stored) return null;
+    // Keep fields written by a future build so a save never silently drops them.
+    return preserveUnknown(stored.data, normalizeDoc(stored.data));
   } catch {
     return null;
   }
 }
 
 export type WriteMeta = {
-  /** 覆盖自动计算的变更摘要 */
+  /** Overrides the auto-computed change summary. */
   summary?: string;
-  /** 本次是切格结果：记录算法版本与来源 */
+  /** This write is a detection result: record the algorithm version and source. */
   detect?: { version: string; source: NonNullable<PageDoc['detectSource']>; lang?: string };
+  /** Why this save happened; stored on the cross-session version snapshot. */
+  source?: HistorySource;
+  /** Used by restore, which snapshots the previous state itself. */
+  skipHistory?: boolean;
 };
 
 const rectKey = (p: Panel) =>
   `${p.id}:${p.rect.x.toFixed(4)},${p.rect.y.toFixed(4)},${p.rect.w.toFixed(4)},${p.rect.h.toFixed(4)}`;
 
-/** 轻量变更摘要：只回答「这次改了什么」，不做逐字段审计 */
+/** Lightweight change summary: answers "what changed", not a field-by-field audit. */
 function summarize(prev: PageDoc | null, next: PageDoc): string {
-  if (!prev) return '创建页面数据';
+  if (!prev) return t('HISTORY_CREATED');
   const parts: string[] = [];
   if (prev.panels.length !== next.panels.length) {
-    parts.push(`格数 ${prev.panels.length}→${next.panels.length}`);
+    parts.push(t('HISTORY_PANELS', { from: prev.panels.length, to: next.panels.length }));
   } else if (prev.panels.map(rectKey).join('|') !== next.panels.map(rectKey).join('|')) {
-    parts.push('调整格框');
+    parts.push(t('HISTORY_PANEL_RECTS'));
   }
   if (prev.notes.length !== next.notes.length) {
-    parts.push(`批注 ${prev.notes.length}→${next.notes.length}`);
+    parts.push(t('HISTORY_NOTES', { from: prev.notes.length, to: next.notes.length }));
   } else if (JSON.stringify(prev.notes) !== JSON.stringify(next.notes)) {
-    parts.push('修改批注');
+    parts.push(t('HISTORY_NOTE_EDIT'));
   }
-  if (prev.readingDirection !== next.readingDirection) parts.push('阅读方向');
-  if (JSON.stringify(prev.groups ?? []) !== JSON.stringify(next.groups ?? [])) parts.push('分组');
-  if (JSON.stringify(prev.annotations ?? []) !== JSON.stringify(next.annotations ?? [])) parts.push('图片标注');
-  if (prev.alignMode !== next.alignMode) parts.push('对齐模式');
+  if (prev.readingDirection !== next.readingDirection) parts.push(t('HISTORY_DIRECTION'));
+  if (JSON.stringify(prev.groups ?? []) !== JSON.stringify(next.groups ?? [])) parts.push(t('HISTORY_GROUPS'));
+  if (JSON.stringify(prev.annotations ?? []) !== JSON.stringify(next.annotations ?? [])) {
+    parts.push(t('HISTORY_ANNOTATIONS'));
+  }
+  if (prev.alignMode !== next.alignMode) parts.push(t('HISTORY_ALIGN_MODE'));
   else if (
     JSON.stringify(prev.offsets) !== JSON.stringify(next.offsets) ||
     JSON.stringify(prev.panelOffsets) !== JSON.stringify(next.panelOffsets)
   ) {
-    parts.push('对齐偏移');
+    parts.push(t('HISTORY_OFFSETS'));
   }
-  return parts.join('；') || '保存';
+  return parts.join('; ') || t('HISTORY_SAVE');
 }
 
 export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
+  const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
+  // A page written by a newer build stays untouched instead of being downgraded.
+  assertWritableFile(file, 'page');
+  const prevRaw = readRawRecord(file);
   const prev = readPageDoc(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
   const normalized = normalizeDoc(doc);
   const now = new Date().toISOString();
@@ -242,7 +255,7 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
     normalized.detectedAt = now;
     normalized.detectSource = meta.detect.source;
   } else if (prev) {
-    // 客户端可能没带元信息：沿用磁盘上的，避免一保存就丢
+    // The client may omit metadata: reuse the on-disk values so a save doesn't drop them.
     normalized.detectorVersion = normalized.detectorVersion ?? prev.detectorVersion;
     normalized.detectedAt = normalized.detectedAt ?? prev.detectedAt;
     normalized.detectSource = normalized.detectSource ?? prev.detectSource;
@@ -250,22 +263,32 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
 
   normalized.editCount = (prev?.editCount ?? 0) + 1;
   normalized.lastEditedAt = now;
-  normalized.lastEditSummary = meta?.summary ?? (meta?.detect ? `按 ${meta.detect.version} 切格` : summarize(prev, normalized));
+  normalized.lastEditSummary =
+    meta?.summary ??
+    (meta?.detect ? t('HISTORY_DETECTED', { version: meta.detect.version }) : summarize(prev, normalized));
   normalized.updatedAt = now;
 
-  const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(normalized, null, 2), 'utf8');
-  fs.renameSync(tmp, file);
-  return normalized;
+  const merged = preserveUnknown(prevRaw, normalized);
+  writeStoredFile(file, 'page', merged);
+  if (!meta?.skipHistory) {
+    // Version history is an audit trail: a write failure there must never block the save.
+    try {
+      recordVersion(dataRoot, merged, prev, {
+        source: meta?.source ?? 'auto',
+        summary: normalized.lastEditSummary,
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+  return merged;
 }
 
 export function ensureOffset(doc: PageDoc, lang: Lang): AlignOffset {
   return doc.offsets[lang] ?? DEFAULT_OFFSET;
 }
 
-/** 扫描所有标注文件，统计标签使用情况 */
+/** Scan all annotation files and tally tag usage. */
 export function collectTagStats(dataRoot: string): { tag: string; count: number }[] {
   const pagesDir = path.join(dataRoot, 'pages');
   const counts = new Map<string, number>();
@@ -282,7 +305,7 @@ export function collectTagStats(dataRoot: string): { tag: string; count: number 
             for (const tag of note.tags ?? []) counts.set(tag, (counts.get(tag) ?? 0) + 1);
           }
         } catch {
-          /* 单个损坏文件不影响整体 */
+          /* One corrupt file doesn't affect the rest. */
         }
       }
     }

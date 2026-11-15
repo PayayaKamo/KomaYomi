@@ -3,7 +3,7 @@
  *
  * Drop any `.mjs` / `.js` / `.cjs` file into this folder. File order is
  * alphabetical; the first plugin whose `match` rules pass is used. If a plugin
- * throws, times out (2500 ms) or returns no panels, Manga Memo falls back to the
+ * throws, times out (2500 ms) or returns no panels, KomaYomi falls back to the
  * built-in detector and shows a visible warning.
  *
  * Interface

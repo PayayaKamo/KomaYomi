@@ -1,9 +1,12 @@
 import type {
   AlignPreset,
   DetectResult,
+  DirPreview,
+  DirRule,
   ExportConfig,
   ExportTemplate,
   Lang,
+  LayoutScope,
   LayoutTemplate,
   Library,
   PageDoc,
@@ -11,7 +14,43 @@ import type {
   PanelTemplate,
   PanelRect,
   ReadingDirection,
+  CacheStats,
+  StorageConfig,
+  StorageStatus,
 } from './types';
+import { t } from './i18n';
+
+/* ---- page version history (cross-session) ---- */
+export type HistorySource =
+  'auto' | 'manual' | 'batch' | 'template' | 'align' | 'annotation' | 'import' | 'restore' | 'detect';
+
+export type HistoryDiff = {
+  panels: number;
+  panelsDelta: number;
+  added: number;
+  removed: number;
+  moved: number;
+  resized: number;
+  annotations: number;
+  annotationsDelta: number;
+  notes: number;
+  notesDelta: number;
+};
+
+export type PageVersion = {
+  id: string;
+  at: string;
+  source: HistorySource;
+  summary: string;
+  diff: HistoryDiff;
+  editCount: number;
+  panelCount: number;
+  annotationCount: number;
+  noteCount: number;
+  panels: { id: string; rect: PanelRect }[];
+};
+
+export type PageVersionList = { entries: PageVersion[]; limit: number };
 
 export type NotesIndex = {
   total: number;
@@ -37,6 +76,50 @@ export type NotesIndex = {
   pages: number;
 };
 
+/* ---- Project file .mnproj ---- */
+export type ProjectMode = 'reference' | 'packaged';
+export type ProjectConflict = 'overwrite' | 'merge' | 'skip';
+
+export type ProjectInspect = {
+  name?: string;
+  schemaVersion: number;
+  migratedFrom?: number;
+  appVersion: string;
+  storageMode: ProjectMode;
+  createdAt: string;
+  updatedAt: string;
+  size: number;
+  pages: number;
+  notes: number;
+  annotations: number;
+  volumes: string[];
+  chapters: number;
+  images: number;
+  templates: number;
+  presets: number;
+  conflicts: { name: string; kind: 'page' | 'template' | 'preset' | 'config' }[];
+  conflictCount: number;
+  missingAssets: { volume: string; chapter: string; pageIndex: number; lang: Lang; name: string }[];
+  warnings: string[];
+};
+
+export type ProjectImport = {
+  storageMode: ProjectMode;
+  restored: number;
+  merged: number;
+  skipped: number;
+  conflicts: number;
+  imagesWritten: number;
+  imagesPresent: number;
+  relinked: number;
+  missing: { volume: string; chapter: string; pageIndex: number; lang: Lang; name: string; reason: string }[];
+  snapshot: string | null;
+  projectBackup: string;
+  migratedFrom?: number;
+  warnings: string[];
+  library: Library;
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -44,10 +127,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
-    throw new Error(`服务返回了非 JSON 内容：${text.slice(0, 120)}`);
+    throw new Error(t('api.nonJson', { text: text.slice(0, 120) }));
   }
   if (!res.ok) {
-    const message = (data as { error?: string } | null)?.error ?? `请求失败（${res.status}）`;
+    // Server-provided messages stay as-is; only our own fallback is localized.
+    const message = (data as { error?: string } | null)?.error ?? t('api.requestFailed', { status: res.status });
     throw new Error(message);
   }
   return data as T;
@@ -62,6 +146,9 @@ const json = (body: unknown): RequestInit => ({
 export const api = {
   library: () => request<{ library: Library; root: string }>('/api/library'),
 
+  /** App metadata for the About dialog; the version comes from package.json on the server. */
+  health: () => request<{ ok: boolean; app: string; version: string; author: string; license: string }>('/api/health'),
+
   addVolume: (input: { sourcePath?: string; name?: string }) =>
     request<{ added: string[]; warnings: string[]; library: Library }>('/api/library/add-volume', json(input)),
 
@@ -71,10 +158,26 @@ export const api = {
   saveVolumeDirs: (volume: string, dirs: Partial<Record<Lang, string | null>>) =>
     request<{ library: Library }>('/api/library/volume-config', json({ volume, dirs })),
 
-  fetchLinkTitle: (url: string) =>
-    request<{ title: string; warning?: string }>('/api/link-title', json({ url })),
+  /** Persist the compare/export language order; null restores the default. */
+  saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
 
-  /* ---- 备份 / 恢复 ---- */
+  /* ---- Directory recognition rules ---- */
+  dirRules: () =>
+    request<{ rules: DirRule[]; defaults: DirRule[]; customized: boolean; warning?: string }>('/api/dir-rules'),
+
+  saveDirRules: (rules: DirRule[]) =>
+    request<{ rules: DirRule[]; library: Library }>('/api/dir-rules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules }),
+    }),
+
+  previewLibrary: (input: { dir?: string; rules?: DirRule[] }) =>
+    request<DirPreview>('/api/library/preview', json(input)),
+
+  fetchLinkTitle: (url: string) => request<{ title: string; warning?: string }>('/api/link-title', json({ url })),
+
+  /* ---- Backup / restore ---- */
   createBackup: () =>
     request<{ file: string; url: string; size: number; entries: number }>('/api/backup', { method: 'POST' }),
 
@@ -96,24 +199,106 @@ export const api = {
       json({ data }),
     ),
 
+  /* ---- Storage providers: local / network drive / WebDAV ---- */
+  storage: () => request<{ config: StorageConfig; cache: CacheStats }>('/api/storage'),
+
+  saveStorage: (config: StorageConfig, secrets?: Record<string, string | null>) =>
+    request<{ config: StorageConfig }>('/api/storage', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config, secrets }),
+    }),
+
+  testStorage: (id?: string) => request<{ statuses: StorageStatus[] }>('/api/storage/test', json({ id })),
+
+  syncStorage: () =>
+    request<{ files: number; dirs: number; skipped: number; truncated: boolean; syncedAt: string; library: Library }>(
+      '/api/storage/sync',
+      json({}),
+    ),
+
+  clearStorageCache: () => request<{ removed: number; cache: CacheStats }>('/api/storage/cache/clear', json({})),
+
+  backupToStorage: (targetId?: string) =>
+    request<{ file: string; target?: string; url?: string; size: number; entries: number }>(
+      '/api/storage/backup',
+      json({ targetId }),
+    ),
+
+  /* ---- Project file .mnproj ---- */
+  exportProject: (input: { mode: ProjectMode; name?: string; notes?: string }) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      entries: number;
+      storageMode: ProjectMode;
+      name?: string;
+      manifest: {
+        schemaVersion: number;
+        appVersion: string;
+        storageMode: ProjectMode;
+        pageCount: number;
+        images: number;
+        volumes: string[];
+        notes?: { pages: number; noteCount: number; annotationCount: number; text?: string };
+      };
+      warnings: string[];
+    }>('/api/project/export', json(input)),
+
+  inspectProject: (data: ArrayBuffer) =>
+    request<ProjectInspect>('/api/project/inspect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: data,
+    }),
+
+  importProject: (input: { data: ArrayBuffer; conflict: ProjectConflict; relinkDir?: string }) => {
+    const query = new URLSearchParams({ conflict: input.conflict });
+    if (input.relinkDir) query.set('relinkDir', input.relinkDir);
+    return request<ProjectImport>(`/api/project/import?${query.toString()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: input.data,
+    });
+  },
+
   page: (volume: string, chapter: string, index: number) =>
     request<PageResponse>(
       `/api/page?volume=${encodeURIComponent(volume)}&chapter=${encodeURIComponent(chapter)}&index=${index}`,
     ),
 
-  savePage: (doc: PageDoc) =>
-    request<{ doc: PageDoc }>('/api/page', {
+  savePage: (doc: PageDoc, source: HistorySource = 'auto') =>
+    request<{ doc: PageDoc }>(`/api/page?source=${encodeURIComponent(source)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
     }),
+
+  pageHistory: (volume: string, chapter: string, pageIndex: number) =>
+    request<PageVersionList>(
+      `/api/page-history?volume=${encodeURIComponent(volume)}&chapter=${encodeURIComponent(chapter)}&index=${pageIndex}`,
+    ),
+
+  restorePageVersion: (input: { volume: string; chapter: string; pageIndex: number; id: string }) =>
+    request<{ doc: PageDoc; previousId: string | null; targetId: string }>('/api/page-history/restore', json(input)),
+
+  setHistoryLimit: (limit: number) => request<{ limit: number }>('/api/history-limit', json({ limit })),
 
   detect: (volume: string, chapter: string, pageIndex: number, lang?: string) =>
     request<DetectResult & { lang?: string }>('/api/detect', json({ volume, chapter, pageIndex, lang })),
 
   tags: () => request<{ tags: { tag: string; count: number }[] }>('/api/tags'),
 
-  notes: (filter: { q?: string; tag?: string; source?: string; volume?: string; chapter?: string; pageIndex?: number; limit?: number }) => {
+  notes: (filter: {
+    q?: string;
+    tag?: string;
+    source?: string;
+    volume?: string;
+    chapter?: string;
+    pageIndex?: number;
+    limit?: number;
+  }) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filter)) {
       if (value !== undefined && value !== '') params.set(key, String(value));
@@ -131,7 +316,7 @@ export const api = {
       assetDir?: string;
     }>('/api/export', json(config)),
 
-  /* ---- 分格模板 ---- */
+  /* ---- Panel templates ---- */
   panelTemplates: () => request<{ templates: PanelTemplate[] }>('/api/panel-templates'),
 
   savePanelTemplate: (input: {
@@ -151,7 +336,7 @@ export const api = {
       json({ templateId, volume, chapter, pageIndices }),
     ),
 
-  /* ---- 对齐预设 ---- */
+  /* ---- Alignment presets ---- */
   alignPresets: () => request<{ presets: AlignPreset[] }>('/api/align-presets'),
 
   saveAlignPreset: (preset: Partial<AlignPreset> & { name: string; volume: string; chapter: string }) =>
@@ -163,11 +348,10 @@ export const api = {
   applyAlignPreset: (presetId: string, volume: string, chapter: string, pageIndices?: number[]) =>
     request<{ applied: number }>('/api/align-presets/apply', json({ presetId, volume, chapter, pageIndices })),
 
-  /* ---- 声明式版式模板 ---- */
+  /* ---- Declarative layout templates ---- */
   layouts: () => request<{ layouts: LayoutTemplate[] }>('/api/layouts'),
 
-  saveLayout: (layout: Partial<LayoutTemplate>) =>
-    request<{ layout: LayoutTemplate }>('/api/layouts', json(layout)),
+  saveLayout: (layout: Partial<LayoutTemplate>) => request<{ layout: LayoutTemplate }>('/api/layouts', json(layout)),
 
   deleteLayout: (id: string) =>
     request<{ removed: boolean }>(`/api/layouts?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
@@ -184,10 +368,65 @@ export const api = {
   applyLayout: (layoutId: string, volume: string, chapter?: string, pageIndices?: number[]) =>
     request<{ applied: number }>('/api/layouts/apply', json({ layoutId, volume, chapter, pageIndices })),
 
-  plugins: () =>
-    request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
+  /* ---- Unified exchange formats .mntpl / .mnexp / .mnpage.json ---- */
+  exportLayoutFile: (layoutId: string) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      warnings: string[];
+      layout: Record<string, unknown>;
+    }>('/api/exchange/layout/export', json({ layoutId })),
 
-  /* ---- 导出模板 ---- */
+  importLayoutFile: (input: {
+    data: string;
+    volume: string;
+    chapter?: string;
+    pageIndex?: number;
+    scope?: LayoutScope;
+    name?: string;
+  }) =>
+    request<{ layout: LayoutTemplate; migratedFrom?: number; backup: string; warnings: string[] }>(
+      '/api/exchange/layout/import',
+      json(input),
+    ),
+
+  exportExportTemplateFile: (templateId: string) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      warnings: string[];
+      template: Record<string, unknown>;
+    }>('/api/exchange/export-template/export', json({ templateId })),
+
+  importExportTemplateFile: (data: string) =>
+    request<{ template: ExportTemplate; migratedFrom?: number; backup: string; warnings: string[] }>(
+      '/api/exchange/export-template/import',
+      json({ data }),
+    ),
+
+  exportPageFile: (input: { volume: string; chapter: string; pageIndex: number }) =>
+    request<{
+      file: string;
+      url: string;
+      size: number;
+      warnings: string[];
+      page: Record<string, unknown>;
+    }>('/api/exchange/page/export', json(input)),
+
+  importPageFile: (input: { data: string; volume?: string; chapter?: string; pageIndex?: number }) =>
+    request<{
+      doc: PageDoc;
+      migratedFrom?: number;
+      backup: string;
+      targetBackup: string | null;
+      warnings: string[];
+    }>('/api/exchange/page/import', json(input)),
+
+  plugins: () => request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
+
+  /* ---- Export templates ---- */
   exportTemplates: () => request<{ templates: ExportTemplate[] }>('/api/export-templates'),
 
   saveExportTemplate: (name: string, config: Partial<ExportConfig>) =>
@@ -197,8 +436,7 @@ export const api = {
     request<{ removed: boolean }>(`/api/export-templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
 
-/** 缩略图地址（服务端磁盘缓存，避免侧栏直接加载整页大图） */
+/** Thumbnail URL (cached on the server disk, so the sidebar never loads full-size pages). */
 export function thumbUrl(rawUrl: string, width = 200): string {
   return `/thumb?src=${encodeURIComponent(rawUrl)}&w=${width}`;
 }
-

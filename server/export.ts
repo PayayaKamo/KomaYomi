@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { decodeGray, sortReadingOrder } from './detect.ts';
 import { readPageDoc } from './storage.ts';
-import { LANG_LABEL } from '../shared/types.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
+import { applyGroupOrder } from '../shared/panelOrder.ts';
 import type {
   AlignOffset,
+  Annotation,
   ExportConfig,
   Library,
   Note,
@@ -14,9 +15,15 @@ import type {
   PanelRect,
   ReadingDirection,
 } from '../shared/types.ts';
+import { DEFAULT_OFFSET } from '../shared/types.ts';
+import { AppError } from './errors.ts';
+import { currentLang, langName, t } from './messages/index.ts';
+import type { MessageLang } from './messages/index.ts';
 
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const DATE_LOCALE: Record<MessageLang, string> = { en: 'en-US', zh: 'zh-CN', ja: 'ja-JP' };
+const HTML_LANG: Record<MessageLang, string> = { en: 'en', zh: 'zh-Hans', ja: 'ja' };
+
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const num = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -38,22 +45,45 @@ type ExportArgs = {
   library: Library;
 };
 
-const dirLabel: Record<ReadingDirection, string> = {
-  rtl: '阅读方向：从右到左 · 从上到下',
-  ltr: '阅读方向：从左到右 · 从上到下',
-  ttb: '阅读方向：从右到左 · 竖排',
-};
+const dirLabel = (direction: ReadingDirection): string =>
+  t(
+    direction === 'ltr'
+      ? 'EXPORT_DIRECTION_LTR'
+      : direction === 'ttb'
+        ? 'EXPORT_DIRECTION_TTB'
+        : 'EXPORT_DIRECTION_RTL',
+  );
 
 function notesHtml(notes: Note[], filterTags: string[]): string {
   if (!notes.length) return '';
   return notes
     .filter((n) => !filterTags.length || n.tags.some((t) => filterTags.includes(t)))
-    .map(
-      (n) => `<li class="note">
+    .map((n) => {
+      // Images live inline as data URLs, so the exported HTML stays a single portable
+      // artefact; non-image payloads are dropped rather than trusted.
+      const imgs = (n.images ?? [])
+        .filter((img) => img.dataUrl.startsWith('data:image/'))
+        .map((img) => `<img src="${img.dataUrl}" alt="${esc(img.name)}" loading="lazy">`)
+        .join('');
+      // Source line mirrors the notes panel: title links to the URL, free text follows.
+      const src = n.source;
+      const hasSource = Boolean(src && (src.title || src.url || src.text));
+      const sourceHtml = hasSource
+        ? `<div class="note-src">${esc(t('EXPORT_SOURCE'))}${
+            src!.url
+              ? `<a href="${esc(src!.url)}" target="_blank" rel="noreferrer noopener">${esc(
+                  src!.title || src!.url,
+                )}</a>`
+              : esc(src!.title ?? '')
+          }${src!.text ? `${src!.url || src!.title ? ' · ' : ''}${esc(src!.text)}` : ''}</div>`
+        : '';
+      return `<li class="note">
         ${n.tags.length ? `<span class="tags">${n.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</span>` : ''}
         <div class="text md">${renderMarkdown(n.text)}</div>
-      </li>`,
-    )
+        ${imgs ? `<div class="note-images">${imgs}</div>` : ''}
+        ${sourceHtml}
+      </li>`;
+    })
     .join('');
 }
 
@@ -66,8 +96,11 @@ function panelNotesGroup(doc: PageDoc, panelId: string, label: string, filterTag
 }
 
 function pageNotesGroup(doc: PageDoc, filterTags: string[]): string {
-  const html = notesHtml(doc.notes.filter((n) => n.scope === 'page'), filterTags);
-  return html ? `<div class="notes-group"><h3>整页批注</h3><ul>${html}</ul></div>` : '';
+  const html = notesHtml(
+    doc.notes.filter((n) => n.scope === 'page'),
+    filterTags,
+  );
+  return html ? `<div class="notes-group"><h3>${esc(t('EXPORT_PAGE_NOTES'))}</h3><ul>${html}</ul></div>` : '';
 }
 
 function cropStyle(rect: PanelRect, pageAspect: number): string {
@@ -80,7 +113,7 @@ function cropStyle(rect: PanelRect, pageAspect: number): string {
   return `aspect-ratio:${aspect};background-size:${bsX}% ${bsY}%;background-position:${posX}% ${posY}%`;
 }
 
-/** 把页面级的对齐偏移换算成实际要裁切的区域（与界面上 translate + scale 的效果一致） */
+/** Convert a page-level alignment offset into the area to crop, matching the translate + scale effect in the UI. */
 function offsetRect(rect: PanelRect, off: AlignOffset | undefined): PanelRect {
   const scale = off?.scale && off.scale > 0 ? off.scale : 1;
   const w = Math.min(1, rect.w / scale);
@@ -90,6 +123,120 @@ function offsetRect(rect: PanelRect, off: AlignOffset | undefined): PanelRect {
   x = Math.min(1 - w, Math.max(0, x));
   y = Math.min(1 - h, Math.max(0, y));
   return { x, y, w, h };
+}
+
+/**
+ * Match the compare view: the whole-page offset is the base and per-panel offsets are added on top.
+ * Exports used to read only the page offset, so pages looked aligned in the UI but came out shifted.
+ */
+function combinedOffset(page: AlignOffset | undefined, panel: AlignOffset | undefined): AlignOffset | undefined {
+  if (!panel) return page;
+  const base = page ?? DEFAULT_OFFSET;
+  return {
+    x: base.x + panel.x,
+    y: base.y + panel.y,
+    scale: Math.round(base.scale * panel.scale * 10000) / 10000,
+  };
+}
+
+const PAGE_RECT: PanelRect = { x: 0, y: 0, w: 1, h: 1 };
+
+/**
+ * Render the annotation layer as vector SVG.
+ * Coordinates follow the UI convention: page scope is 0..1 of the whole page, panel scope is 0..1 inside that panel;
+ * stroke widths scale with page width and font sizes with page height, so proportions stay correct when cropping at a larger scale.
+ */
+function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, idSuffix: string): string {
+  const annotations = doc.annotations ?? [];
+  // The visibility switch on the panel editor also controls exports.
+  if (doc.annotationsVisible === false || !annotations.length) return '';
+
+  const vw = 1000;
+  const vh = Math.max(1, Math.round((vw * view.h) / (Math.max(0.001, view.w) * Math.max(0.001, pageAspect))));
+  const toView = (p: { x: number; y: number }, rect: PanelRect) => ({
+    x: ((rect.x + p.x * rect.w - view.x) / view.w) * vw,
+    y: ((rect.y + p.y * rect.h - view.y) / view.h) * vh,
+  });
+  const sw = (fraction: number) => Math.max(0.5, (fraction * vw) / view.w);
+  const fs = (fraction: number) => Math.max(3, (fraction * vh) / view.h);
+  const patternId = `ann-mosaic-${idSuffix}`;
+
+  const shapes = annotations
+    .map((a: Annotation) => {
+      const rect = a.scope === 'panel' ? (doc.panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
+      const pts = a.points.map((p) => toView(p, rect));
+      if (!pts.length) return '';
+      const color = a.color || '#e0453a';
+      const width = sw(a.width ?? 0.0035);
+      const font = fs(a.fontSize ?? 0.035);
+      const first = pts[0];
+      const last = pts[pts.length - 1];
+      switch (a.kind) {
+        case 'arrow': {
+          if (pts.length < 2) return '';
+          const angle = Math.atan2(last.y - first.y, last.x - first.x);
+          const size = Math.max(8, width * 4);
+          const spread = Math.PI / 7;
+          const p1 = { x: last.x - size * Math.cos(angle - spread), y: last.y - size * Math.sin(angle - spread) };
+          const p2 = { x: last.x - size * Math.cos(angle + spread), y: last.y - size * Math.sin(angle + spread) };
+          return `<g stroke="${esc(color)}" fill="none" stroke-width="${num(width)}" stroke-linecap="round">
+            <line x1="${num(first.x)}" y1="${num(first.y)}" x2="${num(last.x)}" y2="${num(last.y)}" />
+            <polygon points="${num(last.x)},${num(last.y)} ${num(p1.x)},${num(p1.y)} ${num(p2.x)},${num(
+              p2.y,
+            )}" fill="${esc(color)}" stroke="none" />
+          </g>`;
+        }
+        case 'rect':
+          return `<rect x="${num(Math.min(first.x, last.x))}" y="${num(Math.min(first.y, last.y))}" width="${num(
+            Math.abs(last.x - first.x),
+          )}" height="${num(Math.abs(last.y - first.y))}" fill="none" stroke="${esc(color)}" stroke-width="${num(
+            width,
+          )}" />`;
+        case 'ellipse':
+          return `<ellipse cx="${num((first.x + last.x) / 2)}" cy="${num((first.y + last.y) / 2)}" rx="${num(
+            Math.abs(last.x - first.x) / 2,
+          )}" ry="${num(Math.abs(last.y - first.y) / 2)}" fill="none" stroke="${esc(color)}" stroke-width="${num(
+            width,
+          )}" />`;
+        case 'highlight':
+          if (pts.length < 2) return '';
+          return `<line x1="${num(first.x)}" y1="${num(first.y)}" x2="${num(last.x)}" y2="${num(
+            last.y,
+          )}" stroke="${esc(color)}" stroke-width="${num(Math.max(6, width * 4))}" stroke-opacity="0.35" stroke-linecap="round" />`;
+        case 'pen':
+          return `<polyline points="${pts.map((p) => `${num(p.x)},${num(p.y)}`).join(' ')}" fill="none" stroke="${esc(
+            color,
+          )}" stroke-width="${num(width)}" stroke-linecap="round" stroke-linejoin="round" />`;
+        case 'text':
+          return `<text x="${num(first.x)}" y="${num(first.y)}" fill="${esc(color)}" font-size="${num(
+            font,
+          )}" font-weight="600" paint-order="stroke" stroke="rgba(255,255,255,0.9)" stroke-width="${num(
+            Math.max(2, font / 8),
+          )}" stroke-linejoin="round">${esc(a.text ?? '')}</text>`;
+        case 'badge':
+          return `<g><circle cx="${num(first.x)}" cy="${num(first.y)}" r="${num(
+            font * 0.62,
+          )}" fill="${esc(color)}" /><text x="${num(first.x)}" y="${num(first.y)}" fill="#fff" font-size="${num(
+            font,
+          )}" font-weight="700" text-anchor="middle" dominant-baseline="central">${esc(a.text ?? '1')}</text></g>`;
+        case 'mosaic':
+          return `<rect x="${num(Math.min(first.x, last.x))}" y="${num(Math.min(first.y, last.y))}" width="${num(
+            Math.abs(last.x - first.x),
+          )}" height="${num(Math.abs(last.y - first.y))}" fill="url(#${patternId})" />`;
+        default:
+          return '';
+      }
+    })
+    .join('');
+
+  if (!shapes) return '';
+  return `<svg class="ann-overlay" viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="none" aria-hidden="true">
+    <defs><pattern id="${patternId}" width="10" height="10" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#9aa0a6" /><rect width="5" height="5" fill="#6b7280" />
+      <rect x="5" y="5" width="5" height="5" fill="#6b7280" />
+    </pattern></defs>
+    ${shapes}
+  </svg>`;
 }
 
 const CSS = `
@@ -116,32 +263,40 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .notes-group ul{margin:0;padding-left:0;list-style:none}
 .note{padding:6px 0;border-top:1px dashed var(--line)}
 .note:first-child{border-top:0}
+.note-images{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;break-inside:avoid}
+.note-images img{max-width:100%;max-height:180px;border:1px solid var(--line);border-radius:4px}
 .tags{display:inline-flex;gap:4px;margin-right:6px;vertical-align:middle}
 .tag{background:#fdece3;color:#9a3412;border-radius:99px;padding:0 7px;font-size:11px}
-/* Markdown 笔记：导出后保留标题、列表、引用、代码与表格样式 */
-.md h1,.md h2,.md h3,.md h4{margin:10px 0 4px;line-height:1.3;color:var(--ink)}
+/* Markdown notes: exports keep heading, list, quote, code and table styles */
+.md{line-height:1.75;line-break:strict;overflow-wrap:anywhere}
+.md h1,.md h2,.md h3,.md h4{margin:12px 0 5px;line-height:1.35;color:var(--ink)}
 .md h1{font-size:18px}.md h2{font-size:16px}.md h3{font-size:15px}
-.md p{margin:4px 0}
-.md ul,.md ol{margin:4px 0;padding-left:20px}
-.md li{margin:2px 0}
-.md blockquote{margin:6px 0;padding:4px 10px;border-left:3px solid var(--accent);background:#faf7f4;color:#4b5563}
+.md p{margin:6px 0}
+.md ul,.md ol{margin:6px 0;padding-left:22px}
+.md li{margin:3px 0}
+.md blockquote{margin:8px 0;padding:5px 12px;border-left:3px solid var(--accent);background:#faf7f4;color:#4b5563;border-radius:0 4px 4px 0}
 .md code{background:#f3f4f6;border-radius:3px;padding:0 4px;font-size:.92em}
-.md pre.md-code{background:#1f2937;color:#e5e7eb;padding:10px 12px;border-radius:6px;overflow:auto}
+.md pre.md-code{background:#1f2937;color:#e5e7eb;padding:10px 12px;border-radius:6px;overflow:auto;font-size:12.5px;line-height:1.65}
 .md pre.md-code code{background:none;color:inherit;padding:0}
-.md table{border-collapse:collapse;margin:8px 0;width:100%;font-size:13px}
-.md th,.md td{border:1px solid var(--line);padding:4px 8px}
+.md table{border-collapse:collapse;margin:10px 0;width:100%;font-size:13px}
+.md tbody tr:nth-child(even){background:#fafafa}
+.md th,.md td{border:1px solid var(--line);padding:5px 8px;text-align:left}
 .md th{background:#faf7f4}
 .md a{color:var(--accent)}
-.md hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.md hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 .compare{display:grid;gap:20px;align-items:start}
 .compare .notes-group{grid-column:1/-1}
 .panel-row{margin:0 0 26px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:8px}
 .panel-row .row-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;color:var(--muted)}
 .panel-row .row-head b{color:var(--accent)}
 .crops{display:grid;gap:10px;align-items:start}
-.crop{background-repeat:no-repeat;border:1px solid var(--line);border-radius:4px;min-height:60px}
+.crop{position:relative;overflow:hidden;background-repeat:no-repeat;border:1px solid var(--line);border-radius:4px;min-height:60px}
+.ann-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .crop-label{font-size:11px;color:var(--muted);margin-bottom:4px}
 .crop-wrap{display:flex;flex-direction:column}
+.note-src{margin-top:5px;font-size:12px;color:var(--muted)}
+.note-src a{color:var(--accent);text-decoration:none}
+.note-src a:hover{text-decoration:underline}
 .empty{color:var(--muted);font-size:13px;padding:8px 0}
 footer.doc{margin-top:48px;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:12px}
 @media print{body{background:#fff}.wrap{max-width:none;padding:0}
@@ -152,14 +307,7 @@ header.doc{margin-bottom:20px}
 footer.doc{display:none}}
 `;
 
-export async function exportChapter({
-  rootDir,
-  rawRoot,
-  dataRoot,
-  exportRoot,
-  config,
-  library,
-}: ExportArgs): Promise<{
+export async function exportChapter({ rootDir, dataRoot, exportRoot, config, library }: ExportArgs): Promise<{
   file: string;
   url: string;
   pages: number;
@@ -169,7 +317,7 @@ export async function exportChapter({
 }> {
   const volume = library.volumes.find((v) => v.id === config.volume);
   const chapter = volume?.chapters.find((c) => c.chapter === config.chapter);
-  if (!chapter) throw new Error('找不到对应的话');
+  if (!chapter) throw new AppError('ERR_CHAPTER_NOT_FOUND', { volume: config.volume, chapter: config.chapter }, 404);
 
   const base = `${config.volume}-${config.chapter}-${Date.now()}`;
   const assetDir = `${base}.files`;
@@ -187,7 +335,7 @@ export async function exportChapter({
     if (!page) continue;
     const doc = readPageDoc(dataRoot, config.volume, config.chapter, index);
     if (!doc) {
-      warnings.push(`第 ${index + 1} 页还没有分格数据，已跳过`);
+      warnings.push(t('WARN_PAGE_SKIPPED_NO_PANELS', { page: index + 1 }));
       continue;
     }
 
@@ -198,7 +346,7 @@ export async function exportChapter({
     const notesAll = doc.notes;
     const hasContent = doc.panels.length > 0 || notesAll.length > 0;
     if (!hasContent) {
-      warnings.push(`第 ${index + 1} 页还没有任何标注，已跳过`);
+      warnings.push(t('WARN_PAGE_SKIPPED_NO_CONTENT', { page: index + 1 }));
       continue;
     }
 
@@ -217,7 +365,7 @@ export async function exportChapter({
         height = gray.height;
         if (!pageAspect || pageAspect === 0.7) pageAspect = width / height;
       } catch {
-        warnings.push(`第 ${index + 1} 页 ${LANG_LABEL[lang]} 图片无法解析`);
+        warnings.push(t('WARN_PAGE_IMAGE_UNREADABLE', { page: index + 1, lang: langName(lang) }));
         continue;
       }
       let src: string;
@@ -226,7 +374,7 @@ export async function exportChapter({
         const mime = mimeOf(buf.subarray(0, 4), path.extname(file).toLowerCase());
         src = `data:${mime};base64,${buf.toString('base64')}`;
       } else {
-        // 目录模式：图片复制到同名 .files 目录，HTML 用相对路径引用，体积小且无需 dev server
+        // Directory mode: copy images into a sibling .files directory and reference them relatively; output stays small and needs no dev server
         const ext = path.extname(file).toLowerCase() || '.jpg';
         const name = `p${String(index + 1).padStart(3, '0')}-${lang}${ext}`;
         fs.mkdirSync(path.join(exportRoot, assetDir), { recursive: true });
@@ -236,13 +384,16 @@ export async function exportChapter({
       images[lang] = { lang, url: src, width, height };
     }
 
-    const ordered = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
+    const ordered = applyGroupOrder(
+      sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect),
+      doc.groups,
+    );
     direction = direction ?? doc.readingDirection;
     const labels = new Map<Panel, string>();
-    ordered.forEach((p, i) => labels.set(p, `第 ${i + 1} 格`));
+    ordered.forEach((p, i) => labels.set(p, t('EXPORT_PANEL_NO', { n: i + 1 })));
 
-    // 每种语言的整页图只写一次 CSS 规则，格子用 background-position/size 裁切。
-    // 不用 CSS 变量：Chrome 对超大 var() 值（>4MB 的 base64）会静默失效。
+    // Write one CSS rule per language for the full-page image; panels crop it with background-position/size.
+    // Avoid CSS variables: Chrome silently fails on huge var() values (base64 over 4MB).
     const bgRules = Object.entries(images)
       .map(([lang, img]) => `.pg-${index} .lang-${lang}{background-image:url('${img.url}')}`)
       .join('\n');
@@ -262,10 +413,17 @@ export async function exportChapter({
             .map((lang) => {
               const img = images[lang];
               const langAspect = img.width / img.height;
-              const eff = offsetRect(panel.rect, doc.offsets[lang]);
+              // Page offset from the page itself, falling back to the dialog snapshot.
+              const pageOff = doc.offsets[lang] ?? config.offsets?.[lang];
+              const eff = offsetRect(panel.rect, combinedOffset(pageOff, doc.panelOffsets?.[panel.id]?.[lang]));
               return `<div class="crop-wrap">
-                <div class="crop-label">${esc(LANG_LABEL[lang])}</div>
-                <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}"></div>
+                <div class="crop-label">${esc(langName(lang))}</div>
+                <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}">${annotationSvg(
+                  doc,
+                  eff,
+                  langAspect,
+                  `${index}-${panel.id}-${lang}`,
+                )}</div>
               </div>`;
             })
             .join('');
@@ -288,33 +446,33 @@ export async function exportChapter({
       const pageNoteHtml = pageNotesGroup(doc, config.noteFilterTags);
       const cols = Math.min(4, Math.max(1, Math.round(config.columns || 1)));
       body = `<div class="compare" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${pageNoteHtml}${
-        rows || '<div class="empty">本页暂无分格</div>'
+        rows || `<div class="empty">${esc(t('EXPORT_EMPTY_PANELS'))}</div>`
       }</div>`;
     } else if (config.template === 'stack') {
-      const shot = images[config.languages[0]]
-        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="第 ${index + 1} 页" />${boxOverlay(
-            ordered,
-            labels,
-            config.showPanelBoxes,
-          )}</div>`
-        : '<div class="empty">本页没有可用图片</div>';
+      const mainImg = images[config.languages[0]];
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, `${index}-page`) : '';
+      const shot = mainImg
+        ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
+            t('EXPORT_PAGE_ALT', { n: index + 1 }),
+          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
+        : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))
         .join('')}`;
       body = `<div class="page-body stack">${shot}${notes ? `<div class="notes">${notes}</div>` : ''}</div>`;
     } else {
-      const shot = images[config.languages[0]]
-        ? `<div class="shot"><img src="${images[config.languages[0]].url}" alt="第 ${index + 1} 页" />${boxOverlay(
-            ordered,
-            labels,
-            config.showPanelBoxes,
-          )}</div>`
-        : '<div class="empty">本页没有可用图片</div>';
+      const mainImg = images[config.languages[0]];
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, `${index}-page`) : '';
+      const shot = mainImg
+        ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
+            t('EXPORT_PAGE_ALT', { n: index + 1 }),
+          )}" />${boxOverlay(ordered, labels, config.showPanelBoxes)}${annPage}</div>`
+        : `<div class="empty">${esc(t('EXPORT_EMPTY_IMAGE'))}</div>`;
       const notes = `${pageNotesGroup(doc, config.noteFilterTags)}${ordered
         .map((p) => panelNotesGroup(doc, p.id, labels.get(p) ?? '', config.noteFilterTags))
         .join('')}`;
       body = `<div class="page-body">${shot}<div class="notes">${
-        notes || '<div class="empty">暂无批注</div>'
+        notes || `<div class="empty">${esc(t('EXPORT_EMPTY_NOTES'))}</div>`
       }</div></div>`;
     }
 
@@ -325,10 +483,11 @@ export async function exportChapter({
     exported++;
   }
 
-  if (!exported) throw new Error('没有可导出的页面（请先给页面分格或写批注）');
+  if (!exported) throw new AppError('ERR_EXPORT_EMPTY', {}, 400);
 
+  const lang = currentLang();
   const html = `<!doctype html>
-<html lang="zh-Hans">
+<html lang="${HTML_LANG[lang]}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -342,13 +501,13 @@ export async function exportChapter({
   <header class="doc">
     <h1>${esc(config.title)}</h1>
     <div class="meta">
-      <span>${esc(config.volume)} · 第 ${esc(config.chapter)} 话</span>
-      <span>${esc(dirLabel[direction ?? 'rtl'])}</span>
-      <span>导出时间：${new Date().toLocaleString('zh-CN')}</span>
+      <span>${esc(t('EXPORT_CHAPTER_LINE', { volume: config.volume, chapter: config.chapter }))}</span>
+      <span>${esc(dirLabel(direction ?? 'rtl'))}</span>
+      <span>${esc(t('EXPORT_AT', { time: new Date().toLocaleString(DATE_LOCALE[lang]) }))}</span>
     </div>
   </header>
   ${sections.join('\n')}
-  <footer class="doc">由 Manga Memo 导出 · 共 ${exported} 页</footer>
+  <footer class="doc">${esc(t('EXPORT_FOOTER', { pages: exported }))}</footer>
 </div>
 </body>
 </html>`;

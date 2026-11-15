@@ -2,16 +2,41 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createLibrary } from './library.ts';
+import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
+import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import { addVolume, removeVolume, setVolumeDirs } from './libraryAdmin.ts';
 import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
 import { listPlugins, runPlugin } from './plugins.ts';
 import { collectTagStats, createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
+import { findVersion, listVersions, readHistory, readHistoryLimit, recordVersion } from './pageHistory.ts';
 import { exportChapter } from './export.ts';
 import { createBackupBuffer, inspectBackup, restoreBackup } from './backup.ts';
+import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
+import {
+  exportExportTemplate,
+  exportLayoutTemplate,
+  exportPage,
+  importExportTemplate,
+  importLayoutTemplate,
+  importPage,
+} from './exchange.ts';
 import { collectNotes } from './notes.ts';
 import { thumbnailFile } from './thumb.ts';
+import {
+  cacheStats,
+  clearRemoteCache,
+  createProvider,
+  markSecrets,
+  readRemoteCache,
+  readStorageConfig,
+  remoteCachePath,
+  setSecret,
+  syncRemoteTree,
+  writeRemoteCache,
+  writeStorageConfig,
+} from './storageProviders.ts';
+import type { StorageConfig, StorageTarget } from './storageProviders.ts';
 import {
   applyPanelTemplate,
   deleteAlignPreset,
@@ -24,7 +49,23 @@ import {
   saveExportTemplate,
   savePanelTemplate,
 } from './presets.ts';
-import type { AlignPreset, ExportConfig, ExportTemplate, Library, PageDoc, PageEntry, PanelTemplate } from '../shared/types.ts';
+import type {
+  AlignPreset,
+  ExportConfig,
+  ExportTemplate,
+  Lang,
+  Library,
+  PageDoc,
+  PageEntry,
+  PanelTemplate,
+} from '../shared/types.ts';
+import { LANGUAGES } from '../shared/types.ts';
+import { HISTORY_SOURCES } from '../shared/format.ts';
+import type { HistorySource } from '../shared/format.ts';
+import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
+import type { MessageCode, MessageParams } from './messages/index.ts';
+import { AppError, errorBody, toErrorResponse } from './errors.ts';
+import { setFormatAppVersion } from '../shared/format.ts';
 
 const MIME: Record<string, string> = {
   png: 'image/png',
@@ -50,11 +91,28 @@ async function readBody(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > limit) throw new Error('请求体过大');
+    if (size > limit) throw new AppError('ERR_BODY_TOO_LARGE', { limit: Math.round(limit / (1024 * 1024)) }, 413);
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks).toString('utf8');
 }
+
+/** Raw uploads skip base64 so multi-hundred-MB packaged projects fit in memory. */
+async function readBodyBuffer(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > limit) throw new AppError('ERR_BODY_TOO_LARGE', { limit: Math.round(limit / (1024 * 1024)) }, 413);
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
+
+const isBinaryUpload = (req: IncomingMessage) =>
+  String(req.headers['content-type'] ?? '').includes('application/octet-stream');
+
+const MAX_PROJECT_BYTES = 2 * 1024 * 1024 * 1024;
 
 function safeResolve(root: string, rel: string): string | null {
   const base = path.resolve(root);
@@ -92,28 +150,105 @@ function pageRange(input: unknown, total: number): number[] {
   return list.filter((n) => Number.isInteger(n) && n >= 0 && n < total);
 }
 
-export type MangaServerOptions = { rootDir: string };
+export type MangaServerOptions = {
+  /** Base workspace directory; any of the three data folders may be overridden below. */
+  rootDir: string;
+  rawDir?: string;
+  dataDir?: string;
+  exportDir?: string;
+};
 
-/** 所有本地接口（Vite 中间件与 Electron 内置服务器共用） */
-export function createMangaHandler({ rootDir }: MangaServerOptions) {
-  const rawRoot = path.join(rootDir, 'raw');
-  const dataRoot = path.join(rootDir, 'data');
-  const exportRoot = path.join(rootDir, 'exports');
+/**
+ * All local endpoints, shared by the Vite middleware, the Electron server and the
+ * Docker/standalone entry. Folder overrides let containers bind-mount raw/data/exports
+ * separately while the desktop app keeps the `rootDir/{raw,data,exports}` layout.
+ */
+export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: MangaServerOptions) {
+  const rawRoot = rawDir ? path.resolve(rawDir) : path.join(rootDir, 'raw');
+  const dataRoot = dataDir ? path.resolve(dataDir) : path.join(rootDir, 'data');
+  const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
 
-  return async function handler(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  /** package.json is the single source for the metadata shown in the About dialog. */
+  const appMeta = (() => {
+    const fallback = { version: '0.0.0', author: '', license: '' };
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as {
+        version?: unknown;
+        author?: unknown;
+        license?: unknown;
+      };
+      return {
+        version: typeof pkg.version === 'string' && pkg.version ? pkg.version : fallback.version,
+        author: typeof pkg.author === 'string' ? pkg.author : fallback.author,
+        license: typeof pkg.license === 'string' ? pkg.license : fallback.license,
+      };
+    } catch {
+      return fallback;
+    }
+  })();
+  // Every exported/own file records which build produced it.
+  setFormatAppVersion(appMeta.version);
+
+  /**
+   * Fetch a page image from the configured remote source into the local cache.
+   *
+   * The remote tree mirror stores zero-byte placeholders, so a page that exists but
+   * has no local bytes is treated as "not downloaded yet". Returning null means the
+   * page is genuinely absent; throwing means the remote is offline and the caller
+   * should surface a clear error instead of hanging.
+   */
+  const fetchRemote = async (rel: string): Promise<Buffer | null> => {
+    const source = readStorageConfig(dataRoot).rawSource;
+    if (!source || source.enabled === false) return null;
+    const ext = path.extname(rel) || '.jpg';
+    const cached = readRemoteCache(dataRoot, source.id, rel, ext);
+    if (cached) return cached;
+    const buf = await createProvider(dataRoot, source).read(rel);
+    writeRemoteCache(dataRoot, source.id, rel, ext, buf);
+    return buf;
+  };
+
+  const sendImageBuffer = (res: ServerResponse, buf: Buffer, cacheable: boolean) => {
+    res.setHeader('Content-Type', MIME[sniffFormat(buf)] ?? 'application/octet-stream');
+    res.setHeader('Cache-Control', cacheable ? 'public, max-age=86400' : 'no-cache');
+    res.end(buf);
+  };
+
+  /** Structured error response: legacy `error` plus `message` / `code` / `params` / `lang`. */
+  const fail = (res: ServerResponse, status: number, code: MessageCode, params: MessageParams = {}): void => {
+    sendJson(res, status, errorBody(code, params, currentLang()));
+  };
+
+  const handleRequest = async function handler(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
     if (!req.url) return false;
     const url = new URL(req.url, 'http://localhost');
     const pathname = url.pathname;
 
     try {
-      // ---- 缩略图（带磁盘缓存） ----
+      // ---- Thumbnails (disk-cached; fetch the remote original on demand when missing locally) ----
       if (pathname === '/thumb') {
         const src = url.searchParams.get('src') ?? '';
         const w = Math.min(600, Math.max(80, Number(url.searchParams.get('w')) || 200));
-        const file = thumbnailFile(rawRoot, thumbRoot, src, w);
+        let file = thumbnailFile(rawRoot, thumbRoot, src, w);
         if (!file) {
-          sendJson(res, 404, { error: '缩略图源不存在' });
+          const rel = decodeURIComponent(src.replace(/^\/raw\//, ''));
+          try {
+            const buf = await fetchRemote(rel);
+            if (buf) {
+              const source = readStorageConfig(dataRoot).rawSource!;
+              const ext = path.extname(rel) || '.jpg';
+              const cached = remoteCachePath(dataRoot, source.id, rel, ext);
+              // thumbnailFile needs a real file, so point it at the cached original.
+              file = thumbnailFile(path.dirname(cached), thumbRoot, path.basename(cached), w);
+            }
+          } catch (err) {
+            fail(res, 502, 'ERR_THUMB_FETCH_FAILED', { detail: err instanceof Error ? err.message : String(err) });
+            return true;
+          }
+        }
+        if (!file) {
+          fail(res, 404, 'ERR_THUMB_SOURCE_MISSING', { src });
           return true;
         }
         res.setHeader('Content-Type', 'image/jpeg');
@@ -122,24 +257,40 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      // ---- 原始图片（只读） ----
+      // ---- Raw images (read-only; local first, remote cached on demand) ----
       if (pathname.startsWith('/raw/')) {
         const rel = decodeURIComponent(pathname.slice('/raw/'.length));
         const file = safeResolve(rawRoot, rel);
-        if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-          sendJson(res, 404, { error: '图片不存在' });
+        let local = false;
+        try {
+          local = Boolean(file && fs.statSync(file).isFile() && fs.statSync(file).size > 0);
+        } catch {
+          local = false;
+        }
+        if (local) {
+          serveFile(res, file!);
           return true;
         }
-        serveFile(res, file);
+        try {
+          const buf = await fetchRemote(rel);
+          if (buf) {
+            sendImageBuffer(res, buf, true);
+            return true;
+          }
+        } catch (err) {
+          fail(res, 503, 'ERR_REMOTE_UNAVAILABLE', { detail: err instanceof Error ? err.message : String(err) });
+          return true;
+        }
+        fail(res, 404, 'ERR_IMAGE_NOT_FOUND', { path: rel });
         return true;
       }
 
-      // ---- 导出文件（html 与同名 .files 目录） ----
+      // ---- Exported files (HTML plus the sibling .files directory) ----
       if (pathname.startsWith('/exports/')) {
         const rel = decodeURIComponent(pathname.slice('/exports/'.length));
         const file = safeResolve(exportRoot, rel);
         if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-          sendJson(res, 404, { error: '导出文件不存在' });
+          fail(res, 404, 'ERR_EXPORT_FILE_NOT_FOUND', { path: rel });
           return true;
         }
         serveFile(res, file);
@@ -148,10 +299,77 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
 
       if (!pathname.startsWith('/api/')) return false;
 
+      // Container healthcheck: cheap, no filesystem walk, reports mounted folders
+      // so a mis-mounted compose file is visible in `docker ps`/logs.
+      if (pathname === '/api/health') {
+        sendJson(res, 200, {
+          ok: true,
+          app: 'KomaYomi',
+          version: appMeta.version,
+          author: appMeta.author,
+          license: appMeta.license,
+          dirs: { raw: rawRoot, data: dataRoot, exports: exportRoot },
+          uptime: Math.round(process.uptime()),
+        });
+        return true;
+      }
+
       const library = createLibrary(rawRoot, dataRoot);
 
       if (pathname === '/api/library' && req.method === 'GET') {
         sendJson(res, 200, { library, root: rootDir });
+        return true;
+      }
+
+      /* ---------------- Directory rules (declarative, previewable) ---------------- */
+      if (pathname === '/api/dir-rules' && req.method === 'GET') {
+        const cfg = readLibraryConfig(dataRoot);
+        sendJson(res, 200, {
+          rules: cfg.rules?.length ? cfg.rules : DEFAULT_RULES,
+          defaults: DEFAULT_RULES,
+          customized: Boolean(cfg.rules?.length),
+          warning: library.scan.warning,
+        });
+        return true;
+      }
+
+      if (pathname === '/api/dir-rules' && req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as { rules?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        const input = Array.isArray(body.rules) ? body.rules : [];
+        if (!input.length) {
+          delete cfg.rules;
+          writeLibraryConfig(dataRoot, cfg);
+          sendJson(res, 200, { rules: DEFAULT_RULES, library: createLibrary(rawRoot, dataRoot) });
+          return true;
+        }
+        const rules = validateRules(input);
+        writeLibraryConfig(dataRoot, { ...cfg, rules });
+        sendJson(res, 200, { rules, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- Language order (shared by compare view and exports) ---------------- */
+      if (pathname === '/api/lang-order' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { order?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        if (Array.isArray(body.order)) {
+          const known = new Set<string>(LANGUAGES);
+          cfg.langOrder = normalizeLangOrder(
+            body.order.filter((lang): lang is Lang => typeof lang === 'string' && known.has(lang)),
+          );
+        } else {
+          delete cfg.langOrder;
+        }
+        writeLibraryConfig(dataRoot, cfg);
+        sendJson(res, 200, { langOrder: createLibrary(rawRoot, dataRoot).langOrder });
+        return true;
+      }
+
+      if (pathname === '/api/library/preview' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { dir?: string; rules?: unknown };
+        const rules = Array.isArray(body.rules) && body.rules.length ? validateRules(body.rules) : undefined;
+        sendJson(res, 200, previewDirs(rawRoot, dataRoot, body.dir ?? '', rules));
         return true;
       }
 
@@ -166,7 +384,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         const index = Number(url.searchParams.get('index') ?? 0);
         const found = findPage(library, volume, chapter, index);
         if (!found) {
-          sendJson(res, 404, { error: '页面不存在' });
+          fail(res, 404, 'ERR_PAGE_NOT_FOUND', { volume, chapter, page: index + 1 });
           return true;
         }
         const saved = readPageDoc(dataRoot, volume, chapter, index);
@@ -185,11 +403,64 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
       if (pathname === '/api/page' && req.method === 'PUT') {
         const body = JSON.parse(await readBody(req)) as PageDoc;
         if (!body?.volume || !body?.chapter) {
-          sendJson(res, 400, { error: '缺少卷/话信息' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
-        const saved = writePageDoc(dataRoot, body);
+        const requested = url.searchParams.get('source') ?? '';
+        const source = HISTORY_SOURCES.includes(requested as HistorySource) ? (requested as HistorySource) : 'auto';
+        const saved = writePageDoc(dataRoot, body, { source });
         sendJson(res, 200, { doc: saved });
+        return true;
+      }
+
+      /* ---------------- Page version history (cross-session, independent of the undo stack) ---------------- */
+      if (pathname === '/api/page-history' && req.method === 'GET') {
+        const volume = url.searchParams.get('volume') ?? '';
+        const chapter = url.searchParams.get('chapter') ?? '';
+        const index = Number(url.searchParams.get('index') ?? 0);
+        sendJson(res, 200, listVersions(dataRoot, volume, chapter, index));
+        return true;
+      }
+
+      if (pathname === '/api/page-history/restore' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+          id?: string;
+        };
+        const volume = String(body.volume ?? '');
+        const chapter = String(body.chapter ?? '');
+        const pageIndex = Math.max(0, Math.trunc(Number(body.pageIndex) || 0));
+        const entry = findVersion(dataRoot, volume, chapter, pageIndex, String(body.id ?? ''));
+        if (!entry) {
+          fail(res, 404, 'ERR_HISTORY_VERSION_NOT_FOUND', { id: String(body.id ?? '') });
+          return true;
+        }
+        // Snapshot the current state first: restoring must never destroy the latest work.
+        const current = readPageDoc(dataRoot, volume, chapter, pageIndex) ?? createEmptyDoc(volume, chapter, pageIndex);
+        const prior = readHistory(dataRoot, volume, chapter, pageIndex);
+        const snapshot = recordVersion(dataRoot, current, prior[prior.length - 1]?.doc ?? null, {
+          source: 'restore',
+          summary: t('HISTORY_BEFORE_RESTORE'),
+        });
+        const saved = writePageDoc(
+          dataRoot,
+          { ...entry.doc, volume, chapter, pageIndex },
+          { source: 'restore', summary: t('HISTORY_RESTORED') },
+        );
+        sendJson(res, 200, { doc: saved, previousId: snapshot?.id ?? null, targetId: entry.id });
+        return true;
+      }
+
+      if (pathname === '/api/history-limit' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { limit?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        const raw = Number(body.limit);
+        if (!Number.isFinite(raw) || raw <= 0) delete cfg.historyLimit;
+        else cfg.historyLimit = Math.min(200, Math.max(5, Math.round(raw)));
+        writeLibraryConfig(dataRoot, cfg);
+        sendJson(res, 200, { limit: readHistoryLimit(dataRoot) });
         return true;
       }
 
@@ -202,20 +473,24 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         };
         const found = findPage(library, body.volume, body.chapter, body.pageIndex);
         if (!found) {
-          sendJson(res, 404, { error: '页面不存在' });
+          fail(res, 404, 'ERR_PAGE_NOT_FOUND', {
+            volume: body.volume,
+            chapter: body.chapter,
+            page: Number(body.pageIndex) + 1,
+          });
           return true;
         }
         const order: string[] = [body.lang ?? '', 'ja', 'zh', 'en'];
         const lang = order.find((l) => found.page.files[l as keyof PageEntry['files']]);
         const rel = lang ? found.page.files[lang as keyof PageEntry['files']] : undefined;
         if (!rel) {
-          sendJson(res, 400, { error: '该页没有任何语言的图片' });
+          fail(res, 400, 'ERR_PAGE_NO_IMAGES', { volume: body.volume, chapter: body.chapter });
           return true;
         }
         const file = path.join(rootDir, decodeURIComponent(rel));
         const buf = fs.readFileSync(file);
 
-        // 优先级：单页/话/卷版式模板 > 插件 > 自动检测
+        // Priority: page/chapter/volume layout template > plugin > auto detection
         const layout = resolveLayout(dataRoot, body.volume, body.chapter, body.pageIndex);
         if (layout) {
           const panels = expandLayout(layout, body.pageIndex);
@@ -227,12 +502,14 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
             version: `layout:${layout.id}`,
             source: 'template',
             lang,
-            warnings: [`按版式模板「${layout.name}」切格`],
+            warnings: [t('WARN_DETECT_FROM_LAYOUT', { name: layout.name })],
+            warningCodes: [{ code: 'WARN_DETECT_FROM_LAYOUT', params: { name: layout.name } }],
           });
           return true;
         }
 
         const warnings: string[] = [];
+        const warningCodes: { code: string; params: MessageParams }[] = [];
         const size = imageSize(buf, file);
         const plugin = await runPlugin(rootDir, dataRoot, {
           ...size,
@@ -249,20 +526,23 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
             version: `plugin:${plugin.plugin}`,
             source: 'plugin',
             lang,
-            warnings: [`插件 ${plugin.plugin} 切格`, ...plugin.warnings],
+            warnings: [t('WARN_DETECT_FROM_PLUGIN', { plugin: plugin.plugin }), ...plugin.warnings],
+            warningCodes: [{ code: 'WARN_DETECT_FROM_PLUGIN', params: { plugin: plugin.plugin } }],
           });
           return true;
         }
         if (plugin.plugin) {
-          warnings.push(`插件 ${plugin.plugin} 失败（${plugin.error}），已回退自动检测`);
+          const params = { plugin: plugin.plugin, detail: plugin.error };
+          warnings.push(t('WARN_PLUGIN_FAILED_FALLBACK', params));
+          warningCodes.push({ code: 'WARN_PLUGIN_FAILED_FALLBACK', params });
         }
 
         const result = detectPanels(buf, file);
-        sendJson(res, 200, { ...result, lang, version: DETECTOR_VERSION, source: 'auto', warnings });
+        sendJson(res, 200, { ...result, lang, version: DETECTOR_VERSION, source: 'auto', warnings, warningCodes });
         return true;
       }
 
-      /* ---------------- 分格模板 ---------------- */
+      /* ---------------- Panel templates ---------------- */
       if (pathname === '/api/panel-templates' && req.method === 'GET') {
         sendJson(res, 200, { templates: listPanelTemplates(dataRoot) });
         return true;
@@ -271,7 +551,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
       if (pathname === '/api/panel-templates' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as Partial<PanelTemplate>;
         if (!Array.isArray(body.panels) || !body.panels.length) {
-          sendJson(res, 400, { error: '模板没有格子' });
+          fail(res, 400, 'ERR_PANEL_TEMPLATE_EMPTY');
           return true;
         }
         const template = savePanelTemplate(dataRoot, {
@@ -302,14 +582,15 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           .find((v) => v.id === body.volume)
           ?.chapters.find((c) => c.chapter === body.chapter);
         if (!found) {
-          sendJson(res, 404, { error: '章节不存在' });
+          fail(res, 404, 'ERR_CHAPTER_NOT_FOUND', { volume: body.volume, chapter: body.chapter });
           return true;
         }
         const indices = pageRange(body.pageIndices, found.pages.length);
         let applied = 0;
         let droppedNotes = 0;
         for (const index of indices) {
-          const doc = readPageDoc(dataRoot, body.volume, body.chapter, index) ?? createEmptyDoc(body.volume, body.chapter, index);
+          const doc =
+            readPageDoc(dataRoot, body.volume, body.chapter, index) ?? createEmptyDoc(body.volume, body.chapter, index);
           const result = applyPanelTemplate(dataRoot, doc, body.templateId);
           if (result) {
             applied++;
@@ -320,7 +601,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      /* ---------------- 声明式版式模板 ---------------- */
+      /* ---------------- Declarative layout templates ---------------- */
       if (pathname === '/api/layouts' && req.method === 'GET') {
         sendJson(res, 200, { layouts: listLayouts(dataRoot) });
         return true;
@@ -337,7 +618,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      // 从某页现有分格「抓取」成版式模板，便于用户快速起步后再手改 JSON
+      // Capture a page's current panels as a layout template, so users can start from it and edit the JSON afterwards.
       if (pathname === '/api/layouts/capture' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as {
           volume?: string;
@@ -348,21 +629,24 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           cols?: number;
         };
         if (!body.volume || !body.chapter) {
-          sendJson(res, 400, { error: '缺少卷/话' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
           return true;
         }
         const doc = readPageDoc(dataRoot, body.volume, body.chapter, Number(body.pageIndex) || 0);
         if (!doc?.panels.length) {
-          sendJson(res, 400, { error: '这一页还没有分格可抓取' });
+          fail(res, 400, 'ERR_PAGE_NO_PANELS', { volume: body.volume, chapter: body.chapter });
           return true;
         }
         const layout = saveLayout(dataRoot, {
-          name: body.name || `${body.chapter} 第 ${(body.pageIndex ?? 0) + 1} 页版式`,
+          name: body.name || t('DEFAULT_NAME_LAYOUT_PAGE', { chapter: body.chapter, page: (body.pageIndex ?? 0) + 1 }),
           scope: body.scope ?? 'page',
           volume: body.volume,
           chapter: body.chapter,
           pageIndex: Number(body.pageIndex) || 0,
-          grid: captureLayout(doc.panels.map((p) => p.rect), Number(body.cols) || 2),
+          grid: captureLayout(
+            doc.panels.map((p) => p.rect),
+            Number(body.cols) || 2,
+          ),
         });
         sendJson(res, 200, { layout });
         return true;
@@ -378,7 +662,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         const all = listLayouts(dataRoot);
         const layout = all.find((l) => l.id === body.layoutId);
         if (!layout) {
-          sendJson(res, 404, { error: '版式模板不存在' });
+          fail(res, 404, 'ERR_LAYOUT_NOT_FOUND', { layoutId: body.layoutId ?? '' });
           return true;
         }
         const volume = body.volume ?? layout.volume;
@@ -386,7 +670,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           .find((v) => v.id === volume)
           ?.chapters.filter((c) => !body.chapter || c.chapter === body.chapter);
         if (!chapters?.length) {
-          sendJson(res, 404, { error: '章节不存在' });
+          fail(res, 404, 'ERR_CHAPTER_NOT_FOUND', { volume, chapter: body.chapter ?? '' });
           return true;
         }
         let applied = 0;
@@ -396,7 +680,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
             const rects = expandLayout(layout, index);
             const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection);
             const panels = rects.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
-            // 格数一致时按阅读顺序迁移格级批注，避免套模板丢笔记
+            // When the panel count matches, migrate panel-level notes in reading order so applying a template does not drop them.
             const notes =
               oldOrder.length === panels.length
                 ? doc.notes.map((n) => {
@@ -405,15 +689,19 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
                     return pos < 0 ? n : { ...n, panelId: panels[pos].id };
                   })
                 : doc.notes.filter((n) => n.scope !== 'panel');
-            writePageDoc(dataRoot, {
-              ...doc,
-              panels,
-              notes,
-              readingDirection: layout.readingDirection ?? doc.readingDirection,
-              detectorVersion: `layout:${layout.id}`,
-              detectedAt: new Date().toISOString(),
-              detectSource: 'template',
-            });
+            writePageDoc(
+              dataRoot,
+              {
+                ...doc,
+                panels,
+                notes,
+                readingDirection: layout.readingDirection ?? doc.readingDirection,
+                detectorVersion: `layout:${layout.id}`,
+                detectedAt: new Date().toISOString(),
+                detectSource: 'template',
+              },
+              { source: 'batch' },
+            );
             applied++;
           }
         }
@@ -421,13 +709,13 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      /* ---------------- 切格插件列表 ---------------- */
+      /* ---------------- Panel detector plugins ---------------- */
       if (pathname === '/api/plugins' && req.method === 'GET') {
         sendJson(res, 200, { plugins: await listPlugins(rootDir, dataRoot) });
         return true;
       }
 
-      /* ---------------- 对齐预设 ---------------- */
+      /* ---------------- Align presets ---------------- */
       if (pathname === '/api/align-presets' && req.method === 'GET') {
         sendJson(res, 200, { presets: listAlignPresets(dataRoot) });
         return true;
@@ -440,7 +728,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           chapter?: string;
         };
         if (!body.name || !body.volume || !body.chapter) {
-          sendJson(res, 400, { error: '预设缺少名称/卷/话' });
+          fail(res, 400, 'ERR_ALIGN_PRESET_MISSING_FIELDS');
           return true;
         }
         const preset = saveAlignPreset(dataRoot, {
@@ -468,7 +756,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         };
         const preset = listAlignPresets(dataRoot).find((p) => p.id === body.presetId);
         if (!preset) {
-          sendJson(res, 404, { error: '预设不存在' });
+          fail(res, 404, 'ERR_ALIGN_PRESET_NOT_FOUND', { presetId: body.presetId ?? '' });
           return true;
         }
         const volume = body.volume ?? preset.volume;
@@ -476,20 +764,24 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           .find((v) => v.id === volume)
           ?.chapters.filter((c) => !body.chapter || c.chapter === body.chapter);
         if (!chapters?.length) {
-          sendJson(res, 404, { error: '章节不存在' });
+          fail(res, 404, 'ERR_CHAPTER_NOT_FOUND', { volume, chapter: body.chapter ?? '' });
           return true;
         }
         let applied = 0;
         for (const ch of chapters) {
           for (const index of pageRange(body.pageIndices, ch.pages.length)) {
             const doc = readPageDoc(dataRoot, volume, ch.chapter, index) ?? createEmptyDoc(volume, ch.chapter, index);
-            writePageDoc(dataRoot, {
-              ...doc,
-              alignMode: preset.mode,
-              offsets: preset.offsets,
-              gridStep: preset.gridStep,
-              panelOffsets: preset.panelOffsets,
-            });
+            writePageDoc(
+              dataRoot,
+              {
+                ...doc,
+                alignMode: preset.mode,
+                offsets: preset.offsets,
+                gridStep: preset.gridStep,
+                panelOffsets: preset.panelOffsets,
+              },
+              { source: 'align' },
+            );
             applied++;
           }
         }
@@ -497,7 +789,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      /* ---------------- 导出模板 ---------------- */
+      /* ---------------- Export templates ---------------- */
       if (pathname === '/api/export-templates' && req.method === 'GET') {
         sendJson(res, 200, { templates: listExportTemplates(dataRoot) });
         return true;
@@ -530,26 +822,26 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      // 导出文件的默认下载名
+      // Default download name for exported files
       if (pathname === '/api/export/download') {
         const file = url.searchParams.get('file') ?? '';
         const target = safeResolve(exportRoot, file);
         if (!target || !fs.existsSync(target)) {
-          sendJson(res, 404, { error: '文件不存在' });
+          fail(res, 404, 'ERR_FILE_NOT_FOUND', { path: file });
           return true;
         }
         serveFile(res, target, path.basename(target));
         return true;
       }
 
-      /* ---------------- 多漫画管理 ---------------- */
+      /* ---------------- Multiple manga management ---------------- */
       if (pathname === '/api/library/volume-config' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as {
           volume?: string;
           dirs?: Partial<Record<string, string | null>>;
         };
         if (!body.volume || !body.dirs) {
-          sendJson(res, 400, { error: '缺少卷名或语言目录配置' });
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
           return true;
         }
         setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
@@ -567,7 +859,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
       if (pathname === '/api/library/remove-volume' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { volume?: string };
         if (!body.volume) {
-          sendJson(res, 400, { error: '缺少卷名' });
+          fail(res, 400, 'ERR_MISSING_VOLUME');
           return true;
         }
         const result = removeVolume(rawRoot, dataRoot, body.volume);
@@ -575,7 +867,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      /* ---------------- 笔记索引（全文搜索 / 跨页总览） ---------------- */
+      /* ---------------- Note index (full-text search / cross-page overview) ---------------- */
       if (pathname === '/api/notes' && req.method === 'GET') {
         const pageIndexRaw = url.searchParams.get('pageIndex');
         sendJson(
@@ -594,12 +886,12 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      /* ---------------- 笔记来源：抓取网页标题（可选） ---------------- */
+      /* ---------------- Note source: fetch page title (optional) ---------------- */
       if (pathname === '/api/link-title' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { url?: string };
         const target = (body.url ?? '').trim();
         if (!/^https?:\/\//i.test(target)) {
-          sendJson(res, 400, { error: '只支持 http(s) 链接' });
+          fail(res, 400, 'ERR_URL_NOT_HTTP');
           return true;
         }
         try {
@@ -608,7 +900,7 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
           const resp = await fetch(target, {
             signal: controller.signal,
             redirect: 'follow',
-            headers: { 'user-agent': 'Mozilla/5.0 MangaMemo/0.1' },
+            headers: { 'user-agent': 'Mozilla/5.0 KomaYomi/0.1' },
           });
           clearTimeout(timer);
           const text = (await resp.text()).slice(0, 200_000);
@@ -625,12 +917,13 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
             : '';
           sendJson(res, 200, { title });
         } catch {
-          sendJson(res, 200, { title: '', warning: '抓取标题失败（可能被网络限制），可以手动填写' });
+          const warning = t('WARN_TITLE_FETCH_FAILED');
+          sendJson(res, 200, { title: '', warning, warningCode: 'WARN_TITLE_FETCH_FAILED' });
         }
         return true;
       }
 
-      /* ---------------- 备份 / 恢复 ---------------- */
+      /* ---------------- Backup / restore ---------------- */
       if (pathname === '/api/backup' && req.method === 'POST') {
         const { buffer, entries } = createBackupBuffer(dataRoot);
         fs.mkdirSync(exportRoot, { recursive: true });
@@ -663,13 +956,306 @@ export function createMangaHandler({ rootDir }: MangaServerOptions) {
         return true;
       }
 
-      sendJson(res, 404, { error: `未知接口 ${pathname}` });
+      /* ---------------- Storage providers (local / network drive / WebDAV) ---------------- */
+      if (pathname === '/api/storage' && req.method === 'GET') {
+        sendJson(res, 200, {
+          config: markSecrets(dataRoot, readStorageConfig(dataRoot)),
+          cache: cacheStats(dataRoot),
+        });
+        return true;
+      }
+
+      if (pathname === '/api/storage' && req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as {
+          config?: StorageConfig;
+          secrets?: Record<string, string | null>;
+        };
+        if (!body.config) {
+          fail(res, 400, 'ERR_STORAGE_CONFIG_MISSING');
+          return true;
+        }
+        // Passwords arrive separately and are encrypted; storage.json stays shareable.
+        for (const [id, secret] of Object.entries(body.secrets ?? {})) {
+          setSecret(dataRoot, id, secret || null);
+        }
+        const saved = writeStorageConfig(dataRoot, body.config);
+        sendJson(res, 200, { config: markSecrets(dataRoot, saved) });
+        return true;
+      }
+
+      if (pathname === '/api/storage/test' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { id?: string };
+        const cfg = readStorageConfig(dataRoot);
+        const targets = [cfg.rawSource, ...cfg.backups].filter((t): t is StorageTarget => Boolean(t));
+        const chosen = body.id ? targets.filter((t) => t.id === body.id) : targets;
+        const statuses = await Promise.all(
+          chosen.map((t) => createProvider(dataRoot, t, { mustExist: cfg.rawSource?.id === t.id }).status()),
+        );
+        sendJson(res, 200, { statuses });
+        return true;
+      }
+
+      if (pathname === '/api/storage/sync' && req.method === 'POST') {
+        const source = readStorageConfig(dataRoot).rawSource;
+        if (!source?.enabled) {
+          fail(res, 400, 'ERR_REMOTE_SOURCE_MISSING');
+          return true;
+        }
+        const result = await syncRemoteTree(dataRoot, createProvider(dataRoot, source));
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/storage/cache/clear' && req.method === 'POST') {
+        sendJson(res, 200, { removed: clearRemoteCache(dataRoot), cache: cacheStats(dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/storage/ls' && req.method === 'GET') {
+        const id = url.searchParams.get('target') ?? '';
+        const cfg = readStorageConfig(dataRoot);
+        const target = [cfg.rawSource, ...cfg.backups].find((t) => t?.id === id);
+        if (!target) {
+          fail(res, 404, 'ERR_STORAGE_TARGET_NOT_FOUND', { targetId: id });
+          return true;
+        }
+        try {
+          const entries = await createProvider(dataRoot, target).list(url.searchParams.get('path') ?? '');
+          sendJson(res, 200, { entries });
+        } catch (err) {
+          fail(res, 503, 'ERR_STORAGE_LIST_FAILED', { detail: err instanceof Error ? err.message : String(err) });
+        }
+        return true;
+      }
+
+      if (pathname === '/api/storage/backup' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { targetId?: string };
+        const { buffer, entries } = createBackupBuffer(dataRoot);
+        const name = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+        const target = body.targetId
+          ? readStorageConfig(dataRoot).backups.find((t) => t.id === body.targetId)
+          : undefined;
+        if (target) {
+          try {
+            await createProvider(dataRoot, target).write(`backups/${name}`, buffer);
+            sendJson(res, 200, {
+              file: `backups/${name}`,
+              target: target.name,
+              size: buffer.length,
+              entries,
+            });
+          } catch (err) {
+            fail(res, 503, 'ERR_BACKUP_UPLOAD_FAILED', {
+              detail: err instanceof Error ? err.message : String(err),
+            });
+          }
+          return true;
+        }
+        fs.mkdirSync(exportRoot, { recursive: true });
+        fs.writeFileSync(path.join(exportRoot, name), buffer);
+        sendJson(res, 200, {
+          file: name,
+          url: `/exports/${encodeURIComponent(name)}`,
+          size: buffer.length,
+          entries,
+        });
+        return true;
+      }
+
+      /* ---------------- Project files .mnproj ---------------- */
+      if (pathname === '/api/project/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { mode?: string; name?: string; notes?: string };
+        const result = createProjectBuffer({
+          rootDir,
+          storageMode: body.mode === 'packaged' ? 'packaged' : 'reference',
+          name: body.name,
+          notes: body.notes,
+        });
+        fs.mkdirSync(exportRoot, { recursive: true });
+        const file = `${projectFileName(body.name || `project-${new Date().toISOString().replace(/[:.]/g, '-')}`)}.mnproj`;
+        fs.writeFileSync(path.join(exportRoot, file), result.buffer);
+        sendJson(res, 200, {
+          file,
+          url: `/exports/${encodeURIComponent(file)}`,
+          size: result.buffer.length,
+          entries: result.entries,
+          storageMode: result.manifest.storageMode,
+          name: result.manifest.name,
+          manifest: {
+            schemaVersion: result.manifest.schemaVersion,
+            appVersion: result.manifest.appVersion,
+            storageMode: result.manifest.storageMode,
+            pageCount: result.manifest.inventory.pageCount,
+            images: result.manifest.inventory.images.length,
+            volumes: result.manifest.inventory.volumes.map((v) => v.volume),
+            notes: result.manifest.notes,
+          },
+          warnings: result.warnings,
+        });
+        return true;
+      }
+
+      if (pathname === '/api/project/inspect' && req.method === 'POST') {
+        const buffer = isBinaryUpload(req)
+          ? await readBodyBuffer(req, MAX_PROJECT_BYTES)
+          : Buffer.from((JSON.parse(await readBody(req, 256 * 1024 * 1024)) as { data?: string }).data ?? '', 'base64');
+        sendJson(res, 200, inspectProject({ rootDir, buffer }));
+        return true;
+      }
+
+      if (pathname === '/api/project/import' && req.method === 'POST') {
+        const binary = isBinaryUpload(req);
+        let buffer: Buffer;
+        let conflictRaw: string | undefined;
+        let relinkDir: string | undefined;
+        if (binary) {
+          buffer = await readBodyBuffer(req, MAX_PROJECT_BYTES);
+          conflictRaw = url.searchParams.get('conflict') ?? undefined;
+          relinkDir = url.searchParams.get('relinkDir') ?? undefined;
+        } else {
+          const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as {
+            data?: string;
+            conflict?: string;
+            relinkDir?: string;
+          };
+          buffer = Buffer.from(body.data ?? '', 'base64');
+          conflictRaw = body.conflict;
+          relinkDir = body.relinkDir;
+        }
+        const result = importProject({
+          rootDir,
+          buffer,
+          conflict: conflictRaw === 'merge' || conflictRaw === 'skip' ? conflictRaw : 'overwrite',
+          relinkDir,
+        });
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- Unified exchange format .mntpl / .mnexp / .mnpage.json ---------------- */
+      if (pathname === '/api/exchange/layout/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { layoutId?: string; id?: string };
+        sendJson(
+          res,
+          200,
+          exportLayoutTemplate({
+            rootDir,
+            exportRoot,
+            layoutId: String(body.layoutId ?? body.id ?? ''),
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/layout/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 64 * 1024 * 1024)) as {
+          data?: string;
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+          scope?: 'volume' | 'chapter' | 'page';
+          name?: string;
+        };
+        sendJson(
+          res,
+          200,
+          importLayoutTemplate({
+            rootDir,
+            data: body.data,
+            volume: body.volume ?? '',
+            chapter: body.chapter,
+            pageIndex: body.pageIndex,
+            scope: body.scope,
+            name: body.name,
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/export-template/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { templateId?: string; id?: string };
+        sendJson(
+          res,
+          200,
+          exportExportTemplate({
+            rootDir,
+            exportRoot,
+            templateId: String(body.templateId ?? body.id ?? ''),
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/export-template/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 64 * 1024 * 1024)) as { data?: string };
+        sendJson(res, 200, importExportTemplate({ rootDir, data: body.data }));
+        return true;
+      }
+
+      if (pathname === '/api/exchange/page/export' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+        };
+        if (!body.volume || !body.chapter) {
+          fail(res, 400, 'ERR_MISSING_VOLUME_CHAPTER');
+          return true;
+        }
+        sendJson(
+          res,
+          200,
+          exportPage({
+            rootDir,
+            exportRoot,
+            volume: body.volume,
+            chapter: body.chapter,
+            pageIndex: Number(body.pageIndex) || 0,
+          }),
+        );
+        return true;
+      }
+
+      if (pathname === '/api/exchange/page/import' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req, 64 * 1024 * 1024)) as {
+          data?: string;
+          volume?: string;
+          chapter?: string;
+          pageIndex?: number;
+        };
+        sendJson(
+          res,
+          200,
+          importPage({
+            rootDir,
+            data: body.data,
+            volume: body.volume,
+            chapter: body.chapter,
+            pageIndex: body.pageIndex,
+          }),
+        );
+        return true;
+      }
+
+      fail(res, 404, 'ERR_UNKNOWN_ENDPOINT', { path: pathname });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      sendJson(res, 500, { error: message });
+      const { status, body } = toErrorResponse(err, currentLang());
+      sendJson(res, status, body);
       return true;
     }
+  };
+
+  /**
+   * Negotiate the response language once per request and keep it in an async context so
+   * domain modules can render warnings without threading a language argument everywhere.
+   */
+  return (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
+    if (!req.url) return Promise.resolve(false);
+    const lang = resolveRequestLang(req, new URL(req.url, 'http://localhost'));
+    res.setHeader('Vary', 'Accept-Language');
+    res.setHeader('Content-Language', lang);
+    return runWithLang(lang, () => handleRequest(req, res));
   };
 }
 
@@ -690,13 +1276,15 @@ const STATIC_MIME: Record<string, string> = {
   txt: 'text/plain; charset=utf-8',
 };
 
-/** 桌面端用：独立启动一个只提供本地接口的 HTTP 服务；传入 staticDir 时同时托管打包后的前端 */
+/** Desktop / Docker: start a standalone HTTP server exposing only local APIs; when staticDir is given, also serve the built frontend. */
 export function startMangaServer(
   rootDir: string,
   port = 0,
   staticDir?: string,
+  overrides: Pick<MangaServerOptions, 'rawDir' | 'dataDir' | 'exportDir'> = {},
+  host = '127.0.0.1',
 ): Promise<{ server: http.Server; port: number }> {
-  const handler = createMangaHandler({ rootDir });
+  const handler = createMangaHandler({ rootDir, ...overrides });
 
   const serveStatic = (res: ServerResponse, pathname: string): boolean => {
     if (!staticDir) return false;
@@ -706,7 +1294,7 @@ export function startMangaServer(
     if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
       file = candidate;
     } else {
-      // 前端是单页应用：没有扩展名的路径回退到 index.html
+      // The frontend is a single-page app: paths without an extension fall back to index.html
       const index = path.join(staticDir, 'index.html');
       if (path.extname(rel) || !fs.existsSync(index)) return false;
       file = index;
@@ -730,7 +1318,7 @@ export function startMangaServer(
   });
   return new Promise((resolve, reject) => {
     server.on('error', reject);
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, host, () => {
       const addr = server.address();
       resolve({ server, port: typeof addr === 'object' && addr ? addr.port : port });
     });

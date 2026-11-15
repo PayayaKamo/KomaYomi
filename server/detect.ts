@@ -2,21 +2,23 @@
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import type { DetectResult, PanelRect, ReadingDirection } from '../shared/types.ts';
+import { AppError } from './errors.ts';
 
 type Gray = { width: number; height: number; data: Uint8Array };
 
-/** 切格算法版本：写进每页 JSON，算法升级后可识别出旧结果 */
+/** Detector version, written into every page JSON so stale results can be recognized after an algorithm upgrade. */
 export const DETECTOR_VERSION = 'xycut-1.3';
 
-/** 按文件头判断真实格式（素材里存在 .png 实际是 JPEG 的情况） */
+/** Detect the real format from the file header (some assets named .png are actually JPEG). */
 export function sniffFormat(buf: Buffer): 'png' | 'jpeg' | 'webp' | 'unknown' {
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
-  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP')
+    return 'webp';
   return 'unknown';
 }
 
-/** 快速读取图片尺寸（插件只需要宽高，避免为了拿尺寸把整张图解码一遍） */
+/** Read image dimensions cheaply: plugins only need width/height, so avoid decoding the whole image for it. */
 export function imageSize(buf: Buffer, filename: string): { width: number; height: number } {
   const format = sniffFormat(buf);
   if (format === 'png' && buf.length >= 24) {
@@ -35,7 +37,7 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
         continue;
       }
       const len = buf.readUInt16BE(i + 2);
-      // SOF0..SOF15（排除 DHT/DAC 等）
+      // SOF0..SOF15 (excluding DHT/DAC and similar segments).
       if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
         return { width: buf.readUInt16BE(i + 7), height: buf.readUInt16BE(i + 5) };
       }
@@ -46,7 +48,7 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
   return { width: decoded.width, height: decoded.height };
 }
 
-/** 解码图片为灰度图（RGBA -> 亮度），失败时抛错 */
+/** Decode an image to grayscale (RGBA -> luminance); throws on failure. */
 export function decodeGray(buf: Buffer, filename: string): Gray {
   const ext = path.extname(filename).toLowerCase();
   let width = 0;
@@ -67,7 +69,7 @@ export function decodeGray(buf: Buffer, filename: string): Gray {
     height = img.height;
     rgba = img.data as Uint8Array;
   } else {
-    throw new Error(`暂不支持该图片格式（${format} / ${ext}）`);
+    throw new AppError('ERR_UNSUPPORTED_IMAGE_FORMAT', { format, ext }, 415);
   }
 
   const gray = new Uint8Array(width * height);
@@ -77,7 +79,7 @@ export function decodeGray(buf: Buffer, filename: string): Gray {
   return { width, height, data: gray };
 }
 
-/** 按整数步长抽样缩小，返回缩小后的灰度图与缩放比 */
+/** Downsample by an integer step; returns the reduced grayscale image and the scale factor. */
 function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
   const step = Math.max(1, Math.ceil(Math.max(src.width, src.height) / maxDim));
   if (step === 1) return { gray: src, scale: 1 };
@@ -87,7 +89,7 @@ function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
   for (let y = 0; y < h; y++) {
     const sy = y * step;
     for (let x = 0; x < w; x++) {
-      // 2x2 平均，降低抽样噪声
+      // Average 2x2 blocks to reduce sampling noise.
       const sx = x * step;
       let sum = 0;
       let n = 0;
@@ -103,7 +105,7 @@ function downsample(src: Gray, maxDim: number): { gray: Gray; scale: number } {
   return { gray: { width: w, height: h, data }, scale: step };
 }
 
-/** 采样图片亮度分位，自适应计算“白纸”阈值 */
+/** Sample the luminance distribution to derive a "white paper" threshold adaptively. */
 function whiteThreshold(gray: Gray): number {
   const hist = new Uint32Array(256);
   const total = gray.data.length;
@@ -127,7 +129,7 @@ function whiteThreshold(gray: Gray): number {
 
 type Region = { x0: number; y0: number; x1: number; y1: number };
 
-/** 递归 XY-Cut：用整行/整列全白的分隔带切分，得到格子候选 */
+/** Recursive XY-Cut: split on fully white rows/columns to obtain panel candidates. */
 function xyCut(
   gray: Gray,
   isWhite: Uint8Array,
@@ -143,7 +145,7 @@ function xyCut(
   const sum = (x0: number, y0: number, x1: number, y1: number) =>
     integral[y1 * iw + x1] - integral[y0 * iw + x1] - integral[y1 * iw + x0] + integral[y0 * iw + x0];
 
-  // 行/列是否整段全白（容忍极少数扫描噪点，否则一道细缝里一个脏点就会让整页无法切分）
+  // Whether a row/column is entirely white. A few scan specks are tolerated, otherwise one dirty pixel in a thin gutter would make the whole page unsplittable.
   const tolX = Math.max(4, Math.round((region.y1 - region.y0) * 0.03));
   const tolY = Math.max(4, Math.round((region.x1 - region.x0) * 0.03));
   const colWhite = (x: number, y0: number, y1: number) => sum(x, y0, x + 1, y1) >= y1 - y0 - tolX;
@@ -152,7 +154,7 @@ function xyCut(
   let { x0, y0, x1, y1 } = region;
   if (x1 - x0 < 8 || y1 - y0 < 8) return;
 
-  // 1. 先收缩四周全白留白（限制收缩比例，避免吃掉整页）
+  // 1. Trim the fully white margin first (cap the trim ratio so the whole page is never eaten).
   const maxTrimX = Math.floor((x1 - x0) * 0.18);
   const maxTrimY = Math.floor((y1 - y0) * 0.18);
   let tx = 0;
@@ -177,7 +179,7 @@ function xyCut(
   }
   if (x1 - x0 < 8 || y1 - y0 < 8) return;
 
-  // 2. 找内部全白分隔带（分隔带在原图上往往只有 5~8px，抽样后可能只剩 2px）
+  // 2. Find internal all-white gutters (often only 5-8px in the original, possibly 2px after downsampling).
   const minV = Math.max(3, Math.round(W * 0.004));
   const minH = Math.max(3, Math.round(H * 0.004));
 
@@ -225,7 +227,7 @@ function xyCut(
     return;
   }
 
-  // 3. 兜底：分隔白缝被溢出的对话气泡打断时，改用格子黑色边框线切分（至少两条平行边框线才认定是分格，避免把画面里的长直线当成边框）
+  // 3. Fallback: when a gutter is interrupted by a speech bubble spilling over it, cut on the panel's dark border lines instead. Require at least two parallel border lines, otherwise long lines in the artwork would be mistaken for borders.
   if (depth < 12) {
     const minRunX = Math.floor((x1 - x0) * 0.72);
     const minRunY = Math.floor((y1 - y0) * 0.72);
@@ -257,7 +259,7 @@ function xyCut(
   out.push({ x0, y0, x1, y1 });
 }
 
-/** 在区域内寻找“细长的深色直线”（格子边框），返回切分位置 */
+/** Find thin, long dark lines (panel borders) inside a region and return the cut positions. */
 function findLineCuts(
   gray: Gray,
   W: number,
@@ -286,7 +288,7 @@ function findLineCuts(
     }
     if (best >= minRun) positions.push(i);
   }
-  // 连续行合并为一条线，取中心；过粗的不算边框线
+  // Merge consecutive rows into one line and take its centre; overly thick runs are not borders.
   const cuts: number[] = [];
   let start = -1;
   const flush = (end: number) => {
@@ -307,7 +309,7 @@ function findLineCuts(
   return cuts;
 }
 
-/** 检测一页的格子，返回归一化坐标（相对整页） */
+/** Detect the panels of one page and return normalized coordinates (relative to the page). */
 export function detectPanels(buf: Buffer, filename: string): DetectResult {
   const t0 = Date.now();
   const full = decodeGray(buf, filename);
@@ -319,7 +321,7 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
   const isWhite = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) isWhite[i] = gray.data[i] >= threshold ? 1 : 0;
 
-  // 积分图（尺寸 (W+1)x(H+1)）
+  // Integral image, sized (W+1)x(H+1).
   const iw = W + 1;
   const integral = new Uint32Array((W + 1) * (H + 1));
   for (let y = 0; y < H; y++) {
@@ -333,7 +335,7 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
   const regions: Region[] = [];
   xyCut(gray, isWhite, integral, iw, { x0: 0, y0: 0, x1: W, y1: H }, regions);
 
-  // 过滤：面积过小、或内部几乎没有墨迹（纯白）的区块
+  // Filter out regions that are too small or contain almost no ink (pure white).
   const pageArea = W * H;
   const inkCount = (r: Region) => {
     let ink = 0;
@@ -349,18 +351,19 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
     const area = (r.x1 - r.x0) * (r.y1 - r.y0);
     if (area < pageArea * 0.006) return false;
     if (inkCount(r) < 0.004) return false;
-    // 过滤扫描噪点/装饰线造成的细长条（真实漫画格不会出现极扁的横条）
+    // Drop thin strips left by scan noise or decorative lines (real manga panels are never extremely flat bars).
     const rw = (r.x1 - r.x0) / W;
     const rh = (r.y1 - r.y0) / H;
     if (Math.min(rw, rh) < 0.035 && Math.max(rw, rh) / Math.min(rw, rh) > 4) return false;
-    // 过滤贴边竖排「あらすじ」/作者旁注文字条：窄、长、贴着左右页边，长宽比很高。
-    // 它在 118 页样本里稳定复现（如 173/p5、176/p4、179/p6、181/p7、182/p5），不属于漫画分格。
+    // Drop border-hugging vertical text strips such as "あらすじ" or author notes: narrow, tall,
+    // flush with the left or right page edge and with a very high aspect ratio.
+    // They recur across the 118-page sample (e.g. 173/p5, 176/p4, 179/p6, 181/p7, 182/p5) and are not manga panels.
     const edge = r.x0 / W < 0.035 || r.x1 / W > 0.965;
     if (edge && rw < 0.09 && rh > 0.18 && rh / rw >= 3.2) return false;
     return true;
   });
 
-  // 归一化 + 轻微外扩（把格子边框包含进来）
+  // Normalize and expand slightly so panel borders are included.
   const pad = 0.002;
   const panels: PanelRect[] = kept.map((r) => {
     const x = Math.max(0, r.x0 / W - pad);
@@ -380,7 +383,7 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
-/** 按阅读顺序排序：rtl 行内右→左；ltr 行内左→右；ttb 列从右→左、列内上→下 */
+/** Sort in reading order: rtl right-to-left within a row; ltr left-to-right within a row; ttb columns right-to-left, top-to-bottom within a column. */
 export function sortReadingOrder<T>(
   items: T[],
   dir: ReadingDirection,
@@ -390,7 +393,7 @@ export function sortReadingOrder<T>(
   const rects = list.map((item) => ({ item, rect: getRect(item) }));
   if (dir === 'ttb') {
     const medianW = median(rects.map((r) => r.rect.w)) || 0.2;
-    const rows: typeof rects[] = [];
+    const rows: (typeof rects)[] = [];
     for (const r of [...rects].sort((a, b) => b.rect.x + b.rect.w / 2 - (a.rect.x + a.rect.w / 2))) {
       const cx = r.rect.x + r.rect.w / 2;
       const group = rows.find((g) => Math.abs(g[0].rect.x + g[0].rect.w / 2 - cx) < medianW * 0.6);
@@ -400,7 +403,7 @@ export function sortReadingOrder<T>(
     return rows.flatMap((g) => g.sort((a, b) => a.rect.y - b.rect.y).map((r) => r.item));
   }
   const medianH = median(rects.map((r) => r.rect.h)) || 0.2;
-  const rows: typeof rects[] = [];
+  const rows: (typeof rects)[] = [];
   const ySorted = [...rects].sort((a, b) => a.rect.y + a.rect.h / 2 - (b.rect.y + b.rect.h / 2));
   for (const r of ySorted) {
     const cy = r.rect.y + r.rect.h / 2;
@@ -418,6 +421,3 @@ function median(nums: number[]): number {
   const s = [...nums].sort((a, b) => a - b);
   return s[Math.floor(s.length / 2)];
 }
-
-
-

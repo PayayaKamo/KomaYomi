@@ -1,6 +1,9 @@
 export const LANGUAGES = ['ja', 'zh', 'en'] as const;
 export type Lang = (typeof LANGUAGES)[number];
 
+/** Chapter name used when a rule has no {chapter} placeholder (single-chapter volumes). */
+export const SINGLE_CHAPTER = '全一话';
+
 export const LANG_LABEL: Record<Lang, string> = {
   ja: '日本語',
   zh: '中文',
@@ -13,42 +16,42 @@ export const LANG_SHORT: Record<Lang, string> = {
   en: 'EN',
 };
 
-/** 归一化到 0..1 的矩形（相对整页） */
+/** Rectangle normalized to 0..1 relative to the full page. */
 export type PanelRect = { x: number; y: number; w: number; h: number };
 
 export type Panel = {
   id: string;
   rect: PanelRect;
-  /** 自动检测 / 手动绘制 */
+  /** Auto-detected, hand-drawn or merged from neighbouring panels. */
   source?: 'auto' | 'manual' | 'merged';
-  /** 手动指定的格子编号；缺省按阅读顺序自动编号 */
+  /** Explicitly assigned number; when omitted, numbering follows reading order. */
   number?: number;
 };
 
 export type NoteSource = {
-  /** 网页标题（可选） */
+  /** Optional page title. */
   title?: string;
   url?: string;
-  /** 自由文本来源，例如「大模型对话 2026-05-01」 */
+  /** Free-form source label, e.g. "LLM chat 2026-05-01". */
   text?: string;
 };
 
 export type Note = {
   id: string;
-  /** page = 整页批注；panel = 某个格子 */
+  /** page = note on the whole page; panel = note on a single panel. */
   scope: 'page' | 'panel';
   panelId: string | null;
   text: string;
   tags: string[];
-  /** 资料出处：链接、标题或自由文本 */
+  /** Where the material came from: link, title or free-form text. */
   source?: NoteSource;
-  /** 笔记内贴图（截图），以 data URL 存在页 JSON 里 */
+  /** Images pasted into the note (screenshots), stored as data URLs in the page JSON. */
   images?: NoteImage[];
   createdAt: string;
   updatedAt: string;
 };
 
-/** rtl = 行从上到下、行内从右到左（默认）；ltr = 行内从左到右；ttb = 列从右到左、列内从上到下 */
+/** rtl = rows top-to-bottom, right-to-left within a row (default); ltr = left-to-right within a row; ttb = columns right-to-left, top-to-bottom within a column. */
 export type ReadingDirection = 'rtl' | 'ltr' | 'ttb';
 
 export const READING_LABEL: Record<ReadingDirection, string> = {
@@ -58,14 +61,14 @@ export const READING_LABEL: Record<ReadingDirection, string> = {
 };
 
 /**
- * 每种语言的对齐偏移，x/y 为相对容器宽高的比例，scale 为缩放倍数。
- * 用于在对比视图中把同一格对齐。
+ * Per-language alignment offset. x/y are fractions of the container width/height
+ * and scale is a zoom factor; together they line up the same panel in compare view.
  */
 export type AlignOffset = { x: number; y: number; scale: number };
 
 export const DEFAULT_OFFSET: AlignOffset = { x: 0, y: 0, scale: 1 };
 
-/** 对齐模式：整页统一偏移 / 逐格独立偏移 / 锚点取点对齐 / 网格吸附 */
+/** Alignment modes: whole-page offset, per-panel offset, anchor picking, grid snapping. */
 export type AlignMode = 'page' | 'panel' | 'anchors' | 'grid';
 
 export const ALIGN_MODE_LABEL: Record<AlignMode, string> = {
@@ -82,75 +85,70 @@ export const ALIGN_MODE_HINT: Record<AlignMode, string> = {
   grid: '拖动时按网格步长吸附，适合需要整齐数值的场景',
 };
 
-/* ---------------- 声明式版式模板 ---------------- */
+/* ---------------- Declarative layout templates ---------------- */
 
 export type LayoutScope = 'volume' | 'chapter' | 'page';
 
 export type LayoutMargin = { top: number; right: number; bottom: number; left: number };
 
-/** 一行里的格子；span 为横向跨列数，默认为 1 */
+/** A cell in a row; span is the horizontal column span and defaults to 1. */
 export type LayoutCell = { span?: number };
 
 export type LayoutRow = { height?: number; cells: LayoutCell[] };
 
 /**
- * 用「行 + 每行格子跨度」描述版式，比记坐标更适合固定版式的漫画。
- * 例：两列三行 = { cols: 2, rows: [{cells:[{},{ }]}, ...] }
+ * Describes a layout as rows plus per-row cell spans, which suits fixed manga
+ * layouts better than storing raw coordinates.
+ * Example: two columns, three rows = { cols: 2, rows: [{cells:[{},{ }]}, ...] }
  */
 export type LayoutGrid = { cols: number; rows: LayoutRow[] };
 
 export type LayoutTemplate = {
   id: string;
   name: string;
-  /** 绑定层级：单页 > 话 > 卷 */
+  /** Binding scope, most specific first: page > chapter > volume. */
   scope: LayoutScope;
   volume: string;
   chapter?: string;
-  /** 0 起的页序，仅 scope=page 时使用 */
+  /** Zero-based page index; only used when scope is 'page'. */
   pageIndex?: number;
   readingDirection?: ReadingDirection;
   margin?: Partial<LayoutMargin>;
-  /** 格间距，相对页宽/高的比例 */
+  /** Gap between panels as a fraction of page width/height. */
   gap?: number;
-  /** 每列宽度权重，缺省等宽 */
+  /** Column width weights; equal widths when omitted. */
   colWeights?: number[];
   grid: LayoutGrid;
-  /** 对个别页覆盖 grid/margin/gap（键为 1 起的页码） */
+  /** Per-page overrides for grid/margin/gap (keyed by 1-based page number). */
   pageOverrides?: Record<string, Partial<Pick<LayoutTemplate, 'grid' | 'margin' | 'gap' | 'colWeights'>>>;
   createdAt?: string;
   notes?: string;
 };
 
-/** 切格插件命中后的来源信息 */
+/** Provenance of a panel-detection hit from a plugin. */
 export type DetectSource = 'auto' | 'template' | 'plugin' | 'manual';
 
-/* ---------------- 标注层与分组 ---------------- */
+/* ---------------- Annotation layers and groups ---------------- */
 
 export type PanelGroup = {
   id: string;
   name: string;
   panelIds: string[];
-  /** 组单独编号（可选） */
+  /** Optional standalone number for the group. */
   number?: number;
+  /** Optional accent colour (#rrggbb) used on the canvas and in group lists. */
+  color?: string;
 };
 
-export type AnnotationKind =
-  | 'arrow'
-  | 'rect'
-  | 'ellipse'
-  | 'highlight'
-  | 'text'
-  | 'badge'
-  | 'mosaic'
-  | 'pen';
+export type AnnotationKind = 'arrow' | 'rect' | 'ellipse' | 'highlight' | 'text' | 'badge' | 'mosaic' | 'pen';
 
-/** 矢量标注：坐标相对所属 scope 的框（页或格），0..1 */
+/** Vector annotation; coordinates are 0..1 relative to its scope box (page or panel). */
 export type Annotation = {
   id: string;
   kind: AnnotationKind;
   scope: 'page' | 'panel';
   panelId?: string | null;
-  /** 起点/终点；自由笔迹为整条折线 */
+  /** Start/end points; freehand strokes store the whole polyline. */
   points: { x: number; y: number }[];
   color?: string;
   width?: number;
@@ -169,34 +167,34 @@ export type NoteImage = {
 };
 
 export type PageDoc = {
-  version: 1;
+  schemaVersion: 1;
   volume: string;
   chapter: string;
   pageIndex: number;
   panels: Panel[];
   notes: Note[];
-  /** 整页统一偏移（page / grid 模式） */
+  /** Whole-page offset (page/grid modes). */
   offsets: Partial<Record<Lang, AlignOffset>>;
   alignMode: AlignMode;
-  /** 逐格独立偏移（panel / anchors 模式）：panelId -> lang -> offset */
+  /** Per-panel offsets (panel/anchors modes): panelId -> lang -> offset. */
   panelOffsets: Record<string, Partial<Record<Lang, AlignOffset>>>;
-  /** 网格吸附步长（百分比，例如 1 表示 1%） */
+  /** Grid snap step in percent (1 means 1%). */
   gridStep?: number;
   readingDirection: ReadingDirection;
   updatedAt: string;
-  /** 切格来源与算法版本：用于识别旧结果、提示是否被手动改过 */
+  /** Detection source and algorithm version: identifies stale results and whether they were edited by hand. */
   detectorVersion?: string;
   detectedAt?: string;
   detectSource?: 'auto' | 'template' | 'plugin' | 'manual';
-  /** 轻量编辑历史（不是审计日志）：只记次数、最后一次时间与变更摘要 */
+  /** Lightweight edit history (not an audit log): count, last timestamp and a change summary. */
   editCount?: number;
   lastEditedAt?: string;
   lastEditSummary?: string;
-  /** 分组：跨格大图等成组内容，落盘保存而不是仅界面标记 */
+  /** Groups such as a spread spanning several panels; persisted rather than only marked in the UI. */
   groups?: PanelGroup[];
-  /** 独立标注图层（与文字笔记分离） */
+  /** Separate annotation layer, kept apart from text notes. */
   annotations?: Annotation[];
-  /** 标注图层总开关；关闭时保留数据但界面与导出都隐藏 */
+  /** Master switch for the annotation layer; when off the data is kept but hidden in the UI and exports. */
   annotationsVisible?: boolean;
 };
 
@@ -244,17 +242,19 @@ export type VolumeEntry = {
   title: string;
   chapters: ChapterEntry[];
   warnings: string[];
-  /** 语言 → raw 下的实际目录名（一部漫画可以只有 1–3 种语言） */
+  /** Language -> actual directory name under raw/ (a manga may ship only 1-3 languages). */
   langDirs: Partial<Record<Lang, string>>;
-  /** 该卷实际可用的语言 */
+  /** Languages actually available in this volume. */
   languages: Lang[];
-  /** raw/<卷> 下的全部子目录，供用户在卷设置里重新指定语言目录 */
+  /** All subdirectories under raw/<volume>, so users can re-map language folders in volume settings. */
   dirs: string[];
 };
 
 export type Library = {
   root: string;
   languages: Lang[];
+  /** User-defined language order, shared by the compare view and exports. */
+  langOrder?: Lang[];
   volumes: VolumeEntry[];
 };
 
@@ -263,7 +263,7 @@ export type DetectResult = {
   height: number;
   panels: PanelRect[];
   meta: { scale: number; threshold: number; ms: number };
-  /** 算法版本与来源（模板/插件/自动） */
+  /** Algorithm version and source (template/plugin/auto). */
   version?: string;
   source?: 'auto' | 'template' | 'plugin';
   lang?: string;
@@ -279,9 +279,7 @@ export type PageResponse = {
   exists: boolean;
 };
 
-export type ExportBlock =
-  | { type: 'heading'; text: string }
-  | { type: 'paragraph'; text: string };
+export type ExportBlock = { type: 'heading'; text: string } | { type: 'paragraph'; text: string };
 
 export type ExportConfig = {
   template: 'two-column' | 'stack' | 'compare-wide';
@@ -291,17 +289,17 @@ export type ExportConfig = {
   pageIndices: number[];
   languages: Lang[];
   embedImages: boolean;
-  /** 每种语言的平移（相对图片宽高比例），用于导出时对齐 */
+  /** Per-language translation (fraction of image width/height) used to align images during export. */
   offsets: Partial<Record<Lang, AlignOffset>>;
   showPanelBoxes: boolean;
   includeNotes: boolean;
-  /** 只导出有笔记的页 */
+  /** Export only pages that have notes. */
   onlyWithNotes?: boolean;
   noteFilterTags: string[];
   pageWidthRatio: number;
   columnGap: number;
   fontScale: number;
-  /** 分格对照模板下每行放几个格子 */
+  /** Panels per row in the panel-compare template. */
   columns: number;
 };
 
@@ -320,7 +318,7 @@ export const DEFAULT_EXPORT_CONFIG: Omit<ExportConfig, 'volume' | 'chapter' | 'p
   columns: 1,
 };
 
-/** 用户保存的导出模板（只存版式设置，范围/卷话在导出时决定） */
+/** User-saved export template; stores layout only, scope/volume/chapter are chosen at export time. */
 export type ExportTemplate = {
   id: string;
   name: string;

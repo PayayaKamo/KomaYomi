@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { LayoutTemplate, PanelRect } from '../shared/types.ts';
+import { preserveUnknown } from '../shared/format.ts';
+import { AppError } from './errors.ts';
+import { t } from './messages/index.ts';
+import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 
 /**
  * Declarative layout templates live in `data/layouts/*.json`.
@@ -26,7 +30,7 @@ function normalizeLayout(input: Partial<LayoutTemplate>): LayoutTemplate | null 
   const cols = Math.max(1, Math.min(12, Number(grid.cols) || 1));
   return {
     id: input.id || uid(),
-    name: (input.name ?? '').trim() || '未命名版式',
+    name: (input.name ?? '').trim() || t('DEFAULT_NAME_LAYOUT'),
     scope: input.scope === 'chapter' || input.scope === 'page' ? input.scope : 'volume',
     volume: String(input.volume ?? ''),
     chapter: input.chapter ? String(input.chapter) : undefined,
@@ -35,12 +39,17 @@ function normalizeLayout(input: Partial<LayoutTemplate>): LayoutTemplate | null 
       input.readingDirection === 'ltr' || input.readingDirection === 'ttb' ? input.readingDirection : 'rtl',
     margin: { ...DEFAULT_MARGIN, ...(input.margin ?? {}) },
     gap: Math.min(0.08, Math.max(0, Number(input.gap ?? DEFAULT_GAP))),
-    colWeights: Array.isArray(input.colWeights) ? input.colWeights.map((n) => Math.max(0.01, Number(n) || 1)) : undefined,
+    colWeights: Array.isArray(input.colWeights)
+      ? input.colWeights.map((n) => Math.max(0.01, Number(n) || 1))
+      : undefined,
     grid: {
       cols,
       rows: grid.rows.map((r) => ({
         height: Math.max(0.01, Number(r?.height) || 1),
-        cells: Array.isArray(r?.cells) && r.cells.length ? r.cells.map((c) => ({ span: Math.max(1, Number(c?.span) || 1) })) : [{ span: cols }],
+        cells:
+          Array.isArray(r?.cells) && r.cells.length
+            ? r.cells.map((c) => ({ span: Math.max(1, Number(c?.span) || 1) }))
+            : [{ span: cols }],
       })),
     },
     pageOverrides: input.pageOverrides ?? undefined,
@@ -56,8 +65,9 @@ export function listLayouts(dataRoot: string): LayoutTemplate[] {
   for (const file of fs.readdirSync(dir)) {
     if (!file.endsWith('.json')) continue;
     try {
-      const raw = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as Partial<LayoutTemplate>;
-      const layout = normalizeLayout(raw);
+      const stored = readStoredFile<Partial<LayoutTemplate>>(path.join(dir, file), 'mnlayout');
+      if (!stored) continue;
+      const layout = normalizeLayout(stored.data);
       if (layout) out.push(layout);
     } catch {
       /* Ignore a single broken file so the rest of the library keeps working. */
@@ -70,7 +80,8 @@ export function readLayout(dataRoot: string, id: string): LayoutTemplate | null 
   const file = path.join(layoutDir(dataRoot), `${path.basename(id)}.json`);
   if (!fs.existsSync(file)) return null;
   try {
-    return normalizeLayout(JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<LayoutTemplate>);
+    const stored = readStoredFile<Partial<LayoutTemplate>>(file, 'mnlayout');
+    return stored ? normalizeLayout(stored.data) : null;
   } catch {
     return null;
   }
@@ -78,13 +89,11 @@ export function readLayout(dataRoot: string, id: string): LayoutTemplate | null 
 
 export function saveLayout(dataRoot: string, input: Partial<LayoutTemplate>): LayoutTemplate {
   const layout = normalizeLayout(input);
-  if (!layout) throw new Error('版式模板缺少 grid.rows，无法保存');
-  const dir = layoutDir(dataRoot);
-  fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, `${path.basename(layout.id)}.json`);
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(layout, null, 2), 'utf8');
-  fs.renameSync(tmp, file);
+  if (!layout) throw new AppError('ERR_LAYOUT_SAVE_INVALID', {}, 400);
+  const file = path.join(layoutDir(dataRoot), `${path.basename(layout.id)}.json`);
+  assertWritableFile(file, 'mnlayout');
+  // Unknown keys written by a newer build survive this save.
+  writeStoredFile(file, 'mnlayout', preserveUnknown(readRawRecord(file), layout));
   return layout;
 }
 
@@ -134,10 +143,7 @@ export function expandLayout(layout: LayoutTemplate, pageIndex: number): PanelRe
   const cols = l.grid.cols;
   const rows = l.grid.rows;
 
-  const weights =
-    l.colWeights && l.colWeights.length === cols
-      ? l.colWeights
-      : Array.from({ length: cols }, () => 1);
+  const weights = l.colWeights && l.colWeights.length === cols ? l.colWeights : Array.from({ length: cols }, () => 1);
   const weightTotal = weights.reduce((a, b) => a + b, 0);
 
   const contentW = Math.max(0.01, 1 - margin.left - margin.right);

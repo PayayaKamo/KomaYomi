@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { ChapterEntry, Lang, Library, PageEntry, VolumeEntry } from '../types';
-import { LANGUAGES, LANG_SHORT } from '../types';
+import { LANGUAGES, LANG_SHORT, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { thumbUrl } from '../api';
+import { useI18n } from '../i18n';
 import { AddVolumeDialog, VolumeSettingsDialog } from './LibraryDialogs';
 import { DataToolsDialog } from './DataToolsDialog';
+import { ProjectDialog } from './ProjectDialog';
+import { ExchangeDialog } from './ExchangeDialog';
+import { DirRulesDialog } from './DirRulesDialog';
 
 type Props = {
   library: Library | null;
@@ -12,6 +16,8 @@ type Props = {
   selection: Selection | null;
   onOpen: (sel: Selection) => void;
   onReload: (library?: Library) => void;
+  /** Whether the current page has unsaved edits; warned before project export/import. */
+  dirty: boolean;
 };
 
 function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
@@ -22,15 +28,80 @@ function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
   return null;
 }
 
-export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Props) {
+type FootIconName = 'project' | 'exchange' | 'rules' | 'backup';
+
+/** Logo, product name and the localised tagline (two lines at most). */
+function Brand() {
+  const { t } = useI18n();
+  return (
+    <div className="brand">
+      <img className="brand-logo" src="/icon.svg" alt="" width={26} height={26} />
+      <div className="brand-text">
+        <span className="brand-name">KomaYomi</span>
+        <span className="brand-sub">{t('app.tagline')}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Small monochrome icons for the sidebar footer; they inherit the theme colour. */
+function FootIcon({ name }: { name: FootIconName }) {
+  return (
+    <svg
+      className="foot-icon"
+      viewBox="0 0 14 14"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {name === 'project' && (
+        <>
+          <path d="M3.5 1.8h4l3 3v7.4h-7z" />
+          <path d="M7.5 1.8v3h3" />
+        </>
+      )}
+      {name === 'exchange' && (
+        <>
+          <path d="M2.6 4.6h8.2m0 0-2.1-2.1m2.1 2.1-2.1 2.1" />
+          <path d="M11.4 9.4H3.2m0 0 2.1-2.1M3.2 9.4l2.1 2.1" />
+        </>
+      )}
+      {name === 'rules' && (
+        <>
+          <path d="M2.4 3.6h9.2M2.4 7h9.2M2.4 10.4h9.2" />
+          <circle cx="5.4" cy="3.6" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="9" cy="7" r="1.3" fill="currentColor" stroke="none" />
+          <circle cx="4.4" cy="10.4" r="1.3" fill="currentColor" stroke="none" />
+        </>
+      )}
+      {name === 'backup' && (
+        <>
+          <path d="M7 1.8v6.4m0 0L4.4 5.6M7 8.2l2.6-2.6" />
+          <path d="M2.4 10.2v1.8h9.2v-1.8" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty }: Props) {
+  const { t, formatNumber } = useI18n();
   const [open, setOpen] = useState<Record<string, boolean>>(() => ({}));
   const [addOpen, setAddOpen] = useState(false);
   const [settings, setSettings] = useState<VolumeEntry | null>(null);
   const [dataOpen, setDataOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [dirRulesOpen, setDirRulesOpen] = useState(false);
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
-  // 当前话自动展开
+  // Auto-expand the active chapter.
   const expanded = useMemo(() => {
     const base = { ...open };
     if (activeChapterKey) base[activeChapterKey] = base[activeChapterKey] ?? true;
@@ -41,8 +112,8 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
     return (
       <aside className="sidebar">
         <div className="sidebar-head">
-          <div className="brand">Manga Memo</div>
-          <div className="root-path">载入图库中…</div>
+          <Brand />
+          <div className="root-path">{t('sidebar.loadingLibrary')}</div>
         </div>
       </aside>
     );
@@ -52,14 +123,18 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
     return (
       <aside className="sidebar">
         <div className="sidebar-head">
-          <div className="brand">Manga Memo</div>
+          <Brand />
         </div>
         <div className="sidebar-empty">
-          没有在 <code>{rootPath || 'raw'}</code> 下找到任何卷目录。
+          {t('sidebar.emptyNoVolumesBefore')}
+          <code>{rootPath || 'raw'}</code>
+          {t('sidebar.emptyNoVolumesAfter')}
           <br />
-          请把图片按 <code>raw/卷名/ja/话号/01.jpg</code> 的层级放好，或直接添加漫画。
+          {t('sidebar.emptyHintBefore')}
+          <code>{t('sidebar.emptyHintExample')}</code>
+          {t('sidebar.emptyHintAfter')}
           <button type="button" className="btn primary block" onClick={() => setAddOpen(true)}>
-            ＋ 添加漫画
+            {t('sidebar.addManga')}
           </button>
         </div>
         {addOpen && (
@@ -89,9 +164,13 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
           onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}
         >
           <span className={`chev ${isOpen ? 'open' : ''}`}>▸</span>
-          <span className="ch-name">第 {chapter.chapter} 话</span>
+          <span className="ch-name">
+            {chapter.chapter === SINGLE_CHAPTER
+              ? t('sidebar.singleChapter')
+              : t('format.chapter', { chapter: chapter.chapter })}
+          </span>
           <span className="ch-meta">
-            {annotated > 0 && <span className="chip-mini ok">{annotated}</span>}
+            {annotated > 0 && <span className="chip-mini ok">{formatNumber(annotated)}</span>}
             {pageWarnings > 0 && (
               <span className="chip-mini warn" title={chapter.pages.flatMap((p) => p.warnings).join('\n')}>
                 !
@@ -120,15 +199,21 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
                     type="button"
                     key={page.index}
                     className={`thumb ${active ? 'active' : ''} ${file ? '' : 'missing'}`}
-                    title={`第 ${page.index + 1} 页${page.warnings.length ? '\n' + page.warnings.join('\n') : ''}`}
+                    title={`${t('format.page', { page: formatNumber(page.index + 1) })}${
+                      page.warnings.length ? '\n' + page.warnings.join('\n') : ''
+                    }`}
                     onClick={() => onOpen({ volume: volumeId, chapter: chapter.chapter, pageIndex: page.index })}
                   >
                     {file ? (
-                      <img src={thumbUrl(file.url, 200)} alt={`第 ${page.index + 1} 页`} loading="lazy" />
+                      <img
+                        src={thumbUrl(file.url, 200)}
+                        alt={t('format.page', { page: formatNumber(page.index + 1) })}
+                        loading="lazy"
+                      />
                     ) : (
-                      <span>缺图</span>
+                      <span>{t('sidebar.missingImage')}</span>
                     )}
-                    <em>{page.index + 1}</em>
+                    <em>{formatNumber(page.index + 1)}</em>
                     {page.warnings.length > 0 && <i className="thumb-warn">!</i>}
                     {page.annotated && <i className="thumb-dot" />}
                     {file && <b className="thumb-lang">{LANG_SHORT[file.lang]}</b>}
@@ -145,14 +230,19 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <div className="brand">
-          Manga Memo
-          <span className="brand-sub">多语言对照批注</span>
-        </div>
+        <Brand />
         <div className="root-path" title={rootPath}>
-          {library.volumes.length} 卷 · {library.volumes.reduce((n, v) => n + v.chapters.length, 0)} 话
-          <button type="button" className="btn tiny add-volume-btn" onClick={() => setAddOpen(true)} title="添加漫画目录">
-            ＋ 漫画
+          {t('format.volumesChapters', {
+            volumes: formatNumber(library.volumes.length),
+            chapters: formatNumber(library.volumes.reduce((n, v) => n + v.chapters.length, 0)),
+          })}
+          <button
+            type="button"
+            className="btn tiny add-volume-btn"
+            onClick={() => setAddOpen(true)}
+            title={t('sidebar.addMangaTitle')}
+          >
+            {t('sidebar.addMangaShort')}
           </button>
         </div>
       </div>
@@ -160,29 +250,89 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
         {library.volumes.map((volume) => (
           <div className="volume" key={volume.id}>
             <div className="volume-title">
-              <span>{volume.title}</span>
-              <span className="volume-langs">{volume.languages.map((l) => LANG_SHORT[l]).join(' · ') || '未配置'}</span>
+              <span className="volume-name" title={volume.title}>
+                {volume.title}
+              </span>
+              <span
+                className="volume-langs"
+                title={volume.languages.length ? volume.languages.map((l) => LANG_SHORT[l]).join(' · ') : undefined}
+              >
+                {volume.languages.length ? (
+                  <>
+                    {volume.languages
+                      .slice(0, 2)
+                      .map((l) => LANG_SHORT[l])
+                      .join(' · ')}
+                    {volume.languages.length > 2 && <b className="volume-langs-more">+{volume.languages.length - 2}</b>}
+                  </>
+                ) : (
+                  t('sidebar.langsUnconfigured')
+                )}
+              </span>
               <button
                 type="button"
                 className="icon-btn volume-gear"
-                title="卷设置：语言目录"
+                title={t('sidebar.volumeSettingsTitle')}
                 onClick={() => setSettings(volume)}
               >
                 ⚙
               </button>
-              {volume.warnings.map((w) => (
-                <em key={w}>{w}</em>
-              ))}
             </div>
+            {volume.warnings.map((w) => (
+              <em className="volume-warn" key={w}>
+                {w}
+              </em>
+            ))}
             {volume.chapters.map((chapter) => renderChapter(volume.id, chapter))}
           </div>
         ))}
       </div>
       <div className="sidebar-foot">
-        <span>raw 只读</span>
-        <button type="button" className="btn tiny" onClick={() => setDataOpen(true)} title="备份 / 恢复 data/">
-          备份 / 恢复
-        </button>
+        <span className="sidebar-foot-status" title={t('sidebar.rawReadOnly')}>
+          {t('sidebar.rawReadOnly')}
+        </span>
+        <span className="sidebar-foot-actions">
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setProjectOpen(true)}
+            title={t('sidebar.projectFileTitle')}
+            aria-label={t('sidebar.projectFileTitle')}
+          >
+            <FootIcon name="project" />
+            <span className="foot-label">{t('sidebar.projectFile')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setExchangeOpen(true)}
+            title={t('sidebar.exchangeTitle')}
+            aria-label={t('sidebar.exchangeTitle')}
+          >
+            <FootIcon name="exchange" />
+            <span className="foot-label">{t('sidebar.exchange')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setDirRulesOpen(true)}
+            title={t('sidebar.dirRulesTitle')}
+            aria-label={t('sidebar.dirRulesTitle')}
+          >
+            <FootIcon name="rules" />
+            <span className="foot-label">{t('sidebar.dirRules')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setDataOpen(true)}
+            title={t('sidebar.backupTitle')}
+            aria-label={t('sidebar.backupTitle')}
+          >
+            <FootIcon name="backup" />
+            <span className="foot-label">{t('sidebar.backup')}</span>
+          </button>
+        </span>
       </div>
 
       {addOpen && (
@@ -205,6 +355,18 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload }: Prop
         />
       )}
       {dataOpen && <DataToolsDialog onClose={() => setDataOpen(false)} onRestored={(lib) => onReload(lib)} />}
+      {projectOpen && (
+        <ProjectDialog dirty={dirty} onClose={() => setProjectOpen(false)} onImported={(lib) => onReload(lib)} />
+      )}
+      {exchangeOpen && (
+        <ExchangeDialog
+          dirty={dirty}
+          selection={selection}
+          onClose={() => setExchangeOpen(false)}
+          onChanged={() => onReload()}
+        />
+      )}
+      {dirRulesOpen && <DirRulesDialog onClose={() => setDirRulesOpen(false)} onSaved={(lib) => onReload(lib)} />}
     </aside>
   );
 }

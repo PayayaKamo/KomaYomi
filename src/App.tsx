@@ -4,33 +4,93 @@ import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
+import { FileMenu } from './components/FileMenu';
+import { AboutDialog } from './components/AboutDialog';
+import { PageHistoryDialog } from './components/PageHistoryDialog';
+import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
 import { api } from './api';
-import { LANG_LABEL, READING_LABEL, LANGUAGES } from './types';
+import { pushRecent } from './lib/recent';
+import { LANGUAGES } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
-import { sortPanels } from './lib/geometry';
+import { langLabel, readingLabel, useI18n } from './i18n';
+import type { Locale } from './i18n';
+import type { CSSProperties } from 'react';
+import { applyGroupOrder, sortPanels } from './lib/geometry';
+import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
+import type { ThemeMode } from './theme';
+
+/** Order used by the reading-direction selector; the labels come from i18n. */
+const READING_DIRECTIONS: ReadingDirection[] = ['rtl', 'ltr', 'ttb'];
+
+/** Drag-resizable panes: storage key and the range that keeps both usable. */
+const SIDEBAR_PANE = { key: 'manga-memo.sidebar-width', min: 200, max: 420 };
+const NOTES_PANE = { key: 'manga-memo.notes-width', min: 260, max: 560 };
 
 export default function App() {
+  const { t, locale, setLocale, formatNumber } = useI18n();
   const [library, setLibrary] = useState<Library | null>(null);
   const [rootPath, setRootPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [view, setView] = useState<'panels' | 'compare'>('panels');
-  const [langs, setLangs] = useState<Lang[]>(['ja', 'zh', 'en']);
+  const [langs, setLangsState] = useState<Lang[]>(['ja', 'zh', 'en']);
   const [overlay, setOverlay] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
   const [tagStats, setTagStats] = useState<{ tag: string; count: number }[]>([]);
   const [notesOpen, setNotesOpen] = useState(() => window.innerWidth > 1180);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
+  const [sidebarWidth, setSidebarWidth] = useState<number | null>(() =>
+    loadPaneWidth(SIDEBAR_PANE.key, SIDEBAR_PANE.min, SIDEBAR_PANE.max),
+  );
+  const [notesWidth, setNotesWidth] = useState<number | null>(() =>
+    loadPaneWidth(NOTES_PANE.key, NOTES_PANE.min, NOTES_PANE.max),
+  );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
+
+  /** On phones/tablets the library is a drawer: picking a page should reveal the stage. */
+  const openSelection = useCallback((next: Selection) => {
+    setSel(next);
+    if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
+  }, []);
+
+  /** The topbar logo goes back to the library landing view. */
+  const goHome = useCallback(() => {
+    setSel(null);
+    setSelected([]);
+    setView('panels');
+    setSidebarOpen(true);
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+  }, []);
+
+  // Keep the palette in sync with the stored preference and with OS changes when the
+  // user picked "system". index.html already applied it before paint, so this only
+  // matters for in-app switches and OS flips.
+  useEffect(() => {
+    applyTheme(theme);
+    return watchSystemTheme(theme);
+  }, [theme]);
+
+  // Keep customized pane widths usable when the window shrinks; never invent one.
+  useEffect(() => {
+    const onResize = () => {
+      setSidebarWidth((w) => (w === null ? w : clampPaneWidth(w, SIDEBAR_PANE.min, SIDEBAR_PANE.max)));
+      setNotesWidth((w) => (w === null ? w : clampPaneWidth(w, NOTES_PANE.min, NOTES_PANE.max)));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const pageState = usePage(sel);
   const { doc, page } = pageState;
 
-  // hash 深链：#/<卷>/<话>/<页(1 起)>，便于直接打开与分享
+  // Hash deep link: #/<volume>/<chapter>/<page (1-based)>, for direct opening and sharing.
   useEffect(() => {
     const readHash = () => {
       const raw = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
@@ -56,15 +116,27 @@ export default function App() {
     if (location.hash !== next) history.replaceState(null, '', next);
   }, [sel, view]);
 
+  // Remember the last page of each chapter for File → Recent.
+  useEffect(() => {
+    if (sel) pushRecent({ volume: sel.volume, chapter: sel.chapter, pageIndex: sel.pageIndex });
+  }, [sel]);
+
   const loadLibrary = useCallback(() => {
     api
       .library()
       .then((res) => {
         setLibrary(res.library);
         setRootPath(res.root);
+        if (res.library.langOrder?.length) setLangsState(res.library.langOrder);
         setLibError(null);
       })
       .catch((err: unknown) => setLibError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  // Keep the persisted order in sync whenever the compare bar changes it.
+  const setLangs = useCallback((next: Lang[]) => {
+    setLangsState(next);
+    api.saveLangOrder(next).catch(() => undefined);
   }, []);
 
   const loadTags = useCallback(() => {
@@ -79,7 +151,7 @@ export default function App() {
     loadTags();
   }, [loadLibrary, loadTags]);
 
-  // 页面首次落盘后刷新图库角标
+  // Refresh the gallery badge once the page is first written to disk.
   useEffect(() => {
     if (pageState.exists) loadLibrary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,13 +162,29 @@ export default function App() {
     setSelected((prev) => prev.filter((id) => doc.panels.some((p) => p.id === id)));
   }, [doc?.panels, doc]);
 
-  const ordered = useMemo(() => (doc ? sortPanels(doc.panels, doc.readingDirection) : []), [doc]);
+  // In confirm mode, warn before leaving with pending edits; autosave mode needs no guard.
+  useEffect(() => {
+    if (!pageState.dirty || pageState.saveMode !== 'confirm') return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [pageState.dirty, pageState.saveMode]);
+
+  const ordered = useMemo(
+    () => (doc ? applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups) : []),
+    [doc],
+  );
   const primaryId = selected[selected.length - 1];
   const primaryPanel = doc?.panels.find((p) => p.id === primaryId) ?? null;
   const primaryIndex = primaryPanel ? ordered.findIndex((p) => p.id === primaryPanel.id) : -1;
-  const panelLabel = primaryIndex >= 0 ? `第 ${primaryIndex + 1} 格` : '本格';
+  const panelLabel =
+    primaryIndex >= 0 ? t('format.panel', { number: formatNumber(primaryIndex + 1) }) : t('notes.thisPanel');
 
-  // 笔记总览跳转：先切页，等分格载入后再选中目标格，避免被“清理无效选择”逻辑吞掉
+  // Notes-overview jump: switch page first, then select the target panel once panels load,
+  // so the "prune invalid selection" effect cannot swallow the selection.
   useEffect(() => {
     if (!doc || !pendingPanel) return;
     if (doc.panels.some((p) => p.id === pendingPanel)) {
@@ -137,13 +225,31 @@ export default function App() {
     [library, sel],
   );
 
-  // 键盘快捷键（输入框内不触发）：[ ] 翻页，P 分格，C 对照，S 侧栏，N 笔记，E 导出
+  // Destructured so the shortcut effect depends on the callbacks themselves
+  // instead of the whole pageState object (which changes on every keystroke of a note).
+  const undoPage = pageState.undo;
+  const redoPage = pageState.redo;
+
+  // Keyboard shortcuts (ignored while an input has focus): [ ] page, P panels, C compare,
+  // S sidebar, N notes, E export.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.ctrlKey || e.metaKey) {
+        const mod = e.key.toLowerCase();
+        if (mod === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) redoPage();
+          else undoPage();
+        } else if (mod === 'y') {
+          e.preventDefault();
+          redoPage();
+        }
+        return;
+      }
+      if (e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === '[') {
         e.preventDefault();
@@ -160,17 +266,19 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, goPage]);
+  }, [doc, goPage, undoPage, redoPage]);
 
   const availableLangs = page ? LANGUAGES.filter((l) => Boolean(page.files[l])) : [];
 
   const saveLabel = !doc
     ? ''
     : pageState.saving
-      ? '保存中…'
+      ? t('app.saveSaving')
       : pageState.dirty
-        ? '待保存'
-        : '已保存';
+        ? pageState.saveMode === 'confirm'
+          ? t('app.saveUnsaved')
+          : t('app.savePending')
+        : t('app.saveSaved');
 
   return (
     <div className={`app ${notesOpen ? 'show-notes' : ''} ${sidebarOpen ? '' : 'sidebar-closed'}`}>
@@ -178,9 +286,31 @@ export default function App() {
         <div className="tb-left">
           <button
             type="button"
+            className="brand-mark"
+            onClick={goHome}
+            title={t('app.brandHome')}
+            aria-label={t('app.brandHome')}
+          >
+            <img src="/icon.svg" alt="" width={22} height={22} />
+          </button>
+          <FileMenu
+            library={library}
+            selection={sel}
+            dirty={pageState.dirty}
+            hasDoc={Boolean(doc)}
+            onOpenSelection={openSelection}
+            onReloadLibrary={() => {
+              loadLibrary();
+              loadTags();
+            }}
+            onExport={() => setExportOpen(true)}
+            onSave={() => void pageState.commit()}
+          />
+          <button
+            type="button"
             className={`btn icon ${sidebarOpen ? 'on' : ''}`}
             onClick={() => setSidebarOpen((v) => !v)}
-            title="显示/隐藏图库侧栏（S）"
+            title={t('app.toggleSidebarTitle')}
           >
             ☰
           </button>
@@ -188,40 +318,57 @@ export default function App() {
             type="button"
             className="btn icon help-btn"
             onClick={() => setHelpOpen(true)}
-            title="快捷键与使用帮助（?）"
+            title={t('app.helpTitle')}
           >
             ?
           </button>
-          <div className="logo">
-            Manga&nbsp;Memo<span>漫画多语言对照</span>
-          </div>
+          <button
+            type="button"
+            className="btn icon"
+            onClick={() => setAboutOpen(true)}
+            title={t('about.openTitle')}
+            aria-label={t('about.title')}
+          >
+            ⓘ
+          </button>
           {sel && (
             <div className="crumb">
               <span>{sel.volume}</span>
               <i>/</i>
-              <span>第 {sel.chapter} 话</span>
+              <span>{t('format.chapter', { chapter: sel.chapter })}</span>
               <i>/</i>
-              <b>第 {sel.pageIndex + 1} 页</b>
+              <b>{t('format.page', { page: formatNumber(sel.pageIndex + 1) })}</b>
               <div className="page-nav">
-                <button type="button" onClick={() => goPage(-1)} title="上一页（[）">
+                <button type="button" onClick={() => goPage(-1)} title={t('app.prevPageTitle')}>
                   ‹
                 </button>
-                <button type="button" onClick={() => goPage(1)} title="下一页（]）">
+                <button type="button" onClick={() => goPage(1)} title={t('app.nextPageTitle')}>
                   ›
                 </button>
               </div>
             </div>
           )}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {sel && (
+            <button
+              type="button"
+              className="btn tiny history-btn"
+              onClick={() => setHistoryOpen(true)}
+              title={t('app.historyTitle')}
+            >
+              <span aria-hidden>≡</span>
+              <span className="history-btn-label">{t('app.historyButton')}</span>
+            </button>
+          )}
         </div>
 
         <div className="tb-center">
           <div className="seg big">
             <button type="button" className={view === 'panels' ? 'on' : ''} onClick={() => setView('panels')}>
-              分格
+              {t('app.tabPanels')}
             </button>
             <button type="button" className={view === 'compare' ? 'on' : ''} onClick={() => setView('compare')}>
-              对照阅读
+              {t('app.tabCompare')}
             </button>
           </div>
         </div>
@@ -232,35 +379,122 @@ export default function App() {
               className="tb-select wide"
               value={doc.readingDirection}
               onChange={(e) => changeDirection(e.target.value as ReadingDirection)}
-              title="阅读顺序（影响格子编号与对照排序）"
+              title={t('app.readingOrderTitle')}
             >
-              {(Object.keys(READING_LABEL) as ReadingDirection[]).map((d) => (
+              {READING_DIRECTIONS.map((d) => (
                 <option key={d} value={d}>
-                  {READING_LABEL[d]}
+                  {readingLabel(d)}
                 </option>
               ))}
             </select>
           )}
+          <select
+            className="tb-select"
+            value={theme}
+            onChange={(e) => {
+              const next = e.target.value as ThemeMode;
+              setTheme(next);
+              saveThemeMode(next);
+            }}
+            title={t('app.themeTitle')}
+            aria-label={t('app.themeAria')}
+          >
+            <option value="system">{t('app.themeSystem')}</option>
+            <option value="light">{t('app.themeLight')}</option>
+            <option value="dark">{t('app.themeDark')}</option>
+          </select>
+          <select
+            className="tb-select"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as Locale)}
+            title={t('app.languageTitle')}
+            aria-label={t('app.languageAria')}
+          >
+            <option value="en">{t('locale.en')}</option>
+            <option value="zh">{t('locale.zh')}</option>
+            <option value="ja">{t('locale.ja')}</option>
+          </select>
           <button type="button" className={`btn ${notesOpen ? 'on' : ''}`} onClick={() => setNotesOpen((v) => !v)}>
-            笔记
+            {t('app.notesButton')}
           </button>
           <button type="button" className="btn primary" disabled={!doc} onClick={() => setExportOpen(true)}>
-            导出<span className="tb-export-extra"> HTML</span>
+            {t('app.exportButton')}
+            <span className="tb-export-extra"> HTML</span>
           </button>
         </div>
       </header>
 
-      <div className="body-area">
-        <Sidebar library={library} rootPath={rootPath} selection={sel} onOpen={setSel} onReload={loadLibrary} />
+      <div
+        className="body-area"
+        style={
+          {
+            '--sidebar-w': sidebarWidth === null ? undefined : `${sidebarWidth}px`,
+            '--notes-w': notesWidth === null ? undefined : `${notesWidth}px`,
+          } as CSSProperties
+        }
+      >
+        <Sidebar
+          library={library}
+          rootPath={rootPath}
+          selection={sel}
+          onOpen={openSelection}
+          onReload={loadLibrary}
+          dirty={pageState.dirty}
+        />
+        {sidebarOpen && (
+          <div
+            className="scrim"
+            onPointerDown={() => {
+              // The scrim only exists below 1024px; tapping it dismisses the drawer.
+              if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
+            }}
+          />
+        )}
 
         <main className="stage">
-          {libError && <div className="banner error">图库读取失败：{libError}</div>}
+          {sidebarOpen && (
+            <PaneSplitter
+              edge="left"
+              target=".sidebar"
+              cssVar="--sidebar-w"
+              min={SIDEBAR_PANE.min}
+              max={SIDEBAR_PANE.max}
+              label={t('pane.libraryHandle')}
+              onCommit={(w) => {
+                setSidebarWidth(w);
+                savePaneWidth(SIDEBAR_PANE.key, w);
+              }}
+              onReset={() => {
+                setSidebarWidth(null);
+                savePaneWidth(SIDEBAR_PANE.key, null);
+              }}
+            />
+          )}
+          {notesOpen && (
+            <PaneSplitter
+              edge="right"
+              target=".notes-col"
+              cssVar="--notes-w"
+              min={NOTES_PANE.min}
+              max={NOTES_PANE.max}
+              label={t('pane.notesHandle')}
+              onCommit={(w) => {
+                setNotesWidth(w);
+                savePaneWidth(NOTES_PANE.key, w);
+              }}
+              onReset={() => {
+                setNotesWidth(null);
+                savePaneWidth(NOTES_PANE.key, null);
+              }}
+            />
+          )}
+          {libError && <div className="banner error">{t('app.libraryError', { error: libError })}</div>}
           {pageState.error && <div className="banner error">{pageState.error}</div>}
 
           {!sel ? (
-            <Welcome library={library} onOpen={setSel} />
+            <Welcome library={library} onOpen={openSelection} />
           ) : pageState.loading ? (
-            <div className="stage-loading">载入第 {sel.pageIndex + 1} 页…</div>
+            <div className="stage-loading">{t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}</div>
           ) : doc && page ? (
             view === 'panels' ? (
               <PanelsTab
@@ -272,6 +506,16 @@ export default function App() {
                 selected={selected}
                 setSelected={setSelected}
                 onReload={pageState.reload}
+                saveMode={pageState.saveMode}
+                setSaveMode={pageState.setSaveMode}
+                dirty={pageState.dirty}
+                saving={pageState.saving}
+                onCommit={() => void pageState.commit()}
+                onDiscard={pageState.discard}
+                canUndo={pageState.canUndo}
+                canRedo={pageState.canRedo}
+                onUndo={pageState.undo}
+                onRedo={pageState.redo}
               />
             ) : (
               <CompareTab
@@ -285,10 +529,14 @@ export default function App() {
                 setLangs={setLangs}
                 overlay={overlay}
                 setOverlay={setOverlay}
+                canUndo={pageState.canUndo}
+                canRedo={pageState.canRedo}
+                onUndo={pageState.undo}
+                onRedo={pageState.redo}
               />
             )
           ) : (
-            !pageState.error && <div className="stage-loading">没有可显示的内容</div>
+            !pageState.error && <div className="stage-loading">{t('app.noContent')}</div>
           )}
         </main>
 
@@ -322,16 +570,25 @@ export default function App() {
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
-      {sel && availableLangs.length === 0 && (
-        <div className="banner error floating">这一页没有任何语言的图片，无法编辑。请在 raw 目录补齐素材。</div>
-      )}
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+
+      <PageHistoryDialog
+        open={historyOpen && Boolean(sel)}
+        sel={sel}
+        onClose={() => setHistoryOpen(false)}
+        onBeforeRestore={pageState.flush}
+        onRestored={pageState.reload}
+      />
+
+      {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 
       {availableLangs.length > 0 && availableLangs.length < 3 && sel && (
         <div className="banner info floating">
-          {LANGUAGES.filter((l) => !availableLangs.includes(l))
-            .map((l) => LANG_LABEL[l])
-            .join(' / ')}{' '}
-          在本页缺失，对照时会显示占位。
+          {t('app.missingLangs', {
+            langs: LANGUAGES.filter((l) => !availableLangs.includes(l))
+              .map((l) => langLabel(l))
+              .join(' / '),
+          })}
         </div>
       )}
     </div>
@@ -343,13 +600,14 @@ function Kbd({ children }: { children: string }) {
 }
 
 function HelpDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal help-modal">
         <header className="modal-head">
           <div>
-            <h2>快捷键与操作</h2>
-            <p>在输入框内不会触发单键快捷键</p>
+            <h2>{t('app.help.heading')}</h2>
+            <p>{t('app.help.subtitle')}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             ×
@@ -357,79 +615,83 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
         </header>
         <div className="help-body">
           <section>
-            <h3>全局</h3>
+            <h3>{t('app.help.global')}</h3>
             <dl>
               <dt>
                 <Kbd>[</Kbd> <Kbd>]</Kbd>
               </dt>
-              <dd>上一页 / 下一页（可跨话）</dd>
+              <dd>{t('app.help.prevNext')}</dd>
               <dt>
                 <Kbd>P</Kbd> <Kbd>C</Kbd>
               </dt>
-              <dd>切换到分格编辑 / 对照阅读</dd>
+              <dd>{t('app.help.switchViews')}</dd>
               <dt>
                 <Kbd>S</Kbd>
               </dt>
-              <dd>显示或收起图库侧栏</dd>
+              <dd>{t('app.help.toggleSidebar')}</dd>
               <dt>
                 <Kbd>N</Kbd>
               </dt>
-              <dd>显示或收起批注栏</dd>
+              <dd>{t('app.help.toggleNotes')}</dd>
               <dt>
                 <Kbd>E</Kbd>
               </dt>
-              <dd>打开导出窗</dd>
+              <dd>{t('app.help.openExport')}</dd>
               <dt>
                 <Kbd>?</Kbd>
               </dt>
-              <dd>打开本帮助</dd>
+              <dd>{t('app.help.openHelp')}</dd>
             </dl>
           </section>
 
           <section>
-            <h3>分格</h3>
+            <h3>{t('app.help.panels')}</h3>
             <dl>
-              <dt>拖拽</dt>
-              <dd>移动格子；拖角点做八向缩放</dd>
-              <dt>双击空白</dt>
-              <dd>快速补一个格子</dd>
+              <dt>{t('app.help.dragTitle')}</dt>
+              <dd>{t('app.help.dragDesc')}</dd>
+              <dt>{t('app.help.dblclickTitle')}</dt>
+              <dd>{t('app.help.dblclickDesc')}</dd>
               <dt>
-                <Kbd>Ctrl</Kbd>/<Kbd>Shift</Kbd> 点选
+                <Kbd>Ctrl</Kbd>/<Kbd>Shift</Kbd> {t('app.help.multiSelect')}
               </dt>
-              <dd>多选后合并；<Kbd>Delete</Kbd> 删除</dd>
-              <dt>数值输入</dt>
-              <dd>工具栏第二行可直接改 X/Y/宽/高（百分比）</dd>
+              <dd>
+                {t('app.help.mergePrefix')}
+                <Kbd>Delete</Kbd>
+                {t('app.help.mergeSuffix')}
+              </dd>
+              <dt>{t('app.help.numericTitle')}</dt>
+              <dd>{t('app.help.numericDesc')}</dd>
             </dl>
           </section>
 
           <section>
-            <h3>对照与对齐</h3>
+            <h3>{t('app.help.compare')}</h3>
             <dl>
-              <dt>拖动画面</dt>
-              <dd>平移该语言；滚轮缩放</dd>
-              <dt>对齐模式</dt>
-              <dd>整页偏移 / 逐格偏移 / 锚点对齐 / 网格吸附</dd>
-              <dt>锚点模式</dt>
-              <dd>先点参考图的特征点，再点目标图的同一点即可对齐</dd>
+              <dt>{t('app.help.panTitle')}</dt>
+              <dd>{t('app.help.panDesc')}</dd>
+              <dt>{t('app.help.alignTitle')}</dt>
+              <dd>{t('app.help.alignDesc')}</dd>
+              <dt>{t('app.help.anchorTitle')}</dt>
+              <dd>{t('app.help.anchorDesc')}</dd>
             </dl>
           </section>
 
           <section>
-            <h3>导出</h3>
+            <h3>{t('app.help.export')}</h3>
             <dl>
-              <dt>默认</dt>
-              <dd>HTML + 同名 .files 图片目录，直接双击可看</dd>
-              <dt>单文件</dt>
-              <dd>内嵌图片，适合外发；整话体积较大</dd>
-              <dt>PNG</dt>
-              <dd>整页 / 当前格 / 三语拼图，可直接插入 PPT</dd>
+              <dt>{t('app.help.exportDefaultTitle')}</dt>
+              <dd>{t('app.help.exportDefaultDesc')}</dd>
+              <dt>{t('app.help.exportSingleTitle')}</dt>
+              <dd>{t('app.help.exportSingleDesc')}</dd>
+              <dt>{t('app.help.exportPngTitle')}</dt>
+              <dd>{t('app.help.exportPngDesc')}</dd>
             </dl>
           </section>
         </div>
         <footer className="modal-foot">
-          <span className="muted tiny">数据保存在项目 data/ 目录，可整体备份</span>
+          <span className="muted tiny">{t('app.help.footer')}</span>
           <button type="button" className="btn primary" onClick={onClose}>
-            知道了
+            {t('app.help.close')}
           </button>
         </footer>
       </div>
@@ -438,44 +700,46 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
 }
 
 function Welcome({ library, onOpen }: { library: Library | null; onOpen: (sel: Selection) => void }) {
+  const { t } = useI18n();
   const first = library?.volumes[0]?.chapters[0];
   return (
     <div className="welcome">
       <div className="welcome-hero">
-        <h1>漫画多语言对照阅读与批注</h1>
-        <p>
-          逐页自动切格，按格并排对照 日本語 / 中文 / English，记录长期批注，最后导出成可分享的 HTML 对照稿。
-        </p>
+        <h1>{t('app.welcome.title')}</h1>
+        <p>{t('app.welcome.desc')}</p>
         {first && (
           <button
             type="button"
             className="btn primary large"
             onClick={() => onOpen({ volume: first.volume, chapter: first.chapter, pageIndex: 0 })}
           >
-            从「{first.volume} · 第 {first.chapter} 话」开始
+            {t('app.welcome.start', {
+              volume: first.volume,
+              chapter: t('format.chapter', { chapter: first.chapter }),
+            })}
           </button>
         )}
       </div>
       <div className="welcome-steps">
         <div>
           <b>1</b>
-          <h3>选页</h3>
-          <p>左侧按 卷 → 话 → 页 浏览，三语按序号自动配对，缺页与命名异常会有角标提示。</p>
+          <h3>{t('app.welcome.step1Title')}</h3>
+          <p>{t('app.welcome.step1Desc')}</p>
         </div>
         <div>
           <b>2</b>
-          <h3>分格</h3>
-          <p>首次打开自动检测格子，可拖拽边框、补框、删框、合并；结果自动保存到 data/pages。</p>
+          <h3>{t('app.welcome.step2Title')}</h3>
+          <p>{t('app.welcome.step2Desc')}</p>
         </div>
         <div>
           <b>3</b>
-          <h3>对照</h3>
-          <p>1/2/3 语自由切换，同格并排；拖动各自画面即可对齐，偏移量随页面记住；支持半透明叠加。</p>
+          <h3>{t('app.welcome.step3Title')}</h3>
+          <p>{t('app.welcome.step3Desc')}</p>
         </div>
         <div>
           <b>4</b>
-          <h3>批注与导出</h3>
-          <p>页级/格级批注 + 标签，按标签筛选；一键导出左图右注的 HTML，版式可拖动调整。</p>
+          <h3>{t('app.welcome.step4Title')}</h3>
+          <p>{t('app.welcome.step4Desc')}</p>
         </div>
       </div>
     </div>

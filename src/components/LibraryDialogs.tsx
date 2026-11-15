@@ -1,17 +1,21 @@
 import { useMemo, useState } from 'react';
 import type { Lang, Library, VolumeEntry } from '../types';
-import { LANGUAGES, LANG_LABEL } from '../types';
+import { LANGUAGES } from '../types';
 import { api } from '../api';
+import { langLabel, useI18n } from '../i18n';
 
 type AddProps = {
   onClose: () => void;
   onDone: (library: Library) => void;
+  /** Pre-filled folder path, used by the File → Open library action. */
+  initialPath?: string;
 };
 
-/** 添加漫画：选择本地文件夹（桌面端）或手动填路径；也可以只在 raw 下建一个空目录 */
-export function AddVolumeDialog({ onClose, onDone }: AddProps) {
-  const [pathValue, setPathValue] = useState('');
-  const [name, setName] = useState('');
+/** Add manga: pick a local folder (desktop) or type a path; an empty directory under raw works too. */
+export function AddVolumeDialog({ onClose, onDone, initialPath = '' }: AddProps) {
+  const { t } = useI18n();
+  const [pathValue, setPathValue] = useState(initialPath);
+  const [name, setName] = useState(() => initialPath.split(/[\\/]/).filter(Boolean).pop() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -19,10 +23,10 @@ export function AddVolumeDialog({ onClose, onDone }: AddProps) {
 
   const pick = async () => {
     if (!window.mangaDesktop) {
-      setError('浏览器里无法弹出文件夹选择框，请直接填写文件夹路径；桌面版可点「选择文件夹」');
+      setError(t('addVolume.browserNoPicker'));
       return;
     }
-    const dir = await window.mangaDesktop.pickFolder('选择漫画文件夹（里面应有 ja/zh/en 等语言目录）');
+    const dir = await window.mangaDesktop.pickFolder(t('addVolume.pickFolderTitle'));
     if (dir) {
       setPathValue(dir);
       if (!name) setName(dir.split(/[\\/]/).filter(Boolean).pop() ?? '');
@@ -52,8 +56,8 @@ export function AddVolumeDialog({ onClose, onDone }: AddProps) {
       <div className="modal small">
         <header className="modal-head">
           <div>
-            <h2>添加漫画</h2>
-            <p>选择包含语言目录的文件夹，或用 raw 下的新目录</p>
+            <h2>{t('addVolume.title')}</h2>
+            <p>{t('addVolume.subtitle')}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             ×
@@ -61,27 +65,31 @@ export function AddVolumeDialog({ onClose, onDone }: AddProps) {
         </header>
         <div className="modal-body">
           <label className="field">
-            <span>文件夹路径</span>
+            <span>{t('addVolume.folderPath')}</span>
             <div className="row-inline">
               <input
                 value={pathValue}
-                placeholder="例如 D:\Comics\点兔第15卷（留空则在 raw 下新建空目录）"
+                placeholder={t('addVolume.pathPlaceholder')}
                 onChange={(e) => setPathValue(e.target.value)}
               />
               <button type="button" className="btn" onClick={() => void pick()}>
-                选择文件夹…
+                {t('addVolume.chooseFolder')}
               </button>
             </div>
           </label>
           <label className="field">
-            <span>图库里的名称（可选）</span>
-            <input value={name} placeholder="默认用文件夹名" onChange={(e) => setName(e.target.value)} />
+            <span>{t('addVolume.nameLabel')}</span>
+            <input
+              value={name}
+              placeholder={t('addVolume.namePlaceholder')}
+              onChange={(e) => setName(e.target.value)}
+            />
           </label>
-          <p className="muted tiny">
-            会在 raw 下创建指向该文件夹的目录链接，不复制图片；之后仍可正常读写标注。目录结构：语言/话号/页码.jpg
-          </p>
+          <p className="field-hint">{t('addVolume.hint')}</p>
           {error && <div className="banner error">{error}</div>}
-          {added.length > 0 && <div className="banner info">已添加：{added.join('、')}</div>}
+          {added.length > 0 && (
+            <div className="banner info">{t('addVolume.added', { names: added.join(t('common.listSeparator')) })}</div>
+          )}
           {warnings.map((w) => (
             <div className="banner info" key={w}>
               {w}
@@ -90,10 +98,10 @@ export function AddVolumeDialog({ onClose, onDone }: AddProps) {
         </div>
         <footer className="modal-foot">
           <button type="button" className="btn" onClick={onClose}>
-            关闭
+            {t('common.close')}
           </button>
           <button type="button" className="btn primary" disabled={busy} onClick={() => void submit()}>
-            {busy ? '处理中…' : '添加'}
+            {busy ? t('addVolume.processing') : t('addVolume.add')}
           </button>
         </footer>
       </div>
@@ -107,8 +115,9 @@ type SettingsProps = {
   onDone: (library: Library) => void;
 };
 
-/** 卷设置：把卷下的实际目录指定给某门语言；语言不齐也可以只配 1–2 种 */
+/** Volume settings: map actual directories under the volume to languages; 1–2 languages is fine. */
 export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps) {
+  const { t } = useI18n();
   const [choice, setChoice] = useState<Record<Lang, string>>({
     ja: volume.langDirs.ja ?? '',
     zh: volume.langDirs.zh ?? '',
@@ -136,7 +145,7 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
   };
 
   const remove = async () => {
-    if (!window.confirm(`从图库移除「${volume.title}」？\n\n只会删除 raw 下的目录链接，不会删除原文件夹里的图片；已保存的标注会保留。`)) return;
+    if (!window.confirm(t('volumeSettings.removeConfirm', { title: volume.title }))) return;
     setBusy(true);
     try {
       const res = await api.removeVolume(volume.id);
@@ -154,8 +163,8 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
       <div className="modal small">
         <header className="modal-head">
           <div>
-            <h2>卷设置 · {volume.title}</h2>
-            <p>指定哪个子目录对应哪门语言；留空表示自动识别</p>
+            <h2>{t('volumeSettings.title', { title: volume.title })}</h2>
+            <p>{t('volumeSettings.subtitle')}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose}>
             ×
@@ -166,9 +175,9 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
             const candidates = volume.dirs.filter((d) => d === choice[lang] || !used.has(d));
             return (
               <label className="field" key={lang}>
-                <span>{LANG_LABEL[lang]}</span>
+                <span>{langLabel(lang)}</span>
                 <select value={choice[lang]} onChange={(e) => setChoice({ ...choice, [lang]: e.target.value })}>
-                  <option value="">不使用 / 自动</option>
+                  <option value="">{t('volumeSettings.autoOption')}</option>
                   {candidates.map((d) => (
                     <option key={d} value={d}>
                       {d}
@@ -178,7 +187,7 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
               </label>
             );
           })}
-          {!volume.languages.length && <div className="banner info">该卷还没有识别到语言目录，请在上面指定。</div>}
+          {!volume.languages.length && <div className="banner info">{t('volumeSettings.noLangs')}</div>}
           {volume.warnings.map((w) => (
             <div className="banner info" key={w}>
               {w}
@@ -188,14 +197,14 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
         </div>
         <footer className="modal-foot">
           <button type="button" className="btn danger" disabled={busy} onClick={() => void remove()}>
-            从图库移除
+            {t('volumeSettings.remove')}
           </button>
           <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>
-            取消
+            {t('common.cancel')}
           </button>
           <button type="button" className="btn primary" disabled={busy} onClick={() => void save()}>
-            {busy ? '保存中…' : '保存'}
+            {busy ? t('volumeSettings.saving') : t('common.save')}
           </button>
         </footer>
       </div>

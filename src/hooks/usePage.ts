@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import type { HistorySource } from '../api';
+import { t } from '../i18n';
 import type { PageDoc, PageEntry } from '../types';
 
 export type Selection = { volume: string; chapter: string; pageIndex: number };
 
-/** 保存模式：auto = 防抖自动保存；confirm = 需点 ✓ 才落盘 */
+/** Save mode: auto = debounced autosave; confirm = only saves when ✓ is clicked. */
 export type SaveMode = 'auto' | 'confirm';
 
 const SAVE_MODE_KEY = 'manga-memo.save-mode';
@@ -44,8 +46,8 @@ const initial: State = {
 };
 
 /**
- * 页面文档的加载 / 自动切格 / 保存 / 撤销重做。
- * auto 模式使用 700ms 防抖；confirm 模式只有 commit() 才写盘，discard() 回到磁盘版本。
+ * Loading / auto panel detection / saving / undo-redo for a page document.
+ * auto mode debounces writes by 700ms; confirm mode writes only on commit(), and discard() reverts to disk.
  */
 export function usePage(sel: Selection | null) {
   const [state, setState] = useState<State>(initial);
@@ -54,6 +56,8 @@ export function usePage(sel: Selection | null) {
   const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
 
   const pending = useRef<PageDoc | null>(null);
+  /** Why the pending save happened; forwarded to the cross-session version history. */
+  const pendingSource = useRef<HistorySource>('auto');
   const timer = useRef<number | null>(null);
   const lastKey = useRef<string>('');
   const docRef = useRef<PageDoc | null>(null);
@@ -68,17 +72,12 @@ export function usePage(sel: Selection | null) {
     try {
       localStorage.setItem(SAVE_MODE_KEY, saveMode);
     } catch {
-      /* 隐私模式下忽略 */
+      /* Ignored in private mode. */
     }
   }, [saveMode]);
 
   const syncHistoryCounts = () => {
     setHistoryState({ undo: undoStack.current.length, redo: redoStack.current.length });
-  };
-
-  const setDoc = (doc: PageDoc | null) => {
-    docRef.current = doc;
-    setState((s) => ({ ...s, doc }));
   };
 
   const clearTimer = () => {
@@ -88,7 +87,7 @@ export function usePage(sel: Selection | null) {
     }
   };
 
-  /** 丢弃待保存内容并从磁盘重新读取（批量套用模板/预设之后用，也用于 × 放弃） */
+  /** Drop pending edits and reload from disk (after bulk template/preset apply, and by × discard). */
   const reload = useCallback(() => {
     pending.current = null;
     clearTimer();
@@ -99,10 +98,12 @@ export function usePage(sel: Selection | null) {
     clearTimer();
     const doc = pending.current;
     if (!doc) return;
+    const source = pendingSource.current;
+    pendingSource.current = 'auto';
     pending.current = null;
     setState((s) => ({ ...s, saving: true }));
     try {
-      const res = await api.savePage(doc);
+      const res = await api.savePage(doc, source);
       savedDoc.current = cloneDoc(res.doc);
       setState((s) => ({ ...s, saving: false, dirty: pending.current ? s.dirty : false, exists: true }));
     } catch (err) {
@@ -112,8 +113,9 @@ export function usePage(sel: Selection | null) {
   }, []);
 
   const scheduleSave = useCallback(
-    (doc: PageDoc) => {
+    (doc: PageDoc, source: HistorySource = 'auto') => {
       pending.current = doc;
+      pendingSource.current = source;
       clearTimer();
       timer.current = window.setTimeout(() => {
         void flush();
@@ -124,7 +126,7 @@ export function usePage(sel: Selection | null) {
 
   const pushHistory = useCallback((doc: PageDoc) => {
     const now = Date.now();
-    // 拖动会连续触发 mutate，这里按时间窗合并成一步，避免撤销一次只退 1px
+    // Dragging fires mutate continuously; coalesce by time window so one undo doesn't move it 1px at a time.
     if (now - lastHistoryAt.current < HISTORY_COALESCE_MS && undoStack.current.length) return;
     undoStack.current.push(cloneDoc(doc));
     if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift();
@@ -134,7 +136,7 @@ export function usePage(sel: Selection | null) {
   }, []);
 
   const mutate = useCallback(
-    (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean }) => {
+    (fn: (doc: PageDoc) => PageDoc, opts?: { history?: boolean; source?: HistorySource }) => {
       const cur = docRef.current;
       if (!cur) return;
       const next = fn(cur);
@@ -142,21 +144,25 @@ export function usePage(sel: Selection | null) {
       if (opts?.history !== false) pushHistory(cur);
       docRef.current = next;
       setState((s) => ({ ...s, doc: next, dirty: true }));
-      if (saveModeRef.current === 'auto') scheduleSave(next);
-      else pending.current = next;
+      if (saveModeRef.current === 'auto') scheduleSave(next, opts?.source);
+      else {
+        pending.current = next;
+        pendingSource.current = opts?.source ?? 'auto';
+      }
     },
     [pushHistory, scheduleSave],
   );
 
-  /** ✓ 保存（confirm 模式）；auto 模式下等于立即落盘 */
+  /** ✓ save (confirm mode); in auto mode this writes immediately. */
   const commit = useCallback(async () => {
     const doc = docRef.current;
     if (!doc) return;
     pending.current = doc;
+    pendingSource.current = 'manual';
     await flush();
   }, [flush]);
 
-  /** × 放弃：回到最近一次落盘的内容 */
+  /** × discard: revert to the last content written to disk. */
   const discard = useCallback(() => {
     const base = savedDoc.current;
     if (!base) return;
@@ -194,15 +200,18 @@ export function usePage(sel: Selection | null) {
     syncHistoryCounts();
   }, [scheduleSave]);
 
-  const setSaveMode = useCallback((mode: SaveMode) => {
-    const prevMode = saveModeRef.current;
-    saveModeRef.current = mode;
-    setSaveModeState(mode);
-    // 从确认模式切回自动模式时，把挂起的修改立即落盘，避免静默丢失
-    if (prevMode === 'confirm' && mode === 'auto' && pending.current) {
-      scheduleSave(pending.current);
-    }
-  }, [scheduleSave]);
+  const setSaveMode = useCallback(
+    (mode: SaveMode) => {
+      const prevMode = saveModeRef.current;
+      saveModeRef.current = mode;
+      setSaveModeState(mode);
+      // Switching confirm → auto: flush pending edits now so they are not silently lost.
+      if (prevMode === 'confirm' && mode === 'auto' && pending.current) {
+        scheduleSave(pending.current);
+      }
+    },
+    [scheduleSave],
+  );
 
   const detect = useCallback(
     async (lang?: string) => {
@@ -211,14 +220,22 @@ export function usePage(sel: Selection | null) {
       try {
         const res = await api.detect(sel.volume, sel.chapter, sel.pageIndex, lang);
         const panels = res.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
-        mutate((doc) => ({
-          ...doc,
-          panels,
-          detectorVersion: res.version,
-          detectedAt: new Date().toISOString(),
-          detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
+        mutate(
+          (doc) => ({
+            ...doc,
+            panels,
+            detectorVersion: res.version,
+            detectedAt: new Date().toISOString(),
+            detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
+          }),
+          { source: 'detect' },
+        );
+        // Detector warnings come from the server in their own language; join them for display.
+        setState((s) => ({
+          ...s,
+          detecting: false,
+          error: res.warnings?.length ? res.warnings.join(t('common.listSeparator')) : null,
         }));
-        setState((s) => ({ ...s, detecting: false, error: res.warnings?.length ? res.warnings.join('；') : null }));
       } catch (err) {
         setState((s) => ({
           ...s,
@@ -230,7 +247,7 @@ export function usePage(sel: Selection | null) {
     [mutate, sel],
   );
 
-  // 加载页面
+  // Load the page.
   useEffect(() => {
     if (!sel) {
       docRef.current = null;
@@ -241,7 +258,7 @@ export function usePage(sel: Selection | null) {
     const key = `${sel.volume}|${sel.chapter}|${sel.pageIndex}`;
     lastKey.current = key;
     let cancelled = false;
-    // 确认模式下离开当前页时先把挂起修改落盘，避免切换页面静默丢失
+    // In confirm mode, flush pending edits before leaving so switching pages cannot lose them silently.
     if (pending.current && saveModeRef.current === 'confirm' && undoStack.current.length) {
       const leaving = pending.current;
       pending.current = null;
@@ -270,7 +287,7 @@ export function usePage(sel: Selection | null) {
         });
         const hasImage = Object.keys(res.page.files).length > 0;
         if (!res.exists && res.doc.panels.length === 0 && hasImage) {
-          // 首次打开：自动切格（结果会在下一步随编辑一起自动保存）
+          // First open: auto-detect panels (the result is autosaved along with the next edit).
           void api
             .detect(sel.volume, sel.chapter, sel.pageIndex)
             .then((det) => {
@@ -286,11 +303,12 @@ export function usePage(sel: Selection | null) {
               docRef.current = nextDoc;
               setState((s) => (s.doc ? { ...s, doc: nextDoc } : s));
               pending.current = nextDoc;
+              pendingSource.current = 'detect';
               if (timer.current !== null) window.clearTimeout(timer.current);
               timer.current = window.setTimeout(() => void flush(), 700);
             })
             .catch(() => {
-              /* 自动切格失败时保持空白，用户可手动加框 */
+              /* Detection failed: stay blank; the user can draw panels manually. */
             });
         }
       })
