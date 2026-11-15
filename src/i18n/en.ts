@@ -26,6 +26,14 @@ export const en = {
   'app.themeSystem': 'System',
   'app.themeLight': 'Light',
   'app.themeDark': 'Dark',
+  /* ---- breadcrumb pickers ---- */
+  'crumb.volume': 'Volume',
+  'crumb.chapter': 'Chapter',
+  'crumb.page': 'Page',
+  'crumb.switchVolume': 'Switch volume',
+  'crumb.switchChapter': 'Switch chapter',
+  'crumb.pageInputTitle': 'Type a page number and press Enter; ↑/↓ step one page',
+  'crumb.chapterPages': '{count} pages',
   /* ---- file menu ---- */
   'file.menu': 'File',
   'file.menuTitle': 'File menu (Ctrl+O opens a project)',

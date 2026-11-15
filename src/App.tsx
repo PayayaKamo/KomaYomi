@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { CrumbNav } from './components/CrumbNav';
 import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
 import { NotesPanel } from './components/NotesPanel';
@@ -331,23 +332,7 @@ export default function App() {
           >
             ⓘ
           </button>
-          {sel && (
-            <div className="crumb">
-              <span>{sel.volume}</span>
-              <i>/</i>
-              <span>{t('format.chapter', { chapter: sel.chapter })}</span>
-              <i>/</i>
-              <b>{t('format.page', { page: formatNumber(sel.pageIndex + 1) })}</b>
-              <div className="page-nav">
-                <button type="button" onClick={() => goPage(-1)} title={t('app.prevPageTitle')}>
-                  ‹
-                </button>
-                <button type="button" onClick={() => goPage(1)} title={t('app.nextPageTitle')}>
-                  ›
-                </button>
-              </div>
-            </div>
-          )}
+          {sel && <CrumbNav library={library} selection={sel} onOpen={openSelection} onStep={goPage} />}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
           {sel && (
             <button

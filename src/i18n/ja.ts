@@ -25,6 +25,14 @@ export const ja = {
   'app.themeSystem': 'システム',
   'app.themeLight': 'ライト',
   'app.themeDark': 'ダーク',
+  /* ---- breadcrumb pickers ---- */
+  'crumb.volume': '巻',
+  'crumb.chapter': '話',
+  'crumb.page': 'ページ',
+  'crumb.switchVolume': '巻を切り替え',
+  'crumb.switchChapter': '話を切り替え',
+  'crumb.pageInputTitle': 'ページ番号を入力して Enter で移動。↑/↓ で 1 ページずつ',
+  'crumb.chapterPages': '{count} ページ',
   /* ---- file menu ---- */
   'file.menu': 'ファイル',
   'file.menuTitle': 'ファイルメニュー（Ctrl+O でプロジェクトを開く）',

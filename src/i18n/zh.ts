@@ -26,6 +26,14 @@ export const zh = {
   'app.themeSystem': '跟随系统',
   'app.themeLight': '亮色',
   'app.themeDark': '暗色',
+  /* ---- breadcrumb pickers ---- */
+  'crumb.volume': '卷',
+  'crumb.chapter': '话',
+  'crumb.page': '页码',
+  'crumb.switchVolume': '切换卷',
+  'crumb.switchChapter': '切换话',
+  'crumb.pageInputTitle': '输入页码后按回车跳转；↑/↓ 逐页切换',
+  'crumb.chapterPages': '{count} 页',
   /* ---- file menu ---- */
   'file.menu': '文件',
   'file.menuTitle': '文件菜单（Ctrl+O 打开工程）',
