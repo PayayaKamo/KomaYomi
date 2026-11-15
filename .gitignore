@@ -37,3 +37,10 @@ desktop.ini
 .env
 .env.*
 !.env.example
+
+# Local secrets, encryption keys and packaged projects
+.secret.key
+*.key
+data/secrets.json
+data/secrets.json.enc
+*.mnproj
