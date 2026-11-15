@@ -1123,6 +1123,12 @@ body.pane-resizing * {
   min-height: 0;
   overflow-y: auto;
   padding: 8px 8px 24px;
+  /* Reserve the scrollbar lane so opening a chapter cannot reflow the volume header. */
+  scrollbar-gutter: stable;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
 }
 
 .volume {
