@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { HistorySource } from '../api';
-import { t } from '../i18n';
+import { t, useI18n } from '../i18n';
 import { dropOutbox, enqueueOutbox, outboxKeyOf } from '../lib/outbox';
 import { keepaliveFits } from '../lib/keepalive';
 import type { PageDoc, PageEntry } from '../types';
@@ -52,6 +52,7 @@ const initial: State = {
  * auto mode debounces writes by 700ms; confirm mode writes only on commit(), and discard() reverts to disk.
  */
 export function usePage(sel: Selection | null) {
+  const { locale } = useI18n();
   const [state, setState] = useState<State>(initial);
   const [reloadTick, setReloadTick] = useState(0);
   const [saveMode, setSaveModeState] = useState<SaveMode>(readSaveMode);
@@ -329,6 +330,16 @@ export function usePage(sel: Selection | null) {
       cancelled = true;
     };
   }, [sel, flush, reloadTick]);
+
+  // Page warnings come from the server already rendered in the interface language, so a
+  // locale switch refetches the page. Confirm-mode edits stay put: reloading would drop them.
+  const localeRef = useRef(locale);
+  useEffect(() => {
+    if (localeRef.current === locale) return;
+    localeRef.current = locale;
+    if (saveModeRef.current === 'confirm' && pending.current) return;
+    void flush().then(() => reload());
+  }, [locale, flush, reload]);
 
   useEffect(() => {
     const onUnload = () => {

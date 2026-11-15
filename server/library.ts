@@ -375,7 +375,8 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
     );
     const leftover = dirs.filter((d) => !usedTopDirs.has(d));
     if (leftover.length) {
-      volumeWarnings.push(t('WARN_UNRECOGNIZED_DIRS', { dirs: leftover.join('、') }));
+      // A plain comma keeps the list readable in every message language.
+      volumeWarnings.push(t('WARN_UNRECOGNIZED_DIRS', { dirs: leftover.join(', ') }));
     }
 
     const chapterNames = [...new Set(rows.map((r) => r.chapter))].sort(naturalCompare);

@@ -56,7 +56,7 @@ function PanelPreview({ panels, label }: { panels: PageVersion['panels']; label:
 }
 
 export function PageHistoryDialog({ open, sel, onClose, onBeforeRestore, onRestored }: Props) {
-  const { t, formatDate, formatNumber } = useI18n();
+  const { t, locale, formatDate, formatNumber } = useI18n();
   const [entries, setEntries] = useState<PageVersion[]>([]);
   const [limit, setLimit] = useState(50);
   const [limitDraft, setLimitDraft] = useState('50');
@@ -91,7 +91,8 @@ export function PageHistoryDialog({ open, sel, onClose, onBeforeRestore, onResto
     setNotice('');
     setBusy(null);
     void load();
-  }, [open, load]);
+    // Version summaries are written on the server in the interface language: refetch on switch.
+  }, [open, load, locale]);
 
   useEffect(() => {
     if (!open) return;

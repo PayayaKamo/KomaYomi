@@ -193,10 +193,12 @@ export default function App() {
       .catch(() => setTagStats([]));
   }, []);
 
+  // Library warnings are rendered by the server in the interface language, so a locale
+  // switch refetches the library (and its tag counts) instead of keeping stale wording.
   useEffect(() => {
     loadLibrary();
     loadTags();
-  }, [loadLibrary, loadTags]);
+  }, [loadLibrary, loadTags, locale]);
 
   // Refresh the gallery badge once the page is first written to disk.
   useEffect(() => {

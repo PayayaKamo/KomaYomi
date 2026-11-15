@@ -19,7 +19,7 @@ import type {
   StorageConfig,
   StorageStatus,
 } from './types';
-import { t } from './i18n';
+import { getLocale, t } from './i18n';
 
 /* ---- page version history (cross-session) ---- */
 export type HistorySource =
@@ -131,8 +131,21 @@ export type AutoBackupFile = { name: string; size: number; at: string };
 
 export type BackupSchedule = { config: AutoBackupConfig; state: AutoBackupState; files: AutoBackupFile[] };
 
+/**
+ * Server messages (warnings, history summaries, errors) follow the interface language.
+ * `?lang=` wins over `Accept-Language` on the server; both are sent so plain `<img>`/download
+ * style URLs and fetch calls behave the same.
+ */
+function withLang(url: string): string {
+  const lang = getLocale();
+  if (/([?&])lang=/.test(url)) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}lang=${lang}`;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const headers = new Headers(init?.headers);
+  headers.set('Accept-Language', getLocale());
+  const res = await fetch(withLang(url), { ...init, headers });
   const text = await res.text();
   let data: unknown = null;
   try {
