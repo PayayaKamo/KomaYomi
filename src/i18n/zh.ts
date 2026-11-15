@@ -47,6 +47,7 @@ export const zh = {
   'file.openLibraryTitle': '选择库文件夹',
   'file.groupOpen': '打开',
   'file.openProject': '打开工程文件…',
+  'file.addManga': '添加漫画…',
   'file.openTemplates': '打开模板…',
   'file.groupRecent': '最近打开',
   'file.recentEmpty': '还没有最近打开的页面',

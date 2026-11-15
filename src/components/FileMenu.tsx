@@ -256,6 +256,17 @@ export function FileMenu({
             className="file-item"
             onClick={() => {
               setOpen(false);
+              setAddState({});
+            }}
+          >
+            {t('file.addManga')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            onClick={() => {
+              setOpen(false);
               setExchangeOpen(true);
             }}
           >

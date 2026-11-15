@@ -48,6 +48,7 @@ export const en = {
   'file.openLibraryTitle': 'Choose a library folder',
   'file.groupOpen': 'Open',
   'file.openProject': 'Open project file…',
+  'file.addManga': 'Add manga…',
   'file.openTemplates': 'Open templates…',
   'file.groupRecent': 'Recent',
   'file.recentEmpty': 'No recently opened pages yet',

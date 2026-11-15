@@ -47,6 +47,7 @@ export const ja = {
   'file.openLibraryTitle': 'ライブラリフォルダを選択',
   'file.groupOpen': '開く',
   'file.openProject': 'プロジェクトファイルを開く…',
+  'file.addManga': '漫画を追加…',
   'file.openTemplates': 'テンプレートを開く…',
   'file.groupRecent': '最近開いた項目',
   'file.recentEmpty': '最近開いたページはありません',
