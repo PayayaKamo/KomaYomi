@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Library, PageKind, VolumeEntry } from '../types';
+import type { Library, PageEntry, PageKind, VolumeEntry } from '../types';
 import { PAGE_KINDS, SINGLE_CHAPTER } from '../types';
 import { langLabel, useI18n } from '../i18n';
 import { api, thumbUrl } from '../api';
@@ -84,6 +84,19 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
   const chapterName = (chapter: string) =>
     chapter === SINGLE_CHAPTER ? t('sidebar.singleChapter') : t('format.chapter', { chapter });
 
+  /** Swaps a page with its neighbour in the draft order. */
+  const movePage = (chapter: string, from: number, delta: number) => {
+    setChapters((prev) => {
+      const draft = prev[chapter];
+      if (!draft) return prev;
+      const to = from + delta;
+      if (to < 0 || to >= draft.order.length) return prev;
+      const order = [...draft.order];
+      [order[from], order[to]] = [order[to], order[from]];
+      return { ...prev, [chapter]: { ...draft, order } };
+    });
+  };
+
   return (
     <>
       <div className="modal-body preprocess-body">
@@ -115,15 +128,25 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
         </section>
 
         {volume.chapters.map((chapter) => {
-          const draft = chapters[chapter.chapter] ?? { title: '' };
+          const draft: ChapterDraft = chapters[chapter.chapter] ?? {
+            title: '',
+            order: chapter.pages.map((page) => page.index),
+            excluded: [],
+            kinds: {},
+          };
+          const byIndex = new Map(chapter.pages.map((page) => [page.index, page]));
+          const orderedPages = draft.order
+            .map((index) => byIndex.get(index))
+            .filter((page): page is PageEntry => Boolean(page));
           return (
             <section className="preprocess-section" key={chapter.id}>
               <h3>
                 {draft.title.trim() || chapterName(chapter.chapter)}
                 <em>
-                  {t('preprocess.pages')} · {formatNumber(chapter.pages.length)}
+                  {t('preprocess.pages')} · {formatNumber(orderedPages.length)}
                 </em>
               </h3>
+              <p className="preprocess-hint">{t('preprocess.orderHint')}</p>
               <label className="field preprocess-chapter-title">
                 <span>{t('preprocess.chapterTitle')}</span>
                 <input
@@ -136,7 +159,7 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
                 />
               </label>
               <div className="preprocess-pages">
-                {chapter.pages.map((page, position) => {
+                {orderedPages.map((page, position) => {
                   const file = firstFile(volume, page.files);
                   const key = String(page.index);
                   const kind = draft.kinds[key];
@@ -154,6 +177,28 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
                         {excluded && <em>{t('preprocess.excluded')}</em>}
                       </figcaption>
                       <div className="preprocess-page-actions">
+                        <div className="preprocess-order">
+                          <button
+                            type="button"
+                            className="preprocess-move"
+                            disabled={position === 0}
+                            title={t('preprocess.moveEarlier')}
+                            aria-label={t('preprocess.moveEarlier')}
+                            onClick={() => movePage(chapter.chapter, position, -1)}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="preprocess-move"
+                            disabled={position === orderedPages.length - 1}
+                            title={t('preprocess.moveLater')}
+                            aria-label={t('preprocess.moveLater')}
+                            onClick={() => movePage(chapter.chapter, position, 1)}
+                          >
+                            ↓
+                          </button>
+                        </div>
                         <label title={t('preprocess.exclude')}>
                           <input
                             type="checkbox"

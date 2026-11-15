@@ -4748,6 +4748,11 @@ kbd {
   max-width: 420px;
   margin: 0 0 10px;
 }
+.preprocess-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
 .preprocess-page-actions {
   display: flex;
   flex-direction: column;
@@ -4755,6 +4760,23 @@ kbd {
   padding: 6px;
   border-top: 1px solid var(--line);
   font-size: 11px;
+}
+.preprocess-order {
+  display: flex;
+  gap: 4px;
+}
+.preprocess-move {
+  flex: 1;
+  padding: 2px 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: inherit;
+  cursor: pointer;
+}
+.preprocess-move:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .preprocess-page-actions label {
   display: flex;
