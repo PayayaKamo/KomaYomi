@@ -9,8 +9,8 @@ hero:
   text: Manga Learner
   tagline: 漫画で言語を学び、ノートを取る。コマ、比較、ノートはすべて手元のマシンに。
   image:
-    src: /assets/screenshots/compare-reading.png
-    alt: 3言語の比較リーダー
+    src: /assets/screenshots/hero-real-library.png
+    alt: 実際のライブラリを使った3言語の比較リーダー。漫画の絵はぼかし処理済み
   actions:
     - theme: brand
       text: はじめる

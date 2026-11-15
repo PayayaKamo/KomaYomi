@@ -9,8 +9,8 @@ hero:
   text: Manga Learner
   tagline: Learn languages with manga, take notes. Panels, comparison and notes stay on your own machine.
   image:
-    src: /assets/screenshots/compare-reading.png
-    alt: Compare reader with three language panes
+    src: /assets/screenshots/hero-real-library.png
+    alt: Compare reader with three language panes from a real library; the manga artwork is blurred
   actions:
     - theme: brand
       text: Get started
