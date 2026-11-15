@@ -14,7 +14,7 @@ import type { Selection } from './hooks/usePage';
 import { useOutbox } from './hooks/useOutbox';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
-import { DEFAULT_LANGUAGES } from './types';
+import { DEFAULT_LANGUAGES, READING_DIRECTIONS, isRightToLeft, isVerticalReading } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
@@ -23,8 +23,12 @@ import { applyGroupOrder, sortPanels } from './lib/geometry';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
 
-/** Order used by the reading-direction selector; the labels come from i18n. */
-const READING_DIRECTIONS: ReadingDirection[] = ['rtl', 'ltr', 'ttb'];
+/** Page delta for an arrow key under a reading direction (0 when the key does not apply). */
+function arrowPageStep(dir: ReadingDirection, key: string): number {
+  if (isVerticalReading(dir)) return key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0;
+  if (isRightToLeft(dir)) return key === 'ArrowLeft' ? 1 : key === 'ArrowRight' ? -1 : 0;
+  return key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
+}
 
 /** Drag-resizable panes: storage key and the range that keeps both usable. */
 const SIDEBAR_PANE = { key: 'manga-memo.sidebar-width', min: 200, max: 420 };
@@ -244,6 +248,8 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
+      // Handled lower in the tree (panel nudging, dialogs) — do not page-turn on top of it.
+      if (e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey) {
         const mod = e.key.toLowerCase();
         if (mod === 'z') {
@@ -257,6 +263,16 @@ export default function App() {
         return;
       }
       if (e.altKey) return;
+      // Arrows turn pages along the page's reading direction: RTL reads leftward,
+      // TTB reads downward. Modals keep their own keyboard handling.
+      if (e.key.startsWith('Arrow') && doc && !document.querySelector('.modal-backdrop')) {
+        const step = arrowPageStep(doc.readingDirection, e.key);
+        if (step) {
+          e.preventDefault();
+          goPage(step);
+        }
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === '[') {
         e.preventDefault();
@@ -352,7 +368,15 @@ export default function App() {
           >
             ⓘ
           </button>
-          {sel && <CrumbNav library={library} selection={sel} onOpen={openSelection} onStep={goPage} />}
+          {sel && (
+            <CrumbNav
+              library={library}
+              selection={sel}
+              direction={doc?.readingDirection}
+              onOpen={openSelection}
+              onStep={goPage}
+            />
+          )}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
           {outbox.count > 0 && (
             <button
@@ -638,6 +662,10 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
                 <Kbd>[</Kbd> <Kbd>]</Kbd>
               </dt>
               <dd>{t('app.help.prevNext')}</dd>
+              <dt>
+                <Kbd>←</Kbd> <Kbd>→</Kbd> / <Kbd>↑</Kbd> <Kbd>↓</Kbd>
+              </dt>
+              <dd>{t('app.help.arrowNav')}</dd>
               <dt>
                 <Kbd>P</Kbd> <Kbd>C</Kbd>
               </dt>

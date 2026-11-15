@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { Library } from '../types';
-import { SINGLE_CHAPTER } from '../types';
+import type { Library, ReadingDirection } from '../types';
+import { SINGLE_CHAPTER, isRightToLeft, isVerticalReading } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { useI18n } from '../i18n';
 
 type Props = {
   library: Library | null;
   selection: Selection;
+  /** Reading direction of the open page; flips the pager so "next" follows the book. */
+  direction?: ReadingDirection;
   /** Open a page (also used by the sidebar, so mobile drawers close consistently). */
   onOpen: (sel: Selection) => void;
   /** Previous/next page, crossing chapter boundaries like the [ / ] shortcuts. */
@@ -22,7 +24,7 @@ type Picker = 'volume' | 'chapter' | null;
  * The pickers are listboxes: ↑/↓ (plus Home/End) move the highlight, Enter picks,
  * Esc closes and returns focus to the trigger.
  */
-export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
+export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep }: Props) {
   const { t, formatNumber } = useI18n();
   const [open, setOpen] = useState<Picker>(null);
   const [active, setActive] = useState(0);
@@ -230,6 +232,19 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
       : t('format.chapter', { chapter: selection.chapter || '—' }));
   const volumeIndex = volumeItems.findIndex((v) => v.id === selection.volume);
   const chapterIndex = chapterItems.findIndex((c) => c.chapter === selection.chapter);
+  // Vertical directions read downward, so the pager shows up/down arrows.
+  const vertical = isVerticalReading(direction);
+  const nextOnLeft = !vertical && isRightToLeft(direction);
+  const prevButton = (
+    <button type="button" onClick={() => onStep(-1)} title={t('app.prevPageTitle')}>
+      {vertical ? '↑' : nextOnLeft ? '›' : '‹'}
+    </button>
+  );
+  const nextButton = (
+    <button type="button" onClick={() => onStep(1)} title={t('app.nextPageTitle')}>
+      {vertical ? '↓' : nextOnLeft ? '‹' : '›'}
+    </button>
+  );
 
   return (
     <div className="crumb" ref={rootRef} onKeyDown={onPickerKeyDown}>
@@ -367,12 +382,17 @@ export function CrumbNav({ library, selection, onOpen, onStep }: Props) {
         />
         <span className="crumb-total">/ {formatNumber(pageCount)}</span>
         <div className="page-nav">
-          <button type="button" onClick={() => onStep(-1)} title={t('app.prevPageTitle')}>
-            ‹
-          </button>
-          <button type="button" onClick={() => onStep(1)} title={t('app.nextPageTitle')}>
-            ›
-          </button>
+          {nextOnLeft ? (
+            <>
+              {nextButton}
+              {prevButton}
+            </>
+          ) : (
+            <>
+              {prevButton}
+              {nextButton}
+            </>
+          )}
         </div>
       </div>
     </div>
