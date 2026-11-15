@@ -15,7 +15,7 @@ npm run docs:preview  # preview the production build
 
 From the repository root:
 
-```bash
+```bash:no-line-numbers
 npm --prefix docs run docs:dev
 npm --prefix docs run docs:build
 ```
@@ -81,7 +81,7 @@ Real captures live in `public/assets/screenshots/` and are referenced as `/asset
 
 The product is under active development. Features that are not in the code are marked:
 
-```md
+```md:no-line-numbers
 <Badge type="warning" text="Planned" />
 ```
 
@@ -102,7 +102,7 @@ The public site is served from `https://payayakamo.github.io/KomaYomi-docs/` by 
 
 The workflow authenticates with the repository secret `DOCS_PUBLISH_TOKEN`. It needs write access to `PayayaKamo/KomaYomi-docs` (fine-grained: **Contents: read and write**; classic: `repo`). Create or rotate it with:
 
-```bash
+```bash:no-line-numbers
 gh secret set DOCS_PUBLISH_TOKEN --repo PayayaKamo/KomaYomi
 ```
 
@@ -114,7 +114,7 @@ In `PayayaKamo/KomaYomi-docs` → **Settings → Pages**, the source must be **D
 
 ### Local check
 
-```bash
+```bash:no-line-numbers
 npm run docs:build            # output in docs/.vitepress/dist
 ```
 

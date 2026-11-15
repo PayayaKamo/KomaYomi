@@ -699,6 +699,9 @@ export default defineConfig({
     },
   },
   markdown: {
+    // Line numbers are on by default; short one-off commands opt out with
+    // `:no-line-numbers` so a lone "1" does not add noise.
+    lineNumbers: true,
     // External links open in a new tab; a runtime handler in the theme also
     // covers links rendered inside Vue components.
     externalLinks: { target: '_blank', rel: 'noopener noreferrer' },

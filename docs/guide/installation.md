@@ -18,13 +18,13 @@ There is no hosted service and no account. The app listens on `127.0.0.1` only.
 
 From the repository root:
 
-```bash
+```bash:no-line-numbers
 npm install
 ```
 
 ## Run in development
 
-```bash
+```bash:no-line-numbers
 npm run dev
 ```
 
@@ -32,7 +32,7 @@ This starts Vite on `http://127.0.0.1:5173` (the port may shift if 5173 is busy)
 
 ## Run as a desktop app
 
-```bash
+```bash:no-line-numbers
 npm run desktop
 ```
 
@@ -54,7 +54,7 @@ Desktop data directory:
 
 The repository ships `electron-builder.yml` and two packaging scripts:
 
-```bash
+```bash:no-line-numbers
 npm run dist:win   # Windows x64: NSIS installer + portable .exe in release/
 npm run dist:dir   # unpacked app in release/, useful for a quick smoke test
 ```

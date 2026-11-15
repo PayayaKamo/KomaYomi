@@ -12,7 +12,7 @@ description: ページ欠落、言語フォルダ未認識、コマ検出のず�
 
 `raw/` 以下のフォルダ構成を確認してください:
 
-```text
+```text:no-line-numbers
 raw/<volume>/<language-dir>/<chapter>/001.jpg
 ```
 

@@ -12,7 +12,7 @@ description: 缺页、语言目录无法识别、切格不准、导出缺图、�
 
 检查 `raw/` 下的文件夹结构：
 
-```text
+```text:no-line-numbers
 raw/<volume>/<language-dir>/<chapter>/001.jpg
 ```
 

@@ -4,7 +4,7 @@
 
 ## 卷 → 话 → 页
 
-```text
+```text:no-line-numbers
 raw/<volume>/<language>/<chapter>/<page images>
 ```
 

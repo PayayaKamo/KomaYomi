@@ -148,7 +148,7 @@ type PanelPlugin = {
 
 ### Inspecting plugins
 
-```bash
+```bash:no-line-numbers
 node scripts/manga-cli.ts plugins
 ```
 
@@ -158,7 +158,7 @@ This lists each plugin file, its declared name and any load error.
 
 The CLI works directly on `raw/` and `data/` without starting a browser. It is a TypeScript entry that relies on Node's built-in type stripping (Node 22.6+ with the flag, Node 23.6+ by default; Node 26 works out of the box).
 
-```bash
+```bash:no-line-numbers
 node scripts/manga-cli.ts <command> [options]
 ```
 

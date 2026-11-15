@@ -4,7 +4,7 @@
 
 ## 巻 → 話 → ページ
 
-```text
+```text:no-line-numbers
 raw/<volume>/<language>/<chapter>/<page images>
 ```
 

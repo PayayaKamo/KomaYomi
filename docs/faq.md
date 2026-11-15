@@ -12,7 +12,7 @@ Something broke. This page starts from the symptom and walks back to the cause â
 
 Check the folder shape under `raw/`:
 
-```text
+```text:no-line-numbers
 raw/<volume>/<language-dir>/<chapter>/001.jpg
 ```
 

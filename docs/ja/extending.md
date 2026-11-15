@@ -148,7 +148,7 @@ type PanelPlugin = {
 
 ### プラグインの検査
 
-```bash
+```bash:no-line-numbers
 node scripts/manga-cli.ts plugins
 ```
 
@@ -158,7 +158,7 @@ node scripts/manga-cli.ts plugins
 
 CLI はブラウザを起動せずに `raw/` と `data/` を直接操作します。Node の組み込み型ストリッピングに依存する TypeScript のエントリです（Node 22.6+ ではフラグ付き、Node 23.6+ では既定、Node 26 ではそのまま動作します）。
 
-```bash
+```bash:no-line-numbers
 node scripts/manga-cli.ts <command> [options]
 ```
 

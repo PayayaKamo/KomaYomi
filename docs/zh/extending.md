@@ -148,7 +148,7 @@ type PanelPlugin = {
 
 ### 查看插件
 
-```bash
+```bash:no-line-numbers
 node scripts/manga-cli.ts plugins
 ```
 
@@ -158,7 +158,7 @@ node scripts/manga-cli.ts plugins
 
 CLI 直接操作 `raw/` 和 `data/`，无需启动浏览器。它是一个 TypeScript 入口，依赖 Node 内置的类型剥离（Node 22.6+ 需要加标志，Node 23.6+ 默认启用；Node 26 开箱即用）。
 
-```bash
+```bash:no-line-numbers
 node scripts/manga-cli.ts <command> [options]
 ```
 

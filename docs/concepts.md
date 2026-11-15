@@ -4,7 +4,7 @@ Five objects explain almost everything in KomaYomi. They are also the five thing
 
 ## Volume → chapter → page
 
-```text
+```text:no-line-numbers
 raw/<volume>/<language>/<chapter>/<page images>
 ```
 

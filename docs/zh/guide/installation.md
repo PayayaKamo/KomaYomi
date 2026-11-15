@@ -18,13 +18,13 @@ KomaYomi 既可以作为**由本地 Node 服务器支撑的浏览器应用**运�
 
 在仓库根目录执行：
 
-```bash
+```bash:no-line-numbers
 npm install
 ```
 
 ## 以开发模式运行
 
-```bash
+```bash:no-line-numbers
 npm run dev
 ```
 
@@ -32,7 +32,7 @@ npm run dev
 
 ## 以桌面应用运行
 
-```bash
+```bash:no-line-numbers
 npm run desktop
 ```
 
@@ -54,7 +54,7 @@ npm run desktop
 
 仓库包含 `electron-builder.yml` 和两个打包脚本：
 
-```bash
+```bash:no-line-numbers
 npm run dist:win   # Windows x64：在 release/ 下生成 NSIS 安装程序和便携版 .exe
 npm run dist:dir   # 在 release/ 下生成未打包的应用，适合快速冒烟测试
 ```

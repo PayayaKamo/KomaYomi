@@ -18,13 +18,13 @@ KomaYomi は、**ローカルの Node サーバーが支えるブラウザアプ
 
 リポジトリのルートで:
 
-```bash
+```bash:no-line-numbers
 npm install
 ```
 
 ## 開発モードで起動
 
-```bash
+```bash:no-line-numbers
 npm run dev
 ```
 
@@ -32,7 +32,7 @@ npm run dev
 
 ## デスクトップアプリとして起動
 
-```bash
+```bash:no-line-numbers
 npm run desktop
 ```
 
@@ -54,7 +54,7 @@ npm run desktop
 
 リポジトリには `electron-builder.yml` と2つのパッケージングスクリプトが含まれています:
 
-```bash
+```bash:no-line-numbers
 npm run dist:win   # Windows x64: NSIS インストーラー + ポータブル .exe を release/ に出力
 npm run dist:dir   # release/ に展開済みアプリを出力。簡単なスモークテストに便利
 ```
