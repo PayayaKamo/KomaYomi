@@ -22,9 +22,16 @@ import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
 import type { CSSProperties } from 'react';
 import { applyGroupOrder, sortPanels } from './lib/geometry';
+import { buildHash, parseDeepLink } from './lib/deepLink';
+import type { AppView } from './lib/deepLink';
 import { enqueueOutbox } from './lib/outbox';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
+
+/** Stable identity of one page, used to tell page switches apart from re-renders. */
+function selectionKey(sel: Selection): string {
+  return `${sel.volume}\u0000${sel.chapter}\u0000${sel.pageIndex}`;
+}
 
 /** Page delta for an arrow key under a reading direction (0 when the key does not apply). */
 function arrowPageStep(dir: ReadingDirection, key: string): number {
@@ -44,7 +51,13 @@ export default function App() {
   const [rawPath, setRawPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
-  const [view, setView] = useState<'panels' | 'compare'>('panels');
+  const [view, setView] = useState<AppView>('panels');
+  /** Panel whose detail view is open on top of the compare reading view. */
+  const [detailPanel, setDetailPanel] = useState<string | null>(null);
+  /** Page the open detail belongs to, so switching pages closes it. */
+  const detailPageKey = useRef('');
+  /** Whether the current detail view was opened in-app (so Back has an entry to pop). */
+  const detailPushed = useRef(false);
   const [langs, setLangsState] = useState<Lang[]>([...DEFAULT_LANGUAGES]);
   const [overlay, setOverlay] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -99,6 +112,8 @@ export default function App() {
   const goHome = useCallback(() => {
     void confirmLeave().then((ok) => {
       if (!ok) return;
+      detailPushed.current = false;
+      setDetailPanel(null);
       setSel(null);
       setSelected([]);
       setView('panels');
@@ -130,24 +145,25 @@ export default function App() {
   const pwa = usePwaStatus();
   const { doc, page } = pageState;
 
-  // Hash deep link: #/<volume>/<chapter>/<page (1-based)>, for direct opening and sharing.
+  // Hash deep link: #/<volume>/<chapter>/<page (1-based)>[/<view>[/panel/<panelId>]],
+  // for direct opening and sharing. The panel segment restores the detail view.
   useEffect(() => {
     const readHash = () => {
-      const raw = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
-      if (!raw) return;
-      const [volume, chapter, pageNo, mode] = raw.split('/');
-      if (!volume || !chapter) return;
-      const n = Math.max(1, Number.parseInt(pageNo ?? '1', 10) || 1);
-      const target = { volume, chapter, pageIndex: n - 1 };
+      const link = parseDeepLink(location.hash);
+      if (!link) return;
+      const { volume, chapter, pageIndex } = link;
       void confirmLeaveRef.current().then((ok) => {
         if (!ok) {
           // Refused: put the URL back so it keeps matching the page still on screen.
           history.replaceState(null, '', hashRef.current || `${location.pathname}${location.search}`);
           return;
         }
-        if (mode === 'compare' || mode === 'panels') setView(mode);
+        if (link.view) setView(link.view);
+        if (!link.panelId) detailPushed.current = false;
+        detailPageKey.current = link.panelId ? selectionKey(link) : '';
+        setDetailPanel(link.panelId);
         setSel((prev) =>
-          prev && prev.volume === volume && prev.chapter === chapter && prev.pageIndex === n - 1 ? prev : target,
+          prev && prev.volume === volume && prev.chapter === chapter && prev.pageIndex === pageIndex ? prev : link,
         );
       });
     };
@@ -158,10 +174,10 @@ export default function App() {
 
   useEffect(() => {
     if (!sel) return;
-    const next = `#/${encodeURIComponent(sel.volume)}/${encodeURIComponent(sel.chapter)}/${sel.pageIndex + 1}/${view}`;
+    const next = buildHash(sel.volume, sel.chapter, sel.pageIndex, view, detailPanel);
     hashRef.current = next;
     if (location.hash !== next) history.replaceState(null, '', next);
-  }, [sel, view]);
+  }, [sel, view, detailPanel]);
 
   // Remember the last page of each chapter for File → Recent.
   useEffect(() => {
@@ -279,6 +295,59 @@ export default function App() {
     [confirmLeave],
   );
 
+  /** Open the panel detail view; the URL gains a `panel/<id>` segment so it can be shared. */
+  const openDetail = useCallback(
+    (panelId: string) => {
+      if (!sel) return;
+      // Switching panels inside the detail replaces the URL of the same history entry,
+      // so Back still exits the view instead of walking through the panels.
+      if (detailPanel) {
+        setDetailPanel(panelId);
+        return;
+      }
+      const next = buildHash(sel.volume, sel.chapter, sel.pageIndex, 'compare', panelId);
+      if (location.hash !== next) {
+        history.pushState(null, '', next);
+        detailPushed.current = true;
+      }
+      hashRef.current = next;
+      detailPageKey.current = selectionKey(sel);
+      setView('compare');
+      setDetailPanel(panelId);
+    },
+    [sel, detailPanel],
+  );
+
+  /** Leave the detail view; Back pops the entry we pushed, a shared link just rewrites the URL. */
+  const closeDetail = useCallback(() => {
+    if (detailPushed.current) {
+      detailPushed.current = false;
+      history.back();
+      return;
+    }
+    setDetailPanel(null);
+  }, []);
+
+  // Panel ids only exist on one page: switching pages closes the detail view.
+  const pageKey = sel ? selectionKey(sel) : '';
+  useEffect(() => {
+    if (!detailPanel) return;
+    if (detailPageKey.current && detailPageKey.current !== pageKey) {
+      detailPushed.current = false;
+      setDetailPanel(null);
+    }
+  }, [pageKey, detailPanel]);
+
+  // A stale link (deleted or re-detected panel) must not leave an empty detail screen open.
+  useEffect(() => {
+    if (doc && detailPanel && !doc.panels.some((p) => p.id === detailPanel)) setDetailPanel(null);
+  }, [doc, detailPanel]);
+
+  // Keep the compare view behind the detail on the same panel, including after a refresh.
+  useEffect(() => {
+    if (doc && detailPanel && doc.panels.some((p) => p.id === detailPanel)) setSelected([detailPanel]);
+  }, [doc, detailPanel]);
+
   const changeDirection = (dir: ReadingDirection) => pageState.mutate((d) => ({ ...d, readingDirection: dir }));
 
   const goPage = useCallback(
@@ -323,6 +392,8 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
+      // The detail view owns keyboard navigation while it is open; page turns stay off.
+      if (detailPanel) return;
       // Handled lower in the tree (panel nudging, dialogs) — do not page-turn on top of it.
       if (e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey) {
@@ -364,7 +435,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, goPage, undoPage, redoPage]);
+  }, [doc, goPage, undoPage, redoPage, detailPanel]);
 
   // Library-wide language order; the runtime list grows with whatever the scan finds.
   const allLangs = useMemo<Lang[]>(
@@ -651,6 +722,9 @@ export default function App() {
                 canRedo={pageState.canRedo}
                 onUndo={pageState.undo}
                 onRedo={pageState.redo}
+                detailPanel={detailPanel}
+                onOpenDetail={openDetail}
+                onCloseDetail={closeDetail}
               />
             )
           ) : (

@@ -620,6 +620,25 @@ export const en = {
     'Checked languages start masked when masking is on; the preference is saved automatically and exports never include masks.',
   'compare.noteCount': '{count} notes',
 
+  /* ---- panel detail ---- */
+  'detail.title': 'Panel detail',
+  'detail.openHint': 'Double-click a panel to open its detail view',
+  'detail.back': 'Back',
+  'detail.backTitle': 'Back to the reading position (Esc)',
+  'detail.close': 'Close panel detail',
+  'detail.position': 'Panel {number} of {total}',
+  'detail.prev': 'Previous panel',
+  'detail.next': 'Next panel',
+  'detail.notes': 'Notes for this panel',
+  'detail.notesCount': '{count} notes',
+  'detail.notesEmpty': 'No notes on this panel yet',
+  'detail.annotations': 'Annotations on this panel',
+  'detail.annotationsEmpty': 'No annotations on this panel yet',
+  'detail.zoomIn': 'Zoom in',
+  'detail.zoomOut': 'Zoom out',
+  'detail.zoomReset': 'Reset zoom',
+  'detail.zoomHint': 'Scroll or pinch over an image to zoom',
+
   /* ---- alignment modes ---- */
   'align.mode.page': 'Whole-page offset',
   'align.mode.panel': 'Per-panel offset',

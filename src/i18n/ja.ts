@@ -614,6 +614,25 @@ export const ja = {
     'チェックした言語はマスクをオンにしたとき既定で隠れます。設定は自動保存され、書き出しにマスクは含まれません。',
   'compare.noteCount': '{count} 件の注釈',
 
+  /* ---- panel detail ---- */
+  'detail.title': 'コマ詳細',
+  'detail.openHint': 'コマをダブルクリックすると詳細を開きます',
+  'detail.back': '戻る',
+  'detail.backTitle': '元の読書位置に戻る（Esc）',
+  'detail.close': 'コマ詳細を閉じる',
+  'detail.position': '{number} / {total} コマ目',
+  'detail.prev': '前のコマ',
+  'detail.next': '次のコマ',
+  'detail.notes': 'このコマのノート',
+  'detail.notesCount': '{count} 件のノート',
+  'detail.notesEmpty': 'このコマにはまだノートがありません',
+  'detail.annotations': 'このコマの注釈',
+  'detail.annotationsEmpty': 'このコマにはまだ注釈がありません',
+  'detail.zoomIn': '拡大',
+  'detail.zoomOut': '縮小',
+  'detail.zoomReset': 'ズームをリセット',
+  'detail.zoomHint': '画像上でスクロールまたはピンチで拡大縮小',
+
   /* ---- alignment modes ---- */
   'align.mode.page': 'ページ全体のオフセット',
   'align.mode.panel': 'コマごとのオフセット',

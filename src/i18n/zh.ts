@@ -600,6 +600,25 @@ export const zh = {
   'compare.maskDefaultsHint': '勾选的语言在开启遮蔽时默认盖住；偏好会自动保存，导出永远不带遮罩。',
   'compare.noteCount': '{count} 条批注',
 
+  /* ---- panel detail ---- */
+  'detail.title': '格子详情',
+  'detail.openHint': '双击格子进入详情视图',
+  'detail.back': '返回',
+  'detail.backTitle': '返回原来的阅读位置（Esc）',
+  'detail.close': '关闭格子详情',
+  'detail.position': '第 {number} 格，共 {total} 格',
+  'detail.prev': '上一格',
+  'detail.next': '下一格',
+  'detail.notes': '本格笔记',
+  'detail.notesCount': '{count} 条笔记',
+  'detail.notesEmpty': '这一格还没有笔记',
+  'detail.annotations': '本格批注',
+  'detail.annotationsEmpty': '这一格还没有批注',
+  'detail.zoomIn': '放大',
+  'detail.zoomOut': '缩小',
+  'detail.zoomReset': '重置缩放',
+  'detail.zoomHint': '在图片上滚轮或双指捏合缩放',
+
   /* ---- alignment modes ---- */
   'align.mode.page': '整页偏移',
   'align.mode.panel': '逐格偏移',

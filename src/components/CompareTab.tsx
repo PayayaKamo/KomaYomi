@@ -11,6 +11,8 @@ import type { MessageKey } from '../i18n';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
+import { CropLayer } from './CropLayer';
+import { PanelDetail } from './PanelDetail';
 import { useAnnSurface } from '../lib/annotationSurface';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
@@ -35,6 +37,10 @@ type Props = {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** Panel whose detail view is open, mirrored in the URL by the app shell. */
+  detailPanel: string | null;
+  onOpenDetail: (panelId: string) => void;
+  onCloseDetail: () => void;
 };
 
 const sizeCache = new Map<string, { w: number; h: number }>();
@@ -172,42 +178,6 @@ function useImageSizes(files: Record<string, string | undefined>) {
   return sizes;
 }
 
-function CropLayer({
-  url,
-  rect,
-  offset,
-  opacity,
-  blend,
-}: {
-  url: string;
-  rect: Panel['rect'];
-  offset: AlignOffset;
-  opacity: number;
-  blend: boolean;
-}) {
-  return (
-    <div
-      className={`crop-inner ${blend ? 'blend' : ''}`}
-      style={{
-        transform: `translate(${offset.x * 100}%, ${offset.y * 100}%) scale(${offset.scale})`,
-        opacity,
-      }}
-    >
-      <img
-        src={url}
-        alt=""
-        draggable={false}
-        style={{
-          width: `${100 / rect.w}%`,
-          height: `${100 / rect.h}%`,
-          left: `${-(rect.x / rect.w) * 100}%`,
-          top: `${-(rect.y / rect.h) * 100}%`,
-        }}
-      />
-    </div>
-  );
-}
-
 export function CompareTab({
   doc,
   page,
@@ -224,6 +194,9 @@ export function CompareTab({
   canRedo,
   onUndo,
   onRedo,
+  detailPanel,
+  onOpenDetail,
+  onCloseDetail,
 }: Props) {
   const { t, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
@@ -463,8 +436,10 @@ export function CompareTab({
   const toggleMaskLang = (lang: Lang) =>
     setMaskPrefs((p) => ({ ...p, master: true, masked: { ...p.masked, [lang]: !maskWanted(lang) } }));
 
-  // H hides everything (clears temporary reveals), Shift+H shows everything
+  // H hides everything (clears temporary reveals), Shift+H shows everything.
+  // The detail view owns the keyboard while open, so this shortcut pauses there.
   useEffect(() => {
+    if (detailPanel) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (!t || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable) return;
@@ -476,7 +451,7 @@ export function CompareTab({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [detailPanel]);
 
   // When the page or languages change, missing languages are hidden for this page only (see activeLangs); persisted config is untouched
   const loadPresets = () => {
@@ -827,6 +802,20 @@ export function CompareTab({
     document.getElementById(`panel-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
 
+  /** Open the enlarged detail view; selection keeps the reading position behind it. */
+  const openDetailFor = (panel: Panel) => {
+    setSelected([panel.id]);
+    onOpenDetail(panel.id);
+  };
+  /** Double-tap fallback for touch screens, where dblclick is not reliable over masks. */
+  const lastTapRef = useRef<{ id: string; at: number } | null>(null);
+  const isDoubleTap = (panelId: string) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+    lastTapRef.current = last && last.id === panelId && now - last.at < 350 ? null : { id: panelId, at: now };
+    return !lastTapRef.current;
+  };
+
   const changeMode = (next: AlignMode) => {
     setPendingAnchor(null);
     // Whole page / current panel are the common choices; remember them as the default scope for the next page
@@ -953,8 +942,13 @@ export function CompareTab({
           startPan(e, lang, panel);
         }}
         onClick={() => {
-          // Touch panning is disabled in compact layouts, so taps still toggle masking.
+          // Touch panning is disabled in compact layouts, so taps still toggle masking;
+          // a double tap opens the enlarged detail view instead.
           if (layout.mode === 'desktop') return;
+          if (isDoubleTap(panel.id)) {
+            openDetailFor(panel);
+            return;
+          }
           setRevealed((r) => {
             const key = `${panel.id}:${lang}`;
             return r[key] ? { ...r, [key]: false } : r;
@@ -1147,6 +1141,9 @@ export function CompareTab({
       </div>
     );
   }
+
+  const detailIndex = detailPanel ? ordered.findIndex((p) => p.id === detailPanel) : -1;
+  const detailTarget = detailIndex >= 0 ? ordered[detailIndex] : null;
 
   return (
     <div className={`compare-tab layout-${layout.mode}`}>
@@ -1777,6 +1774,7 @@ export function CompareTab({
                 activeDrag?.panelId === panel.id && activeDrag.scope === 'page' ? 'scope-page' : ''
               }`}
               onClick={() => setSelected([panel.id])}
+              title={t('detail.openHint')}
             >
               <div className="panel-card-head">
                 <b>{t('format.panel', { number: formatNumber(idx + 1) })}</b>
@@ -1791,11 +1789,14 @@ export function CompareTab({
               </div>
 
               {overlay ? (
-                <div className="lang-grid overlay">{renderOverlayPane(panel)}</div>
+                <div className="lang-grid overlay" onDoubleClick={() => openDetailFor(panel)}>
+                  {renderOverlayPane(panel)}
+                </div>
               ) : (
                 <div
                   className={`lang-grid cols-${paneLangs.length}`}
                   style={{ ['--cols' as string]: paneLangs.length }}
+                  onDoubleClick={() => openDetailFor(panel)}
                 >
                   {paneLangs.map((l) => renderLangPane(l, panel))}
                 </div>
@@ -1824,6 +1825,27 @@ export function CompareTab({
           );
         })}
       </div>
+
+      {detailTarget && (
+        <PanelDetail
+          doc={doc}
+          page={page}
+          panel={detailTarget}
+          index={detailIndex}
+          total={ordered.length}
+          langs={activeLangs}
+          maskStyle={maskPrefs.style}
+          isMasked={isHidden}
+          reveal={(panelId, lang) => setRevealed((r) => ({ ...r, [revealKey(panelId, lang)]: true }))}
+          annotations={annotations}
+          annotationsVisible={annotationsVisible}
+          aspectOf={(l) => paneAspect(l, detailTarget)}
+          offsetOf={(l) => offsetsOf(l, detailTarget)}
+          onClose={onCloseDetail}
+          onPrev={detailIndex > 0 ? () => onOpenDetail(ordered[detailIndex - 1].id) : undefined}
+          onNext={detailIndex < ordered.length - 1 ? () => onOpenDetail(ordered[detailIndex + 1].id) : undefined}
+        />
+      )}
     </div>
   );
 }
