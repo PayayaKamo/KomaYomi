@@ -4,14 +4,24 @@ import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
-import { addVolume, removeVolume, setVolumeDirs } from './libraryAdmin.ts';
+import { addVolume, removeVolume, setVolumeDefaultDirection, setVolumeDirs } from './libraryAdmin.ts';
+import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
 import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
 import { listPlugins, runPlugin } from './plugins.ts';
 import { collectTagStats, createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
 import { findVersion, listVersions, readHistory, readHistoryLimit, recordVersion } from './pageHistory.ts';
 import { exportChapter } from './export.ts';
+import { exportChapterDocx } from './exportDocx.ts';
 import { createBackupBuffer, inspectBackup, restoreBackup } from './backup.ts';
+import {
+  listAutoBackups,
+  normalizeAutoBackupConfig,
+  readAutoBackupConfig,
+  readAutoBackupState,
+  runAutoBackup,
+  startAutoBackupScheduler,
+} from './autoBackup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
 import {
   exportExportTemplate,
@@ -60,7 +70,7 @@ import type {
   PanelTemplate,
 } from '../shared/types.ts';
 import { LANGUAGES } from '../shared/types.ts';
-import { HISTORY_SOURCES } from '../shared/format.ts';
+import { HISTORY_SOURCES, readReadingDirection } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
 import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
 import type { MessageCode, MessageParams } from './messages/index.ts';
@@ -124,7 +134,8 @@ function safeResolve(root: string, rel: string): string | null {
 function findPage(library: Library, volume: string, chapter: string, index: number) {
   const vol = library.volumes.find((v) => v.id === volume);
   const ch = vol?.chapters.find((c) => c.chapter === chapter);
-  const page = ch?.pages[index];
+  // `index` is the stable document key; the pages array may be reordered by preprocessing overrides.
+  const page = ch?.pages.find((p) => p.index === index);
   return page ? { page: page as PageEntry, chapterEntry: ch! } : null;
 }
 
@@ -168,6 +179,9 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
   const dataRoot = dataDir ? path.resolve(dataDir) : path.join(rootDir, 'data');
   const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
+
+  // Scheduled local backups run on their own timer; manual backups keep the `backup-` prefix.
+  startAutoBackupScheduler({ dataRoot, exportRoot });
 
   /** package.json is the single source for the metadata shown in the About dialog. */
   const appMeta = (() => {
@@ -354,9 +368,11 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const body = JSON.parse(await readBody(req)) as { order?: unknown };
         const cfg = readLibraryConfig(dataRoot);
         if (Array.isArray(body.order)) {
-          const known = new Set<string>(LANGUAGES);
+          const current = createLibrary(rawRoot, dataRoot);
+          const known = new Set<string>(current.languages.length ? current.languages : LANGUAGES);
           cfg.langOrder = normalizeLangOrder(
             body.order.filter((lang): lang is Lang => typeof lang === 'string' && known.has(lang)),
+            [...known],
           );
         } else {
           delete cfg.langOrder;
@@ -480,7 +496,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           });
           return true;
         }
-        const order: string[] = [body.lang ?? '', 'ja', 'zh', 'en'];
+        const order: string[] = [body.lang ?? '', ...Object.keys(found.page.files)];
         const lang = order.find((l) => found.page.files[l as keyof PageEntry['files']]);
         const rel = lang ? found.page.files[lang as keyof PageEntry['files']] : undefined;
         if (!rel) {
@@ -822,6 +838,13 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
+      if (pathname === '/api/export/docx' && req.method === 'POST') {
+        const config = JSON.parse(await readBody(req)) as ExportConfig;
+        const result = await exportChapterDocx({ rootDir, dataRoot, exportRoot, config, library });
+        sendJson(res, 200, result);
+        return true;
+      }
+
       // Default download name for exported files
       if (pathname === '/api/export/download') {
         const file = url.searchParams.get('file') ?? '';
@@ -839,13 +862,60 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const body = JSON.parse(await readBody(req)) as {
           volume?: string;
           dirs?: Partial<Record<string, string | null>>;
+          defaultDirection?: string | null;
         };
-        if (!body.volume || !body.dirs) {
+        if (!body.volume || (!body.dirs && body.defaultDirection === undefined)) {
           fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
           return true;
         }
-        setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
+        if (body.dirs) setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
+        if (body.defaultDirection !== undefined) {
+          const direction = body.defaultDirection === null ? null : readReadingDirection(body.defaultDirection);
+          if (body.defaultDirection !== null && !direction) {
+            fail(res, 400, 'ERR_UNKNOWN_DIRECTION');
+            return true;
+          }
+          setVolumeDefaultDirection(rawRoot, dataRoot, body.volume, direction ?? null);
+        }
         sendJson(res, 200, { library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- Preprocessing wizard ---------------- */
+      if (pathname === '/api/preprocess/backup' && req.method === 'GET') {
+        sendJson(res, 200, { backup: readPreprocessBackup(dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/preprocess/apply' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          title?: string;
+          chapters?: Record<string, unknown>;
+          dirs?: Partial<Record<string, string | null>>;
+        };
+        if (!body.volume) {
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
+          return true;
+        }
+        const result = applyPreprocess(rawRoot, dataRoot, {
+          volume: body.volume,
+          title: body.title,
+          chapters: body.chapters,
+          dirs: body.dirs,
+        });
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/preprocess/restore' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { volume?: string };
+        if (!body.volume) {
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
+          return true;
+        }
+        const result = restorePreprocess(dataRoot, body.volume);
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
         return true;
       }
 
@@ -952,6 +1022,36 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         sendJson(res, 200, {
           ...result,
           library: createLibrary(rawRoot, dataRoot),
+        });
+        return true;
+      }
+
+      /* ---------------- Scheduled local backups ---------------- */
+      if (pathname === '/api/backup/schedule' && req.method === 'GET') {
+        sendJson(res, 200, {
+          config: readAutoBackupConfig(readLibraryConfig(dataRoot)),
+          state: readAutoBackupState(dataRoot),
+          files: listAutoBackups(exportRoot),
+        });
+        return true;
+      }
+
+      if (pathname === '/api/backup/schedule' && req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as { config?: unknown };
+        const config = normalizeAutoBackupConfig(body.config);
+        writeLibraryConfig(dataRoot, { ...readLibraryConfig(dataRoot), autoBackup: config });
+        sendJson(res, 200, { config, state: readAutoBackupState(dataRoot), files: listAutoBackups(exportRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/backup/schedule/run' && req.method === 'POST') {
+        const config = readAutoBackupConfig(readLibraryConfig(dataRoot));
+        const result = runAutoBackup(dataRoot, exportRoot, config);
+        sendJson(res, 200, {
+          ...result,
+          config,
+          state: readAutoBackupState(dataRoot),
+          files: listAutoBackups(exportRoot),
         });
         return true;
       }

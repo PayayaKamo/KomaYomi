@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ChapterEntry, Lang, Library, PageEntry, VolumeEntry } from '../types';
-import { LANGUAGES, LANG_SHORT, SINGLE_CHAPTER } from '../types';
+import { langShort, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { thumbUrl } from '../api';
 import { useI18n } from '../i18n';
@@ -9,6 +9,8 @@ import { DataToolsDialog } from './DataToolsDialog';
 import { ProjectDialog } from './ProjectDialog';
 import { ExchangeDialog } from './ExchangeDialog';
 import { DirRulesDialog } from './DirRulesDialog';
+import { PreprocessDialog } from './PreprocessDialog';
+import { PluginsDialog } from './PluginsDialog';
 
 type Props = {
   library: Library | null;
@@ -20,15 +22,19 @@ type Props = {
   dirty: boolean;
 };
 
-function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
-  for (const lang of LANGUAGES) {
+function pickFile(page: PageEntry, volume?: VolumeEntry): { url: string; lang: Lang } | null {
+  const order = [
+    ...(volume?.languages ?? []),
+    ...Object.keys(page.files).filter((l) => !volume?.languages.includes(l)),
+  ];
+  for (const lang of order) {
     const url = page.files[lang];
     if (url) return { url, lang };
   }
   return null;
 }
 
-type FootIconName = 'project' | 'exchange' | 'rules' | 'backup';
+type FootIconName = 'project' | 'exchange' | 'rules' | 'backup' | 'preprocess' | 'plugins';
 
 /** Logo, product name and the localised tagline (two lines at most). */
 function Brand() {
@@ -79,11 +85,20 @@ function FootIcon({ name }: { name: FootIconName }) {
           <circle cx="4.4" cy="10.4" r="1.3" fill="currentColor" stroke="none" />
         </>
       )}
+      {name === 'preprocess' && (
+        <>
+          <path d="M2.4 3.4h9.2v3.2H2.4zM2.4 8.8h9.2" />
+          <path d="M4.6 11.2h3.2" />
+        </>
+      )}
       {name === 'backup' && (
         <>
           <path d="M7 1.8v6.4m0 0L4.4 5.6M7 8.2l2.6-2.6" />
           <path d="M2.4 10.2v1.8h9.2v-1.8" />
         </>
+      )}
+      {name === 'plugins' && (
+        <path d="M2.4 2.4h3.6v1.3a1 1 0 1 0 2 0V2.4h3.6v3.6h-1.3a1 1 0 1 0 0 2h1.3v3.6H6.4v-1.3a1 1 0 1 1-2 0v1.3H2.4z" />
       )}
     </svg>
   );
@@ -98,6 +113,8 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   const [projectOpen, setProjectOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [dirRulesOpen, setDirRulesOpen] = useState(false);
+  const [preprocessOpen, setPreprocessOpen] = useState(false);
+  const [pluginsOpen, setPluginsOpen] = useState(false);
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
@@ -150,11 +167,14 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
     );
   }
 
-  const renderChapter = (volumeId: string, chapter: ChapterEntry) => {
+  const renderChapter = (volume: VolumeEntry, chapter: ChapterEntry) => {
+    const volumeId = volume.id;
     const key = `${volumeId}/${chapter.chapter}`;
     const isOpen = expanded[key];
-    const pageWarnings = chapter.pages.reduce((n, p) => n + p.warnings.length, 0);
-    const annotated = chapter.pages.filter((p) => p.annotated).length;
+    // Pages excluded by preprocessing are not part of the reading body.
+    const bodyPages = chapter.pages.filter((p) => !p.excluded);
+    const pageWarnings = bodyPages.reduce((n, p) => n + p.warnings.length, 0);
+    const annotated = bodyPages.filter((p) => p.annotated).length;
 
     return (
       <div className="chapter" key={key}>
@@ -165,18 +185,19 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         >
           <span className={`chev ${isOpen ? 'open' : ''}`}>▸</span>
           <span className="ch-name">
-            {chapter.chapter === SINGLE_CHAPTER
-              ? t('sidebar.singleChapter')
-              : t('format.chapter', { chapter: chapter.chapter })}
+            {chapter.title?.trim() ||
+              (chapter.chapter === SINGLE_CHAPTER
+                ? t('sidebar.singleChapter')
+                : t('format.chapter', { chapter: chapter.chapter }))}
           </span>
           <span className="ch-meta">
             {annotated > 0 && <span className="chip-mini ok">{formatNumber(annotated)}</span>}
             {pageWarnings > 0 && (
-              <span className="chip-mini warn" title={chapter.pages.flatMap((p) => p.warnings).join('\n')}>
+              <span className="chip-mini warn" title={bodyPages.flatMap((p) => p.warnings).join('\n')}>
                 !
               </span>
             )}
-            <span className="ch-count">{chapter.pages.length}p</span>
+            <span className="ch-count">{formatNumber(bodyPages.length)}p</span>
           </span>
         </button>
 
@@ -188,35 +209,32 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
               </div>
             ))}
             <div className="page-grid">
-              {chapter.pages.map((page) => {
-                const file = pickFile(page);
+              {bodyPages.map((page, position) => {
+                const file = pickFile(page, volume);
                 const active =
                   selection?.volume === volumeId &&
                   selection.chapter === chapter.chapter &&
                   selection.pageIndex === page.index;
+                const pageNo = formatNumber(position + 1);
                 return (
                   <button
                     type="button"
                     key={page.index}
                     className={`thumb ${active ? 'active' : ''} ${file ? '' : 'missing'}`}
-                    title={`${t('format.page', { page: formatNumber(page.index + 1) })}${
+                    title={`${t('format.page', { page: pageNo })}${
                       page.warnings.length ? '\n' + page.warnings.join('\n') : ''
                     }`}
                     onClick={() => onOpen({ volume: volumeId, chapter: chapter.chapter, pageIndex: page.index })}
                   >
                     {file ? (
-                      <img
-                        src={thumbUrl(file.url, 200)}
-                        alt={t('format.page', { page: formatNumber(page.index + 1) })}
-                        loading="lazy"
-                      />
+                      <img src={thumbUrl(file.url, 200)} alt={t('format.page', { page: pageNo })} loading="lazy" />
                     ) : (
                       <span>{t('sidebar.missingImage')}</span>
                     )}
-                    <em>{formatNumber(page.index + 1)}</em>
+                    <em>{pageNo}</em>
                     {page.warnings.length > 0 && <i className="thumb-warn">!</i>}
                     {page.annotated && <i className="thumb-dot" />}
-                    {file && <b className="thumb-lang">{LANG_SHORT[file.lang]}</b>}
+                    {file && <b className="thumb-lang">{langShort(file.lang)}</b>}
                   </button>
                 );
               })}
@@ -255,13 +273,13 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
               </span>
               <span
                 className="volume-langs"
-                title={volume.languages.length ? volume.languages.map((l) => LANG_SHORT[l]).join(' · ') : undefined}
+                title={volume.languages.length ? volume.languages.map((l) => langShort(l)).join(' · ') : undefined}
               >
                 {volume.languages.length ? (
                   <>
                     {volume.languages
                       .slice(0, 2)
-                      .map((l) => LANG_SHORT[l])
+                      .map((l) => langShort(l))
                       .join(' · ')}
                     {volume.languages.length > 2 && <b className="volume-langs-more">+{volume.languages.length - 2}</b>}
                   </>
@@ -283,7 +301,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
                 {w}
               </em>
             ))}
-            {volume.chapters.map((chapter) => renderChapter(volume.id, chapter))}
+            {volume.chapters.map((chapter) => renderChapter(volume, chapter))}
           </div>
         ))}
       </div>
@@ -311,6 +329,26 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           >
             <FootIcon name="exchange" />
             <span className="foot-label">{t('sidebar.exchange')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setPreprocessOpen(true)}
+            title={t('sidebar.preprocessTitle')}
+            aria-label={t('sidebar.preprocessTitle')}
+          >
+            <FootIcon name="preprocess" />
+            <span className="foot-label">{t('sidebar.preprocess')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
+            onClick={() => setPluginsOpen(true)}
+            title={t('sidebar.pluginsTitle')}
+            aria-label={t('sidebar.pluginsTitle')}
+          >
+            <FootIcon name="plugins" />
+            <span className="foot-label">{t('sidebar.plugins')}</span>
           </button>
           <button
             type="button"
@@ -367,6 +405,15 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         />
       )}
       {dirRulesOpen && <DirRulesDialog onClose={() => setDirRulesOpen(false)} onSaved={(lib) => onReload(lib)} />}
+      {preprocessOpen && (
+        <PreprocessDialog
+          library={library}
+          initialVolume={selection?.volume}
+          onClose={() => setPreprocessOpen(false)}
+          onDone={(lib) => onReload(lib)}
+        />
+      )}
+      {pluginsOpen && <PluginsDialog onClose={() => setPluginsOpen(false)} />}
     </aside>
   );
 }

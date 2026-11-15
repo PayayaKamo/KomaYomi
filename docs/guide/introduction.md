@@ -14,11 +14,11 @@ KomaYomi adds the missing middle layer:
 2. **Alignment** — each language can be nudged independently so the same panel really overlaps.
 3. **Notes** — every remark is scoped to a page or a panel, in Markdown, with tags and sources.
 
-## The five-step workflow
+## The workflow
 
 | Step | What you do | Page |
 | --- | --- | --- |
-| 1 | Lay out images as `raw/<volume>/<language>/<chapter>/01.jpg`, or add an existing folder. | [Library & Import](/guide/gallery) |
+| 1 | Prepare the scans and lay out images as `raw/<volume>/<language>/<chapter>/01.jpg`, or add an existing folder. | [Preparing & Renaming Images](/guide/preprocess), [Library & Import](/guide/gallery) |
 | 2 | Open a page, let it auto-split, then correct the boxes by hand. | [Panel Workbench](/guide/panels) |
 | 3 | Read 2–3 languages side by side or in overlay, align them, mask the ones you are testing. | [Compare Reader](/guide/compare) |
 | 4 | Write page and panel notes with tags, sources and screenshots. | [Notes](/guide/notes) |
@@ -54,7 +54,7 @@ A page can be in one, two or three languages. The language chips in the compare 
 
 <div class="status-list">
   <div><strong>Library</strong> — scans volumes, recognizes language folder aliases, pairs pages by sorted position, warns about missing pages and naming mismatches.</div>
-  <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / delete, numbering, percentage inputs, grid generator, panel templates, declarative layouts, plugins.</div>
+  <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / group / delete, numbering, percentage inputs, grid generator, panel templates, declarative layouts, plugins, cross-session page history.</div>
   <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, page-level visibility switch, PNG export support.</div>
   <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order.</div>
   <div><strong>Notes</strong> — page/panel notes, Markdown with a toolbar and live preview, tags, sources, attached images, overview search, copy-for-LLM, scratchpad.</div>
@@ -67,9 +67,9 @@ A page can be in one, two or three languages. The language chips in the compare 
 
 These items are marked <Badge type="warning" text="Planned" /> wherever they appear:
 
-- PDF, Word (`.docx`) and vocabulary-list export.
+- PDF, Word (`.docx`) and vocabulary-list export. Use the HTML export and the browser's print-to-PDF.
 - An offline write queue and scheduled automatic backups.
-- In-app creation and editing of panel groups. The JSON field exists, is preserved on read/write, import and export, but there is no editing UI yet.
+- An in-app image converter or batch renamer. Prepare files before importing (see [Preparing & Renaming Images](/guide/preprocess)).
 - A native mobile app. The web UI does work in a narrow browser window (see below).
 
 <figure class="shot">
@@ -102,6 +102,8 @@ The UI theme follows the system by default and can be fixed to light or dark fro
 ## Where to go next
 
 - New install: [Install & Run](/guide/installation).
+- Images not ready yet: [Preparing & Renaming Images](/guide/preprocess).
 - Ready to add images: [Library & Import](/guide/gallery).
+- Folders have an unusual shape: [Folder Detection Rules](/guide/folder-rules).
 - Looking for a key: [Keyboard Shortcuts](/guide/shortcuts).
 - Something is wrong: [FAQ & Troubleshooting](/faq).

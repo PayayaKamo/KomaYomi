@@ -101,9 +101,9 @@ The desktop window may be using a different data directory than the repository. 
 
 Only HTML and PNG are implemented. PDF, `.docx` and vocabulary lists are <Badge type="warning" text="Planned" />. As a workaround, open the exported HTML in a browser and use **Print → Save as PDF**; the HTML has print styles that break pages and avoid splitting panels or notes.
 
-## Why can't I create panel groups?
+## How do I create panel groups?
 
-The page JSON supports `group` objects and they are preserved by imports and exports, but there is no group-editing UI yet (<Badge type="warning" text="Planned" />). You can hand-edit the JSON; it is normalized and validated on read. Vector **annotations** are implemented: the panel workbench has arrow, rectangle, ellipse, highlight, pen, text, badge and mosaic tools.
+Select one or more panels in the workbench and click **Group**. The new group appears in the **Groups** panel, where you can rename it, change its colour, reorder its chips, merge it upward, split it or delete it without deleting the panels. **Sort by group** renumbers the page by group order. Groups are preserved by page exchange files, project packages and exports; see [Panel Workbench](/guide/panels#groups). Vector **annotations** are implemented too: arrow, rectangle, ellipse, highlight, pen, text, badge and mosaic.
 
 ## Does it send my data anywhere?
 

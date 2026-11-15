@@ -35,7 +35,7 @@ raw/<volume>/<language>/<chapter>/<page images>
 { "id": "g1", "name": "跨页大图", "panelIds": ["p2", "p3"], "number": 1 }
 ```
 
-分组是页面 JSON 的一部分，在读取、写入、导入和导出时都会保留。<Badge type="warning" text="计划中" /> 用于创建和编辑分组的应用内界面尚未实现；目前只能直接编辑 JSON。
+分组是页面 JSON 的一部分，在读取、写入、导入和导出时都会保留。在切格工作台选中分格后点击**成组**即可创建；颜色、名称、顺序、合并、拆分和删除都在**分组**面板里编辑。见[切格工作台](/zh/guide/panels#分组)。
 
 ## 笔记（Note）
 

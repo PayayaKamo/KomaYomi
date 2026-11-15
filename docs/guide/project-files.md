@@ -14,6 +14,11 @@ Annotations are the expensive part — hours of panel correction, alignment and 
 | **Exchange files** | `.mntpl`, `.mnexp`, `.mnpage.json` | One layout, one export style, or one page | Sharing a reusable layout or a single annotated page. |
 | **Backup ZIP** | `.zip` | The whole `data/` folder | Restoring after a mistake, or keeping a periodic safety copy. |
 
+<figure class="shot">
+  <img src="/assets/screenshots/file-menu.png" alt="File menu with open library, project files, recent volumes, save, import and restore entries">
+  <figcaption>The File menu gathers the same actions as the sidebar: save the current page, save as a project, import a project or a page, and restore a backup.</figcaption>
+</figure>
+
 ## Project packages (`.mnproj`)
 
 A `.mnproj` is a ZIP with a text manifest:
@@ -21,11 +26,14 @@ A `.mnproj` is a ZIP with a text manifest:
 ```text
 manifest.json
 pages/<volume>/<chapter>/<index>.json
+history/<volume>/<chapter>/<index>.json
 templates/...
 presets/...
 config/library.json          (optional)
 assets/<sha1>.<ext>          (packaged mode only)
 ```
+
+Page version history travels with the project, so reopening it keeps the audit trail described in [Panel Workbench](/guide/panels#page-history).
 
 ### Reference vs packaged mode
 
@@ -132,8 +140,8 @@ Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Re
 ## What is not implemented
 
 - **PDF and Word (`.docx`) export**, and vocabulary-list export. Use the HTML export and the browser's print-to-PDF.
-- **In-app panel group editing.** `groups` is part of the page JSON and is preserved everywhere, but there is no editor yet.
 - **Scheduled backups.** Backups and uploads to a backup target are started manually.
+- **An in-app image converter or batch renamer.** Prepare files before importing; see [Preparing & Renaming Images](/guide/preprocess).
 
 ## Common pitfalls
 

@@ -3,14 +3,21 @@ import type { Lang } from '../shared/types';
 export type { Lang } from '../shared/types';
 export {
   LANGUAGES,
+  DEFAULT_LANGUAGES,
   LANG_LABEL,
   LANG_SHORT,
+  langShort,
+  langName,
   READING_LABEL,
+  READING_DIRECTIONS,
+  isRightToLeft,
+  isVerticalReading,
   DEFAULT_OFFSET,
   DEFAULT_EXPORT_CONFIG,
   ALIGN_MODE_LABEL,
   ALIGN_MODE_HINT,
   SINGLE_CHAPTER,
+  PAGE_KINDS,
 } from '../shared/types';
 export type {
   AlignMode,
@@ -19,6 +26,7 @@ export type {
   Annotation,
   AnnotationKind,
   ChapterEntry,
+  ChapterOverride,
   DetectResult,
   ExportConfig,
   ExportTemplate,
@@ -34,6 +42,7 @@ export type {
   NoteSource,
   PageDoc,
   PageEntry,
+  PageKind,
   PageResponse,
   Panel,
   PanelGroup,
@@ -41,6 +50,7 @@ export type {
   PanelTemplate,
   ReadingDirection,
   VolumeEntry,
+  VolumeOverride,
 } from '../shared/types';
 
 /* ---- Directory recognition rules (frontend view; the same-named server type is the source) ---- */

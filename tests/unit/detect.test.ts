@@ -107,6 +107,25 @@ describe('sortReadingOrder', () => {
     expect(ids(sortReadingOrder(rects, 'ttb'))).toEqual(['tr', 'br', 'tl', 'bl']);
   });
 
+  it('treats explicit horizontal directions like their legacy aliases', () => {
+    expect(ids(sortReadingOrder(rects, 'horizontal-rl'))).toEqual(['tr', 'tl', 'br', 'bl']);
+    expect(ids(sortReadingOrder(rects, 'horizontal-lr'))).toEqual(['tl', 'tr', 'bl', 'br']);
+  });
+
+  it('orders columns for both vertical writing directions', () => {
+    expect(ids(sortReadingOrder(rects, 'vertical-rl'))).toEqual(['tr', 'br', 'tl', 'bl']);
+    expect(ids(sortReadingOrder(rects, 'vertical-lr'))).toEqual(['tl', 'bl', 'tr', 'br']);
+  });
+
+  it('reads a webtoon strip strictly by vertical position', () => {
+    const strip = [
+      { id: 'c', x: 0.05, y: 0.7, w: 0.9, h: 0.25 },
+      { id: 'a', x: 0.05, y: 0.05, w: 0.4, h: 0.3 },
+      { id: 'b', x: 0.55, y: 0.1, w: 0.4, h: 0.3 },
+    ];
+    expect(ids(sortReadingOrder(strip, 'continuous-vertical'))).toEqual(['a', 'b', 'c']);
+  });
+
   it('accepts a custom rect accessor', () => {
     const wrapped = rects.map((rect) => ({ rect, label: rect.id }));
     expect(sortReadingOrder(wrapped, 'ltr', (item) => item.rect).map((item) => item.label)).toEqual([

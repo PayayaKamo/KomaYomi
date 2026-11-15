@@ -35,7 +35,7 @@ A **group** is a named collection of panel ids, used for content that spans seve
 { "id": "g1", "name": "跨页大图", "panelIds": ["p2", "p3"], "number": 1 }
 ```
 
-Groups are part of the page JSON and are preserved by reads, writes, imports and exports. <Badge type="warning" text="Planned" /> The in-app UI for creating and editing groups is not implemented yet; today you can only edit the JSON directly.
+Groups are part of the page JSON and are preserved by reads, writes, imports and exports. Create them in the panel workbench by selecting panels and clicking **Group**; colour, name, order, merge, split and delete are editable in the **Groups** panel. See [Panel Workbench](/guide/panels#groups).
 
 ## Note
 

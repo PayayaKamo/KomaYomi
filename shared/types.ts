@@ -1,20 +1,33 @@
+/** Built-in languages shipped with the app; a library may detect more at runtime. */
 export const LANGUAGES = ['ja', 'zh', 'en'] as const;
-export type Lang = (typeof LANGUAGES)[number];
+export const DEFAULT_LANGUAGES: readonly Lang[] = LANGUAGES;
+/** Language id: a built-in code, or the normalized folder name for other languages. */
+export type Lang = string;
 
 /** Chapter name used when a rule has no {chapter} placeholder (single-chapter volumes). */
 export const SINGLE_CHAPTER = '全一话';
 
-export const LANG_LABEL: Record<Lang, string> = {
+export const LANG_LABEL: Record<string, string> = {
   ja: '日本語',
   zh: '中文',
   en: 'English',
 };
 
-export const LANG_SHORT: Record<Lang, string> = {
+export const LANG_SHORT: Record<string, string> = {
   ja: 'JA',
   zh: 'ZH',
   en: 'EN',
 };
+
+/** Badge text for any language id; unknown languages fall back to the id itself. */
+export function langShort(lang: Lang): string {
+  return LANG_SHORT[lang] ?? (lang || '?').slice(0, 3).toUpperCase();
+}
+
+/** Native display name for known languages; unknown ids are shown as-is. */
+export function langName(lang: Lang): string {
+  return LANG_LABEL[lang] ?? (lang || '?');
+}
 
 /** Rectangle normalized to 0..1 relative to the full page. */
 export type PanelRect = { x: number; y: number; w: number; h: number };
@@ -51,14 +64,66 @@ export type Note = {
   updatedAt: string;
 };
 
-/** rtl = rows top-to-bottom, right-to-left within a row (default); ltr = left-to-right within a row; ttb = columns right-to-left, top-to-bottom within a column. */
-export type ReadingDirection = 'rtl' | 'ltr' | 'ttb';
+/**
+ * How panels/pages are read.
+ * - `horizontal-rl` / legacy `rtl`: rows top-to-bottom, right-to-left within a row
+ * - `horizontal-lr` / legacy `ltr`: rows top-to-bottom, left-to-right within a row
+ * - `vertical-rl` / legacy `ttb`: columns right-to-left, top-to-bottom within a column
+ * - `vertical-lr`: columns left-to-right, top-to-bottom within a column
+ * - `continuous-vertical`: one long strip read downwards (webtoon); no page pairing
+ */
+export type ReadingDirection =
+  'rtl' | 'ltr' | 'ttb' | 'horizontal-rl' | 'horizontal-lr' | 'vertical-rl' | 'vertical-lr' | 'continuous-vertical';
+
+/** Canonical order used by the selectors; legacy values stay first for familiarity. */
+export const READING_DIRECTIONS: readonly ReadingDirection[] = [
+  'rtl',
+  'ltr',
+  'ttb',
+  'horizontal-rl',
+  'horizontal-lr',
+  'vertical-rl',
+  'vertical-lr',
+  'continuous-vertical',
+];
 
 export const READING_LABEL: Record<ReadingDirection, string> = {
   rtl: '从右到左 · 从上到下',
   ltr: '从左到右 · 从上到下',
   ttb: '从右到左 · 竖排',
+  'horizontal-rl': '从右到左 · 横排',
+  'horizontal-lr': '从左到右 · 横排',
+  'vertical-rl': '从右到左 · 竖排',
+  'vertical-lr': '从左到右 · 竖排',
+  'continuous-vertical': '条漫 · 连续向下',
 };
+
+/** True when rows/columns progress right-to-left. */
+export function isRightToLeft(direction: ReadingDirection): boolean {
+  return direction === 'rtl' || direction === 'ttb' || direction === 'horizontal-rl' || direction === 'vertical-rl';
+}
+
+/** True when the strip is read downwards (vertical columns or webtoon). */
+export function isVerticalReading(direction: ReadingDirection): boolean {
+  return (
+    direction === 'ttb' ||
+    direction === 'vertical-rl' ||
+    direction === 'vertical-lr' ||
+    direction === 'continuous-vertical'
+  );
+}
+
+/**
+ * Put requested page indices into the chapter's reading order, so exports list pages
+ * (and number their image files) the same way the reader shows them. Indices that the
+ * chapter does not know keep their original place at the end.
+ */
+export function orderPageIndices(requested: readonly number[], pages: readonly { index: number }[]): number[] {
+  const wanted = new Set(requested);
+  const ordered = pages.map((page) => page.index).filter((index) => wanted.has(index));
+  const seen = new Set(ordered);
+  return [...ordered, ...[...new Set(requested)].filter((index) => !seen.has(index))];
+}
 
 /**
  * Per-language alignment offset. x/y are fractions of the container width/height
@@ -221,18 +286,28 @@ export type AlignPreset = {
   createdAt: string;
 };
 
+/** Built-in page roles the preprocessing wizard can mark (the list stays open for future kinds). */
+export type PageKind = 'cover' | 'toc' | 'author' | 'ad' | 'recruit';
+export const PAGE_KINDS: readonly PageKind[] = ['cover', 'toc', 'author', 'ad', 'recruit'];
+
 export type PageEntry = {
   index: number;
   files: Partial<Record<Lang, string>>;
   filenames: Partial<Record<Lang, string>>;
   warnings: string[];
   annotated: boolean;
+  /** Hidden from the reading body and exports by the preprocessing wizard. */
+  excluded?: boolean;
+  /** Optional page role assigned by the preprocessing wizard. */
+  kind?: PageKind;
 };
 
 export type ChapterEntry = {
   id: string;
   volume: string;
   chapter: string;
+  /** Display name from the library config; falls back to the folder name. */
+  title?: string;
   pages: PageEntry[];
   warnings: string[];
 };
@@ -248,6 +323,8 @@ export type VolumeEntry = {
   languages: Lang[];
   /** All subdirectories under raw/<volume>, so users can re-map language folders in volume settings. */
   dirs: string[];
+  /** Default direction for pages in this volume that have no explicit direction yet. */
+  defaultDirection?: ReadingDirection;
 };
 
 export type Library = {
@@ -256,6 +333,26 @@ export type Library = {
   /** User-defined language order, shared by the compare view and exports. */
   langOrder?: Lang[];
   volumes: VolumeEntry[];
+};
+
+/** Per-chapter display/order/exclusion overrides stored in data/library.json. */
+export type ChapterOverride = {
+  title?: string;
+  /** Page document indices (`PageEntry.index`) in the desired reading order. */
+  order?: number[];
+  /** Page document indices hidden from the body and exports. */
+  excluded?: number[];
+  /** Page document index -> role, for covers, ads and similar front/back matter. */
+  kinds?: Record<string, PageKind>;
+};
+
+/** Per-volume overrides stored in data/library.json; folder names stay untouched on disk. */
+export type VolumeOverride = {
+  title?: string;
+  dirs?: Partial<Record<Lang, string>>;
+  chapters?: Record<string, ChapterOverride>;
+  /** Reading direction inherited by pages in this volume before they are edited. */
+  defaultDirection?: ReadingDirection;
 };
 
 export type DetectResult = {
@@ -295,6 +392,8 @@ export type ExportConfig = {
   includeNotes: boolean;
   /** Export only pages that have notes. */
   onlyWithNotes?: boolean;
+  /** Generate a print-ready page that opens the browser print dialog (Save as PDF). */
+  print?: boolean;
   noteFilterTags: string[];
   pageWidthRatio: number;
   columnGap: number;

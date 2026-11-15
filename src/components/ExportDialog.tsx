@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ExportConfig, ExportTemplate, Lang, Library, PageDoc, PageEntry, Panel } from '../types';
-import { DEFAULT_EXPORT_CONFIG, LANGUAGES, LANG_SHORT } from '../types';
+import { DEFAULT_EXPORT_CONFIG, langShort } from '../types';
 import { api } from '../api';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { exportPng } from '../lib/pngExport';
@@ -18,6 +18,8 @@ type Props = {
   library: Library | null;
   sel: Selection | null;
   langs: Lang[];
+  /** Library-wide language order (languages are discovered at runtime). */
+  allLangs: Lang[];
   tagStats: { tag: string; count: number }[];
   /** Project root, shown so the exported file's absolute path can be displayed. */
   rootPath: string;
@@ -67,12 +69,26 @@ function readLayout(): Partial<ExportConfig> | null {
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]/g, '_');
 
-export function ExportDialog({ open, onClose, doc, page, panel, library, sel, langs, tagStats, rootPath }: Props) {
+export function ExportDialog({
+  open,
+  onClose,
+  doc,
+  page,
+  panel,
+  library,
+  sel,
+  langs,
+  allLangs,
+  tagStats,
+  rootPath,
+}: Props) {
   const { t } = useI18n();
   const [cfg, setCfg] = useState<ExportConfig | null>(null);
   const [scope, setScope] = useState<'page' | 'chapter'>('page');
+  const [format, setFormat] = useState<'html' | 'docx' | 'pdf'>('html');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ExportResult | null>(null);
+  const [resultFormat, setResultFormat] = useState<'html' | 'docx' | 'pdf'>('html');
   const [error, setError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
@@ -93,6 +109,7 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
     setResult(null);
     setError(null);
     setScope('page');
+    setFormat('html');
     setPngMsg(null);
     // Respect the page's annotation layer toggle so a hidden layer is not silently baked in.
     setPngIncludeAnn(doc?.annotationsVisible !== false);
@@ -155,9 +172,11 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
       const payload: ExportConfig = {
         ...cfg,
         pageIndices: scope === 'page' ? [sel.pageIndex] : [],
+        print: format === 'pdf',
       };
-      const res = await api.exportHtml(payload);
+      const res = format === 'docx' ? await api.exportDocx(payload) : await api.exportHtml(payload);
       setResult(res);
+      setResultFormat(format);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -379,9 +398,30 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
             </section>
 
             <section>
+              <h3>{t('export.formatSection')}</h3>
+              <div className="seg">
+                <button type="button" className={format === 'html' ? 'on' : ''} onClick={() => setFormat('html')}>
+                  {t('export.formatHtml')}
+                </button>
+                <button type="button" className={format === 'docx' ? 'on' : ''} onClick={() => setFormat('docx')}>
+                  {t('export.formatDocx')}
+                </button>
+                <button type="button" className={format === 'pdf' ? 'on' : ''} onClick={() => setFormat('pdf')}>
+                  {t('export.formatPdf')}
+                </button>
+              </div>
+              {format === 'docx' && <p className="hint">{t('export.wordHint')}</p>}
+              {format === 'pdf' && <p className="hint">{t('export.pdfHint')}</p>}
+            </section>
+
+            <section>
               <h3>{t('export.languageSection')}</h3>
               <div className="lang-chips">
-                {[...cfg.languages, ...LANGUAGES.filter((l) => !cfg.languages.includes(l))].map((l) => (
+                {[
+                  ...cfg.languages,
+                  ...allLangs.filter((l) => !cfg.languages.includes(l)),
+                  ...Object.keys(page?.files ?? {}).filter((l) => !cfg.languages.includes(l) && !allLangs.includes(l)),
+                ].map((l) => (
                   <button
                     type="button"
                     key={l}
@@ -396,7 +436,7 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
                     }
                     disabled={cfg.languages.length === 1 && cfg.languages.includes(l)}
                   >
-                    {LANG_SHORT[l]} {langLabel(l)}
+                    {langShort(l)} {langLabel(l)}
                   </button>
                 ))}
               </div>
@@ -635,22 +675,34 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
                 <div>
                   {t('export.exportedPages', { pages: formatNumber(result.pages) })} <code>{result.file}</code>
                 </div>
-                <div className="tiny muted">
-                  {result.imageMode === 'embed'
-                    ? t('export.imagesEmbedded')
-                    : t('export.imageDir', {
-                        path: `${rootPath ? `${rootPath}\\exports\\` : 'exports/'}${result.assetDir ?? ''}`,
-                      })}
-                </div>
-                <div className="row-actions">
-                  <a className="btn primary" href={result.url} target="_blank" rel="noreferrer">
-                    {t('export.openHtml')}
-                  </a>
-                  <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
-                    {t('export.downloadHtml')}
-                  </a>
-                  {result.assetDir && <span className="tiny muted">{t('export.filesNote')}</span>}
-                </div>
+                {resultFormat !== 'docx' && (
+                  <>
+                    {resultFormat === 'pdf' && <div className="tiny muted">{t('export.printHint')}</div>}
+                    <div className="tiny muted">
+                      {result.imageMode === 'embed'
+                        ? t('export.imagesEmbedded')
+                        : t('export.imageDir', {
+                            path: `${rootPath ? `${rootPath}\\exports\\` : 'exports/'}${result.assetDir ?? ''}`,
+                          })}
+                    </div>
+                    <div className="row-actions">
+                      <a className="btn primary" href={result.url} target="_blank" rel="noreferrer">
+                        {resultFormat === 'pdf' ? t('export.openPrint') : t('export.openHtml')}
+                      </a>
+                      <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
+                        {t('export.downloadHtml')}
+                      </a>
+                      {result.assetDir && <span className="tiny muted">{t('export.filesNote')}</span>}
+                    </div>
+                  </>
+                )}
+                {resultFormat === 'docx' && (
+                  <div className="row-actions">
+                    <a className="btn primary" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
+                      {t('export.downloadDocx')}
+                    </a>
+                  </div>
+                )}
                 {result.warnings.length > 0 && (
                   <ul className="warn-list">
                     {result.warnings.map((w) => (
@@ -671,7 +723,13 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
               {t('common.close')}
             </button>
             <button type="button" className="btn primary" onClick={generate} disabled={busy}>
-              {busy ? t('export.generating') : t('export.generateHtml')}
+              {busy
+                ? t('export.generating')
+                : format === 'docx'
+                  ? t('export.generateDocx')
+                  : format === 'pdf'
+                    ? t('export.generatePdf')
+                    : t('export.generateHtml')}
             </button>
           </div>
         </footer>

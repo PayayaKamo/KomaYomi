@@ -89,6 +89,11 @@ Any configured source or target can be tested with **Test connection**; the ones
 
 ## Manual backup and restore
 
+<figure class="shot">
+  <img src="/assets/screenshots/backup-restore.png" alt="Backup and restore dialog with create backup, choose a backup file and the inspected archive summary">
+  <figcaption>The backup dialog. A backup is inspected before restoring, so you can see how many pages, notes and templates it contains before anything is overwritten.</figcaption>
+</figure>
+
 - **Create and download a backup** produces a ZIP of `data/`: pages, templates, presets, layouts, `library.json` and a `.backup-meta.json`. Thumbnail caches and temporary files are excluded.
 - **Choose a backup file…** inspects the ZIP first and reports how many pages, notes, templates and presets it contains, and which volumes are involved.
 - Restoring **overwrites same-named files** under `data/` but does not delete pages absent from the backup. A snapshot of the current data is written before the restore.

@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://manga-memo.dev/schemas/page.schema.json",
   "title": "KomaYomi single page .mnpage.json",
@@ -48,7 +48,18 @@
       }
     },
     "gridStep": { "type": "number" },
-    "readingDirection": { "enum": ["rtl", "ltr", "ttb"] },
+    "readingDirection": {
+      "enum": [
+        "rtl",
+        "ltr",
+        "ttb",
+        "horizontal-rl",
+        "horizontal-lr",
+        "vertical-rl",
+        "vertical-lr",
+        "continuous-vertical"
+      ]
+    },
     "updatedAt": { "type": "string" },
     "detectorVersion": { "type": "string" },
     "detectedAt": { "type": "string" },

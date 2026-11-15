@@ -1,4 +1,3 @@
-import type { Lang } from './types.ts';
 import { LANGUAGES } from './types.ts';
 
 /**
@@ -25,7 +24,7 @@ export function migrateManifestV0(raw: Record<string, unknown>): Record<string, 
       volume: String(img.volume ?? ''),
       chapter: String(img.chapter ?? ''),
       pageIndex: Number(img.pageIndex) || 0,
-      lang: LANGUAGES.includes(img.lang as Lang) ? (img.lang as Lang) : 'ja',
+      lang: typeof img.lang === 'string' && img.lang.trim() ? img.lang.trim() : 'ja',
       name: typeof img.name === 'string' && img.name ? img.name : pathValue ? (pathValue.split('/').pop() ?? '') : '',
       sha1: typeof img.sha1 === 'string' ? img.sha1 : '',
       size: Number(img.size) || 0,

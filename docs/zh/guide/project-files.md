@@ -14,6 +14,11 @@ KomaYomi 存储的一切都是普通文件：图片在 `raw/`，标注在 `data/
 | **交换文件** | `.mntpl`、`.mnexp`、`.mnpage.json` | 一个版式、一种导出样式，或一页 | 分享可复用的版式或单个已标注页面。 |
 | **备份 ZIP** | `.zip` | 整个 `data/` 文件夹 | 误操作后恢复，或保留定期安全副本。 |
 
+<figure class="shot">
+  <img src="/assets/screenshots/file-menu.png" alt="文件菜单：打开图库、工程文件、最近打开的卷、保存、导入与恢复">
+  <figcaption>文件菜单把侧栏里的同类操作集中在一起：保存当前页、另存为工程、导入工程或页面，以及从备份恢复。</figcaption>
+</figure>
+
 ## 工程包（`.mnproj`）
 
 `.mnproj` 是一个带文本清单的 ZIP：
@@ -21,11 +26,14 @@ KomaYomi 存储的一切都是普通文件：图片在 `raw/`，标注在 `data/
 ```text
 manifest.json
 pages/<volume>/<chapter>/<index>.json
+history/<volume>/<chapter>/<index>.json
 templates/...
 presets/...
 config/library.json          (optional)
 assets/<sha1>.<ext>          (packaged mode only)
 ```
+
+页面版本历史会随工程一起迁移，重新打开后仍能看到[切格工作台](/zh/guide/panels#页面历史)里描述的记录。
 
 ### 引用模式与打包模式
 
@@ -132,8 +140,8 @@ data/.backup-meta.json
 ## 尚未实现
 
 - **PDF 和 Word（`.docx`）导出**，以及词表导出。请使用 HTML 导出和浏览器的打印为 PDF。
-- **应用内编辑分格分组。** `groups` 属于页面 JSON，在任何环节都会被保留，但还没有编辑器。
 - **定时备份。** 备份和上传到备份目标都需要手动启动。
+- **应用内的图片转换或批量重命名。** 请在导入前整理文件；见[预处理与重命名](/zh/guide/preprocess)。
 
 ## 常见坑
 

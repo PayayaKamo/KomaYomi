@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Lang, Library, VolumeEntry } from '../types';
-import { LANGUAGES } from '../types';
+import { DEFAULT_LANGUAGES } from '../types';
 import { api } from '../api';
 import { langLabel, useI18n } from '../i18n';
 
@@ -118,10 +118,18 @@ type SettingsProps = {
 /** Volume settings: map actual directories under the volume to languages; 1–2 languages is fine. */
 export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps) {
   const { t } = useI18n();
-  const [choice, setChoice] = useState<Record<Lang, string>>({
-    ja: volume.langDirs.ja ?? '',
-    zh: volume.langDirs.zh ?? '',
-    en: volume.langDirs.en ?? '',
+  // Detected languages first, then the built-in defaults for folders that have no mapping yet.
+  const langs = useMemo(() => {
+    const out = [...volume.languages];
+    for (const lang of [...DEFAULT_LANGUAGES, ...Object.keys(volume.langDirs)]) {
+      if (!out.includes(lang)) out.push(lang);
+    }
+    return out;
+  }, [volume]);
+  const [choice, setChoice] = useState<Record<Lang, string>>(() => {
+    const init: Record<Lang, string> = {};
+    for (const [lang, dir] of Object.entries(volume.langDirs)) if (dir) init[lang] = dir;
+    return init;
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +141,7 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
     setError(null);
     try {
       const dirs: Partial<Record<Lang, string | null>> = {};
-      for (const lang of LANGUAGES) dirs[lang] = choice[lang] || null;
+      for (const lang of langs) dirs[lang] = choice[lang] || null;
       const res = await api.saveVolumeDirs(volume.id, dirs);
       onDone(res.library);
       onClose();
@@ -171,7 +179,7 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
           </button>
         </header>
         <div className="modal-body">
-          {LANGUAGES.map((lang) => {
+          {langs.map((lang) => {
             const candidates = volume.dirs.filter((d) => d === choice[lang] || !used.has(d));
             return (
               <label className="field" key={lang}>

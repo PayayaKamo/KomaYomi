@@ -9,7 +9,7 @@ Notes are the reason the panels and alignment exist. A note can belong to a whol
 
 ## The problem it solves
 
-A remark like “this translation drops the honorific” is meaningless once it is detached from the balloon it refers to. Notes here are attached to a page or to a panel id, so they survive page reordering, template changes and export. A second problem is retrieval: after fifty pages you need to find every note tagged `语气` or sourced from one article.
+A remark like “this translation drops the honorific” is meaningless once it is detached from the balloon it refers to. Notes here are attached to a page or to a panel id, so they survive page reordering, template changes and export. A second problem is retrieval: after fifty pages you need to find every note tagged `tone` or sourced from one article.
 
 ## Page notes and panel notes
 
@@ -21,6 +21,11 @@ A remark like “this translation drops the honorific” is meaningless once it 
 Selecting a panel in the workbench or in the compare reader scopes the next note to that panel. With nothing selected, the note is page-scoped. The editor placeholder tells you which scope is active: *Capture this panel's original text…* versus *Capture observations… for the whole page*.
 
 ## Writing a note
+
+<figure class="shot">
+  <img src="/assets/screenshots/notes-editor.png" alt="Notes editor with Markdown toolbar, Edit / Split / Preview toggle, source and tag fields and the scratchpad">
+  <figcaption>The note editor: Markdown toolbar, Edit / Split / Preview, the source and tag fields, and the scratchpad underneath. The scope chip above the editor says whether the next note belongs to the page or a panel.</figcaption>
+</figure>
 
 1. Click the editor in the **This page** tab.
 2. Type Markdown. The toolbar inserts the common syntax:
@@ -49,7 +54,7 @@ Rendered output escapes raw HTML; HTML is never executed. Notes written before M
 - Tags are stored as an array on the note.
 - Usage is aggregated across all pages and offered as suggestions, and the **Filter** row can filter the current page by tag.
 
-Tags are the cheapest way to build a personal taxonomy: `语气`, `误译`, `文化`, `待确认`, `拟声词`.
+Tags are the cheapest way to build a personal taxonomy: `tone`, `mistranslation`, `culture`, `unsure`, `onomatopoeia`.
 
 ## Attached images
 
@@ -123,7 +128,6 @@ Each saved note has **Edit**, **Copy context**, **Filter by tag** and delete act
 
 | Figure | Needed for |
 | --- | --- |
-| note editor close-up | Markdown toolbar, tags, attachments |
 | overview search | Filters, grouping and jump-to-page |
 | copy-context dialog | Template prefix and preview |
 

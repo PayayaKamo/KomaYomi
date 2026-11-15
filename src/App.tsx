@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { CrumbNav } from './components/CrumbNav';
 import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
+import { ScrollTab } from './components/ScrollTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
@@ -10,9 +12,11 @@ import { PageHistoryDialog } from './components/PageHistoryDialog';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
+import { useOutbox } from './hooks/useOutbox';
+import { usePwaStatus } from './hooks/usePwaStatus';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
-import { LANGUAGES } from './types';
+import { DEFAULT_LANGUAGES, READING_DIRECTIONS, isRightToLeft, isVerticalReading } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
@@ -21,8 +25,12 @@ import { applyGroupOrder, sortPanels } from './lib/geometry';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
 
-/** Order used by the reading-direction selector; the labels come from i18n. */
-const READING_DIRECTIONS: ReadingDirection[] = ['rtl', 'ltr', 'ttb'];
+/** Page delta for an arrow key under a reading direction (0 when the key does not apply). */
+function arrowPageStep(dir: ReadingDirection, key: string): number {
+  if (isVerticalReading(dir)) return key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0;
+  if (isRightToLeft(dir)) return key === 'ArrowLeft' ? 1 : key === 'ArrowRight' ? -1 : 0;
+  return key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
+}
 
 /** Drag-resizable panes: storage key and the range that keeps both usable. */
 const SIDEBAR_PANE = { key: 'manga-memo.sidebar-width', min: 200, max: 420 };
@@ -34,8 +42,8 @@ export default function App() {
   const [rootPath, setRootPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
-  const [view, setView] = useState<'panels' | 'compare'>('panels');
-  const [langs, setLangsState] = useState<Lang[]>(['ja', 'zh', 'en']);
+  const [view, setView] = useState<'panels' | 'compare' | 'scroll'>('panels');
+  const [langs, setLangsState] = useState<Lang[]>([...DEFAULT_LANGUAGES]);
   const [overlay, setOverlay] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
@@ -88,6 +96,8 @@ export default function App() {
   }, []);
 
   const pageState = usePage(sel);
+  const outbox = useOutbox();
+  const pwa = usePwaStatus();
   const { doc, page } = pageState;
 
   // Hash deep link: #/<volume>/<chapter>/<page (1-based)>, for direct opening and sharing.
@@ -98,7 +108,7 @@ export default function App() {
       const [volume, chapter, pageNo, mode] = raw.split('/');
       if (!volume || !chapter) return;
       const n = Math.max(1, Number.parseInt(pageNo ?? '1', 10) || 1);
-      if (mode === 'compare' || mode === 'panels') setView(mode);
+      if (mode === 'compare' || mode === 'panels' || mode === 'scroll') setView(mode);
       setSel((prev) =>
         prev && prev.volume === volume && prev.chapter === chapter && prev.pageIndex === n - 1
           ? prev
@@ -209,17 +219,21 @@ export default function App() {
       const ci = vol.chapters.findIndex((c) => c.chapter === sel.chapter);
       const chapter = vol.chapters[ci];
       if (!chapter) return;
-      const nextIndex = sel.pageIndex + delta;
-      if (nextIndex >= 0 && nextIndex < chapter.pages.length) {
-        setSel({ ...sel, pageIndex: nextIndex });
+      // Pages excluded by preprocessing are skipped in both directions.
+      const body = chapter.pages.filter((p) => !p.excluded);
+      const position = body.findIndex((p) => p.index === sel.pageIndex);
+      const nextPosition = position + delta;
+      if (position >= 0 && nextPosition >= 0 && nextPosition < body.length) {
+        setSel({ ...sel, pageIndex: body[nextPosition].index });
         return;
       }
       const nextChapter = vol.chapters[ci + (delta > 0 ? 1 : -1)];
-      if (!nextChapter || !nextChapter.pages.length) return;
+      const nextBody = nextChapter?.pages.filter((p) => !p.excluded) ?? [];
+      if (!nextChapter || !nextBody.length) return;
       setSel({
         volume: sel.volume,
         chapter: nextChapter.chapter,
-        pageIndex: delta > 0 ? 0 : nextChapter.pages.length - 1,
+        pageIndex: delta > 0 ? nextBody[0].index : nextBody[nextBody.length - 1].index,
       });
     },
     [library, sel],
@@ -237,6 +251,8 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
+      // Handled lower in the tree (panel nudging, dialogs) — do not page-turn on top of it.
+      if (e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey) {
         const mod = e.key.toLowerCase();
         if (mod === 'z') {
@@ -250,6 +266,16 @@ export default function App() {
         return;
       }
       if (e.altKey) return;
+      // Arrows turn pages along the page's reading direction: RTL reads leftward,
+      // TTB reads downward. Modals keep their own keyboard handling.
+      if (e.key.startsWith('Arrow') && doc && !document.querySelector('.modal-backdrop')) {
+        const step = arrowPageStep(doc.readingDirection, e.key);
+        if (step) {
+          e.preventDefault();
+          goPage(step);
+        }
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === '[') {
         e.preventDefault();
@@ -259,6 +285,7 @@ export default function App() {
         goPage(1);
       } else if (key === 'p') setView('panels');
       else if (key === 'c') setView('compare');
+      else if (key === 'v') setView('scroll');
       else if (key === 's') setSidebarOpen((v) => !v);
       else if (key === 'n') setNotesOpen((v) => !v);
       else if (key === 'e' && doc) setExportOpen(true);
@@ -268,7 +295,33 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [doc, goPage, undoPage, redoPage]);
 
-  const availableLangs = page ? LANGUAGES.filter((l) => Boolean(page.files[l])) : [];
+  // Library-wide language order; the runtime list grows with whatever the scan finds.
+  const allLangs = useMemo<Lang[]>(
+    () => (library?.langOrder?.length ? library.langOrder : [...DEFAULT_LANGUAGES]),
+    [library],
+  );
+  const pageLangs = useMemo(() => (page ? Object.keys(page.files) : []), [page]);
+  const availableLangs = useMemo(
+    () => [...allLangs.filter((l) => pageLangs.includes(l)), ...pageLangs.filter((l) => !allLangs.includes(l))],
+    [allLangs, pageLangs],
+  );
+  const expectedLangs = useMemo(() => {
+    const volume = sel && library ? library.volumes.find((v) => v.id === sel.volume) : null;
+    return volume?.languages?.length ? volume.languages : allLangs;
+  }, [allLangs, library, sel]);
+  const missingLangs = expectedLangs.filter((l) => !pageLangs.includes(l));
+
+  /** All pages of the open chapter, used by the continuous scroll view. */
+  const chapterPages = useMemo(() => {
+    if (!sel || !library) return [];
+    const chapter = library.volumes.find((v) => v.id === sel.volume)?.chapters.find((c) => c.chapter === sel.chapter);
+    return chapter?.pages ?? [];
+  }, [library, sel]);
+
+  /** Scrolling only moves the page cursor; the volume/chapter stay put. */
+  const pickScrollPage = useCallback((index: number) => {
+    setSel((prev) => (prev && prev.pageIndex !== index ? { ...prev, pageIndex: index } : prev));
+  }, []);
 
   const saveLabel = !doc
     ? ''
@@ -332,23 +385,27 @@ export default function App() {
             ⓘ
           </button>
           {sel && (
-            <div className="crumb">
-              <span>{sel.volume}</span>
-              <i>/</i>
-              <span>{t('format.chapter', { chapter: sel.chapter })}</span>
-              <i>/</i>
-              <b>{t('format.page', { page: formatNumber(sel.pageIndex + 1) })}</b>
-              <div className="page-nav">
-                <button type="button" onClick={() => goPage(-1)} title={t('app.prevPageTitle')}>
-                  ‹
-                </button>
-                <button type="button" onClick={() => goPage(1)} title={t('app.nextPageTitle')}>
-                  ›
-                </button>
-              </div>
-            </div>
+            <CrumbNav
+              library={library}
+              selection={sel}
+              direction={doc?.readingDirection}
+              onOpen={openSelection}
+              onStep={goPage}
+            />
           )}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {!pwa.online && <span className="pwa-chip">{t('pwa.offline')}</span>}
+          {outbox.count > 0 && (
+            <button
+              type="button"
+              className="outbox-chip"
+              disabled={outbox.syncing}
+              onClick={() => void outbox.replay()}
+              title={outbox.error ?? t('outbox.retryTitle')}
+            >
+              {outbox.syncing ? t('outbox.syncing') : t('outbox.pending', { count: formatNumber(outbox.count) })}
+            </button>
+          )}
           {sel && (
             <button
               type="button"
@@ -369,6 +426,9 @@ export default function App() {
             </button>
             <button type="button" className={view === 'compare' ? 'on' : ''} onClick={() => setView('compare')}>
               {t('app.tabCompare')}
+            </button>
+            <button type="button" className={view === 'scroll' ? 'on' : ''} onClick={() => setView('scroll')}>
+              {t('app.tabScroll')}
             </button>
           </div>
         </div>
@@ -493,6 +553,16 @@ export default function App() {
 
           {!sel ? (
             <Welcome library={library} onOpen={openSelection} />
+          ) : view === 'scroll' ? (
+            // Kept outside the loading branch: turning pages must not remount the reader,
+            // or the scroll position (and the page the user is looking at) would reset.
+            <ScrollTab
+              key={`${sel.volume}/${sel.chapter}`}
+              pages={chapterPages}
+              langs={langs.length ? langs : allLangs}
+              current={sel.pageIndex}
+              onPick={pickScrollPage}
+            />
           ) : pageState.loading ? (
             <div className="stage-loading">{t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}</div>
           ) : doc && page ? (
@@ -516,6 +586,7 @@ export default function App() {
                 canRedo={pageState.canRedo}
                 onUndo={pageState.undo}
                 onRedo={pageState.redo}
+                allLangs={allLangs}
               />
             ) : (
               <CompareTab
@@ -527,6 +598,7 @@ export default function App() {
                 setSelected={setSelected}
                 langs={langs}
                 setLangs={setLangs}
+                allLangs={allLangs}
                 overlay={overlay}
                 setOverlay={setOverlay}
                 canUndo={pageState.canUndo}
@@ -564,6 +636,7 @@ export default function App() {
         library={library}
         sel={sel}
         langs={langs}
+        allLangs={allLangs}
         tagStats={tagStats}
         rootPath={rootPath}
       />
@@ -580,14 +653,21 @@ export default function App() {
         onRestored={pageState.reload}
       />
 
+      {pwa.updateReady && (
+        <div className="banner info floating pwa-update" role="status">
+          <span>{t('pwa.updateReady')}</span>
+          <button type="button" className="btn tiny" onClick={pwa.applyUpdate}>
+            {t('pwa.reload')}
+          </button>
+        </div>
+      )}
+
       {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 
-      {availableLangs.length > 0 && availableLangs.length < 3 && sel && (
+      {availableLangs.length > 0 && missingLangs.length > 0 && sel && (
         <div className="banner info floating">
           {t('app.missingLangs', {
-            langs: LANGUAGES.filter((l) => !availableLangs.includes(l))
-              .map((l) => langLabel(l))
-              .join(' / '),
+            langs: missingLangs.map((l) => langLabel(l)).join(' / '),
           })}
         </div>
       )}
@@ -621,6 +701,10 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
                 <Kbd>[</Kbd> <Kbd>]</Kbd>
               </dt>
               <dd>{t('app.help.prevNext')}</dd>
+              <dt>
+                <Kbd>←</Kbd> <Kbd>→</Kbd> / <Kbd>↑</Kbd> <Kbd>↓</Kbd>
+              </dt>
+              <dd>{t('app.help.arrowNav')}</dd>
               <dt>
                 <Kbd>P</Kbd> <Kbd>C</Kbd>
               </dt>

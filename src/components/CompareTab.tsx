@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { AlignMode, AlignOffset, AlignPreset, Lang, PageDoc, PageEntry, Panel } from '../types';
-import { DEFAULT_OFFSET, LANG_SHORT, LANGUAGES } from '../types';
+import { DEFAULT_OFFSET, DEFAULT_LANGUAGES, langShort } from '../types';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { api } from '../api';
 import type { HistorySource } from '../api';
@@ -20,6 +20,8 @@ type Props = {
   setSelected: (ids: string[]) => void;
   langs: Lang[];
   setLangs: (langs: Lang[]) => void;
+  /** Library language order discovered from the scanned volumes. */
+  allLangs: Lang[];
   overlay: boolean;
   setOverlay: (v: boolean) => void;
   canUndo: boolean;
@@ -128,27 +130,39 @@ function loadOverlayPrefs(): OverlayPrefs {
   }
 }
 
-function useImageSize(url: string | undefined) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(url ? (sizeCache.get(url) ?? null) : null);
+/** Track the natural size of every language image on the page, however many there are. */
+function useImageSizes(files: Record<string, string | undefined>) {
+  const [sizes, setSizes] = useState<Record<string, { w: number; h: number }>>({});
+  const key = Object.entries(files)
+    .map(([lang, url]) => `${lang}:${url ?? ''}`)
+    .join('|');
   useEffect(() => {
-    if (!url) {
-      setSize(null);
-      return;
+    let alive = true;
+    const next: Record<string, { w: number; h: number }> = {};
+    const pending: { lang: string; url: string }[] = [];
+    for (const [lang, url] of Object.entries(files)) {
+      if (!url) continue;
+      const cached = sizeCache.get(url);
+      if (cached) next[lang] = cached;
+      else pending.push({ lang, url });
     }
-    const cached = sizeCache.get(url);
-    if (cached) {
-      setSize(cached);
-      return;
+    setSizes(next);
+    for (const { lang, url } of pending) {
+      const img = new Image();
+      img.onload = () => {
+        const size = { w: img.naturalWidth, h: img.naturalHeight };
+        sizeCache.set(url, size);
+        if (alive) setSizes((prev) => ({ ...prev, [lang]: size }));
+      };
+      img.src = url;
     }
-    const img = new Image();
-    img.onload = () => {
-      const s = { w: img.naturalWidth, h: img.naturalHeight };
-      sizeCache.set(url, s);
-      setSize(s);
+    return () => {
+      alive = false;
     };
-    img.src = url;
-  }, [url]);
-  return size;
+    // `key` captures every language/url pair; `files` itself is a new object each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return sizes;
 }
 
 function CropLayer({
@@ -196,6 +210,7 @@ export function CompareTab({
   setSelected,
   langs,
   setLangs,
+  allLangs,
   overlay,
   setOverlay,
   canUndo,
@@ -315,7 +330,11 @@ export function CompareTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.volume, doc.chapter, doc.pageIndex]);
 
-  const availableLangs = useMemo(() => LANGUAGES.filter((l) => Boolean(page.files[l])), [page]);
+  const availableLangs = useMemo(() => {
+    const pageLangs = Object.keys(page.files);
+    const ordered = allLangs.filter((l) => pageLangs.includes(l));
+    return [...ordered, ...pageLangs.filter((l) => !ordered.includes(l))];
+  }, [page, allLangs]);
   /**
    * Columns shown for this page. A language missing from the current page is hidden for
    * this page only: the persisted order is user-owned and must never be rewritten by
@@ -358,12 +377,14 @@ export function CompareTab({
     setRevealed({});
   }, [page.index, doc.chapter, doc.volume]);
 
-  const maskOn = (lang: Lang) => maskPrefs.master && maskPrefs.masked[lang] && Boolean(page.files[lang]);
+  // Unknown languages default to "masked" unless they are the base column; the user can flip any switch.
+  const maskWanted = (lang: Lang) => maskPrefs.masked[lang] ?? lang !== activeLangs[0];
+  const maskOn = (lang: Lang) => maskPrefs.master && maskWanted(lang) && Boolean(page.files[lang]);
   const revealKey = (panelId: string, lang: Lang) => `${panelId}:${lang}`;
   const isHidden = (panelId: string, lang: Lang) => maskOn(lang) && !revealed[revealKey(panelId, lang)];
 
   const toggleMaskLang = (lang: Lang) =>
-    setMaskPrefs((p) => ({ ...p, master: true, masked: { ...p.masked, [lang]: !p.masked[lang] } }));
+    setMaskPrefs((p) => ({ ...p, master: true, masked: { ...p.masked, [lang]: !maskWanted(lang) } }));
 
   // H hides everything (clears temporary reveals), Shift+H shows everything
   useEffect(() => {
@@ -590,7 +611,7 @@ export function CompareTab({
     }
   };
 
-  const langBar = [...langs, ...LANGUAGES.filter((l) => !langs.includes(l))];
+  const langBar = [...new Set([...langs, ...allLangs, ...availableLangs])];
 
   const startLangDrag = (e: ReactPointerEvent<HTMLButtonElement>, lang: Lang, index: number) => {
     if (!langs.includes(lang)) return;
@@ -638,7 +659,7 @@ export function CompareTab({
   };
 
   const resetLangOrder = () => {
-    setLangs([...LANGUAGES]);
+    setLangs(allLangs.length ? [...allLangs] : [...DEFAULT_LANGUAGES]);
   };
 
   const goTo = (dir: -1 | 1) => {
@@ -730,12 +751,8 @@ export function CompareTab({
     setOffset(lang, panel, { ...current, scale: next }, scopeOfMode);
   };
 
-  // Preload page dimensions for all three languages to compute each panel's real aspect ratio
-  const sizes: Record<Lang, { w: number; h: number } | null> = {
-    ja: useImageSize(page.files.ja),
-    zh: useImageSize(page.files.zh),
-    en: useImageSize(page.files.en),
-  };
+  // Natural image sizes for every language present on this page, so each panel keeps its aspect ratio.
+  const sizes = useImageSizes(page.files);
 
   const paneAspect = (lang: Lang, panel: Panel) => {
     const size = sizes[lang];
@@ -749,7 +766,7 @@ export function CompareTab({
     if (!url) {
       return (
         <div className="lang-pane empty" key={lang} style={{ aspectRatio: aspect }}>
-          <span className="lang-tag">{LANG_SHORT[lang]}</span>
+          <span className="lang-tag">{langShort(lang)}</span>
           <div className="pane-missing">{t('compare.missingLangImage', { lang: langLabel(lang) })}</div>
         </div>
       );
@@ -815,12 +832,12 @@ export function CompareTab({
             }}
           >
             <span>
-              {LANG_SHORT[lang]} {t('compare.maskedBadge')}
+              {langShort(lang)} {t('compare.maskedBadge')}
               <em>{t('compare.clickReveal')}</em>
             </span>
           </div>
         )}
-        <span className="lang-tag">{LANG_SHORT[lang]}</span>
+        <span className="lang-tag">{langShort(lang)}</span>
         <span className="pane-offset">
           Δ{Math.round(off.x * 100)},{Math.round(off.y * 100)} ×{off.scale.toFixed(2)}
           <button
@@ -885,7 +902,7 @@ export function CompareTab({
               url={url}
               rect={panel.rect}
               offset={offsetsOf(lang, panel)}
-              opacity={opacities[lang] ?? 0.5}
+              opacity={opacities[lang] ?? (lang === activeLangs[0] ? 1 : 0.5)}
               blend={blend}
             />
           );
@@ -944,8 +961,8 @@ export function CompareTab({
         )}
         <span className="lang-tag">
           {t('compare.overlayTag', {
-            langs: activeLangs.map((l) => LANG_SHORT[l]).join(' + '),
-            lang: LANG_SHORT[dragLang],
+            langs: activeLangs.map((l) => langShort(l)).join(' + '),
+            lang: langShort(dragLang),
           })}
         </span>
       </div>
@@ -1015,11 +1032,11 @@ export function CompareTab({
                         : langLabel(l)
                   }
                 >
-                  {LANG_SHORT[l]}
+                  {langShort(l)}
                 </button>
               );
             })}
-            {langs.join() !== LANGUAGES.join() && (
+            {langs.join() !== allLangs.join() && (
               <button
                 type="button"
                 className="lang-order-reset"
@@ -1051,16 +1068,16 @@ export function CompareTab({
               <button
                 type="button"
                 key={l}
-                className={`lang-chip ${maskPrefs.masked[l] ? 'on' : ''}`}
+                className={`lang-chip ${maskWanted(l) ? 'on' : ''}`}
                 onClick={() => toggleMaskLang(l)}
                 title={
-                  maskPrefs.masked[l]
+                  maskWanted(l)
                     ? t('compare.maskLangTitleMasked', { lang: langLabel(l) })
                     : t('compare.maskLangTitleVisible', { lang: langLabel(l) })
                 }
               >
-                {LANG_SHORT[l]}
-                <i className="mask-icon">{maskPrefs.masked[l] ? '◐' : '◯'}</i>
+                {langShort(l)}
+                <i className="mask-icon">{maskWanted(l) ? '◐' : '◯'}</i>
               </button>
             ))}
           {maskPrefs.master && (
@@ -1129,7 +1146,7 @@ export function CompareTab({
                     className={`lang-chip ${dragLang === l ? 'on' : ''}`}
                     onClick={() => setDragLang(l)}
                   >
-                    {LANG_SHORT[l]}
+                    {langShort(l)}
                   </button>
                 ))}
               </div>
@@ -1321,7 +1338,7 @@ export function CompareTab({
                 ↷
               </button>
               <span className="muted tiny ann-hint">
-                {t('ann.laneHint', { lang: LANG_SHORT[overlay ? dragLang : annLang] })}
+                {t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
               </span>
             </>
           )}
@@ -1376,8 +1393,8 @@ export function CompareTab({
             {mode === 'anchors' && (
               <span className="anchor-tip">
                 {pendingAnchor
-                  ? t('compare.anchorPending', { lang: LANG_SHORT[pendingAnchor.lang] })
-                  : t('compare.anchorWaiting', { lang: LANG_SHORT[baseLang] })}
+                  ? t('compare.anchorPending', { lang: langShort(pendingAnchor.lang) })
+                  : t('compare.anchorWaiting', { lang: langShort(baseLang) })}
                 {pendingAnchor && (
                   <button type="button" className="btn tiny" onClick={() => setPendingAnchor(null)}>
                     {t('compare.cancelAnchor')}
@@ -1398,7 +1415,7 @@ export function CompareTab({
                   onClick={() => setDragLang(l)}
                   disabled={!page.files[l]}
                 >
-                  {LANG_SHORT[l]}
+                  {langShort(l)}
                 </button>
               ))}
             </div>
@@ -1524,12 +1541,12 @@ export function CompareTab({
       {maskDefaultsOpen && (
         <div className="mask-defaults">
           <b>{t('compare.maskDefaultsHeading')}</b>
-          {LANGUAGES.map((l) => (
+          {langBar.map((l) => (
             <label key={l}>
               <input
                 type="checkbox"
-                checked={maskPrefs.masked[l]}
-                onChange={() => setMaskPrefs((p) => ({ ...p, masked: { ...p.masked, [l]: !p.masked[l] } }))}
+                checked={maskWanted(l)}
+                onChange={() => setMaskPrefs((p) => ({ ...p, masked: { ...p.masked, [l]: !maskWanted(l) } }))}
               />
               {langLabel(l)}
             </label>
@@ -1542,13 +1559,13 @@ export function CompareTab({
         <div className="opacity-bar">
           {activeLangs.map((l) => (
             <label key={l}>
-              <span>{LANG_SHORT[l]}</span>
+              <span>{langShort(l)}</span>
               <input
                 type="range"
                 min={0.1}
                 max={1}
                 step={0.05}
-                value={opacities[l] ?? 0.5}
+                value={opacities[l] ?? (l === activeLangs[0] ? 1 : 0.5)}
                 onChange={(e) => setOpacity(l, Number(e.target.value))}
               />
             </label>

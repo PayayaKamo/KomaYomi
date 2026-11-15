@@ -210,6 +210,24 @@ describe('project packaging', () => {
     expect(relinked.missing).toEqual([]);
   });
 
+  it('keeps runtime languages beyond ja/zh/en through packaging', () => {
+    const root = tempDir('project-langs');
+    for (const lang of ['ja', 'fr', 'ko']) {
+      writeFile(path.join(root, 'raw', 'Vol1', lang, '172', '01.png'), lang === 'ja' ? PNG_JA : PNG_ZH);
+    }
+    writePageDoc(path.join(root, 'data'), pageDoc('Vol1', '172'));
+
+    const { buffer, manifest } = createProjectBuffer({ rootDir: root, storageMode: 'packaged' });
+    expect(manifest.language.resolved.Vol1).toEqual({ ja: 'ja', fr: 'fr', ko: 'ko' });
+    expect(manifest.inventory.volumes[0].languages).toEqual(['ja', 'fr', 'ko']);
+
+    const dest = tempDir('project-langs-dest');
+    importProject({ rootDir: dest, buffer, snapshot: false });
+    const library = createLibrary(path.join(dest, 'raw'), path.join(dest, 'data'));
+    expect(library.volumes[0].languages).toEqual(['ja', 'fr', 'ko']);
+    expect(Object.keys(library.volumes[0].chapters[0].pages[0].files)).toEqual(['ja', 'fr', 'ko']);
+  });
+
   it('rejects archives without a manifest', () => {
     const root = tempDir('project-nomanifest');
     const buffer = createZip([{ name: 'pages/Vol1/172/0.json', data: Buffer.from('{}') }]);

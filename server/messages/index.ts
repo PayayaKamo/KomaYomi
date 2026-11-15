@@ -84,6 +84,9 @@ export function t(code: MessageCode, params: MessageParams = {}, lang?: MessageL
 
 /** Localized display name for a content language ("ja" → Japanese / 日文 / 日本語). */
 export function langName(lang: string, language?: MessageLang): string {
-  const code = lang === 'ja' ? 'LANG_NAME_JA' : lang === 'zh' ? 'LANG_NAME_ZH' : 'LANG_NAME_EN';
-  return t(code, {}, language);
+  if (lang === 'ja') return t('LANG_NAME_JA', {}, language);
+  if (lang === 'zh') return t('LANG_NAME_ZH', {}, language);
+  if (lang === 'en') return t('LANG_NAME_EN', {}, language);
+  // Detected at runtime: show the folder id itself rather than pretending it is English.
+  return String(lang || '?');
 }

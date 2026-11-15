@@ -122,6 +122,12 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 2. Open the app. The sidebar lists volumes and chapters.
 3. Select a page. On first open the page is automatically detected and saved.
 4. If a language folder is not recognized, open the volume settings and map directories manually.
+5. Click the **About** button in the top bar to confirm the version and the active data directory before reporting a problem.
+
+<figure class="shot">
+  <img src="/assets/screenshots/about-dialog.png" alt="About dialog with the KomaYomi version, build information and data directory path">
+  <figcaption>The About dialog. The version and data directory are the first two facts to include in a bug report.</figcaption>
+</figure>
 
 See [Library & Import](/guide/gallery) for naming rules and the language aliases the scanner accepts.
 

@@ -129,6 +129,22 @@ Groups live in the page document (`page`) and ride along with project packaging,
   `normalizeGroupOrder` for “sort by group”, which reorders members and groups by reading order.
 - Deleting a group never deletes panels.
 
+## Content languages
+
+Content language ids are runtime strings, not a fixed set. `ja`, `zh` and `en` keep their
+historical display names and colours; any other id (`fr`, `ko`, a directory name, …) is treated
+as a language and shown with a generic label.
+
+- `library.langOrder` lists the order used by the compare view and exports. It may hold any ids
+  found during a scan; unknown ids are kept after the built-in ones.
+- Volume `langDirs` maps a language id to the actual directory under `raw/`, so folders such as
+  `日语版` can be pinned to `ja`.
+- Page `files` is keyed by language id; a page may therefore carry any number of translations.
+- `mnexp` export configuration and `mnproj` manifests store the same ids; templates are not
+  restricted to three languages.
+
+This widening (enum → free string) is backwards compatible, so the schema version did not change.
+
 ## Changing a field without breaking old files
 
 Adding an **optional** field does not need a version bump:

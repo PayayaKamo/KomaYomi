@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
-import { LANGUAGES } from '../types';
 import {
   applyDrag,
   applyGroupOrder,
@@ -39,6 +38,8 @@ type Props = {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** Library language order; the page's own files decide which columns exist. */
+  allLangs: Lang[];
 };
 
 const HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -135,9 +136,14 @@ export function PanelsTab({
   canRedo,
   onUndo,
   onRedo,
+  allLangs,
 }: Props) {
   const { t } = useI18n();
-  const availableLangs = useMemo(() => LANGUAGES.filter((l) => Boolean(page.files[l])), [page]);
+  const availableLangs = useMemo(() => {
+    const files = Object.keys(page.files);
+    const ordered = allLangs.filter((l) => files.includes(l));
+    return [...ordered, ...files.filter((l) => !ordered.includes(l))];
+  }, [page, allLangs]);
   const [refLang, setRefLang] = useState<Lang>(availableLangs[0] ?? 'ja');
   const [zoom, setZoom] = useState(1);
   const [showNumbers, setShowNumbers] = useState(true);

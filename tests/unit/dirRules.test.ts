@@ -79,7 +79,10 @@ describe('validateRules', () => {
     expect(codeOf(() => validateRules([{ pattern: '{volume}/{page}' }]))).toBe('ERR_RULE_LANGUAGE_MISSING');
     const [withFallback] = validateRules([{ pattern: '{volume}/{page}', language: 'zh' }]);
     expect(withFallback.language).toBe('zh');
-    expect(codeOf(() => validateRules([{ pattern: '{volume}/{page}', language: 'fr' as never }]))).toBe(
+    // Any language id is valid now; only ids that would escape the folder are rejected.
+    const [unknown] = validateRules([{ pattern: '{volume}/{page}', language: 'fr' }]);
+    expect(unknown.language).toBe('fr');
+    expect(codeOf(() => validateRules([{ pattern: '{volume}/{page}', language: 'a/b' }]))).toBe(
       'ERR_RULE_LANGUAGE_INVALID',
     );
   });
@@ -115,11 +118,13 @@ describe('resolveFiles', () => {
     const result = resolveFiles(root, DEFAULT_RULES);
 
     expect(result.truncated).toBe(false);
-    expect(result.files).toHaveLength(6);
-    expect(result.unmatched).toHaveLength(1);
-    expect(result.unmatched[0].file).toBe('Vol1/fr/172/01.png');
-    expect(result.unmatched[0].reason).toContain('fr');
-    expect(result.hits[DEFAULT_RULES[0].id]).toBe(6);
+    // Unknown language folders are accepted as languages instead of being skipped.
+    expect(result.files).toHaveLength(7);
+    expect(result.unmatched).toHaveLength(0);
+    expect(result.hits[DEFAULT_RULES[0].id]).toBe(7);
+
+    const fr = result.files.find((f) => f.file === 'Vol1/fr/172/01.png');
+    expect(fr).toMatchObject({ lang: 'fr', langDir: 'fr' });
 
     const ja = result.files.find((f) => f.file === 'Vol1/ja/172/02.png');
     expect(ja).toMatchObject({
@@ -152,11 +157,11 @@ describe('resolveFiles', () => {
     expect(byFile.get('Vol2/ja/172/02.png')?.chapter).toBe('172');
   });
 
-  it('lets a pinned volume mapping claim an otherwise unknown language folder', () => {
+  it('uses an unknown language folder name as the language unless pinned', () => {
     const root = tempRoot(['Vol3/日语版/172/01.png']);
     const withoutPinned = resolveFiles(root, DEFAULT_RULES);
-    expect(withoutPinned.files).toHaveLength(0);
-    expect(withoutPinned.unmatched[0].reason).toContain('日语版');
+    expect(withoutPinned.files).toHaveLength(1);
+    expect(withoutPinned.files[0]).toMatchObject({ lang: '日语版', langDir: '日语版' });
 
     const withPinned = resolveFiles(root, DEFAULT_RULES, '', { Vol3: { ja: '日语版' } });
     expect(withPinned.files).toHaveLength(1);

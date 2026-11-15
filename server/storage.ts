@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AlignMode, AlignOffset, Lang, Note, PageDoc, Panel, ReadingDirection } from '../shared/types.ts';
 import { DEFAULT_OFFSET } from '../shared/types.ts';
-import { preserveUnknown } from '../shared/format.ts';
+import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
 import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
 import { recordVersion } from './pageHistory.ts';
@@ -94,8 +94,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
     };
   }
 
-  const dir: ReadingDirection =
-    input.readingDirection === 'ltr' || input.readingDirection === 'ttb' ? input.readingDirection : 'rtl';
+  const dir: ReadingDirection = readReadingDirection(input.readingDirection) ?? 'rtl';
 
   const mode: AlignMode =
     input.alignMode === 'panel' || input.alignMode === 'anchors' || input.alignMode === 'grid'

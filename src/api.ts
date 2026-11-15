@@ -3,6 +3,7 @@ import type {
   DetectResult,
   DirPreview,
   DirRule,
+  ChapterOverride,
   ExportConfig,
   ExportTemplate,
   Lang,
@@ -120,6 +121,16 @@ export type ProjectImport = {
   library: Library;
 };
 
+/* ---- Scheduled local backups ---- */
+
+export type AutoBackupConfig = { enabled: boolean; intervalHours: number; keep: number };
+
+export type AutoBackupState = { lastRunAt?: string; lastFile?: string; lastSize?: number; lastError?: string };
+
+export type AutoBackupFile = { name: string; size: number; at: string };
+
+export type BackupSchedule = { config: AutoBackupConfig; state: AutoBackupState; files: AutoBackupFile[] };
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -161,6 +172,20 @@ export const api = {
   /** Persist the compare/export language order; null restores the default. */
   saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
 
+  /* ---- Preprocessing wizard ---- */
+
+  preprocessBackup: () => request<{ backup: { at: string; volume: string } | null }>('/api/preprocess/backup'),
+
+  applyPreprocess: (input: {
+    volume: string;
+    title?: string;
+    chapters?: Record<string, ChapterOverride>;
+    dirs?: Partial<Record<Lang, string | null>>;
+  }) => request<{ backupAt: string; library: Library }>('/api/preprocess/apply', json(input)),
+
+  restorePreprocess: (volume: string) =>
+    request<{ at: string; library: Library }>('/api/preprocess/restore', json({ volume })),
+
   /* ---- Directory recognition rules ---- */
   dirRules: () =>
     request<{ rules: DirRule[]; defaults: DirRule[]; customized: boolean; warning?: string }>('/api/dir-rules'),
@@ -197,6 +222,22 @@ export const api = {
     request<{ restored: number; snapshot: string | null; warnings: string[]; library: Library }>(
       '/api/backup/restore',
       json({ data }),
+    ),
+
+  /* ---- Scheduled local backups ---- */
+  backupSchedule: () => request<BackupSchedule>('/api/backup/schedule'),
+
+  saveBackupSchedule: (config: AutoBackupConfig) =>
+    request<BackupSchedule>('/api/backup/schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config }),
+    }),
+
+  runBackupSchedule: () =>
+    request<BackupSchedule & { file: string; size: number; entries: number; at: string; pruned: number }>(
+      '/api/backup/schedule/run',
+      json({}),
     ),
 
   /* ---- Storage providers: local / network drive / WebDAV ---- */
@@ -316,6 +357,15 @@ export const api = {
       assetDir?: string;
     }>('/api/export', json(config)),
 
+  exportDocx: (config: ExportConfig) =>
+    request<{
+      file: string;
+      url: string;
+      pages: number;
+      warnings: string[];
+      imageMode: 'embed';
+    }>('/api/export/docx', json(config)),
+
   /* ---- Panel templates ---- */
   panelTemplates: () => request<{ templates: PanelTemplate[] }>('/api/panel-templates'),
 
@@ -424,7 +474,10 @@ export const api = {
       warnings: string[];
     }>('/api/exchange/page/import', json(input)),
 
-  plugins: () => request<{ plugins: { file: string; name: string; error?: string }[] }>('/api/plugins'),
+  plugins: () =>
+    request<{
+      plugins: { file: string; name: string; match?: Record<string, string>; error?: string; errorCode?: string }[];
+    }>('/api/plugins'),
 
   /* ---- Export templates ---- */
   exportTemplates: () => request<{ templates: ExportTemplate[] }>('/api/export-templates'),

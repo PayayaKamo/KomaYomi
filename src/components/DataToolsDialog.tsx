@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CacheStats, Library, StorageConfig, StorageStatus, StorageTarget } from '../types';
+import type { AutoBackupConfig, BackupSchedule } from '../api';
 import { api } from '../api';
 import { formatBytes, formatNumber, t, useI18n } from '../i18n';
 
@@ -22,10 +23,13 @@ function readFileBase64(file: File): Promise<string> {
 
 /** One-click backup / restore: preview what will be overwritten and keep a pre-restore snapshot. */
 export function DataToolsDialog({ onClose, onRestored }: Props) {
-  const { t } = useI18n();
+  const { t, formatDate } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exported, setExported] = useState<{ url: string; size: number } | null>(null);
+  const [schedule, setSchedule] = useState<BackupSchedule | null>(null);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
   const [pending, setPending] = useState<{
     data: string;
     name: string;
@@ -54,7 +58,43 @@ export function DataToolsDialog({ onClose, onRestored }: Props) {
 
   useEffect(() => {
     void loadStorage();
+    void api
+      .backupSchedule()
+      .then(setSchedule)
+      .catch((err) => setScheduleMsg(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  const patchSchedule = (patch: Partial<AutoBackupConfig>) => {
+    setSchedule((current) => (current ? { ...current, config: { ...current.config, ...patch } } : current));
+  };
+
+  const saveSchedule = async () => {
+    if (!schedule) return;
+    setScheduleBusy(true);
+    setScheduleMsg(null);
+    try {
+      setSchedule(await api.saveBackupSchedule(schedule.config));
+      setScheduleMsg(t('backup.autoSaved'));
+    } catch (err) {
+      setScheduleMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+
+  const runSchedule = async () => {
+    setScheduleBusy(true);
+    setScheduleMsg(null);
+    try {
+      const res = await api.runBackupSchedule();
+      setSchedule(res);
+      setScheduleMsg(t('backup.autoDone', { file: res.file, size: formatBytes(res.size) }));
+    } catch (err) {
+      setScheduleMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
 
   const beginEdit = (role: 'raw' | 'backup', target?: StorageTarget) => {
     setDraft({
@@ -246,6 +286,87 @@ export function DataToolsDialog({ onClose, onRestored }: Props) {
                 </a>
                 {t('backup.generatedAfter', { size: formatBytes(exported.size) })}
               </p>
+            )}
+          </section>
+
+          <section className="backup-section">
+            <h3>{t('backup.autoSection')}</h3>
+            <p className="muted tiny">{t('backup.autoHint')}</p>
+            {!schedule ? (
+              <p className="muted tiny">{t('backup.loadingSchedule')}</p>
+            ) : (
+              <>
+                <label className="field">
+                  <span>
+                    <input
+                      type="checkbox"
+                      checked={schedule.config.enabled}
+                      onChange={(e) => patchSchedule({ enabled: e.target.checked })}
+                    />{' '}
+                    {t('backup.autoEnable')}
+                  </span>
+                </label>
+                <div className="row-inline">
+                  <label className="field">
+                    {t('backup.autoInterval')}
+                    <input
+                      type="number"
+                      min={1}
+                      max={168}
+                      value={schedule.config.intervalHours}
+                      onChange={(e) => patchSchedule({ intervalHours: Number(e.target.value) || 24 })}
+                    />
+                  </label>
+                  <label className="field">
+                    {t('backup.autoKeep')}
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={schedule.config.keep}
+                      onChange={(e) => patchSchedule({ keep: Number(e.target.value) || 7 })}
+                    />
+                  </label>
+                </div>
+                <div className="row-inline">
+                  <button
+                    type="button"
+                    className="btn primary"
+                    disabled={scheduleBusy}
+                    onClick={() => void saveSchedule()}
+                  >
+                    {t('common.save')}
+                  </button>
+                  <button type="button" className="btn" disabled={scheduleBusy} onClick={() => void runSchedule()}>
+                    {t('backup.autoRunNow')}
+                  </button>
+                </div>
+                <p className="muted tiny">
+                  {schedule.state.lastRunAt
+                    ? t('backup.autoLastRun', {
+                        at: formatDate(schedule.state.lastRunAt),
+                        file: schedule.state.lastFile ?? '',
+                      })
+                    : t('backup.autoNever')}
+                </p>
+                {schedule.state.lastError && (
+                  <div className="banner error">{t('backup.autoLastError', { detail: schedule.state.lastError })}</div>
+                )}
+                {schedule.files.length > 0 && (
+                  <div className="banner info">
+                    <b>{t('backup.autoFiles', { count: formatNumber(schedule.files.length) })}</b>
+                    {schedule.files.slice(0, 5).map((file) => (
+                      <div key={file.name}>
+                        <a href={`/exports/${encodeURIComponent(file.name)}`} download>
+                          {file.name}
+                        </a>{' '}
+                        · {formatBytes(file.size)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {scheduleMsg && <div className="banner info">{scheduleMsg}</div>}
+              </>
             )}
           </section>
 

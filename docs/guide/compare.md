@@ -39,6 +39,11 @@ Masking hides a language's artwork while you test your own comprehension.
 
 Masks are a **reading preference only**. HTML and PNG exports never include masks. Mask defaults are stored in the browser, not in the page JSON.
 
+<figure class="shot">
+  <img src="/assets/screenshots/language-mask.png" alt="Compare reader with Chinese and English masked by a blur, the mask style selector and the default-mask checkboxes">
+  <figcaption>Masking with Chinese and English hidden. Default masks remembers which languages start masked; clicking a masked pane reveals it temporarily.</figcaption>
+</figure>
+
 ## Zoom, pan and scope
 
 - **Wheel** over a pane zooms that language. The wheel is captured only while the pointer is inside a pane, so normal page scrolling still works elsewhere.
@@ -75,6 +80,20 @@ Anchor mode shows a prompt with the reference language. Click a feature point in
 - Choose a preset, then **Apply to this page** or **Apply to chapter**; **Delete** removes it.
 
 Presets record the alignment mode, offsets, panel offsets and grid step. Applying a chapter preset is the fastest way to fix a uniformly shifted scan across a whole chapter.
+
+<figure class="shot">
+  <img src="/assets/screenshots/align-settings.png" alt="Alignment settings with target language, X, Y and scale inputs, reset buttons and preset controls">
+  <figcaption>Alignment settings: pick the target language, type exact values, or save the current alignment as a page or chapter preset.</figcaption>
+</figure>
+
+## Annotations in the compare reader
+
+The annotation toolbar is available here too, and it is the fastest place to mark a wording difference across editions.
+
+- New marks follow the same page/panel scope as in the workbench; selecting a panel scopes the next mark to that panel.
+- In compare view the layer is shown by default, so marks are visible while you compare. Use the **Annotations** switch to hide them.
+- Marks are shared across views: a mark added in the compare reader appears in the panel workbench and in exports.
+- `Esc` leaves the current tool; `Delete` removes the selected mark.
 
 ## A practical comparison loop
 
@@ -116,9 +135,7 @@ Presets record the alignment mode, offsets, panel offsets and grid step. Applyin
 | Figure | Needed for |
 | --- | --- |
 | compare toolbar close-up | Language order, masks, alignment mode, scope |
-| mask defaults popover | Per-language default masks |
 | anchor mode step 1 / step 2 | Reference point and computed offset |
-| alignment settings panel | Numeric inputs and presets |
 
 ## Related
 

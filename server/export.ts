@@ -15,7 +15,7 @@ import type {
   PanelRect,
   ReadingDirection,
 } from '../shared/types.ts';
-import { DEFAULT_OFFSET } from '../shared/types.ts';
+import { DEFAULT_OFFSET, orderPageIndices } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { currentLang, langName, t } from './messages/index.ts';
 import type { MessageLang } from './messages/index.ts';
@@ -45,14 +45,18 @@ type ExportArgs = {
   library: Library;
 };
 
-const dirLabel = (direction: ReadingDirection): string =>
-  t(
-    direction === 'ltr'
-      ? 'EXPORT_DIRECTION_LTR'
-      : direction === 'ttb'
-        ? 'EXPORT_DIRECTION_TTB'
-        : 'EXPORT_DIRECTION_RTL',
-  );
+const DIRECTION_KEY = {
+  rtl: 'EXPORT_DIRECTION_RTL',
+  ltr: 'EXPORT_DIRECTION_LTR',
+  ttb: 'EXPORT_DIRECTION_TTB',
+  'horizontal-rl': 'EXPORT_DIRECTION_HORIZONTAL_RL',
+  'horizontal-lr': 'EXPORT_DIRECTION_HORIZONTAL_LR',
+  'vertical-rl': 'EXPORT_DIRECTION_VERTICAL_RL',
+  'vertical-lr': 'EXPORT_DIRECTION_VERTICAL_LR',
+  'continuous-vertical': 'EXPORT_DIRECTION_CONTINUOUS',
+} as const;
+
+const dirLabel = (direction: ReadingDirection): string => t(DIRECTION_KEY[direction]);
 
 function notesHtml(notes: Note[], filterTags: string[]): string {
   if (!notes.length) return '';
@@ -299,11 +303,20 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .note-src a:hover{text-decoration:underline}
 .empty{color:var(--muted);font-size:13px;padding:8px 0}
 footer.doc{margin-top:48px;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:12px}
-@media print{body{background:#fff}.wrap{max-width:none;padding:0}
-.page{page-break-after:always;break-after:page;margin-bottom:0}
-.page:last-of-type{page-break-after:auto;break-after:auto}
-.panel-row,.shot,.notes-group{break-inside:avoid}
-header.doc{margin-bottom:20px}
+@media print{@page{size:A4;margin:12mm}
+body{background:#fff;color:#000}
+.wrap{max-width:none;padding:0}
+header.doc{margin-bottom:14px}
+.page{margin:0;break-after:page;page-break-after:always;break-inside:avoid}
+.page:last-of-type{break-after:auto;page-break-after:auto}
+.page-body,.page-body.stack{display:block}
+.shot{border:0;background:none;break-inside:avoid}
+.shot img{width:auto;height:auto;max-width:100%;max-height:150mm;margin:0 auto;object-fit:contain}
+.page-body .notes{margin-top:6mm}
+.compare{display:flex;flex-direction:column;gap:12px}
+.compare .notes-group{order:2;grid-column:auto}
+.panel-row,.notes-group,.note,.note-images,.crop-wrap{break-inside:avoid}
+a{color:#000}
 footer.doc{display:none}}
 `;
 
@@ -323,7 +336,9 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   const assetDir = `${base}.files`;
   const imageMode: 'files' | 'embed' = config.embedImages ? 'embed' : 'files';
 
-  const indices = config.pageIndices?.length ? config.pageIndices : chapter.pages.map((p) => p.index);
+  const indices = config.pageIndices?.length
+    ? orderPageIndices(config.pageIndices, chapter.pages)
+    : chapter.pages.map((p) => p.index);
   const warnings: string[] = [];
   const sections: string[] = [];
   const styleBlocks: string[] = [];
@@ -331,8 +346,8 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   let direction: ReadingDirection | null = null;
 
   for (const index of indices) {
-    const page = chapter.pages[index];
-    if (!page) continue;
+    const page = chapter.pages.find((p) => p.index === index);
+    if (!page || page.excluded) continue;
     const doc = readPageDoc(dataRoot, config.volume, config.chapter, index);
     if (!doc) {
       warnings.push(t('WARN_PAGE_SKIPPED_NO_PANELS', { page: index + 1 }));
@@ -376,7 +391,9 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
       } else {
         // Directory mode: copy images into a sibling .files directory and reference them relatively; output stays small and needs no dev server
         const ext = path.extname(file).toLowerCase() || '.jpg';
-        const name = `p${String(index + 1).padStart(3, '0')}-${lang}${ext}`;
+        // Number assets by export position, so the folder sorts in reading order even
+        // when the chapter config reorders pages; section headings keep the real page.
+        const name = `p${String(exported + 1).padStart(3, '0')}-${lang}${ext}`;
         fs.mkdirSync(path.join(exportRoot, assetDir), { recursive: true });
         fs.copyFileSync(file, path.join(exportRoot, assetDir, name));
         src = `./${encodeURI(assetDir)}/${name}`;
@@ -509,11 +526,12 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   ${sections.join('\n')}
   <footer class="doc">${esc(t('EXPORT_FOOTER', { pages: exported }))}</footer>
 </div>
+${config.print ? '<script>window.addEventListener("load",()=>window.print())</script>' : ''}
 </body>
 </html>`;
 
   fs.mkdirSync(exportRoot, { recursive: true });
-  const filename = `${base}.html`;
+  const filename = `${base}${config.print ? '-print' : ''}.html`;
   fs.writeFileSync(path.join(exportRoot, filename), html, 'utf8');
   return {
     file: filename,

@@ -111,6 +111,16 @@ export const MESSAGES = {
     zh: '缺少卷名或语言目录配置',
     ja: '巻名または言語ディレクトリ設定が不足しています',
   },
+  ERR_UNKNOWN_DIRECTION: {
+    en: 'Unsupported reading direction',
+    zh: '不支持的阅读方向',
+    ja: '未対応の読む方向です',
+  },
+  ERR_PREPROCESS_NO_BACKUP: {
+    en: 'There is no previous preprocessing result to restore',
+    zh: '没有可回滚的上一次预处理结果',
+    ja: '復元できる前回の前処理結果がありません',
+  },
   ERR_URL_NOT_HTTP: {
     en: 'Only http(s) links are supported',
     zh: '只支持 http(s) 链接',
@@ -379,6 +389,11 @@ export const MESSAGES = {
     zh: '压缩包里没有 data/ 目录，可能不是本工具的备份',
     ja: 'アーカイブに data/ ディレクトリがありません。KomaYomi のバックアップではない可能性があります',
   },
+  ERR_AUTO_BACKUP_FAILED: {
+    en: 'Scheduled backup failed: {detail}',
+    zh: '定时备份失败：{detail}',
+    ja: '定期バックアップに失敗しました：{detail}',
+  },
 
   /* ---------------------------------- storage --------------------------------- */
   ERR_UNSAFE_PATH: {
@@ -518,9 +533,9 @@ export const MESSAGES = {
     ja: '{index} 番目のルールには {page} プレースホルダーが必要です',
   },
   ERR_RULE_LANGUAGE_INVALID: {
-    en: 'Rule #{index} has an unsupported "language" value "{value}" (use ja/zh/en)',
-    zh: '第 {index} 条规则的 language 值「{value}」不受支持（请用 ja/zh/en）',
-    ja: '{index} 番目のルールの language 値「{value}」は未対応です（ja/zh/en を使用）',
+    en: 'Rule #{index} has an invalid "language" value "{value}" (path separators are not allowed)',
+    zh: '第 {index} 条规则的 language 值「{value}」无效（不能包含路径分隔符）',
+    ja: '{index} 番目のルールの language 値「{value}」が無効です（パス区切り文字は使用できません）',
   },
   ERR_RULE_LANGUAGE_MISSING: {
     en: 'Rule #{index} needs a {language} placeholder or a "language" fallback',
@@ -864,6 +879,31 @@ export const MESSAGES = {
     en: 'Reading direction: right to left · vertical',
     zh: '阅读方向：从右到左 · 竖排',
     ja: '読み方向：右から左 · 縦書き',
+  },
+  EXPORT_DIRECTION_HORIZONTAL_RL: {
+    en: 'Reading direction: right to left · horizontal',
+    zh: '阅读方向：从右到左 · 横排',
+    ja: '読み方向：右から左 · 横書き',
+  },
+  EXPORT_DIRECTION_HORIZONTAL_LR: {
+    en: 'Reading direction: left to right · horizontal',
+    zh: '阅读方向：从左到右 · 横排',
+    ja: '読み方向：左から右 · 横書き',
+  },
+  EXPORT_DIRECTION_VERTICAL_RL: {
+    en: 'Reading direction: right to left · vertical',
+    zh: '阅读方向：从右到左 · 竖排',
+    ja: '読み方向：右から左 · 縦書き',
+  },
+  EXPORT_DIRECTION_VERTICAL_LR: {
+    en: 'Reading direction: left to right · vertical',
+    zh: '阅读方向：从左到右 · 竖排',
+    ja: '読み方向：左から右 · 縦書き',
+  },
+  EXPORT_DIRECTION_CONTINUOUS: {
+    en: 'Reading direction: continuous vertical strip',
+    zh: '阅读方向：条漫 · 连续向下',
+    ja: '読み方向：連続スクロール（縦）',
   },
   EXPORT_PAGE_NOTES: {
     en: 'Page notes',
