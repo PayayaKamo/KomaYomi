@@ -5403,3 +5403,137 @@ kbd {
     font-size: 10px;
   }
 }
+
+.split-modal {
+  width: min(460px, calc(100vw - 24px));
+}
+
+.split-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.split-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.split-field .tb-label {
+  white-space: nowrap;
+}
+
+.split-count {
+  width: 6ch;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.split-preview {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+
+.split-box {
+  position: relative;
+  width: min(320px, 100%);
+  max-height: 240px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: repeating-linear-gradient(45deg, var(--panel-2), var(--panel-2) 6px, var(--panel) 6px, var(--panel) 12px);
+  touch-action: none;
+}
+
+.split-line {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  touch-action: none;
+}
+
+.split-v .split-line {
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  margin-left: -9px;
+  cursor: ew-resize;
+}
+
+.split-h .split-line {
+  left: 0;
+  right: 0;
+  height: 18px;
+  margin-top: -9px;
+  cursor: ns-resize;
+}
+
+.split-line::before {
+  content: '';
+  position: absolute;
+  background: var(--accent);
+}
+
+.split-v .split-line::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+}
+
+.split-h .split-line::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+}
+
+.split-line:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.split-grip {
+  position: relative;
+  z-index: 1;
+  padding: 2px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.split-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+@media (max-width: 520px) {
+  .split-controls {
+    gap: 6px 10px;
+  }
+
+  .split-preview {
+    padding: 8px;
+  }
+
+  .split-box {
+    max-height: 180px;
+  }
+}

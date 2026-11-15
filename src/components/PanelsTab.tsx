@@ -23,6 +23,7 @@ import { PANEL_SECTIONS, setPanelSection, togglePanelSection, usePanelSections }
 import type { PanelSection } from '../lib/panelsSections';
 import { toggleToolbarFold, useToolbarFolds } from '../lib/panelToolbarFolds';
 import { PanelOrderDialog } from './PanelOrderDialog';
+import { PanelSplitDialog } from './PanelSplitDialog';
 
 type Props = {
   doc: PageDoc;
@@ -189,6 +190,7 @@ export function PanelsTab({
   const [metaOpen, setMetaOpen] = useState(false);
   const metaRef = useRef<HTMLDivElement>(null);
   const [orderOpen, setOrderOpen] = useState(false);
+  const [splitId, setSplitId] = useState<string | null>(null);
   const sectionLabels: Record<PanelSection, string> = {
     grid: t('panels.grid'),
     template: t('panels.templates'),
@@ -460,6 +462,38 @@ export function PanelsTab({
   const requestDetect = () => {
     if (doc.panels.some((p) => typeof p.number === 'number') && !window.confirm(t('panels.redetectLosesOrder'))) return;
     onDetect(refLang);
+  };
+
+  /**
+   * A split replaces the panel in reading order and renumbers every panel, so the
+   * new pieces occupy the old slot exactly and later panels shift by the extra count.
+   */
+  const applySplit = (base: Panel, pieces: PanelRect[]) => {
+    const ids = pieces.map(() => uid('p'));
+    mutate((d) => {
+      const current = d.panels.find((p) => p.id === base.id);
+      if (!current) return d;
+      const sequence = sortPanels(d.panels, d.readingDirection).flatMap((p) => (p.id === base.id ? ids : [p.id]));
+      const byId = new Map(d.panels.filter((p) => p.id !== base.id).map((p) => [p.id, p]));
+      ids.forEach((id, i) =>
+        byId.set(id, { ...current, id, rect: pieces[i], source: 'manual' as const, number: undefined }),
+      );
+      const panels = sequence.map((id, i) => ({ ...byId.get(id)!, number: i + 1 }));
+      const first = ids[0];
+      return {
+        ...d,
+        panels,
+        notes: d.notes.map((n) => (n.scope === 'panel' && n.panelId === base.id ? { ...n, panelId: first } : n)),
+        annotations: (d.annotations ?? []).map((a) => (a.panelId === base.id ? { ...a, panelId: first } : a)),
+        groups: (d.groups ?? []).map((g) =>
+          g.panelIds.includes(base.id)
+            ? { ...g, panelIds: g.panelIds.flatMap((id) => (id === base.id ? ids : [id])) }
+            : g,
+        ),
+      };
+    });
+    setSelected(ids);
+    setSplitId(null);
   };
 
   const mergeSelected = () => {
@@ -796,6 +830,7 @@ export function PanelsTab({
   };
 
   const url = page.files[refLang];
+  const splitPanel = splitId ? (doc.panels.find((p) => p.id === splitId) ?? null) : null;
   /** Same wording the old status strip used, now shown inside the details popover. */
   const detectSourceLabel =
     doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
@@ -849,6 +884,14 @@ export function PanelsTab({
               </button>
               <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
                 {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setSplitId(selected[0])}
+                disabled={selected.length !== 1 || !imgLoaded}
+              >
+                {t('panels.split')}
               </button>
               <button type="button" className="btn" onClick={() => setOrderOpen(true)} disabled={doc.panels.length < 2}>
                 {t('panels.order')}
@@ -1539,6 +1582,14 @@ export function PanelsTab({
           selectedId={selected.length === 1 ? selected[0] : null}
           onClose={() => setOrderOpen(false)}
           onApply={applyPanelOrder}
+        />
+      )}
+      {splitPanel && (
+        <PanelSplitDialog
+          rect={splitPanel.rect}
+          panelNo={numberMap.get(splitPanel.id) ?? null}
+          onClose={() => setSplitId(null)}
+          onApply={(pieces) => applySplit(splitPanel, pieces)}
         />
       )}
     </div>

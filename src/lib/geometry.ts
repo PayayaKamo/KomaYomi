@@ -57,6 +57,25 @@ export function unionRects(rects: PanelRect[]): PanelRect {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
+/**
+ * Split one panel into pieces along normalized cut positions (0..1 inside the panel).
+ * Pieces keep the parent bounds exactly: no gaps and no overlap.
+ */
+export function splitRect(rect: PanelRect, orientation: 'v' | 'h', cuts: number[]): PanelRect[] {
+  const points = [0, ...cuts, 1];
+  const pieces: PanelRect[] = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const from = points[i];
+    const to = points[i + 1];
+    pieces.push(
+      orientation === 'v'
+        ? { x: rect.x + rect.w * from, y: rect.y, w: rect.w * (to - from), h: rect.h }
+        : { x: rect.x, y: rect.y + rect.h * from, w: rect.w, h: rect.h * (to - from) },
+    );
+  }
+  return pieces;
+}
+
 function median(nums: number[]): number {
   if (!nums.length) return 0;
   const s = [...nums].sort((a, b) => a - b);
