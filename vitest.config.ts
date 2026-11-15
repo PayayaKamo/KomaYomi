@@ -18,7 +18,26 @@ export default defineConfig({
       reporter: ['text', 'lcovonly'],
       reportsDirectory: 'tests/.coverage',
       include: ['server/**/*.ts', 'shared/**/*.ts'],
-      exclude: ['server/app.ts', 'server/standalone.ts', 'server/plugin.ts', 'server/plugins.ts'],
+      exclude: [
+        // HTTP routing and process entry points run end-to-end via the dev server / CLI,
+        // so unit tests would only restate their wiring.
+        'server/app.ts',
+        'server/standalone.ts',
+        'server/plugin.ts',
+        // User-provided plugin files are imported dynamically with cache-busting URLs;
+        // plugin behavior itself is covered by tests/unit/plugins.test.ts.
+        'server/plugins.ts',
+        // Talks to remote WebDAV / NAS endpoints that CI cannot provision.
+        'server/storageProviders.ts',
+      ],
+      // Floors sit about two points below today's totals (statements/lines 71.9, branches 73.2,
+      // functions 81.2): small refactors may dip, but a module losing its tests still fails.
+      thresholds: {
+        statements: 70,
+        branches: 71,
+        functions: 79,
+        lines: 70,
+      },
     },
   },
 });
