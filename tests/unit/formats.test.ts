@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CURRENT_SCHEMA_VERSION, checkSchemaVersion, prepareExchange, preserveUnknown } from '../../shared/format.ts';
 import { migrateManifestV0, migratePageV0 } from '../../shared/migrations.ts';
-import { pageFilePath, readPageDoc, writePageDoc } from '../../server/storage.ts';
+import { createEmptyDoc, pageFilePath, readPageDoc, writePageDoc } from '../../server/storage.ts';
 import type { PageDoc } from '../../shared/types.ts';
 import { AppError } from '../../server/errors.ts';
 import { makeTempDir, removeDir } from '../helpers/tmp.ts';
@@ -159,5 +159,24 @@ describe('schema versioning', () => {
     const migrated = migratePageV0({ ...legacyPage(), nested: { a: 1 } });
     expect(migrated.schemaVersion).toBe(1);
     expect(migrated.nested).toEqual({ a: 1 });
+  });
+});
+
+describe('page alignment maps', () => {
+  it('persists cleared offsets instead of resurrecting old entries', () => {
+    const dataRoot = tempDataRoot();
+    const base = createEmptyDoc('v1', 'c1', 0);
+    writePageDoc(dataRoot, {
+      ...base,
+      offsets: { ja: { x: 0.1, y: 0.2, scale: 1.4 } },
+      panelOffsets: { p1: { ja: { x: 0.3, y: 0.1, scale: 1.2 } } },
+    });
+
+    // "Reset all" in the compare view sends empty maps; the write must not merge the old entries back.
+    writePageDoc(dataRoot, { ...base, offsets: {}, panelOffsets: {} });
+
+    const saved = readPageDoc(dataRoot, 'v1', 'c1', 0);
+    expect(saved?.offsets).toEqual({});
+    expect(saved?.panelOffsets).toEqual({});
   });
 });

@@ -268,6 +268,10 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
   normalized.updatedAt = now;
 
   const merged = preserveUnknown(prevRaw, normalized);
+  // Offset maps are deletion-sensitive: preserveUnknown would otherwise resurrect
+  // entries the client cleared (for example "reset all" in the compare view).
+  merged.offsets = normalized.offsets;
+  merged.panelOffsets = normalized.panelOffsets;
   writeStoredFile(file, 'page', merged);
   if (!meta?.skipHistory) {
     // Version history is an audit trail: a write failure there must never block the save.
