@@ -2158,6 +2158,19 @@ body.pane-resizing * {
   mix-blend-mode: multiply;
 }
 
+.ann-crop-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  pointer-events: none;
+}
+
+.ann-crop-layer svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .lang-tag {
   position: absolute;
   left: 5px;

@@ -6,6 +6,7 @@ import { sortPanels } from '../lib/geometry';
 import { api } from '../api';
 import { langLabel, readingLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
+import { AnnotationOverlay } from './AnnotationOverlay';
 
 type Props = {
   doc: PageDoc;
@@ -704,6 +705,18 @@ export function CompareTab({
         onPointerDown={(e) => startPan(e, lang, panel)}
       >
         <CropLayer url={url} rect={panel.rect} offset={off} opacity={1} blend={false} />
+        {/* Read-only annotation layer: same offsets as the image, below the mask. */}
+        <div
+          className="ann-crop-layer"
+          style={{ transform: `translate(${off.x * 100}%, ${off.y * 100}%) scale(${off.scale})` }}
+        >
+          <AnnotationOverlay
+            annotations={doc.annotations ?? []}
+            panels={doc.panels}
+            rect={panel.rect}
+            visible={doc.annotationsVisible !== false}
+          />
+        </div>
         {isHidden(panel.id, lang) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
@@ -787,6 +800,22 @@ export function CompareTab({
             />
           );
         })}
+        {/* Overlay mode draws one annotation layer on top of the blended panes. */}
+        <div
+          className="ann-crop-layer"
+          style={{
+            transform: `translate(${offsetsOf(dragLang, panel).x * 100}%, ${
+              offsetsOf(dragLang, panel).y * 100
+            }%) scale(${offsetsOf(dragLang, panel).scale})`,
+          }}
+        >
+          <AnnotationOverlay
+            annotations={doc.annotations ?? []}
+            panels={doc.panels}
+            rect={panel.rect}
+            visible={doc.annotationsVisible !== false}
+          />
+        </div>
         {activeLangs.some((l) => isHidden(panel.id, l)) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
