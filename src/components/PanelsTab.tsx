@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react';
 import type { Lang, PageDoc, PageEntry, Panel, PanelGroup, PanelRect, PanelTemplate } from '../types';
 import {
   applyDrag,
@@ -25,6 +29,8 @@ import type { PanelSection } from '../lib/panelsSections';
 import { toggleToolbarFold, useToolbarFolds } from '../lib/panelToolbarFolds';
 import { PanelOrderDialog } from './PanelOrderDialog';
 import { PanelSplitDialog } from './PanelSplitDialog';
+import { isNativeTextTarget, useContextMenu } from './ContextMenu';
+import { copyText } from '../lib/clipboard';
 
 type Props = {
   doc: PageDoc;
@@ -158,6 +164,7 @@ export function PanelsTab({
   allLangs,
 }: Props) {
   const { t, locale } = useI18n();
+  const { openMenu } = useContextMenu();
   const availableLangs = useMemo(() => {
     const files = Object.keys(page.files);
     const ordered = allLangs.filter((l) => files.includes(l));
@@ -421,6 +428,8 @@ export function PanelsTab({
   }, [marqueeActive, doc.panels, mutate, setSelected]);
 
   const startDrag = (e: ReactPointerEvent, panel: Panel, handle: ResizeHandle) => {
+    // Only the primary button edits; the context menu owns the secondary button.
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     setAnnSelected(null);
@@ -492,18 +501,20 @@ export function PanelsTab({
     setSelected([id]);
   };
 
-  const deleteSelected = () => {
-    if (!selected.length) return;
+  const deletePanels = (ids: string[]) => {
+    if (!ids.length) return;
     mutate((d) => ({
       ...d,
-      panels: d.panels.filter((p) => !selected.includes(p.id)),
-      notes: d.notes.filter((n) => !(n.scope === 'panel' && n.panelId && selected.includes(n.panelId))),
+      panels: d.panels.filter((p) => !ids.includes(p.id)),
+      notes: d.notes.filter((n) => !(n.scope === 'panel' && n.panelId && ids.includes(n.panelId))),
       groups: (d.groups ?? [])
-        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !selected.includes(id)) }))
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !ids.includes(id)) }))
         .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([]);
   };
+
+  const deleteSelected = () => deletePanels(selected);
 
   /** Reordering writes the array order plus consecutive numbers; undo restores both. */
   const applyPanelOrder = (order: string[]) => {
@@ -553,22 +564,80 @@ export function PanelsTab({
     setSplitId(null);
   };
 
-  const mergeSelected = () => {
-    if (selected.length < 2) return;
-    const chosen = doc.panels.filter((p) => selected.includes(p.id));
+  const mergePanels = (ids: string[]) => {
+    if (ids.length < 2) return;
+    const chosen = doc.panels.filter((p) => ids.includes(p.id));
     const rect = unionRects(chosen.map((p) => p.rect));
     const id = uid('p');
     mutate((d) => ({
       ...d,
-      panels: [...d.panels.filter((p) => !selected.includes(p.id)), { id, rect, source: 'merged' }],
+      panels: [...d.panels.filter((p) => !ids.includes(p.id)), { id, rect, source: 'merged' }],
       notes: d.notes.map((n) =>
-        n.scope === 'panel' && n.panelId && selected.includes(n.panelId) ? { ...n, panelId: id } : n,
+        n.scope === 'panel' && n.panelId && ids.includes(n.panelId) ? { ...n, panelId: id } : n,
       ),
       groups: (d.groups ?? [])
-        .map((g) => ({ ...g, panelIds: g.panelIds.filter((pid) => !selected.includes(pid)) }))
+        .map((g) => ({ ...g, panelIds: g.panelIds.filter((pid) => !ids.includes(pid)) }))
         .filter((g) => g.panelIds.length > 0),
     }));
     setSelected([id]);
+  };
+
+  const mergeSelected = () => mergePanels(selected);
+
+  const coordsText = (panel: Panel) =>
+    t('order.coords', {
+      x: Math.round(panel.rect.x * 100),
+      y: Math.round(panel.rect.y * 100),
+      w: Math.round(panel.rect.w * 100),
+      h: Math.round(panel.rect.h * 100),
+    });
+
+  /** Right-click on a panel mirrors the edit toolbar, using the same action functions. */
+  const openPanelMenu = (e: ReactMouseEvent, panel: Panel) => {
+    if (isNativeTextTarget(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const ids = selected.includes(panel.id) ? selected : [panel.id];
+    if (!selected.includes(panel.id)) setSelected([panel.id]);
+    openMenu(e, [
+      { id: 'add', label: t('panels.addPanel'), onSelect: () => addPanel() },
+      { type: 'separator', id: 'sep-edit' },
+      { id: 'split', label: t('panels.split'), disabled: !imgLoaded, onSelect: () => setSplitId(panel.id) },
+      { id: 'merge', label: t('panels.merge'), disabled: ids.length < 2, onSelect: () => mergePanels(ids) },
+      {
+        id: 'number',
+        label: t('ctx.setPanelNumber'),
+        onSelect: () => {
+          setSelected([panel.id]);
+          setOrderOpen(true);
+        },
+      },
+      {
+        id: 'delete',
+        label: t('common.delete'),
+        shortcut: 'Delete',
+        danger: true,
+        onSelect: () => deletePanels(ids),
+      },
+      { type: 'separator', id: 'sep-copy' },
+      { id: 'coords', label: t('ctx.copyCoords'), onSelect: () => void copyText(coordsText(panel)) },
+    ]);
+  };
+
+  /** Right-click on empty page area: create, detect, and toggle the numbering overlay. */
+  const openBlankMenu = (e: ReactMouseEvent) => {
+    if (isNativeTextTarget(e.target)) return;
+    e.preventDefault();
+    openMenu(e, [
+      { id: 'add', label: t('panels.addPanel'), onSelect: () => addPanel() },
+      { id: 'auto', label: t('panels.autoSplit'), disabled: detecting, onSelect: requestDetect },
+      { type: 'separator', id: 'sep-numbers' },
+      {
+        id: 'numbers',
+        label: showNumbers ? t('ctx.hideNumbers') : t('ctx.showNumbers'),
+        onSelect: () => setShowNumbers((v) => !v),
+      },
+    ]);
   };
 
   /* ---------------- groups ---------------- */
@@ -1720,7 +1789,7 @@ export function PanelsTab({
           ))}
       </div>
 
-      <div className="stage-scroll">
+      <div className="stage-scroll" onContextMenu={openBlankMenu}>
         {!url ? (
           <div className="stage-empty">{t('panels.emptyPage')}</div>
         ) : (
@@ -1771,6 +1840,7 @@ export function PanelsTab({
                         borderColor: groupColorMap.get(panel.id),
                       }}
                       onPointerDown={(e) => startDrag(e, panel, 'move')}
+                      onContextMenu={(e) => openPanelMenu(e, panel)}
                       onDoubleClick={(e) => e.stopPropagation()}
                     >
                       {showNumbers && <em className="pnum">{numberMap.get(panel.id)}</em>}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { AlignMode, AlignOffset, AlignPreset, Lang, PageDoc, PageEntry, Panel } from '../types';
 import { DEFAULT_OFFSET, DEFAULT_LANGUAGES, langShort } from '../types';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
@@ -11,6 +11,9 @@ import { AnnotationOverlay } from './AnnotationOverlay';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
 import { useAnnSurface } from '../lib/annotationSurface';
+import { isNativeTextTarget, useContextMenu } from './ContextMenu';
+import { copyText } from '../lib/clipboard';
+import { exportPng } from '../lib/pngExport';
 
 type Props = {
   doc: PageDoc;
@@ -220,6 +223,7 @@ export function CompareTab({
   onRedo,
 }: Props) {
   const { t, formatNumber } = useI18n();
+  const { openMenu } = useContextMenu();
   const ordered = useMemo(
     () => applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups),
     [doc.panels, doc.readingDirection, doc.groups],
@@ -672,6 +676,81 @@ export function CompareTab({
     setLangs(allLangs.length ? [...allLangs] : [...DEFAULT_LANGUAGES]);
   };
 
+  const coordsText = (panel: Panel) =>
+    t('order.coords', {
+      x: Math.round(panel.rect.x * 100),
+      y: Math.round(panel.rect.y * 100),
+      w: Math.round(panel.rect.w * 100),
+      h: Math.round(panel.rect.h * 100),
+    });
+
+  const exportPanelPng = async (lang: Lang, panel: Panel) => {
+    const number = ordered.findIndex((p) => p.id === panel.id) + 1;
+    const base = `${doc.volume}-${doc.chapter}-P${number || 1}`.replace(/[\\/:*?"<>|]+/g, '-');
+    try {
+      await exportPng({
+        page,
+        lang,
+        langs: activeLangs,
+        rect: panel.rect,
+        mode: 'panel',
+        filenameBase: base,
+        annotations,
+        includeAnnotations: annotationsVisible,
+        panels: doc.panels,
+      });
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  /** Right-click a compare pane: column visibility, masking, zoom reset and PNG export. */
+  const openPanelMenu = (e: ReactMouseEvent, lang: Lang, panel: Panel) => {
+    if (isNativeTextTarget(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setSelected([panel.id]);
+    if (annAllowed && annOn) setAnnLang(lang);
+    const hasImage = Boolean(page.files[lang]);
+    const onlyThis = activeLangs.length === 1 && activeLangs[0] === lang;
+    openMenu(e, [
+      {
+        id: 'hide',
+        label: t('ctx.hideLangBar'),
+        disabled: !hasImage || activeLangs.length <= 1 || !activeLangs.includes(lang),
+        onSelect: () => toggleLang(lang),
+      },
+      {
+        id: 'mask',
+        label: t('ctx.maskLang'),
+        disabled: !hasImage,
+        onSelect: () => setMaskPrefs((p) => ({ ...p, master: true, masked: { ...p.masked, [lang]: true } })),
+      },
+      {
+        id: 'only',
+        label: t('ctx.onlyThisLang'),
+        disabled: !hasImage || onlyThis,
+        onSelect: () => setLangs([lang]),
+      },
+      {
+        id: 'all',
+        label: t('ctx.showAllLangs'),
+        disabled: availableLangs.length <= activeLangs.length,
+        onSelect: () => setLangs(availableLangs.length ? availableLangs : langs),
+      },
+      { type: 'separator', id: 'sep-lang' },
+      { id: 'reset', label: t('ctx.resetPanelZoom'), onSelect: () => resetLang(lang, panel) },
+      {
+        id: 'png',
+        label: t('ctx.exportPanelPng'),
+        disabled: !hasImage,
+        onSelect: () => void exportPanelPng(lang, panel),
+      },
+      { type: 'separator', id: 'sep-copy' },
+      { id: 'coords', label: t('ctx.copyCoords'), onSelect: () => void copyText(coordsText(panel)) },
+    ]);
+  };
+
   const goTo = (dir: -1 | 1) => {
     if (!ordered.length) return;
     const currentIdx = ordered.findIndex((p) => selected.includes(p.id));
@@ -795,6 +874,7 @@ export function CompareTab({
         data-lang={lang}
         data-panel-id={panel.id}
         data-has-image="1"
+        onContextMenu={(e) => openPanelMenu(e, lang, panel)}
         onPointerDown={(e) => {
           if (annAllowed && annOn && lang !== annLang) setAnnLang(lang);
           // A drawing tool owns this pane, so it must not also start a pan.
@@ -897,6 +977,7 @@ export function CompareTab({
         data-lang={dragLang}
         data-panel-id={panel.id}
         data-has-image="1"
+        onContextMenu={(e) => openPanelMenu(e, dragLang, panel)}
         onPointerDown={(e) => {
           if (annAllowed && annOn && annTool !== 'select') return;
           startPan(e, dragLang, panel);

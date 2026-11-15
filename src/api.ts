@@ -155,7 +155,10 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
-  library: () => request<{ library: Library; root: string }>('/api/library'),
+  library: () => request<{ library: Library; root: string; raw: string }>('/api/library'),
+
+  /** Open the configured raw library folder in the host file manager. */
+  revealRoot: () => request<{ ok: boolean; path: string }>('/api/reveal', json({})),
 
   /** App metadata for the About dialog; the version comes from package.json on the server. */
   health: () => request<{ ok: boolean; app: string; version: string; author: string; license: string }>('/api/health'),

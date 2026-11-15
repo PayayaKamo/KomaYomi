@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
@@ -332,7 +333,23 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
       const library = createLibrary(rawRoot, dataRoot);
 
       if (pathname === '/api/library' && req.method === 'GET') {
-        sendJson(res, 200, { library, root: rootDir });
+        sendJson(res, 200, { library, root: rootDir, raw: rawRoot });
+        return true;
+      }
+
+      // Open the raw library folder in the host file manager. The path is fixed by the
+      // server configuration, so this cannot be used to launch arbitrary locations.
+      if (pathname === '/api/reveal' && req.method === 'POST') {
+        const command =
+          process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+        try {
+          const child = spawn(command, [rawRoot], { detached: true, stdio: 'ignore' });
+          child.on('error', () => undefined);
+          child.unref();
+          sendJson(res, 200, { ok: true, path: rawRoot });
+        } catch (error) {
+          sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
+        }
         return true;
       }
 

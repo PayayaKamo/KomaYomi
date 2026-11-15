@@ -40,6 +40,7 @@ export default function App() {
   const { t, locale, setLocale, formatNumber } = useI18n();
   const [library, setLibrary] = useState<Library | null>(null);
   const [rootPath, setRootPath] = useState('');
+  const [rawPath, setRawPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [view, setView] = useState<'panels' | 'compare'>('panels');
@@ -172,6 +173,7 @@ export default function App() {
       .then((res) => {
         setLibrary(res.library);
         setRootPath(res.root);
+        setRawPath(res.raw ?? res.root);
         if (res.library.langOrder?.length) setLangsState(res.library.langOrder);
         setLibError(null);
       })
@@ -527,6 +529,7 @@ export default function App() {
         <Sidebar
           library={library}
           rootPath={rootPath}
+          rawPath={rawPath}
           selection={sel}
           onOpen={openSelection}
           onReload={loadLibrary}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ClipboardEvent, DragEvent } from 'react';
+import type { ClipboardEvent, DragEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
 import type { Note, NoteImage, NoteSource, PageDoc, Panel } from '../types';
 import type { Library } from '../types';
 import { newNote, sourceDomain, uid } from '../lib/geometry';
@@ -9,6 +9,7 @@ import type { NotesIndex } from '../api';
 import type { Selection } from '../hooks/usePage';
 import { useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
+import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 
 type Props = {
   doc: PageDoc | null;
@@ -95,11 +96,15 @@ function readNoteMode(): NoteViewMode {
   }
 }
 
+type EditorApi = { insertLink: () => void };
+
 type EditorProps = {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
+  /** Lets the surrounding panel reuse the toolbar actions from a context menu. */
+  apiRef?: MutableRefObject<EditorApi | null>;
 };
 
 const MODE_ORDER: { mode: NoteViewMode; label: MessageKey }[] = [
@@ -108,7 +113,7 @@ const MODE_ORDER: { mode: NoteViewMode; label: MessageKey }[] = [
   { mode: 'preview', label: 'notes.modePreview' },
 ];
 
-function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps) {
+function MarkdownEditor({ value, placeholder, onChange, onSubmit, apiRef }: EditorProps) {
   const { t } = useI18n();
   const [mode, setMode] = useState<NoteViewMode>(readNoteMode);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -213,6 +218,19 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
     onChange(value.slice(0, start) + open + inner + close + value.slice(end));
     select(start + open.length, start + open.length + inner.length);
   };
+
+  // Expose the toolbar's link action to the panel context menu without duplicating it.
+  useEffect(() => {
+    if (!apiRef) return;
+    apiRef.current = { insertLink: () => toggle('[', '](https://)', t('notes.linkText')) };
+  });
+
+  useEffect(
+    () => () => {
+      if (apiRef) apiRef.current = null;
+    },
+    [apiRef],
+  );
 
   const prefixLines = (prefix: string) =>
     apply(
@@ -553,6 +571,8 @@ type FlatRow = FlatHeader | { kind: 'note'; note: NotesIndex['notes'][number] };
 
 export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, onJump, onClose }: Props) {
   const { t, formatDate, formatNumber } = useI18n();
+  const { openMenu } = useContextMenu();
+  const editorApi = useRef<EditorApi | null>(null);
   const [tab, setTab] = useState<'page' | 'all'>('page');
   const [scope, setScope] = useState<'page' | 'panel'>('page');
   const [text, setText] = useState('');
@@ -758,6 +778,26 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
 
   const removeNote = (id: string) => {
     mutate((d) => ({ ...d, notes: d.notes.filter((n) => n.id !== id) }));
+  };
+
+  /** Blank-area menu in the composer; the textarea itself keeps the native menu. */
+  const openComposeMenu = (e: ReactMouseEvent) => {
+    if (isNativeTextTarget(e.target)) return;
+    e.preventDefault();
+    openMenu(e, [
+      {
+        id: 'link',
+        label: t('ctx.insertLink'),
+        shortcut: 'Ctrl+K',
+        onSelect: () => editorApi.current?.insertLink(),
+      },
+      {
+        id: 'copy',
+        label: t('notes.copyPageContext'),
+        disabled: !notes.length,
+        onSelect: () => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] }),
+      },
+    ]);
   };
 
   const saveEdit = () => {
@@ -1264,6 +1304,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         <>
           <div
             className="notes-compose"
+            onContextMenu={openComposeMenu}
             onPaste={(e) => handlePasteImages(e, appendComposerImages)}
             onDragOver={(e) => {
               if (e.dataTransfer.types.includes('Files')) e.preventDefault();

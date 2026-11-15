@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { ChapterEntry, Lang, Library, PageEntry, VolumeEntry } from '../types';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { langShort, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
-import { thumbUrl } from '../api';
+import { api, thumbUrl } from '../api';
+import { copyText } from '../lib/clipboard';
+import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import { useI18n } from '../i18n';
 import { AddVolumeDialog, VolumeSettingsDialog } from './LibraryDialogs';
 import { DataToolsDialog } from './DataToolsDialog';
@@ -15,6 +18,8 @@ import { PluginsDialog } from './PluginsDialog';
 type Props = {
   library: Library | null;
   rootPath: string;
+  /** Folder that actually holds the volume folders (copy path / reveal target). */
+  rawPath: string;
   selection: Selection | null;
   onOpen: (sel: Selection) => void;
   onReload: (library?: Library) => void;
@@ -90,8 +95,9 @@ function FootIcon({ name }: { name: FootIconName }) {
   );
 }
 
-export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty }: Props) {
+export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReload, dirty }: Props) {
   const { t, formatNumber } = useI18n();
+  const { openMenu } = useContextMenu();
   const [open, setOpen] = useState<Record<string, boolean>>(() => ({}));
   const [addOpen, setAddOpen] = useState(false);
   const [settings, setSettings] = useState<VolumeEntry | null>(null);
@@ -104,6 +110,28 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
+  /** Right-clicking the library offers the actions that otherwise hide in the footer icons. */
+  const openSidebarMenu = (e: ReactMouseEvent) => {
+    if (isNativeTextTarget(e.target)) return;
+    e.preventDefault();
+    openMenu(e, [
+      { id: 'add', label: t('sidebar.addManga'), onSelect: () => setAddOpen(true) },
+      { id: 'refresh', label: t('sidebar.refreshLibrary'), onSelect: () => onReload() },
+      { type: 'separator', id: 'sep' },
+      {
+        id: 'reveal',
+        label: t('sidebar.openFolder'),
+        disabled: !rawPath,
+        onSelect: () => {
+          void api.revealRoot().catch((err: unknown) => {
+            window.alert(err instanceof Error ? err.message : String(err));
+          });
+        },
+      },
+      { id: 'copy', label: t('sidebar.copyPath'), disabled: !rawPath, onSelect: () => void copyText(rawPath) },
+    ]);
+  };
+
   // Auto-expand the active chapter.
   const expanded = useMemo(() => {
     const base = { ...open };
@@ -113,7 +141,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
 
   if (!library) {
     return (
-      <aside className="sidebar">
+      <aside className="sidebar" onContextMenu={openSidebarMenu}>
         <div className="sidebar-head">
           <div className="root-path">{t('sidebar.loadingLibrary')}</div>
         </div>
@@ -123,7 +151,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
 
   if (!library.volumes.length) {
     return (
-      <aside className="sidebar">
+      <aside className="sidebar" onContextMenu={openSidebarMenu}>
         <div className="sidebar-empty">
           {t('sidebar.emptyNoVolumesBefore')}
           <code>{rootPath || 'raw'}</code>
@@ -228,7 +256,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   };
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" onContextMenu={openSidebarMenu}>
       <div className="sidebar-head">
         <div className="root-path" title={rootPath}>
           {t('format.volumesChapters', {
