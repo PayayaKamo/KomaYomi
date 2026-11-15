@@ -1036,7 +1036,6 @@ export const en = {
   'about.license': 'License',
   'about.repository': 'GitHub repository',
   'about.documentation': 'Documentation',
-  'about.docsLink': 'README & guides',
   'about.credits': 'Built with',
   'about.acknowledgements': 'Thanks to the open-source projects that make this app possible.',
   'about.close': 'Close',

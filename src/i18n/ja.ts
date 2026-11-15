@@ -1031,7 +1031,6 @@ export const ja = {
   'about.license': 'ライセンス',
   'about.repository': 'GitHub リポジトリ',
   'about.documentation': 'ドキュメント',
-  'about.docsLink': 'README と使い方',
   'about.credits': '主な依存ライブラリ',
   'about.acknowledgements': 'このアプリを支えるオープンソースプロジェクトに感謝します。',
   'about.close': '閉じる',

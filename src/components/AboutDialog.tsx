@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useI18n } from '../i18n';
+import type { Locale } from '../i18n';
 
 type Meta = { version: string; author: string; license: string };
 
 /** Credits are dependency names only; versions stay in package.json. */
 const CREDITS = ['React', 'Vite', 'TypeScript', 'Electron', 'pngjs', 'jpeg-js'];
 const REPO_URL = 'https://github.com/PayayaKamo/KomaYomi';
-const DOCS_URL = 'https://github.com/PayayaKamo/KomaYomi/tree/main/docs';
+const DOCS_BASE = 'https://payayakamo.github.io/KomaYomi-docs/';
+/** The docs site mirrors the app locale: English at the root, Chinese and Japanese below it. */
+const DOCS_PATHS: Record<Locale, string> = { en: '', zh: 'zh/', ja: 'ja/' };
 
 export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [meta, setMeta] = useState<Meta | null>(null);
 
   // The server reads package.json, so the version shown here never drifts from the build.
@@ -60,14 +63,14 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
             <dd>{value(meta?.license)}</dd>
             <dt>{t('about.repository')}</dt>
             <dd>
-              <a href={REPO_URL} target="_blank" rel="noreferrer">
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
                 {REPO_URL}
               </a>
             </dd>
             <dt>{t('about.documentation')}</dt>
             <dd>
-              <a href={DOCS_URL} target="_blank" rel="noreferrer">
-                {t('about.docsLink')}
+              <a href={`${DOCS_BASE}${DOCS_PATHS[locale]}`} target="_blank" rel="noopener noreferrer">
+                {DOCS_BASE}
               </a>
             </dd>
           </dl>

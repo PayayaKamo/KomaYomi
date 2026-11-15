@@ -993,7 +993,6 @@ export const zh = {
   'about.license': '许可证',
   'about.repository': 'GitHub 仓库',
   'about.documentation': '文档',
-  'about.docsLink': 'README 与使用指南',
   'about.credits': '主要依赖',
   'about.acknowledgements': '感谢让这个应用得以实现的开源项目。',
   'about.close': '关闭',
