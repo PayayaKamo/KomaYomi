@@ -8,9 +8,9 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 | --- | --- |
 | `raw/<volume>/<language>/<chapter>/*.jpg` | ページ画像（入力、変更されません）。 |
 | `data/pages/<volume>/<chapter>/<index>.json` | ページごとに1つのページドキュメント（`index` は 0 始まり）。 |
-| `data/templates/panel.json` | 保存されたコマテンプレート。 |
-| `data/templates/export.json` | 保存されたエクスポートテンプレート。 |
-| `data/presets/align.json` | 保存された位置合わせプリセット。 |
+| `data/templates/panels/<id>.json` | 保存されたコマテンプレート。 |
+| `data/templates/export.json` | 保存されたエクスポートテンプレート（1つの配列で、各要素が独自のエンベロープを持ちます）。 |
+| `data/presets/align/<id>.json` | 保存された位置合わせプリセット。 |
 | `data/layouts/<id>.json` | 宣言的レイアウトテンプレート。 |
 | `data/library.json` | 手動の言語ディレクトリ対応付け。 |
 | `data/cache/thumbs/` | サムネイルキャッシュ（削除して問題ありません）。 |
@@ -19,13 +19,38 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 
 書き込みはアトミックです。サーバーは `<file>.tmp` を書いてから対象にリネームします。クラッシュしても古いファイルは無傷で残ります。
 
+## エンベロープ
+
+プロジェクトのマニフェストを除き、保存・交換される JSON ファイルはすべて同じ4つのキーで始まります。
+
+```json
+{
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "schemaVersion": 1,
+  "kind": "page",
+  "appVersion": "0.1.0"
+}
+```
+
+| キー | 意味 |
+| --- | --- |
+| `$schema` | その形式の正規 URL。情報用で、アプリが取得することはありません。 |
+| `schemaVersion` | 整数のバージョン。キーがないファイルは v0 として読み込まれます。 |
+| `kind` | 判別子: `page`、`mnproj`、`mntpl`、`mnexp`、`mntp`、`mnalign`、`mnlayout`、`mnconfig`、`mnstorage`、`mnhistory`。 |
+| `appVersion` | ファイルを生成したビルド。診断用で、移行の選択には使いません。 |
+
+`.mnproj` 内の `manifest.json` だけが例外です。`$schema`、`schemaVersion`、`appVersion` を持ちますが、`kind` は持ちません。アーカイブ自体が形式を示すためです。
+
 ## ページドキュメント
 
 パス: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 
 ```json
 {
-  "version": 1,
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "schemaVersion": 1,
+  "kind": "page",
+  "appVersion": "0.1.0",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -91,7 +116,7 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 
 | フィールド | 型 | 備考 |
 | --- | --- | --- |
-| `version` | `1` | ページドキュメントのスキーマバージョン。 |
+| `$schema`、`schemaVersion`、`kind`、`appVersion` | 上記参照 | エンベロープ。`kind` は `page`。 |
 | `volume`, `chapter` | string | フォルダ名と一致する必要があります。 |
 | `pageIndex` | number | 0 始まり。 |
 | `panels` | `Panel[]` | 後述。座標は `0..1` にクランプされ、幅／高さは最小 `0.005` です。 |
@@ -150,10 +175,13 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 
 ### ページドキュメント
 
-- `version` は現在 **1** です。
-- 読み込み時にサーバーは拒否ではなく**正規化**を行います。未知のフィールドは破棄され、無効な数値は既定値になり、矩形はクランプされ、ぶら下がったグループ参照は削除され、欠けた id は生成されます。
+- `schemaVersion` は現在 **1** です。キーがないファイルは v0 として扱われ、読み込み時に移行されます。エンベロープが追加され、旧 `version` キーは削除されます。
+- **より高い**スキーマバージョンは書き込み時に `ERR_SCHEMA_TOO_NEW` で拒否され、古いビルドが新しいファイルを黙ってダウングレードすることはありません。
+- 読み込み時には値が**正規化**されます。無効な数値は既定値になり、矩形はクランプされ、ぶら下がったグループ参照は削除され、欠けた id は生成されます。
+- **トップレベル**の未知フィールドは `preserveUnknown` により読み込み → 書き込みで保持されます。`id` を持つオブジェクト配列は id でマージされ、それ以外の配列は新しい値で置き換わります。
+- `panels`、`notes`、`groups`、`annotations` といった既知の子オブジェクトは書き込み時にフィールド単位で再構築されるため、その**内部**の未知フィールドは保持される保証がありません。
 - 解析できないページ JSON は存在しないものとして扱われ、アプリが自動検出して再作成します。
-- 将来スキーマが変わった場合も、同じ正規化のアプローチで読み込み時に古いファイルを移行します。未知の将来のフィールドが保持されるとは考えないでください。
+- 移行はバージョンごとに連鎖します（`0 → 1 → …`）。各ステップはフィールドの追加や名前変更のみで、ユーザーの内容を削除しません。
 
 ### プロジェクトパッケージ
 
@@ -179,6 +207,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
   "schemaVersion": 1,
   "appVersion": "0.1.0",
   "createdAt": "2026-05-12T10:00:00.000Z",
@@ -216,6 +245,8 @@ assets/<sha1>.<ext>          (packaged mode only)
 }
 ```
 
+他のすべての形式と異なり、マニフェストには `kind` がありません。`.mnproj` アーカイブ自体が形式を示すためです。
+
 ### ストレージモード
 
 | モード | 画像 | サイズ | 可搬性 |
@@ -234,6 +265,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnlayout.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnlayout",
+  "appVersion": "0.1.0",
   "id": "layout-1712345678901",
   "name": "四格等分",
   "scope": "page",
@@ -264,6 +299,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 - `row.height` は相対的な重みです。
 - `pageOverrides` のキーは 1 始まりのページ番号です。
 - `margin` と `gap` は比率で、`colWeights` は既定で等幅です。
+- テンプレートとしてエクスポートすると `.mntpl` ファイルになります。中身は同じで、`kind` が `mntpl`、`scope` が `template` になり、`volume` / `chapter` / `pageIndex` は削除されます。
 
 ## コマテンプレートと位置合わせプリセット
 
@@ -271,6 +307,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mntp.schema.json",
+  "schemaVersion": 1,
+  "kind": "mntp",
+  "appVersion": "0.1.0",
   "id": "tpl-…",
   "name": "四格无缝隙",
   "volume": "点兔第14卷",
@@ -285,6 +325,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnalign.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnalign",
+  "appVersion": "0.1.0",
   "id": "preset-…",
   "name": "172話 全体オフセット",
   "scope": "chapter",
@@ -307,6 +351,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 ```json
 [
   {
+    "$schema": "https://manga-memo.dev/schemas/mnexp.schema.json",
+    "schemaVersion": 1,
+    "kind": "mnexp",
+    "appVersion": "0.1.0",
     "id": "exp-…",
     "name": "左图右注-紧凑",
     "createdAt": "2026-05-12T10:00:00.000Z",
@@ -323,7 +371,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 ]
 ```
 
-完全なエクスポート設定には `title`、`volume`、`chapter`、`pageIndices`、`offsets`、`showPanelBoxes`、`includeNotes`、`onlyWithNotes`、`noteFilterTags` も含まれます。
+完全なエクスポート設定には `title`、`volume`、`chapter`、`pageIndices`、`offsets`、`showPanelBoxes`、`includeNotes`、`onlyWithNotes`、`noteFilterTags`、`print` も含まれます。`print` が `true` のとき、書き出した HTML は読み込み時にブラウザの印刷ダイアログを開き、ファイル名に `-print` が付きます。
 
 ## バックアップ ZIP
 
@@ -343,6 +391,10 @@ data/.backup-meta.json
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnconfig",
+  "appVersion": "0.1.0",
   "volumes": {
     "点兔第14卷": {
       "dirs": { "ja": "raw-ja", "zh": "raw-zh" }

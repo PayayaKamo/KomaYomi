@@ -8,9 +8,9 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 | --- | --- |
 | `raw/<volume>/<language>/<chapter>/*.jpg` | 页面图片（输入，永远不会被修改）。 |
 | `data/pages/<volume>/<chapter>/<index>.json` | 每页一个页面文档（`index` 从 0 开始）。 |
-| `data/templates/panel.json` | 已保存的分格模板。 |
-| `data/templates/export.json` | 已保存的导出模板。 |
-| `data/presets/align.json` | 已保存的对齐预设。 |
+| `data/templates/panels/<id>.json` | 已保存的分格模板。 |
+| `data/templates/export.json` | 已保存的导出模板（一个数组，每项自带信封）。 |
+| `data/presets/align/<id>.json` | 已保存的对齐预设。 |
 | `data/layouts/<id>.json` | 声明式布局模板。 |
 | `data/library.json` | 手动指定的语言目录映射。 |
 | `data/cache/thumbs/` | 缩略图缓存（可以安全删除）。 |
@@ -19,13 +19,38 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 
 写入是原子性的：服务器先写入 `<file>.tmp`，再重命名覆盖目标文件。即使崩溃，旧文件也会保持完整。
 
+## 信封
+
+除项目清单外，每个持久化或交换的 JSON 文件都以同样的四个键开头：
+
+```json
+{
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "schemaVersion": 1,
+  "kind": "page",
+  "appVersion": "0.1.0"
+}
+```
+
+| 键 | 含义 |
+| --- | --- |
+| `$schema` | 该格式的规范地址。仅作说明，应用不会去请求它。 |
+| `schemaVersion` | 整数版本。没有这个键的文件按 v0 读取。 |
+| `kind` | 类型标记：`page`、`mnproj`、`mntpl`、`mnexp`、`mntp`、`mnalign`、`mnlayout`、`mnconfig`、`mnstorage`、`mnhistory`。 |
+| `appVersion` | 生成该文件的构建版本。只用于诊断，从不参与选择迁移。 |
+
+`.mnproj` 里的 `manifest.json` 是唯一例外：它带 `$schema`、`schemaVersion` 和 `appVersion`，但不带 `kind`，因为压缩包本身就说明了格式。
+
 ## 页面文档
 
 路径：`data/pages/<volume>/<chapter>/<pageIndex>.json`
 
 ```json
 {
-  "version": 1,
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "schemaVersion": 1,
+  "kind": "page",
+  "appVersion": "0.1.0",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -91,7 +116,7 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `version` | `1` | 页面文档的 schema 版本。 |
+| `$schema`、`schemaVersion`、`kind`、`appVersion` | 见上 | 信封；`kind` 为 `page`。 |
 | `volume`、`chapter` | string | 必须与文件夹名一致。 |
 | `pageIndex` | number | 从 0 开始。 |
 | `panels` | `Panel[]` | 见下文。坐标会被限制在 `0..1`；宽高至少为 `0.005`。 |
@@ -150,10 +175,13 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 
 ### 页面文档
 
-- `version` 目前为 **1**。
-- 读取时，服务器会**规范化**而不是拒绝：未知字段被丢弃，无效数字变为默认值，矩形被限制范围，悬空的分组引用被移除，缺失的 id 会被生成。
+- `schemaVersion` 目前为 **1**。没有这个键的文件按 v0 处理，读取时迁移：补上信封并删除旧的 `version` 键。
+- **更高**的 schema 版本在写入时会被拒绝，报 `ERR_SCHEMA_TOO_NEW`，避免旧版本悄悄降级新文件。
+- 读取时会**规范化**取值：无效数字变为默认值，矩形被限制范围，悬空的分组引用被移除，缺失的 id 会被生成。
+- **顶层**未知字段会经 `preserveUnknown` 在读取 → 写入之间保留。带 `id` 的对象数组按 id 合并，其他数组用新值覆盖。
+- `panels`、`notes`、`groups`、`annotations` 这些已知子对象在写入时逐字段重建，因此它们**内部**的未知字段不保证保留。
 - 无法解析的页面 JSON 会被视为不存在；应用随后会自动检测并重新创建它。
-- 将来出现 schema 变更时，也会用同样的规范化方式在读取时迁移旧文件。不要假设未知的将来字段会被保留。
+- 迁移按版本串联（`0 → 1 → …`）；每一步只新增或重命名字段，不会删除用户内容。
 
 ### 项目包
 
@@ -179,6 +207,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
   "schemaVersion": 1,
   "appVersion": "0.1.0",
   "createdAt": "2026-05-12T10:00:00.000Z",
@@ -216,6 +245,8 @@ assets/<sha1>.<ext>          (packaged mode only)
 }
 ```
 
+与其他格式不同，清单没有 `kind`：`.mnproj` 压缩包本身就说明了它是什么。
+
 ### 存储模式
 
 | 模式 | 图片 | 大小 | 可移植性 |
@@ -234,6 +265,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnlayout.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnlayout",
+  "appVersion": "0.1.0",
   "id": "layout-1712345678901",
   "name": "四格等分",
   "scope": "page",
@@ -264,6 +299,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 - `row.height` 是相对权重。
 - `pageOverrides` 的键是从 1 开始的页码。
 - `margin` 和 `gap` 是比例；`colWeights` 默认等宽。
+- 导出为模板时会写成 `.mntpl` 文件：内容相同，`kind` 改为 `mntpl`，`scope` 改为 `template`，并去掉 `volume`、`chapter`、`pageIndex`。
 
 ## 分格模板与对齐预设
 
@@ -271,6 +307,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mntp.schema.json",
+  "schemaVersion": 1,
+  "kind": "mntp",
+  "appVersion": "0.1.0",
   "id": "tpl-…",
   "name": "四格无缝隙",
   "volume": "点兔第14卷",
@@ -285,6 +325,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnalign.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnalign",
+  "appVersion": "0.1.0",
   "id": "preset-…",
   "name": "172 话整体偏移",
   "scope": "chapter",
@@ -307,6 +351,10 @@ assets/<sha1>.<ext>          (packaged mode only)
 ```json
 [
   {
+    "$schema": "https://manga-memo.dev/schemas/mnexp.schema.json",
+    "schemaVersion": 1,
+    "kind": "mnexp",
+    "appVersion": "0.1.0",
     "id": "exp-…",
     "name": "左图右注-紧凑",
     "createdAt": "2026-05-12T10:00:00.000Z",
@@ -323,7 +371,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 ]
 ```
 
-完整的导出配置还包括 `title`、`volume`、`chapter`、`pageIndices`、`offsets`、`showPanelBoxes`、`includeNotes`、`onlyWithNotes` 和 `noteFilterTags`。
+完整的导出配置还包括 `title`、`volume`、`chapter`、`pageIndices`、`offsets`、`showPanelBoxes`、`includeNotes`、`onlyWithNotes`、`noteFilterTags` 和 `print`。`print` 为 `true` 时，导出的 HTML 加载后会直接弹出浏览器打印对话框，文件名带 `-print` 后缀。
 
 ## 备份 ZIP
 
@@ -343,6 +391,10 @@ data/.backup-meta.json
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnconfig",
+  "appVersion": "0.1.0",
   "volumes": {
     "点兔第14卷": {
       "dirs": { "ja": "raw-ja", "zh": "raw-zh" }

@@ -85,8 +85,9 @@ Hooks are intentionally fast; if you must bypass one for a work-in-progress comm
 - TypeScript strict mode; prefer explicit types at module boundaries.
 - ESLint flat config (`eslint.config.js`) handles correctness rules; Prettier handles
   formatting. Do not add stylistic ESLint rules that duplicate Prettier.
-- Keep localized UI copy in Chinese unless the surrounding component already uses another
-  language.
+- UI strings live in `src/i18n` (`en.ts`, `zh.ts`, `ja.ts`); server-side messages live in
+  `server/messages/`. Every new string must be added in all three languages — English, Chinese
+  and Japanese — rather than in one language only.
 
 ## Reporting bugs / requesting features
 

@@ -8,9 +8,9 @@ Everything KomaYomi stores is plain JSON or plain image files. This page documen
 | --- | --- |
 | `raw/<volume>/<language>/<chapter>/*.jpg` | Page images (input, never modified). |
 | `data/pages/<volume>/<chapter>/<index>.json` | One page document per page (`index` is 0-based). |
-| `data/templates/panel.json` | Saved panel templates. |
-| `data/templates/export.json` | Saved export templates. |
-| `data/presets/align.json` | Saved alignment presets. |
+| `data/templates/panels/<id>.json` | Saved panel templates. |
+| `data/templates/export.json` | Saved export templates (one array; each entry carries its own envelope). |
+| `data/presets/align/<id>.json` | Saved alignment presets. |
 | `data/layouts/<id>.json` | Declarative layout templates. |
 | `data/library.json` | Manual language-directory mapping. |
 | `data/cache/thumbs/` | Thumbnail cache (safe to delete). |
@@ -19,13 +19,38 @@ Everything KomaYomi stores is plain JSON or plain image files. This page documen
 
 Writes are atomic: the server writes `<file>.tmp` and renames it over the target. A crash leaves the old file intact.
 
+## Envelope
+
+Every persisted or exchanged JSON file except the project manifest starts with the same four keys:
+
+```json
+{
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "schemaVersion": 1,
+  "kind": "page",
+  "appVersion": "0.1.0"
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `$schema` | Canonical URL of the format. Informational — the app never fetches it. |
+| `schemaVersion` | Integer version. A file without the key is read as v0. |
+| `kind` | Discriminator: `page`, `mnproj`, `mntpl`, `mnexp`, `mntp`, `mnalign`, `mnlayout`, `mnconfig`, `mnstorage`, `mnhistory`. |
+| `appVersion` | Build that produced the file. Diagnostics only; it never selects a migration. |
+
+`manifest.json` inside a `.mnproj` is the one exception: it carries `$schema`, `schemaVersion` and `appVersion` but no `kind`, because the archive itself identifies the format.
+
 ## Page document
 
 Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 
 ```json
 {
-  "version": 1,
+  "$schema": "https://manga-memo.dev/schemas/page.schema.json",
+  "schemaVersion": 1,
+  "kind": "page",
+  "appVersion": "0.1.0",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -91,7 +116,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `version` | `1` | Page document schema version. |
+| `$schema`, `schemaVersion`, `kind`, `appVersion` | see above | Envelope. `kind` is `page`. |
 | `volume`, `chapter` | string | Must match the folder names. |
 | `pageIndex` | number | 0-based. |
 | `panels` | `Panel[]` | See below. Coordinates are clamped to `0..1`; width/height are at least `0.005`. |
@@ -150,10 +175,13 @@ Coordinates are relative to the annotation's scope (page box or panel box). Free
 
 ### Page documents
 
-- `version` is currently **1**.
-- On read, the server **normalizes** rather than rejects: unknown fields are dropped, invalid numbers become defaults, rectangles are clamped, dangling group references are removed, and missing ids are generated.
+- `schemaVersion` is currently **1**. A file without the key is treated as v0 and migrated on read: the envelope is added and the legacy `version` key is removed.
+- A **higher** schema version is refused on write with `ERR_SCHEMA_TOO_NEW`, so an older build cannot silently downgrade a newer file.
+- On read, the server **normalizes** values: invalid numbers become defaults, rectangles are clamped, dangling group references are removed, and missing ids are generated.
+- Unknown **top-level** fields survive a read → write cycle through `preserveUnknown`. Arrays of objects that carry an `id` merge by id; other arrays are replaced by the incoming value.
+- The known sub-objects (`panels`, `notes`, `groups`, `annotations`) are rebuilt field by field on write, so unknown fields *inside* them are not guaranteed to survive.
 - A page JSON that cannot be parsed is treated as absent; the app then auto-detects and re-creates it.
-- When a future schema change arrives, the same normalization approach will migrate old files on read. Do not assume unknown future fields will be preserved.
+- Migrations are chained by version (`0 → 1 → …`); each step only adds or renames fields and never deletes user content.
 
 ### Project packages
 
@@ -179,6 +207,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
   "schemaVersion": 1,
   "appVersion": "0.1.0",
   "createdAt": "2026-05-12T10:00:00.000Z",
@@ -216,6 +245,8 @@ assets/<sha1>.<ext>          (packaged mode only)
 }
 ```
 
+Unlike every other format, the manifest has no `kind`: the `.mnproj` archive itself says what it is.
+
 ### Storage modes
 
 | Mode | Images | Size | Portability |
@@ -234,6 +265,10 @@ Path: `data/layouts/<id>.json`
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnlayout.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnlayout",
+  "appVersion": "0.1.0",
   "id": "layout-1712345678901",
   "name": "四格等分",
   "scope": "page",
@@ -264,6 +299,7 @@ Path: `data/layouts/<id>.json`
 - `row.height` is a relative weight.
 - `pageOverrides` keys are 1-based page numbers.
 - `margin` and `gap` are fractions; `colWeights` default to equal widths.
+- Exporting a template writes a `.mntpl` file: same body, `kind` set to `mntpl`, `scope` set to `template`, and `volume` / `chapter` / `pageIndex` removed.
 
 ## Panel template and alignment preset
 
@@ -271,6 +307,10 @@ Path: `data/layouts/<id>.json`
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mntp.schema.json",
+  "schemaVersion": 1,
+  "kind": "mntp",
+  "appVersion": "0.1.0",
   "id": "tpl-…",
   "name": "四格无缝隙",
   "volume": "点兔第14卷",
@@ -285,6 +325,10 @@ Path: `data/layouts/<id>.json`
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnalign.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnalign",
+  "appVersion": "0.1.0",
   "id": "preset-…",
   "name": "172 话整体偏移",
   "scope": "chapter",
@@ -307,6 +351,10 @@ An array of named templates, each storing part of an export configuration:
 ```json
 [
   {
+    "$schema": "https://manga-memo.dev/schemas/mnexp.schema.json",
+    "schemaVersion": 1,
+    "kind": "mnexp",
+    "appVersion": "0.1.0",
     "id": "exp-…",
     "name": "左图右注-紧凑",
     "createdAt": "2026-05-12T10:00:00.000Z",
@@ -323,7 +371,7 @@ An array of named templates, each storing part of an export configuration:
 ]
 ```
 
-The full export configuration also includes `title`, `volume`, `chapter`, `pageIndices`, `offsets`, `showPanelBoxes`, `includeNotes`, `onlyWithNotes` and `noteFilterTags`.
+The full export configuration also includes `title`, `volume`, `chapter`, `pageIndices`, `offsets`, `showPanelBoxes`, `includeNotes`, `onlyWithNotes`, `noteFilterTags` and `print`. Setting `print` to `true` opens the browser print dialog when the exported HTML loads and writes the file with a `-print` suffix.
 
 ## Backup ZIP
 
@@ -343,6 +391,10 @@ The thumbnail cache (`data/cache/`) and `.tmp` / `.log` files are excluded. Rest
 
 ```json
 {
+  "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
+  "schemaVersion": 1,
+  "kind": "mnconfig",
+  "appVersion": "0.1.0",
   "volumes": {
     "点兔第14卷": {
       "dirs": { "ja": "raw-ja", "zh": "raw-zh" }
