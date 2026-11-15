@@ -381,16 +381,17 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
             <section>
               <h3>{t('export.languageSection')}</h3>
               <div className="lang-chips">
-                {LANGUAGES.map((l) => (
+                {[...cfg.languages, ...LANGUAGES.filter((l) => !cfg.languages.includes(l))].map((l) => (
                   <button
                     type="button"
                     key={l}
                     className={`lang-chip ${cfg.languages.includes(l) ? 'on' : ''}`}
                     onClick={() =>
                       patch({
+                        // Keep the user's order; newly enabled languages go last.
                         languages: cfg.languages.includes(l)
                           ? cfg.languages.filter((x) => x !== l)
-                          : LANGUAGES.filter((x) => cfg.languages.includes(x) || x === l),
+                          : [...cfg.languages, l],
                       })
                     }
                     disabled={cfg.languages.length === 1 && cfg.languages.includes(l)}

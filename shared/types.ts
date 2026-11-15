@@ -250,6 +250,8 @@ export type VolumeEntry = {
 export type Library = {
   root: string;
   languages: Lang[];
+  /** User-defined language order, shared by the compare view and exports. */
+  langOrder?: Lang[];
   volumes: VolumeEntry[];
 };
 

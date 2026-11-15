@@ -8,7 +8,8 @@
  */
 
 const KEY = 'komayomi.recent-pages';
-const LIMIT = 8;
+/** The submenu scrolls, so the cap can be generous without stretching the File menu. */
+const LIMIT = 50;
 
 export type RecentPage = {
   volume: string;

@@ -5,6 +5,7 @@ import { CompareTab } from './components/CompareTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
+import { AboutDialog } from './components/AboutDialog';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
@@ -33,7 +34,7 @@ export default function App() {
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [view, setView] = useState<'panels' | 'compare'>('panels');
-  const [langs, setLangs] = useState<Lang[]>(['ja', 'zh', 'en']);
+  const [langs, setLangsState] = useState<Lang[]>(['ja', 'zh', 'en']);
   const [overlay, setOverlay] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
@@ -47,6 +48,7 @@ export default function App() {
     loadPaneWidth(NOTES_PANE.key, NOTES_PANE.min, NOTES_PANE.max),
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
 
@@ -54,6 +56,15 @@ export default function App() {
   const openSelection = useCallback((next: Selection) => {
     setSel(next);
     if (window.matchMedia('(max-width: 1024px)').matches) setSidebarOpen(false);
+  }, []);
+
+  /** The topbar logo goes back to the library landing view. */
+  const goHome = useCallback(() => {
+    setSel(null);
+    setSelected([]);
+    setView('panels');
+    setSidebarOpen(true);
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
   }, []);
 
   // Keep the palette in sync with the stored preference and with OS changes when the
@@ -114,9 +125,16 @@ export default function App() {
       .then((res) => {
         setLibrary(res.library);
         setRootPath(res.root);
+        if (res.library.langOrder?.length) setLangsState(res.library.langOrder);
         setLibError(null);
       })
       .catch((err: unknown) => setLibError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  // Keep the persisted order in sync whenever the compare bar changes it.
+  const setLangs = useCallback((next: Lang[]) => {
+    setLangsState(next);
+    api.saveLangOrder(next).catch(() => undefined);
   }, []);
 
   const loadTags = useCallback(() => {
@@ -259,6 +277,15 @@ export default function App() {
     <div className={`app ${notesOpen ? 'show-notes' : ''} ${sidebarOpen ? '' : 'sidebar-closed'}`}>
       <header className="topbar">
         <div className="tb-left">
+          <button
+            type="button"
+            className="brand-mark"
+            onClick={goHome}
+            title={t('app.brandHome')}
+            aria-label={t('app.brandHome')}
+          >
+            <img src="/icon.svg" alt="" width={22} height={22} />
+          </button>
           <FileMenu
             library={library}
             selection={sel}
@@ -288,9 +315,15 @@ export default function App() {
           >
             ?
           </button>
-          <div className="logo">
-            KomaYomi<span>Manga Learner</span>
-          </div>
+          <button
+            type="button"
+            className="btn icon"
+            onClick={() => setAboutOpen(true)}
+            title={t('about.openTitle')}
+            aria-label={t('about.title')}
+          >
+            ⓘ
+          </button>
           {sel && (
             <div className="crumb">
               <span>{sel.volume}</span>
@@ -514,6 +547,8 @@ export default function App() {
       />
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 

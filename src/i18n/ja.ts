@@ -5,7 +5,8 @@ import type { MessageKey } from './en';
 
 export const ja = {
   /* ---- アプリ全体 ---- */
-  'app.tagline': 'Manga Learner',
+  'app.tagline': '漫画を読んで、言語を学ぶ。',
+  'app.brandHome': 'ライブラリに戻る',
   'app.toggleSidebarTitle': 'ライブラリサイドバーの表示/非表示（S）',
   'app.helpTitle': 'ショートカットとヘルプ（?）',
   'pane.libraryHandle': 'ドラッグでライブラリ幅を変更 · ダブルクリックで既定値',
@@ -371,6 +372,8 @@ export const ja = {
   'compare.emptyPanels': 'このページにはまだコマがありません。',
   'compare.emptyHint': '先に「コマ分割」で自動検出するか手動で枠を描いてから、対照読書に進んでください。',
   'compare.langMissing': 'このページにはこの言語がありません',
+  'compare.langDragHint': 'ドラッグで並び替え',
+  'compare.langOrderReset': '既定の言語順に戻す',
   'compare.sideBySide': '並列',
   'compare.overlay': '重ね表示',
   'compare.multiply': '乗算',
@@ -795,4 +798,17 @@ export const ja = {
   'png.canvasContext': 'Canvas 2D コンテキストを作成できません',
   'png.canvasEmpty': 'PNG の書き出しに失敗しました：canvas.toBlob が空を返しました',
   'png.panelRectRequired': 'コマの書き出しには rect が必要です',
+
+  /* ---- このアプリについて ---- */
+  'about.title': 'KomaYomi について',
+  'about.openTitle': 'KomaYomi について：バージョン・ライセンス・謝辞',
+  'about.version': 'バージョン',
+  'about.author': '作者',
+  'about.license': 'ライセンス',
+  'about.repository': 'GitHub リポジトリ',
+  'about.documentation': 'ドキュメント',
+  'about.docsLink': 'README と使い方',
+  'about.credits': '主な依存ライブラリ',
+  'about.acknowledgements': 'このアプリを支えるオープンソースプロジェクトに感謝します。',
+  'about.close': '閉じる',
 } satisfies Record<MessageKey, string>;

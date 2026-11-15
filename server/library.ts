@@ -47,7 +47,21 @@ export type LibraryConfig = {
   volumes?: Record<string, { dirs?: Partial<Record<Lang, string>> }>;
   /** Declarative scan rules, tried in order. Empty/absent means DEFAULT_RULES. */
   rules?: DirRule[];
+  /** Preferred language order for the compare view and exports. */
+  langOrder?: Lang[];
 };
+
+/** Keep only known languages, drop duplicates, and append anything missing. */
+export function normalizeLangOrder(value: Lang[] | undefined): Lang[] {
+  const out: Lang[] = [];
+  for (const lang of value ?? []) {
+    if (LANGUAGES.includes(lang) && !out.includes(lang)) out.push(lang);
+  }
+  for (const lang of LANGUAGES) {
+    if (!out.includes(lang)) out.push(lang);
+  }
+  return out;
+}
 
 export function readLibraryConfig(dataRoot: string): LibraryConfig {
   try {
@@ -243,15 +257,17 @@ export type LibraryResult = Library & { scan: LibraryScanInfo };
  * 语言目录的映射优先用用户显式指定，其次按目录名自动识别。
  */
 export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult {
+  const config = readLibraryConfig(dataRoot);
+  const langOrder = normalizeLangOrder(config.langOrder);
   const empty: LibraryResult = {
     root: rawRoot,
     languages: [...LANGUAGES],
+    langOrder,
     volumes: [],
     scan: { rules: DEFAULT_RULES, unmatchedCount: 0, unmatched: [], truncated: false },
   };
   if (!fs.existsSync(rawRoot)) return empty;
 
-  const config = readLibraryConfig(dataRoot);
   const { rules, warning } = activeRules(config);
   const pinned: Partial<Record<string, Partial<Record<Lang, string>>>> = {};
   for (const [volume, entry] of Object.entries(config.volumes ?? {})) {
@@ -414,6 +430,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
   return {
     root: rawRoot,
     languages: [...LANGUAGES],
+    langOrder,
     volumes,
     scan: {
       rules,

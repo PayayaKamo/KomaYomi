@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createLibrary, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
+import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import { addVolume, removeVolume, setVolumeDirs } from './libraryAdmin.ts';
 import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
@@ -52,11 +52,13 @@ import type {
   AlignPreset,
   ExportConfig,
   ExportTemplate,
+  Lang,
   Library,
   PageDoc,
   PageEntry,
   PanelTemplate,
 } from '../shared/types.ts';
+import { LANGUAGES } from '../shared/types.ts';
 import { currentLang, resolveRequestLang, runWithLang, t } from './messages/index.ts';
 import type { MessageCode, MessageParams } from './messages/index.ts';
 import { AppError, errorBody, toErrorResponse } from './errors.ts';
@@ -162,6 +164,25 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
   const dataRoot = dataDir ? path.resolve(dataDir) : path.join(rootDir, 'data');
   const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
+
+  /** package.json is the single source for the metadata shown in the About dialog. */
+  const appMeta = (() => {
+    const fallback = { version: '0.0.0', author: '', license: '' };
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as {
+        version?: unknown;
+        author?: unknown;
+        license?: unknown;
+      };
+      return {
+        version: typeof pkg.version === 'string' && pkg.version ? pkg.version : fallback.version,
+        author: typeof pkg.author === 'string' ? pkg.author : fallback.author,
+        license: typeof pkg.license === 'string' ? pkg.license : fallback.license,
+      };
+    } catch {
+      return fallback;
+    }
+  })();
 
   /**
    * Fetch a page image from the configured remote source into the local cache.
@@ -278,7 +299,9 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         sendJson(res, 200, {
           ok: true,
           app: 'KomaYomi',
-          version: process.env.npm_package_version ?? '0.1.0',
+          version: appMeta.version,
+          author: appMeta.author,
+          license: appMeta.license,
           dirs: { raw: rawRoot, data: dataRoot, exports: exportRoot },
           uptime: Math.round(process.uptime()),
         });
@@ -317,6 +340,23 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const rules = validateRules(input);
         writeLibraryConfig(dataRoot, { ...cfg, rules });
         sendJson(res, 200, { rules, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- 语言顺序（对照视图与导出共用） ---------------- */
+      if (pathname === '/api/lang-order' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { order?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        if (Array.isArray(body.order)) {
+          const known = new Set<string>(LANGUAGES);
+          cfg.langOrder = normalizeLangOrder(
+            body.order.filter((lang): lang is Lang => typeof lang === 'string' && known.has(lang)),
+          );
+        } else {
+          delete cfg.langOrder;
+        }
+        writeLibraryConfig(dataRoot, cfg);
+        sendJson(res, 200, { langOrder: createLibrary(rawRoot, dataRoot).langOrder });
         return true;
       }
 

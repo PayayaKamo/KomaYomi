@@ -6,7 +6,8 @@
  */
 export const en = {
   /* ---- app shell ---- */
-  'app.tagline': 'Manga Learner',
+  'app.tagline': 'Read manga, learn languages.',
+  'app.brandHome': 'Back to the library',
   'app.toggleSidebarTitle': 'Show/hide library sidebar (S)',
   'app.helpTitle': 'Keyboard shortcuts & help (?)',
   'pane.libraryHandle': 'Drag to resize the library · double-click to reset',
@@ -376,6 +377,8 @@ export const en = {
   'compare.emptyPanels': 'This page has no panels yet.',
   'compare.emptyHint': 'Detect or draw them under “Panels” first, then come back for comparison reading.',
   'compare.langMissing': 'This page is missing this language',
+  'compare.langDragHint': 'drag to reorder',
+  'compare.langOrderReset': 'Restore the default language order',
   'compare.sideBySide': 'Side by side',
   'compare.overlay': 'Overlay',
   'compare.multiply': 'Multiply',
@@ -800,6 +803,19 @@ export const en = {
   'png.canvasContext': 'Unable to create a Canvas 2D context',
   'png.canvasEmpty': 'PNG export failed: canvas.toBlob returned nothing',
   'png.panelRectRequired': 'Panel export requires a rect',
+
+  /* ---- about dialog ---- */
+  'about.title': 'About KomaYomi',
+  'about.openTitle': 'About KomaYomi · version, license and credits',
+  'about.version': 'Version',
+  'about.author': 'Author',
+  'about.license': 'License',
+  'about.repository': 'GitHub repository',
+  'about.documentation': 'Documentation',
+  'about.docsLink': 'README & guides',
+  'about.credits': 'Built with',
+  'about.acknowledgements': 'Thanks to the open-source projects that make this app possible.',
+  'about.close': 'Close',
 } satisfies Record<string, string>;
 
 /** Literal union of every message key other locale files must provide. */

@@ -114,6 +114,9 @@ const json = (body: unknown): RequestInit => ({
 export const api = {
   library: () => request<{ library: Library; root: string }>('/api/library'),
 
+  /** App metadata for the About dialog; the version comes from package.json on the server. */
+  health: () => request<{ ok: boolean; app: string; version: string; author: string; license: string }>('/api/health'),
+
   addVolume: (input: { sourcePath?: string; name?: string }) =>
     request<{ added: string[]; warnings: string[]; library: Library }>('/api/library/add-volume', json(input)),
 
@@ -122,6 +125,9 @@ export const api = {
 
   saveVolumeDirs: (volume: string, dirs: Partial<Record<Lang, string | null>>) =>
     request<{ library: Library }>('/api/library/volume-config', json({ volume, dirs })),
+
+  /** Persist the compare/export language order; null restores the default. */
+  saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
 
   /* ---- 目录识别规则 ---- */
   dirRules: () =>

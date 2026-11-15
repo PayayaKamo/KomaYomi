@@ -6,7 +6,8 @@ import type { MessageKey } from './en';
 
 export const zh = {
   /* ---- 应用外壳 ---- */
-  'app.tagline': 'Manga Learner',
+  'app.tagline': '读漫画，学语言。',
+  'app.brandHome': '返回图库',
   'app.toggleSidebarTitle': '显示/隐藏图库侧栏（S）',
   'app.helpTitle': '快捷键与使用帮助（?）',
   'pane.libraryHandle': '拖动调整图库宽度 · 双击恢复默认',
@@ -361,6 +362,8 @@ export const zh = {
   'compare.emptyPanels': '这一页还没有格子。',
   'compare.emptyHint': '先到「分格」里自动检测或手动框选，再进行对照阅读。',
   'compare.langMissing': '本页缺少该语言',
+  'compare.langDragHint': '拖动可调整顺序',
+  'compare.langOrderReset': '恢复默认语言顺序',
   'compare.sideBySide': '并排',
   'compare.overlay': '叠加',
   'compare.multiply': '正片叠底',
@@ -761,4 +764,17 @@ export const zh = {
   'png.canvasContext': '无法创建 Canvas 2D 上下文',
   'png.canvasEmpty': '导出 PNG 失败：canvas.toBlob 返回空',
   'png.panelRectRequired': '格子导出需要提供 rect',
+
+  /* ---- 关于弹窗 ---- */
+  'about.title': '关于 KomaYomi',
+  'about.openTitle': '关于 KomaYomi：版本、许可证与致谢',
+  'about.version': '版本',
+  'about.author': '作者',
+  'about.license': '许可证',
+  'about.repository': 'GitHub 仓库',
+  'about.documentation': '文档',
+  'about.docsLink': 'README 与使用指南',
+  'about.credits': '主要依赖',
+  'about.acknowledgements': '感谢让这个应用得以实现的开源项目。',
+  'about.close': '关闭',
 } satisfies Record<MessageKey, string>;

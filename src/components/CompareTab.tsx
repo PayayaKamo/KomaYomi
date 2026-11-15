@@ -188,6 +188,13 @@ export function CompareTab({
   const [maskPrefs, setMaskPrefs] = useState<MaskPrefs>(loadMaskPrefs);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [maskDefaultsOpen, setMaskDefaultsOpen] = useState(false);
+  // 语言栏拖动排序（仅拖已启用的语言）
+  const [langDragIndex, setLangDragIndex] = useState<number | null>(null);
+  const [langDropIndex, setLangDropIndex] = useState<number | null>(null);
+  const langMovedRef = useRef(false);
+  const langStartX = useRef(0);
+  const suppressChipClick = useRef(false);
+  const langChipRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // 默认作用域跨会话记住；当前页仍以 doc.alignMode 为准
   const [scopePref, setScopePref] = useState<DragScope>(loadDragScope);
   const [activeDrag, setActiveDrag] = useState<{ panelId: string; lang: Lang; scope: DragScope } | null>(null);
@@ -475,8 +482,60 @@ export function CompareTab({
       if (langs.length === 1) return;
       setLangs(langs.filter((l) => l !== lang));
     } else {
-      setLangs([...LANGUAGES.filter((l) => langs.includes(l) || l === lang)]);
+      // Append to the end so enabling a language never reshuffles a custom order.
+      setLangs([...langs, lang]);
     }
+  };
+
+  const langBar = [...langs, ...LANGUAGES.filter((l) => !langs.includes(l))];
+
+  const startLangDrag = (e: ReactPointerEvent<HTMLButtonElement>, lang: Lang, index: number) => {
+    if (!langs.includes(lang)) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    langMovedRef.current = false;
+    langStartX.current = e.clientX;
+    setLangDragIndex(index);
+    setLangDropIndex(index);
+  };
+
+  const moveLangDrag = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (langDragIndex === null) return;
+    const x = e.clientX;
+    // Any real movement counts as a drag, so a slight wobble never toggles the chip off.
+    if (Math.abs(x - langStartX.current) > 3) langMovedRef.current = true;
+    let index = 0;
+    for (let i = 0; i < langs.length; i += 1) {
+      const el = langChipRefs.current[i];
+      if (el && x > el.getBoundingClientRect().left + el.offsetWidth / 2) index = i + 1;
+    }
+    if (index !== langDropIndex) setLangDropIndex(index);
+  };
+
+  const endLangDrag = () => {
+    if (langDragIndex === null) return;
+    const from = langDragIndex;
+    let to = langDropIndex ?? from;
+    if (to > from) to -= 1;
+    if (langMovedRef.current) {
+      suppressChipClick.current = true;
+      // Clear on the next tick in case no click event follows the release.
+      window.setTimeout(() => {
+        suppressChipClick.current = false;
+      }, 0);
+    }
+    if (langMovedRef.current && to !== from && to >= 0 && to < langs.length) {
+      const next = [...langs];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      setLangs(next);
+    }
+    setLangDragIndex(null);
+    setLangDropIndex(null);
+  };
+
+  const resetLangOrder = () => {
+    setLangs([...LANGUAGES]);
   };
 
   const goTo = (dir: -1 | 1) => {
@@ -735,21 +794,69 @@ export function CompareTab({
         <div className="tb-group">
           <span className="tb-label">{t('compare.language')}</span>
           <div className="lang-chips">
-            {LANGUAGES.map((l) => {
+            {langBar.map((l, barIndex) => {
+              const enabled = langs.includes(l);
               const disabled = !availableLangs.includes(l);
+              const pos = enabled ? langs.indexOf(l) : -1;
+              const isDragging = pos >= 0 && pos === langDragIndex;
+              const dropBefore = pos >= 0 && langDragIndex !== null && langDropIndex === pos;
+              const dropAfter =
+                pos >= 0 &&
+                langDragIndex !== null &&
+                pos === langs.length - 1 &&
+                langDropIndex === langs.length &&
+                langDragIndex !== langs.length - 1;
               return (
                 <button
                   type="button"
                   key={l}
-                  className={`lang-chip ${langs.includes(l) ? 'on' : ''}`}
-                  onClick={() => toggleLang(l)}
+                  ref={(el) => {
+                    langChipRefs.current[barIndex] = enabled ? el : null;
+                  }}
+                  className={[
+                    'lang-chip',
+                    enabled ? 'on' : '',
+                    isDragging ? 'dragging' : '',
+                    dropBefore ? 'drop-before' : '',
+                    dropAfter ? 'drop-after' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => {
+                    if (suppressChipClick.current) {
+                      suppressChipClick.current = false;
+                      return;
+                    }
+                    toggleLang(l);
+                  }}
+                  onPointerDown={(e) => startLangDrag(e, l, barIndex)}
+                  onPointerMove={moveLangDrag}
+                  onPointerUp={endLangDrag}
+                  onPointerCancel={endLangDrag}
                   disabled={disabled}
-                  title={disabled ? t('compare.langMissing') : langLabel(l)}
+                  title={
+                    disabled
+                      ? t('compare.langMissing')
+                      : enabled
+                        ? `${langLabel(l)} · ${t('compare.langDragHint')}`
+                        : langLabel(l)
+                  }
                 >
                   {LANG_SHORT[l]}
                 </button>
               );
             })}
+            {langs.join() !== LANGUAGES.join() && (
+              <button
+                type="button"
+                className="lang-order-reset"
+                onClick={resetLangOrder}
+                title={t('compare.langOrderReset')}
+                aria-label={t('compare.langOrderReset')}
+              >
+                ↺
+              </button>
+            )}
           </div>
         </div>
 
