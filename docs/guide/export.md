@@ -1,91 +1,130 @@
 # Export
 
-The export dialog turns a page or a whole chapter into something you can read, print or share. Open it with `E` or the **Export** button.
+Export turns a chapter of panels and notes into something you can read, print or share: an HTML study document, PNG images for slides, or a project package for another machine.
 
 <figure class="shot">
-  <img src="/shots/export.svg" alt="Export dialog with template, scope, language and image options (placeholder)">
-  <figcaption>Placeholder image. The left column configures the export; the right side previews the layout.</figcaption>
+  <img src="/assets/screenshots/export-dialog.png" alt="Export dialog with layout templates, scope, languages, image mode and a live preview">
+  <figcaption>The export dialog. The left column configures the document; the right side previews the layout and can be resized by dragging the divider.</figcaption>
 </figure>
 
-## Export formats
+## The problem it solves
 
-| Format | Where it is produced | Output |
-| --- | --- | --- |
-| **HTML** | Server (`POST /api/export`) | An `.html` file plus a sibling `.files/` image folder, or one self-contained file. |
-| **PNG** | Browser canvas | A downloaded image for the page, the selected panel, or a multilingual collage. |
-| **Backup ZIP** | Server | A zip of `data/` for safekeeping. See [Remote Storage & Backup](/remote-backup). |
-| **`.mnproj` project** | Server | A portable project package with or without images. See [Remote Storage & Backup](/remote-backup). |
+Your notes live inside the app, attached to panels. To review them on a tablet, print them, or drop a comparison into a slide deck, you need a portable artifact that keeps the page image and the matching notes together — without uploading anything.
 
-<Badge type="warning" text="Planned" /> PDF export, Word (`.docx`) export and a vocabulary-list export. Only HTML and PNG are implemented today.
+## Opening the dialog
 
-## HTML layout templates
+Press `E`, or click **Export** in the top bar. The dialog always exports the page or chapter you are looking at.
 
-| Template | Layout |
+## HTML export
+
+### Title and scope
+
+| Control | What it does |
 | --- | --- |
-| **Image left, notes right** (`two-column`) | Page image on the left, page and panel notes on the right. |
-| **Image top, notes bottom** (`stack`) | Full-width image with notes below. |
-| **Panel comparison** (`compare-wide`) | Panel-by-panel rows, each language side by side, with that panel's notes underneath. |
+| **Title** | Document title, also used for the suggested file name. |
+| **Current page** | Exports only the open page. |
+| **Whole chapter (n pages)** | Exports every annotated page in the chapter. |
+| **Only pages with notes** | Skips pages without notes; useful for a study-notes collection. |
+| **Languages** | Which languages appear in the document. |
 
-The panel comparison template uses the `columns` setting to decide how many panels per row.
+### Image mode
 
-## Options
+| Mode | Behaviour |
+| --- | --- |
+| **Sibling `.files` folder** (default) | The HTML references images in a folder next to it. Smaller and faster to load. Copy both together. |
+| **Bundle into a single file** | Images are inlined as data URLs. One file to share, but a full chapter can be tens of megabytes. |
 
-**Scope** — current page or the whole chapter. In chapter scope, pages without panel data are skipped with a warning.
+**Draw panel borders on the original image** overlays the panel rectangles on the exported artwork. This is independent of annotations.
 
-**Languages** — any subset of `JA`, `ZH`, `EN`. At least one is required.
+**Only export notes with these tags** filters notes by tag; **Clear filters** removes the selection.
 
-**Image mode**
+### Layout
 
-- **Folder (default)** — images are copied to `<name>.files/` and the HTML references them with relative paths. Smaller and faster to generate.
-- **Single file** — images are embedded as data URLs. Easy to send to someone, but a whole chapter can reach tens of megabytes.
+Three built-in layout templates:
 
-**Annotations** — include notes, filter by tags, and optionally only export pages that have notes.
+| Template | Result |
+| --- | --- |
+| **Image left, notes right** | Manga page on the left, page and panel notes on the right. |
+| **Image top, notes below** | The image spans the full width and notes unfold underneath. |
+| **Panel comparison** | Each panel shows several languages side by side with its notes. |
 
-**Panel boxes** — draw the detected panel rectangles and their numbers on the page image.
+Layout templates can be saved under a custom name, exported as JSON and imported again. They live in `data/templates/export.json`. The layout controls are:
 
-**Layout** — image column width, column gap, font scale and panel columns.
+| Control | Effect |
+| --- | --- |
+| **Image column width** | Width of the image column, in percent. |
+| **Column gap** | Space between image and notes. |
+| **Font size** | Base font scale for the document. |
+| **Columns per row** | Number of page blocks per row. |
 
-**Alignment** — the per-language `{ x, y, scale }` offsets from the compare reader are applied when cropping, so the export matches what you saw.
+The layout is remembered automatically. You can also drag the divider in the live preview to set the image width.
 
-## Output location
+### Generating
 
-Generated files are written under `exports/` at the repository root. The dialog shows the resulting path and a download link. In the browser app, `/exports/...` is served by the local server.
+1. Choose scope, languages, image mode and layout.
+2. Click **Generate HTML**.
+3. When it finishes, the dialog reports how many pages were exported and where the file went.
+4. Use **Open HTML** to open it in the browser, or **Download HTML** to save a copy. With the default image mode, copy the `.files` folder as well.
 
-::: tip Sharing an export
-For the folder mode, copy the `.html` file **and** the sibling `.files` directory together. Opening the HTML alone will show missing images. For single-file mode, copy only the HTML.
+Files are written to the project's `exports/` folder. The HTML opens directly from disk.
+
+### Printing
+
+The generated HTML includes print styles: backgrounds are removed, the page width is unconstrained, and page blocks avoid breaking mid-image. Open the file in a browser and use the normal **Print** command to produce a PDF via the browser's print dialog.
+
+::: tip Printing to PDF
+Browser "Save as PDF" is the supported way to get a PDF today. A native PDF exporter is not implemented — see [Project Files & Formats](/guide/project-files#format-versions).
 :::
 
 ## PNG export
 
-Three modes, all rendered in the browser and downloaded directly:
+The **Export PNG** section produces images directly, without a document:
 
 | Mode | Content |
 | --- | --- |
-| **Page** | The full page in the current preferred language. |
-| **Panel** | The selected panel in the current preferred language. Requires a selected panel. |
-| **Collage** | The selected languages side by side, each with a language label. If a panel is selected, that panel is used; otherwise the page. |
+| **Whole page** | The page image with panel borders and annotations. |
+| **Current panel** | The selected panel, cropped and aligned. |
+| **Trilingual collage** | The selected languages placed side by side for the same panel (or the whole page when no panel is selected). |
 
-PNG mode is intended for slides and documents: drop the image into PowerPoint or Word without re-cropping. The output uses the page image resolution and the alignment offsets.
+Options:
+
+- **Include annotations (n)** — draws the annotation layer into the PNG. The count shows how many marks will be included.
+- Whole-page and current-panel PNG use the **primary (base) language**; the collage uses the selected compare languages.
+- **Current panel** is disabled until a panel is selected in the workbench.
+
+PNGs are generated in the browser and land in the browser's download folder. They paste straight into slides, documents or chat.
 
 ## Export templates
 
-Layout-only settings can be saved as a named export template:
+An export template (`.mnexp`) stores the layout and style settings so the same look can be reused or shared. Export and import templates through **Exchange files…** in the sidebar. Imported templates are validated and the original file is backed up under `data/backups/exchange/`.
 
-- **Save** the current layout with a name.
-- **Apply** a saved template to the current dialog.
-- **Export** a template to a file and **import** it on another machine.
-- **Delete** a template you no longer need.
+## Common pitfalls
 
-Templates are stored in `data/templates/export.json`. The most recent layout is also remembered in the browser, so reopening the dialog keeps your last settings.
+- **The HTML has broken images.** With the default mode, the `.files` folder must travel with the HTML. Move them together.
+- **A single-file export is enormous.** That is expected: every image is inlined. Use the `.files` mode for a whole chapter.
+- **A page is missing from the export.** It has no notes and **Only pages with notes** is on, or it has no images in the selected languages.
+- **Panel borders are not in the PNG.** PNG export uses the annotation toggle; enable **Include annotations**, and remember that panel borders are drawn from the panel rectangles, not from annotations.
+- **Print output is cropped.** Set the browser print scale to “Fit to page” and enable background graphics only if you need the shading.
+- **The output folder is not writable.** In a packaged desktop build, `exports/` lives inside the chosen library folder.
 
-## Notes in the output
+<figure class="shot">
+  <div class="shot-missing">
+    <strong>Screenshot pending: exported HTML and PNG results</strong>
+    A screenshot of the generated HTML in a browser and the three PNG modes side by side will be added here.
+  </div>
+  <figcaption>Planned screenshot: exported document and PNG outputs.</figcaption>
+</figure>
 
-- Page-scoped notes appear under "page notes".
-- Panel-scoped notes appear beside their panel (or in the panel row for the comparison template).
-- Tags are rendered as chips and are filterable at export time.
-- Sources are included in the note body when present.
-- Markdown is rendered with the same renderer used in the app, so headings, lists, tables, code and quotes survive the export.
+## Missing screenshots
 
-## Print
+| Figure | Needed for |
+| --- | --- |
+| exported HTML page | Two-column and stacked layouts |
+| PNG mode comparison | Whole page / panel / collage |
+| export template controls | Save, import and apply |
 
-The generated HTML includes print styles: each page starts on a new sheet, and panels and notes avoid page breaks inside a block. Use the browser's **Print → Save as PDF** if you need a PDF today; a native PDF exporter is <Badge type="warning" text="Planned" />.
+## Related
+
+- [Notes](/guide/notes) — what ends up in the document.
+- [Project Files & Formats](/guide/project-files) — exporting the whole project instead.
+- [Keyboard Shortcuts](/guide/shortcuts) — `E` opens this dialog.

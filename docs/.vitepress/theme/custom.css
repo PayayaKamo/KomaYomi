@@ -93,6 +93,20 @@ body {
   font-size: 18px;
 }
 
+/* Keep social icons in the navbar on tablet widths instead of hiding them
+   inside the "..." menu; hide the duplicate entry inside that menu. */
+@media (min-width: 768px) {
+  .VPNav .VPNavBarSocialLinks {
+    display: flex !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .VPNavBarExtra .item.social-links {
+    display: none !important;
+  }
+}
+
 /* ========================================
    Hero
    ======================================== */
@@ -355,6 +369,27 @@ body {
   border-top: 1px solid var(--vp-c-divider);
 }
 
+.shot-missing {
+  padding: 30px 22px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--vp-c-text-3);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--vp-c-bg-soft),
+    var(--vp-c-bg-soft) 10px,
+    var(--vp-c-bg-alt) 10px,
+    var(--vp-c-bg-alt) 20px
+  );
+}
+
+.shot-missing strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  color: var(--vp-c-text-2);
+}
+
 /* ========================================
    Compact status list
    ======================================== */
@@ -423,51 +458,6 @@ body {
 
 .mm-crumbs__sep {
   color: var(--vp-c-divider);
-}
-
-/* ========================================
-   Outline toggle (floating button)
-   ======================================== */
-#outline-toggle {
-  position: fixed;
-  top: 88px;
-  right: 16px;
-  z-index: 100;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--vp-c-text-1);
-  background: var(--vp-c-bg-soft);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: var(--vp-shadow-1);
-}
-
-#outline-toggle:hover {
-  border-color: var(--vp-c-brand-1);
-  color: var(--vp-c-brand-1);
-}
-
-#outline-toggle.active {
-  background: var(--vp-c-brand-1);
-  color: #fff;
-  border-color: var(--vp-c-brand-1);
-}
-
-body.hide-outline .VPDocAside {
-  display: none !important;
-}
-
-body.hide-outline .VPDoc .aside {
-  display: none !important;
-}
-
-@media (max-width: 1279px) {
-  #outline-toggle {
-    display: none;
-  }
 }
 
 /* ========================================
@@ -599,8 +589,7 @@ body.hide-outline .VPDoc .aside {
   .VPNav,
   .VPSidebar,
   .VPDocAside,
-  .VPFooter,
-  #outline-toggle {
+  .VPFooter {
     display: none !important;
   }
 

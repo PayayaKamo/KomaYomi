@@ -2,6 +2,10 @@
 
 KomaYomi runs either as a **browser app backed by a local Node server** or as an **Electron desktop window**. Both use the same server code and the same data directory.
 
+## The problem it solves
+
+You want the app running on your own machine, reading your own folders, with no account and no upload. This page gets you from a fresh clone to a first page open, and explains how the desktop package differs from the browser dev server.
+
 ## Requirements
 
 - **Node.js 20 or newer** (the server bundle targets Node 20; the repository is developed against Node 22+).
@@ -46,7 +50,36 @@ Desktop data directory:
 - The environment variable `MANGA_DATA_DIR` overrides the data directory.
 - `MANGA_PORT` fixes the internal port; otherwise a free port is chosen.
 
-<Badge type="warning" text="Planned" /> A distributable installer (`.exe` / `.dmg`) is not configured yet. `electron-builder` is present as a dev dependency, but there is no `build` configuration or packaging script in the repository.
+## Package a desktop build
+
+The repository ships `electron-builder.yml` and two packaging scripts:
+
+```bash
+npm run dist:win   # Windows x64: NSIS installer + portable .exe in release/
+npm run dist:dir   # unpacked app in release/, useful for a quick smoke test
+```
+
+`dist:win` builds the frontend and the bundled server first, then runs electron-builder with both the `nsis` and `portable` targets. Artifacts follow `KomaYomi-<version>-<arch>.exe` and `KomaYomi-<version>-portable.exe`.
+
+What the package contains:
+
+- `dist/`, `dist-server/`, `electron/` and `package.json` only — no `node_modules` are shipped.
+- `raw/`, `data/` and `exports/` are **not** bundled. A packaged build asks for a library folder on first launch and remembers it.
+
+Current limitations:
+
+- Windows x64 is the only configured target; there is no macOS or Linux packaging.
+- The installer is unsigned, so Windows SmartScreen may warn on first launch.
+- Packaging has not yet been produced end-to-end in this repository; treat the first `npm run dist:win` output as **unverified** until you smoke-test it.
+- There is no auto-update channel.
+
+<figure class="shot">
+  <div class="shot-missing">
+    <strong>Screenshot pending: first launch</strong>
+    A screenshot of the first window with an empty library and the “Add manga” entry point will be added here.
+  </div>
+  <figcaption>Planned screenshot: first launch and the empty library.</figcaption>
+</figure>
 
 ## Build outputs
 
@@ -54,6 +87,8 @@ Desktop data directory:
 | --- | --- | --- |
 | `npm run build` | `dist/` | Static frontend. |
 | `npm run server:build` | `dist-server/app.mjs` | Bundled Node server used by Electron. |
+| `npm run dist:dir` | `release/` | Unpacked Electron app for smoke testing. |
+| `npm run dist:win` | `release/` | Windows x64 NSIS installer and portable `.exe` (not yet verified). |
 | `npm run preview` | — | Serves the built frontend with Vite preview. The API middleware is a dev-server feature; use the desktop app or `npm run dev` for API access. |
 | `npm run typecheck` | — | TypeScript project check. |
 
@@ -88,7 +123,16 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 3. Select a page. On first open the page is automatically detected and saved.
 4. If a language folder is not recognized, open the volume settings and map directories manually.
 
-See [Library](/guide/gallery) for naming rules and the language aliases the scanner accepts.
+See [Library & Import](/guide/gallery) for naming rules and the language aliases the scanner accepts.
+
+## Common pitfalls
+
+- **Port 5173 is busy.** Vite picks the next free port; read the URL printed in the terminal instead of assuming 5173.
+- **The sidebar is empty.** There is no volume under `raw/`, or the folder names were not recognized. See [Library & Import](/guide/gallery).
+- **A packaged build asks for a folder.** That is expected: packages do not bundle `raw/`, `data/` or `exports/`.
+- **Changes do not appear in the desktop window.** Restart after switching the data directory with `Ctrl+Shift+D`; the switch is not live.
+- **`npm run preview` has no API.** The API middleware exists only in the dev server and the desktop app, so pages cannot load images there.
+- **`dist:win` is unverified.** Treat the first packaging run as a smoke test; report what the installer does on a clean machine.
 
 ## Documentation site
 

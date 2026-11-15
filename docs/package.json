@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Documentation site for KomaYomi",
   "scripts": {
-    "docs:dev": "vitepress dev --port 5174",
+    "docs:dev": "node scripts/dev.mjs",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview --port 5174"
   },

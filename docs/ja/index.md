@@ -9,8 +9,8 @@ hero:
   text: Manga Learner
   tagline: 漫画で言語を学び、ノートを取る。コマ、比較、ノートはすべて手元のマシンに。
   image:
-    src: /shots/compare.svg
-    alt: Compare reader (placeholder)
+    src: /assets/screenshots/compare-reading.png
+    alt: 3言語の比較リーダー
   actions:
     - theme: brand
       text: はじめる
@@ -41,8 +41,8 @@ KomaYomi（**Manga Learner**）は、漫画で言語を学び、ノートを取�
 KomaYomi は **0.1.0 で、活発に開発中**です。このドキュメントでは、現在存在する機能と計画中の機能を区別して説明します。
 
 <div class="status-list">
-  <div><strong>現在動作するもの</strong> — ライブラリのスキャン、XYカットによるコマ検出、手動でのコマ編集、コマ／レイアウトテンプレート、マスクと4種類の位置合わせモードを備えた比較リーダー、検索付き Markdown ノート、HTML と PNG のエクスポート、バックアップ zip、`.mnproj` プロジェクトのエクスポート／インポート、CLI バッチツール。</div>
-  <div><strong>計画中</strong> — PDF、Word（docx）、語彙リストのエクスポート。オンデマンドキャッシュとオフラインキューを備えた WebDAV／ネットワークドライブのバックエンド。アプリ内でのグループとベクター注釈の作成。統合テスト。</div>
+  <div><strong>現在動作するもの</strong> — ライブラリのスキャン、XYカットによるコマ検出、手動でのコマ編集、コマ／レイアウトテンプレート、ベクター注釈（矩形、楕円、矢印、テキスト）、マスクと4種類の位置合わせモードを備えた比較リーダー、検索付き Markdown ノート、HTML と PNG のエクスポート、バックアップ ZIP と WebDAV／ネットワークターゲットへのアップロード、オンデマンド LRU キャッシュを備えた WebDAV／ネットワーク画像ソース、`.mnproj` プロジェクトのエクスポート／インポート、CLI バッチツール。</div>
+  <div><strong>計画中</strong> — アプリ内でのコマグループ編集。PDF、Word（docx）、語彙リストのエクスポート。オフライン書き込みキュー。スケジュールバックアップ。ネイティブのモバイルアプリ。より広範な統合テスト。</div>
 </div>
 
 このサイトで <Badge type="warning" text="予定" /> と表示されているものは**まだ実装されていません**。コードにない挙動をページが説明している場合は、この注記を優先し、その機能は利用できないものと考えてください。

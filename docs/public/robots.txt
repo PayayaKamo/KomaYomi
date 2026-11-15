@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
 
-# TODO: replace komayomi.example.com with the production domain before launch.
-Sitemap: https://komayomi.example.com/sitemap.xml
+Sitemap: https://payayakamo.github.io/KomaYomi-docs/sitemap.xml

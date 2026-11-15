@@ -66,13 +66,13 @@ English is the root locale. Chinese lives under `/zh/` and Japanese under `/ja/`
 | Production domain | `https://komayomi.example.com` in `config.mts` (`SITE_URL`) | Replace with the real origin. It feeds canonical, hreflang, OG URLs, JSON-LD and sitemap. |
 | `robots.txt` sitemap URL | `https://komayomi.example.com/sitemap.xml` | Replace the host to match. |
 | Social share image | `public/social-card.png` (branded 1200×630 card, generated from `docs/`) | Replace with a designed image if needed; keep the filename or update `SOCIAL_IMAGE` in `config.mts`. |
-| Screenshots | `public/shots/*.svg` | Replace with real captures and update `<img src>` in the pages. |
+| Screenshots | `public/assets/screenshots/*.png` | Add the remaining captures listed in each guide page's *Missing screenshots* table and swap the `.shot-missing` blocks for `<img>` tags. |
 
 After changing `SITE_URL`, rebuild and confirm `sitemap.xml`, canonical tags and OG URLs all use the new domain.
 
 ## Screenshots
 
-The images in `public/shots/` are **placeholders** and are labelled as such in every page that uses them. Replace `gallery.svg`, `panels.svg`, `compare.svg`, `notes.svg` and `export.svg` with real captures (PNG or JPG) and update the `<img src>` paths in the matching pages. Keep a consistent viewport (for example 1440×900) so the figures line up across languages.
+Real captures live in `public/assets/screenshots/` and are referenced as `/assets/screenshots/<name>.png`. Use English hyphenated names and keep a consistent viewport (for example 1440×900) so figures line up across languages. Pages that still need a capture contain a `.shot-missing` block and list it under *Missing screenshots*; replace that block with a `<figure class="shot"><img …></figure>` using the same path in all three languages.
 
 ## Status labels
 
@@ -90,4 +90,4 @@ Before adding or changing a feature description, verify it in the source (`src/`
 
 ## Reference template
 
-The styling follows the internal `qxj-vitepress-page` template (`http://192.168.168.51:3000/qxj-project/qxj-vitepress-page.git`): its typography scale, brand-accent hero, card hover motion, wrapping tables, blurred navigation bar, floating outline button and print rules were adapted here on top of the standard VitePress default theme, keeping the KomaYomi orange palette and the three-locale content. The template was cloned once into a temporary `docs/.template-tmp/` directory (gitignored, credentials never written to disk, remote URL stripped after cloning) and deleted after the style review; no copy remains in this repository.
+The styling adapts a private VitePress starter template: its typography scale, brand-accent hero, card hover motion, wrapping tables, blurred navigation bar and print rules were adapted here on top of the standard VitePress default theme, keeping the KomaYomi orange palette and the three-locale content. The template was reviewed in a temporary `docs/.template-tmp/` directory (gitignored) and deleted afterwards; no copy remains in this repository.

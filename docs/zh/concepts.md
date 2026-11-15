@@ -57,7 +57,7 @@ raw/<volume>/<language>/<chapter>/<page images>
 }
 ```
 
-数据模型、规范化以及项目导入/导出都支持标注，包括页面级的 `annotationsVisible` 开关。<Badge type="warning" text="计划中" /> 绘制界面尚未实现。
+数据模型、规范化以及项目导入/导出都支持标注，包括页面级的 `annotationsVisible` 开关。切格工作台提供箭头、矩形、椭圆、高亮、自由画笔、文本、徽标和马赛克等矢量标注工具；标注在导入导出时会保留。
 
 ## 对齐（Alignment）
 

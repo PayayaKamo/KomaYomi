@@ -57,7 +57,7 @@ An **annotation** is a vector overlay on a page or panel: arrow, rectangle, elli
 }
 ```
 
-The data model, normalization and project import/export support annotations, including a page-level `annotationsVisible` switch. <Badge type="warning" text="Planned" /> The drawing UI is not implemented yet.
+The data model, normalization and project import/export support annotations, including a page-level `annotationsVisible` switch. The panel workbench exposes drawing tools for arrows, rectangles, ellipses, highlights, freehand pen, text, badges and mosaic blocks; annotations are preserved by imports and exports.
 
 ## Alignment
 

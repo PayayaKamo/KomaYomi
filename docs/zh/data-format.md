@@ -137,7 +137,7 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 | `text` | string | Markdown。原始 HTML 会被转义。 |
 | `tags` | string[] | |
 | `source` | `{ title?, url?, text? }` | `text` 是自由形式的来源标签。 |
-| `images` | `{ id, name, dataUrl }[]` | 预留给截图；尚无编辑界面。 |
+| `images` | `{ id, name, dataUrl }[]` | 笔记附带的截图。可在笔记编辑器中粘贴、拖入或添加；超过 400 KB 的图片会缩小到长边 1600 px。 |
 | `createdAt`、`updatedAt` | ISO string | |
 
 ### 标注类型

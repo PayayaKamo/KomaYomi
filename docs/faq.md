@@ -101,13 +101,13 @@ The desktop window may be using a different data directory than the repository. 
 
 Only HTML and PNG are implemented. PDF, `.docx` and vocabulary lists are <Badge type="warning" text="Planned" />. As a workaround, open the exported HTML in a browser and use **Print → Save as PDF**; the HTML has print styles that break pages and avoid splitting panels or notes.
 
-## Why can't I draw annotations or create groups?
+## Why can't I create panel groups?
 
-The page JSON supports both (`annotation` objects and `group` objects), and they are preserved by imports and exports. The authoring UI is <Badge type="warning" text="Planned" />. Today you can hand-edit the JSON; it is normalized and validated on read.
+The page JSON supports `group` objects and they are preserved by imports and exports, but there is no group-editing UI yet (<Badge type="warning" text="Planned" />). You can hand-edit the JSON; it is normalized and validated on read. Vector **annotations** are implemented: the panel workbench has arrow, rectangle, ellipse, highlight, pen, text, badge and mosaic tools.
 
 ## Does it send my data anywhere?
 
-No. The server listens on `127.0.0.1`. The only outbound request is the optional "fetch page title" action for a note source, which requests the URL you typed with a 5-second timeout. Nothing is uploaded.
+By default, no. The server listens on `127.0.0.1`, and nothing is uploaded unless you configure a remote target. Two features make outbound requests: the optional "fetch page title" action for a note source (requests the URL you typed, 5-second timeout), and any WebDAV / network storage target you add (image fetches and backup uploads). With no storage target configured, all data stays local.
 
 ## Old page JSON is not opening
 

@@ -1,92 +1,134 @@
 # Notes
 
-Notes are the reason the panels and alignment exist. A note can belong to a whole page or to one panel, and it is written in Markdown.
+Notes are the reason the panels and alignment exist. A note can belong to a whole page or to one panel, it is written in Markdown, and it can carry tags, a source and attached images.
 
 <figure class="shot">
-  <img src="/shots/notes.svg" alt="Notes panel with Markdown editor, tags and overview (placeholder)">
-  <figcaption>Placeholder image. The notes panel sits beside the page and can be collapsed.</figcaption>
+  <img src="/assets/screenshots/notes-markdown.png" alt="Notes panel with Markdown editor, live preview, tags and the overview tab">
+  <figcaption>The notes column sits to the right of the stage and can be collapsed. The toolbar above the editor inserts Markdown; the tab bar switches between this page and the global overview.</figcaption>
 </figure>
 
-## Scope
+## The problem it solves
+
+A remark like “this translation drops the honorific” is meaningless once it is detached from the balloon it refers to. Notes here are attached to a page or to a panel id, so they survive page reordering, template changes and export. A second problem is retrieval: after fifty pages you need to find every note tagged `语气` or sourced from one article.
+
+## Page notes and panel notes
 
 | Scope | When to use | Stored as |
 | --- | --- | --- |
 | **Page** | Overall observations, proofreading remarks, questions about a page. | `scope: "page"`, `panelId: null` |
-| **Panel** | Wording, tone, translation differences, a specific balloon. | `scope: "panel"`, `panelId: "<panel id>"` |
+| **Panel** | Wording, tone, a specific balloon, a translation difference. | `scope: "panel"`, `panelId: "<panel id>"` |
 
-Selecting a panel in either the workbench or the compare reader scopes the next note to that panel. With nothing selected, the note is page-scoped.
+Selecting a panel in the workbench or in the compare reader scopes the next note to that panel. With nothing selected, the note is page-scoped. The editor placeholder tells you which scope is active: *Capture this panel's original text…* versus *Capture observations… for the whole page*.
 
-## Markdown
+## Writing a note
 
-The editor supports headings, bold/italic/strikethrough, inline code, fenced code, links, ordered and unordered lists (one nesting level), block quotes, tables, horizontal rules and hard line breaks.
+1. Click the editor in the **This page** tab.
+2. Type Markdown. The toolbar inserts the common syntax:
 
-- Toggle **Preview** to render the Markdown exactly as it will appear in the HTML export.
-- `Ctrl+Enter` saves the note.
-- Raw HTML in notes is escaped and never executed.
-- Notes written before Markdown support are preserved and render as plain text with line breaks.
+| Button | Inserts |
+| --- | --- |
+| **B** | Bold (`Ctrl+B`) |
+| *I* | Italic (`Ctrl+I`) |
+| • List | Bullet list |
+| ❝ Quote | Block quote |
+| `</>` | Inline code |
+| ↗ Link | Link (`Ctrl+K`) |
+| H | Heading |
+| S | Strikethrough |
+| 1. | Ordered list |
+| — | Horizontal rule |
+
+3. Choose the mode: **Edit**, **Split** (editor + preview) or **Preview**.
+4. Press `Ctrl+Enter` or click **Add note**.
+
+Rendered output escapes raw HTML; HTML is never executed. Notes written before Markdown support still render as plain text with line breaks.
 
 ## Tags
 
 - Type a tag and press `Enter` to add it.
 - Tags are stored as an array on the note.
-- Tag usage is aggregated across all pages and shown as suggestions/filters.
+- Usage is aggregated across all pages and offered as suggestions, and the **Filter** row can filter the current page by tag.
+
+Tags are the cheapest way to build a personal taxonomy: `语气`, `误译`, `文化`, `待确认`, `拟声词`.
+
+## Attached images
+
+A note can carry screenshots — useful for a reference page, an edition comparison or a photo of a printed book.
+
+- **Paste** an image into the editor, or **drag and drop** it onto the note form.
+- **Add images** opens a file picker; each attached image gets a thumbnail with a remove button.
+- Images under 400 KB are stored as-is (data URL). Larger images are downscaled to a maximum edge of 1600 px and re-encoded as WebP at quality 0.85.
+- Images are stored inside the note's `images` array in the page JSON, so they travel with the page in exports and project files. Very large collections make the JSON bigger; prefer a few cropped references over full pages.
 
 ## Sources
 
 Each note can carry a source:
 
-- **URL** — paste a link. The app detects the first URL in the text automatically; a button can fetch the page title (5-second timeout). If fetching is blocked, type the title manually.
-- **Free text** — e.g. `ChatGPT conversation 2026-05-12`, a book title, or an interview name.
+- **URL** — paste a link. The first URL in the note text is filled in automatically. **Fetch title** tries to read the page title with a 5-second timeout; if fetching is blocked, type the title yourself.
+- **Free text** — e.g. `ChatGPT conversation 2026-05-12`, a book title or an interview name.
 
-The source is displayed as a badge (domain) in the note list and is included in search and "copy context".
+The source is displayed under the note and can be toggled with **Hide source**.
 
-## Scratch pad
+## Copy context for an LLM
 
-The scratch pad is for thoughts you have before deciding which page they belong to.
+**Copy page context** / **Copy context** assembles a prompt from the current page, the selected panel, the note text, tags and sources.
 
-- Type freely; entries are kept in the browser's local storage.
-- Move an entry into a page or panel note when you know where it belongs.
-- It is per-browser, not part of the project package.
+- The copy dialog has an editable **Template prefix**.
+- Supported placeholders: `{volume}`, `{chapter}`, `{page}`, `{panel}`, `{notes}`, `{text}`, `{tags}`.
+- Edits to the template are remembered automatically.
+- **Preview** shows exactly what will be copied; **Copy** puts it on the clipboard.
+
+The default template asks the model to explain language points, tone and cultural background, and to point out misunderstandings. Adjust it once for your preferred tutor style and every later copy follows it.
 
 ## Overview and search
 
-The **Overview / Search** tab aggregates notes across the library:
+The **Overview / search** tab works across the whole library, not just the current page:
 
-- Full-text search over note text, tags and sources (300 ms debounce).
-- Filter by volume, chapter, tag and source.
-- Aggregate by tag or by source.
-- Results show how many notes and pages matched.
-- Clicking a result jumps to that page and, when applicable, selects the panel.
+- Search text in notes, tags and sources.
+- Filter by volume, chapter, page number, tag or source.
+- Group results by chapter, tag or source.
+- The result header reports how many notes were found across how many pages.
+- Click a result to jump to that page and, when the note is panel-scoped, to that panel.
 
-## Copy context
+**Clear filters** resets the current query.
 
-**Copy context** produces a compact, paste-ready block containing the volume, chapter, page, panel number, note text, tags and source. The format is controlled by a template with these placeholders:
+## Scratchpad
 
-```text
-{volume} {chapter} {page} {panel} {notes} {text} {tags}
-```
+The scratchpad is for thoughts that arrive before you know where they belong.
 
-The template is editable and remembered per browser. It is convenient for pasting a self-contained question into an LLM.
+1. Type in **Scratchpad** and press `Ctrl+Enter` or **Save**.
+2. Later, use **Move to page** or **Move to panel** to file it as a real note.
 
-## Storage
+## Editing and deleting
 
-Notes live inside the page JSON at `data/pages/<volume>/<chapter>/<index>.json`:
+Each saved note has **Edit**, **Copy context**, **Filter by tag** and delete actions. The **Rendered / Source** toggle on a note switches between the rendered Markdown and its raw text. Deleting a panel deletes its panel-scoped notes, so use page notes for anything you want to keep independent of the layout.
 
-```json
-{
-  "id": "n1712345678901",
-  "scope": "panel",
-  "panelId": "p3",
-  "text": "**原文**：……\n\n翻译语气偏正式。",
-  "tags": ["语气", "待确认"],
-  "source": { "title": "…", "url": "https://…" },
-  "createdAt": "2026-05-12T10:00:00.000Z",
-  "updatedAt": "2026-05-12T10:05:00.000Z"
-}
-```
+## Common pitfalls
 
-This means notes are backed up and exported with the page, and can be edited with any text editor.
+- **The note went to the wrong scope.** Check the sentence above the editor: it names the panel number or says *whole page*. Deselect the panel to write a page note.
+- **`Ctrl+Enter` did nothing.** Focus must be inside the note editor; the shortcut does not fire from the search field.
+- **A pasted screenshot is huge.** Images over the limit are downscaled automatically, but full-page screenshots are still heavy; crop first.
+- **A tag filter hides notes.** The **Filter** row is per page and is not the same as the overview filters.
+- **Text looks like code.** Fenced blocks need three backticks on their own lines.
 
-::: warning Planned
-The note model has an `images` field for screenshots stored as data URLs, and the project importer counts note images. The in-app editor for adding images to a note is <Badge type="warning" text="Planned" />.
-:::
+<figure class="shot">
+  <div class="shot-missing">
+    <strong>Screenshot pending: note editor with toolbar and attached image</strong>
+    A close-up of the Markdown toolbar, tag row and image thumbnails will be added here.
+  </div>
+  <figcaption>Planned screenshot: editor toolbar, tags and attachments.</figcaption>
+</figure>
+
+## Missing screenshots
+
+| Figure | Needed for |
+| --- | --- |
+| note editor close-up | Markdown toolbar, tags, attachments |
+| overview search | Filters, grouping and jump-to-page |
+| copy-context dialog | Template prefix and preview |
+
+## Related
+
+- [Compare Reader](/guide/compare) — where most notes are born.
+- [Export](/guide/export) — how notes become a study document.
+- [Keyboard Shortcuts](/guide/shortcuts) — editor and global keys.

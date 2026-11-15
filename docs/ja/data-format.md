@@ -42,9 +42,9 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
       "id": "n1712345678901",
       "scope": "panel",
       "panelId": "p1",
-      "text": "**原文**：……\n\n翻译更正式。",
+      "text": "**原文**：……\n\n翻訳はより硬い表現。",
       "tags": ["语气", "待确认"],
-      "source": { "title": "参考页面", "url": "https://example.com" },
+      "source": { "title": "参照ページ", "url": "https://example.com" },
       "createdAt": "2026-05-12T10:00:00.000Z",
       "updatedAt": "2026-05-12T10:05:00.000Z"
     }
@@ -64,8 +64,8 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
   "detectSource": "auto",
   "editCount": 7,
   "lastEditedAt": "2026-05-12T10:05:00.000Z",
-  "lastEditSummary": "调整格框；修改批注",
-  "groups": [{ "id": "g1", "name": "跨页大图", "panelIds": ["p2", "p3"], "number": 1 }],
+  "lastEditSummary": "コマ枠を調整；注釈を変更",
+  "groups": [{ "id": "g1", "name": "見開き大ゴマ", "panelIds": ["p2", "p3"], "number": 1 }],
   "annotations": [
     {
       "id": "a1",
@@ -137,7 +137,7 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 | `text` | string | Markdown。生の HTML はエスケープされます。 |
 | `tags` | string[] | |
 | `source` | `{ title?, url?, text? }` | `text` は自由形式の出典ラベルです。 |
-| `images` | `{ id, name, dataUrl }[]` | スクリーンショット用に予約。編集 UI はまだありません。 |
+| `images` | `{ id, name, dataUrl }[]` | ノートに添付したスクリーンショット。ノートエディタで貼り付け、ドラッグ＆ドロップ、追加ができます。400 KB を超える画像は長辺 1600 px に縮小されます。 |
 | `createdAt`, `updatedAt` | ISO string | |
 
 ### 注釈の種類
@@ -184,7 +184,7 @@ assets/<sha1>.<ext>          (packaged mode only)
   "createdAt": "2026-05-12T10:00:00.000Z",
   "updatedAt": "2026-05-12T10:00:00.000Z",
   "storageMode": "reference",
-  "name": "点兔第14卷 学习笔记",
+  "name": "点兔第14巻 学習ノート",
   "language": {
     "volumes": { "点兔第14卷": { "ja": "raw-ja", "zh": "raw-zh" } },
     "resolved": { "点兔第14卷": { "ja": "raw-ja", "zh": "raw-zh" } }
@@ -255,7 +255,7 @@ assets/<sha1>.<ext>          (packaged mode only)
     "2": { "gap": 0.02 }
   },
   "createdAt": "2026-05-12T10:00:00.000Z",
-  "notes": "用于第172话大部分页面"
+  "notes": "172話の大半のページに使用"
 }
 ```
 
@@ -286,7 +286,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 ```json
 {
   "id": "preset-…",
-  "name": "172 话整体偏移",
+  "name": "172話 全体オフセット",
   "scope": "chapter",
   "volume": "点兔第14卷",
   "chapter": "172",

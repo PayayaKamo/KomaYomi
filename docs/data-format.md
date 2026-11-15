@@ -137,7 +137,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 | `text` | string | Markdown. Raw HTML is escaped. |
 | `tags` | string[] | |
 | `source` | `{ title?, url?, text? }` | `text` is a free-form source label. |
-| `images` | `{ id, name, dataUrl }[]` | Reserved for screenshots; no editing UI yet. |
+| `images` | `{ id, name, dataUrl }[]` | Screenshots attached to the note. Paste, drop or add them in the notes editor; images over 400 KB are downscaled to a 1600 px edge. |
 | `createdAt`, `updatedAt` | ISO string | |
 
 ### Annotation kinds

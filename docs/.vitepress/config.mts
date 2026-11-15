@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url'
 const docsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 /**
- * Production origin.
- * TODO: replace this placeholder with the real documentation domain before launch.
- * It is used for canonical URLs, hreflang, Open Graph URLs, JSON-LD and the sitemap.
+ * Production origin and path prefix for GitHub Pages.
+ * `DOCS_BASE=/` is set by `scripts/dev.mjs` so local development works at the
+ * server root, while builds default to the repository subpath.
  */
-const SITE_URL = 'https://komayomi.example.com'
+const BASE = process.env.DOCS_BASE === '/' ? '/' : '/KomaYomi-docs/'
+const SITE_URL = 'https://payayakamo.github.io/KomaYomi-docs'
 const SITE_NAME = 'KomaYomi'
 const SITE_SUBTITLE = 'Manga Learner'
 const AUTHOR = 'PayayaKamo'
@@ -311,20 +312,25 @@ const enSidebar = [
     items: [
       { text: 'Introduction', link: '/guide/introduction' },
       { text: 'Install & Run', link: '/guide/installation' },
-      { text: 'Library', link: '/guide/gallery' },
+      { text: 'Library & Import', link: '/guide/gallery' },
       { text: 'Panel Workbench', link: '/guide/panels' },
       { text: 'Compare Reader', link: '/guide/compare' },
       { text: 'Notes', link: '/guide/notes' },
       { text: 'Export', link: '/guide/export' },
+      { text: 'Remote & Backup', link: '/guide/remote' },
+      { text: 'Project Files & Formats', link: '/guide/project-files' },
+      { text: 'Shortcuts', link: '/guide/shortcuts' },
     ],
   },
   {
     text: 'Reference',
     items: [
       { text: 'Core Concepts', link: '/concepts' },
+      { text: 'Terminology', link: '/terminology' },
       { text: 'Data Formats', link: '/data-format' },
       { text: 'Layout Templates & Plugins', link: '/extending' },
       { text: 'Remote Storage & Backup', link: '/remote-backup' },
+      { text: 'Server & CLI Message Codes', link: '/server/error-codes' },
     ],
   },
   { text: 'Help', items: [{ text: 'FAQ & Troubleshooting', link: '/faq' }] },
@@ -336,20 +342,25 @@ const zhSidebar = [
     items: [
       { text: '项目介绍', link: '/zh/guide/introduction' },
       { text: '安装与运行', link: '/zh/guide/installation' },
-      { text: '图库', link: '/zh/guide/gallery' },
+      { text: '图库与导入', link: '/zh/guide/gallery' },
       { text: '切格工作台', link: '/zh/guide/panels' },
       { text: '对照阅读', link: '/zh/guide/compare' },
       { text: '笔记', link: '/zh/guide/notes' },
       { text: '导出', link: '/zh/guide/export' },
+      { text: '备份与远端', link: '/zh/guide/remote' },
+      { text: '工程文件与格式', link: '/zh/guide/project-files' },
+      { text: '快捷键总表', link: '/zh/guide/shortcuts' },
     ],
   },
   {
     text: '参考',
     items: [
       { text: '核心概念', link: '/zh/concepts' },
+      { text: '术语表', link: '/zh/terminology' },
       { text: '数据格式', link: '/zh/data-format' },
       { text: '版式模板与插件', link: '/zh/extending' },
       { text: '远端存储与备份', link: '/zh/remote-backup' },
+      { text: '错误码参考（英文）', link: '/server/error-codes' },
     ],
   },
   { text: '帮助', items: [{ text: '常见问题与故障排查', link: '/zh/faq' }] },
@@ -361,30 +372,234 @@ const jaSidebar = [
     items: [
       { text: 'はじめに', link: '/ja/guide/introduction' },
       { text: 'インストールと起動', link: '/ja/guide/installation' },
-      { text: 'ライブラリ', link: '/ja/guide/gallery' },
+      { text: 'ライブラリと取り込み', link: '/ja/guide/gallery' },
       { text: 'コマ分割ワークベンチ', link: '/ja/guide/panels' },
       { text: '比較リーダー', link: '/ja/guide/compare' },
       { text: 'ノート', link: '/ja/guide/notes' },
       { text: 'エクスポート', link: '/ja/guide/export' },
+      { text: 'バックアップとリモート', link: '/ja/guide/remote' },
+      { text: 'プロジェクトファイルと形式', link: '/ja/guide/project-files' },
+      { text: 'ショートカット一覧', link: '/ja/guide/shortcuts' },
     ],
   },
   {
     text: 'リファレンス',
     items: [
       { text: '基本概念', link: '/ja/concepts' },
+      { text: '用語集', link: '/ja/terminology' },
       { text: 'データ形式', link: '/ja/data-format' },
       { text: 'レイアウトテンプレートとプラグイン', link: '/ja/extending' },
       { text: 'リモート保存とバックアップ', link: '/ja/remote-backup' },
+      { text: 'エラーコード（英語）', link: '/server/error-codes' },
     ],
   },
   { text: 'ヘルプ', items: [{ text: 'FAQ とトラブルシューティング', link: '/ja/faq' }] },
 ]
+
+const enTheme = {
+  selectText: 'Languages',
+  siteTitle: 'KomaYomi Docs',
+  nav: [
+    {
+      text: 'Guide',
+      items: [
+        { text: 'Introduction', link: '/guide/introduction' },
+        { text: 'Install & Run', link: '/guide/installation' },
+        { text: 'Library & Import', link: '/guide/gallery' },
+        { text: 'Panel Workbench', link: '/guide/panels' },
+        { text: 'Compare Reader', link: '/guide/compare' },
+        { text: 'Notes', link: '/guide/notes' },
+        { text: 'Export', link: '/guide/export' },
+        { text: 'Remote & Backup', link: '/guide/remote' },
+        { text: 'Project Files & Formats', link: '/guide/project-files' },
+        { text: 'Shortcuts', link: '/guide/shortcuts' },
+      ],
+    },
+    {
+      text: 'Reference',
+      items: [
+        { text: 'Core Concepts', link: '/concepts' },
+        { text: 'Terminology', link: '/terminology' },
+        { text: 'Data Formats', link: '/data-format' },
+        { text: 'Layout Templates & Plugins', link: '/extending' },
+        { text: 'Remote Storage & Backup', link: '/remote-backup' },
+        { text: 'Server & CLI Message Codes', link: '/server/error-codes' },
+      ],
+    },
+    { text: 'FAQ', link: '/faq' },
+  ],
+  search: {
+    provider: 'local',
+    options: {
+      detailedView: true,
+      translations: {
+        button: { buttonText: 'Search', buttonAriaLabel: 'Search' },
+        modal: {
+          displayDetails: 'Display detailed list',
+          resetButtonTitle: 'Reset search',
+          backButtonTitle: 'Close search',
+          noResultsText: 'No results for',
+          footer: {
+            selectText: 'to select',
+            selectKeyAriaLabel: 'enter',
+            navigateText: 'to navigate',
+            navigateUpKeyAriaLabel: 'up arrow',
+            navigateDownKeyAriaLabel: 'down arrow',
+            closeText: 'to close',
+            closeKeyAriaLabel: 'escape',
+          },
+        },
+      },
+    },
+  },
+  sidebar: enSidebar,
+  outline: { level: [2, 3], label: localeMeta.en.outlineLabel },
+  docFooter: localeMeta.en.docFooter,
+  lastUpdated: { text: localeMeta.en.lastUpdatedText },
+  returnToTopLabel: localeMeta.en.returnToTopLabel,
+  sidebarMenuLabel: localeMeta.en.sidebarMenuLabel,
+  darkModeSwitchLabel: localeMeta.en.darkModeSwitchLabel,
+  langMenuLabel: localeMeta.en.langMenuLabel,
+}
+
+const zhTheme = {
+  selectText: '选择语言',
+  siteTitle: 'KomaYomi 文档',
+  nav: [
+    {
+      text: '使用指南',
+      items: [
+        { text: '项目介绍', link: '/zh/guide/introduction' },
+        { text: '安装与运行', link: '/zh/guide/installation' },
+        { text: '图库与导入', link: '/zh/guide/gallery' },
+        { text: '切格工作台', link: '/zh/guide/panels' },
+        { text: '对照阅读', link: '/zh/guide/compare' },
+        { text: '笔记', link: '/zh/guide/notes' },
+        { text: '导出', link: '/zh/guide/export' },
+        { text: '备份与远端', link: '/zh/guide/remote' },
+        { text: '工程文件与格式', link: '/zh/guide/project-files' },
+        { text: '快捷键总表', link: '/zh/guide/shortcuts' },
+      ],
+    },
+    {
+      text: '参考',
+      items: [
+        { text: '核心概念', link: '/zh/concepts' },
+        { text: '术语表', link: '/zh/terminology' },
+        { text: '数据格式', link: '/zh/data-format' },
+        { text: '版式模板与插件', link: '/zh/extending' },
+        { text: '远端存储与备份', link: '/zh/remote-backup' },
+        { text: '错误码参考（英文）', link: '/server/error-codes' },
+      ],
+    },
+    { text: '常见问题', link: '/zh/faq' },
+  ],
+  search: {
+    provider: 'local',
+    options: {
+      detailedView: true,
+      translations: {
+        button: { buttonText: '搜索', buttonAriaLabel: '搜索' },
+        modal: {
+          displayDetails: '显示详细列表',
+          resetButtonTitle: '重置搜索',
+          backButtonTitle: '关闭搜索',
+          noResultsText: '没有找到结果：',
+          footer: {
+            selectText: '选择',
+            selectKeyAriaLabel: '回车',
+            navigateText: '切换',
+            navigateUpKeyAriaLabel: '上箭头',
+            navigateDownKeyAriaLabel: '下箭头',
+            closeText: '关闭',
+            closeKeyAriaLabel: 'Esc',
+          },
+        },
+      },
+    },
+  },
+  sidebar: zhSidebar,
+  outline: { level: [2, 3], label: localeMeta.zh.outlineLabel },
+  docFooter: localeMeta.zh.docFooter,
+  lastUpdated: { text: localeMeta.zh.lastUpdatedText },
+  returnToTopLabel: localeMeta.zh.returnToTopLabel,
+  sidebarMenuLabel: localeMeta.zh.sidebarMenuLabel,
+  darkModeSwitchLabel: localeMeta.zh.darkModeSwitchLabel,
+  langMenuLabel: localeMeta.zh.langMenuLabel,
+}
+
+const jaTheme = {
+  selectText: '言語',
+  siteTitle: 'KomaYomi ドキュメント',
+  nav: [
+    {
+      text: 'ガイド',
+      items: [
+        { text: 'はじめに', link: '/ja/guide/introduction' },
+        { text: 'インストールと起動', link: '/ja/guide/installation' },
+        { text: 'ライブラリと取り込み', link: '/ja/guide/gallery' },
+        { text: 'コマ分割ワークベンチ', link: '/ja/guide/panels' },
+        { text: '比較リーダー', link: '/ja/guide/compare' },
+        { text: 'ノート', link: '/ja/guide/notes' },
+        { text: 'エクスポート', link: '/ja/guide/export' },
+        { text: 'バックアップとリモート', link: '/ja/guide/remote' },
+        { text: 'プロジェクトファイルと形式', link: '/ja/guide/project-files' },
+        { text: 'ショートカット一覧', link: '/ja/guide/shortcuts' },
+      ],
+    },
+    {
+      text: 'リファレンス',
+      items: [
+        { text: '基本概念', link: '/ja/concepts' },
+        { text: '用語集', link: '/ja/terminology' },
+        { text: 'データ形式', link: '/ja/data-format' },
+        { text: 'レイアウトテンプレートとプラグイン', link: '/ja/extending' },
+        { text: 'リモート保存とバックアップ', link: '/ja/remote-backup' },
+        { text: 'エラーコード（英語）', link: '/server/error-codes' },
+      ],
+    },
+    { text: 'FAQ', link: '/ja/faq' },
+  ],
+  search: {
+    provider: 'local',
+    options: {
+      detailedView: true,
+      translations: {
+        button: { buttonText: '検索', buttonAriaLabel: '検索' },
+        modal: {
+          displayDetails: '詳細を表示',
+          resetButtonTitle: '検索をリセット',
+          backButtonTitle: '検索を閉じる',
+          noResultsText: '結果が見つかりません：',
+          footer: {
+            selectText: '選択',
+            selectKeyAriaLabel: 'Enter',
+            navigateText: '移動',
+            navigateUpKeyAriaLabel: '上矢印',
+            navigateDownKeyAriaLabel: '下矢印',
+            closeText: '閉じる',
+            closeKeyAriaLabel: 'Esc',
+          },
+        },
+      },
+    },
+  },
+  sidebar: jaSidebar,
+  outline: { level: [2, 3], label: localeMeta.ja.outlineLabel },
+  docFooter: localeMeta.ja.docFooter,
+  lastUpdated: { text: localeMeta.ja.lastUpdatedText },
+  returnToTopLabel: localeMeta.ja.returnToTopLabel,
+  sidebarMenuLabel: localeMeta.ja.sidebarMenuLabel,
+  darkModeSwitchLabel: localeMeta.ja.darkModeSwitchLabel,
+  langMenuLabel: localeMeta.ja.langMenuLabel,
+}
 
 export default defineConfig({
   lang: 'en-US',
   title: SITE_NAME,
   titleTemplate: ':title | KomaYomi',
   description: localeMeta.en.defaultDescription,
+  base: BASE,
   cleanUrls: true,
   lastUpdated: true,
   // The contributor README is not part of the public documentation.
@@ -399,7 +614,7 @@ export default defineConfig({
     ['meta', { name: 'theme-color', content: '#c2410c' }],
     ['meta', { name: 'viewport', content: 'width=device-width, initial-scale=1' }],
     ['meta', { name: 'robots', content: 'index,follow,max-image-preview:large' }],
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${BASE}logo.svg` }],
     ['meta', { property: 'og:image:width', content: '1200' }],
     ['meta', { property: 'og:image:height', content: '630' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
@@ -410,18 +625,21 @@ export default defineConfig({
       lang: 'en-US',
       title: SITE_NAME,
       description: localeMeta.en.defaultDescription,
+      themeConfig: enTheme,
     },
     zh: {
       label: '简体中文',
       lang: 'zh-CN',
       title: SITE_NAME,
       description: localeMeta.zh.defaultDescription,
+      themeConfig: zhTheme,
     },
     ja: {
       label: '日本語',
       lang: 'ja-JP',
       title: SITE_NAME,
       description: localeMeta.ja.defaultDescription,
+      themeConfig: jaTheme,
     },
   },
   markdown: {
@@ -487,200 +705,14 @@ export default defineConfig({
   },
   themeConfig: {
     logo: '/logo.svg',
-    siteTitle: 'KomaYomi Docs',
     externalLinkIcon: true,
-    outline: { level: [2, 3], label: localeMeta.en.outlineLabel },
-    search: { provider: 'local', options: { detailedView: true } },
-    docFooter: localeMeta.en.docFooter,
-    lastUpdated: { text: localeMeta.en.lastUpdatedText },
-    returnToTopLabel: localeMeta.en.returnToTopLabel,
-    sidebarMenuLabel: localeMeta.en.sidebarMenuLabel,
-    darkModeSwitchLabel: localeMeta.en.darkModeSwitchLabel,
-    langMenuLabel: localeMeta.en.langMenuLabel,
-    locales: {
-      root: {
-        label: 'English',
-        selectText: 'Languages',
-        siteTitle: 'KomaYomi Docs',
-        nav: [
-          {
-            text: 'Guide',
-            items: [
-              { text: 'Introduction', link: '/guide/introduction' },
-              { text: 'Install & Run', link: '/guide/installation' },
-              { text: 'Library', link: '/guide/gallery' },
-              { text: 'Panel Workbench', link: '/guide/panels' },
-              { text: 'Compare Reader', link: '/guide/compare' },
-              { text: 'Notes', link: '/guide/notes' },
-              { text: 'Export', link: '/guide/export' },
-            ],
-          },
-          {
-            text: 'Reference',
-            items: [
-              { text: 'Core Concepts', link: '/concepts' },
-              { text: 'Data Formats', link: '/data-format' },
-              { text: 'Layout Templates & Plugins', link: '/extending' },
-              { text: 'Remote Storage & Backup', link: '/remote-backup' },
-            ],
-          },
-          { text: 'FAQ', link: '/faq' },
-        ],
-        search: {
-          provider: 'local',
-          options: {
-            detailedView: true,
-            translations: {
-              button: { buttonText: 'Search', buttonAriaLabel: 'Search' },
-              modal: {
-                displayDetails: 'Display detailed list',
-                resetButtonTitle: 'Reset search',
-                backButtonTitle: 'Close search',
-                noResultsText: 'No results for',
-                footer: {
-                  selectText: 'to select',
-                  selectKeyAriaLabel: 'enter',
-                  navigateText: 'to navigate',
-                  navigateUpKeyAriaLabel: 'up arrow',
-                  navigateDownKeyAriaLabel: 'down arrow',
-                  closeText: 'to close',
-                  closeKeyAriaLabel: 'escape',
-                },
-              },
-            },
-          },
-        },
-        sidebar: enSidebar,
-        outline: { level: [2, 3], label: localeMeta.en.outlineLabel },
-        docFooter: localeMeta.en.docFooter,
-        lastUpdated: { text: localeMeta.en.lastUpdatedText },
-        returnToTopLabel: localeMeta.en.returnToTopLabel,
-        sidebarMenuLabel: localeMeta.en.sidebarMenuLabel,
-        darkModeSwitchLabel: localeMeta.en.darkModeSwitchLabel,
-        langMenuLabel: localeMeta.en.langMenuLabel,
-      },
-      zh: {
-        label: '简体中文',
-        selectText: '选择语言',
-        siteTitle: 'KomaYomi 文档',
-        nav: [
-          {
-            text: '使用指南',
-            items: [
-              { text: '项目介绍', link: '/zh/guide/introduction' },
-              { text: '安装与运行', link: '/zh/guide/installation' },
-              { text: '图库', link: '/zh/guide/gallery' },
-              { text: '切格工作台', link: '/zh/guide/panels' },
-              { text: '对照阅读', link: '/zh/guide/compare' },
-              { text: '笔记', link: '/zh/guide/notes' },
-              { text: '导出', link: '/zh/guide/export' },
-            ],
-          },
-          {
-            text: '参考',
-            items: [
-              { text: '核心概念', link: '/zh/concepts' },
-              { text: '数据格式', link: '/zh/data-format' },
-              { text: '版式模板与插件', link: '/zh/extending' },
-              { text: '远端存储与备份', link: '/zh/remote-backup' },
-            ],
-          },
-          { text: '常见问题', link: '/zh/faq' },
-        ],
-        search: {
-          provider: 'local',
-          options: {
-            detailedView: true,
-            translations: {
-              button: { buttonText: '搜索', buttonAriaLabel: '搜索' },
-              modal: {
-                displayDetails: '显示详细列表',
-                resetButtonTitle: '重置搜索',
-                backButtonTitle: '关闭搜索',
-                noResultsText: '没有找到结果：',
-                footer: {
-                  selectText: '选择',
-                  selectKeyAriaLabel: '回车',
-                  navigateText: '切换',
-                  navigateUpKeyAriaLabel: '上箭头',
-                  navigateDownKeyAriaLabel: '下箭头',
-                  closeText: '关闭',
-                  closeKeyAriaLabel: 'Esc',
-                },
-              },
-            },
-          },
-        },
-        sidebar: zhSidebar,
-        outline: { level: [2, 3], label: localeMeta.zh.outlineLabel },
-        docFooter: localeMeta.zh.docFooter,
-        lastUpdated: { text: localeMeta.zh.lastUpdatedText },
-        returnToTopLabel: localeMeta.zh.returnToTopLabel,
-        sidebarMenuLabel: localeMeta.zh.sidebarMenuLabel,
-        darkModeSwitchLabel: localeMeta.zh.darkModeSwitchLabel,
-        langMenuLabel: localeMeta.zh.langMenuLabel,
-      },
-      ja: {
-        label: '日本語',
-        selectText: '言語',
-        siteTitle: 'KomaYomi ドキュメント',
-        nav: [
-          {
-            text: 'ガイド',
-            items: [
-              { text: 'はじめに', link: '/ja/guide/introduction' },
-              { text: 'インストールと起動', link: '/ja/guide/installation' },
-              { text: 'ライブラリ', link: '/ja/guide/gallery' },
-              { text: 'コマ分割ワークベンチ', link: '/ja/guide/panels' },
-              { text: '比較リーダー', link: '/ja/guide/compare' },
-              { text: 'ノート', link: '/ja/guide/notes' },
-              { text: 'エクスポート', link: '/ja/guide/export' },
-            ],
-          },
-          {
-            text: 'リファレンス',
-            items: [
-              { text: '基本概念', link: '/ja/concepts' },
-              { text: 'データ形式', link: '/ja/data-format' },
-              { text: 'レイアウトテンプレートとプラグイン', link: '/ja/extending' },
-              { text: 'リモート保存とバックアップ', link: '/ja/remote-backup' },
-            ],
-          },
-          { text: 'FAQ', link: '/ja/faq' },
-        ],
-        search: {
-          provider: 'local',
-          options: {
-            detailedView: true,
-            translations: {
-              button: { buttonText: '検索', buttonAriaLabel: '検索' },
-              modal: {
-                displayDetails: '詳細を表示',
-                resetButtonTitle: '検索をリセット',
-                backButtonTitle: '検索を閉じる',
-                noResultsText: '結果が見つかりません：',
-                footer: {
-                  selectText: '選択',
-                  selectKeyAriaLabel: 'Enter',
-                  navigateText: '移動',
-                  navigateUpKeyAriaLabel: '上矢印',
-                  navigateDownKeyAriaLabel: '下矢印',
-                  closeText: '閉じる',
-                  closeKeyAriaLabel: 'Esc',
-                },
-              },
-            },
-          },
-        },
-        sidebar: jaSidebar,
-        outline: { level: [2, 3], label: localeMeta.ja.outlineLabel },
-        docFooter: localeMeta.ja.docFooter,
-        lastUpdated: { text: localeMeta.ja.lastUpdatedText },
-        returnToTopLabel: localeMeta.ja.returnToTopLabel,
-        sidebarMenuLabel: localeMeta.ja.sidebarMenuLabel,
-        darkModeSwitchLabel: localeMeta.ja.darkModeSwitchLabel,
-        langMenuLabel: localeMeta.ja.langMenuLabel,
-      },
-    },
+    // Social icons in the top navigation, shared by all locales.
+    // To add another platform later, append one entry here — no layout change
+    // is needed. VitePress resolves the icon name from its built-in set
+    // (for example: github, x, bluesky, discord, youtube).
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/payayakamo', ariaLabel: 'GitHub: PayayaKamo' },
+    ],
+    ...enTheme,
   },
 })
