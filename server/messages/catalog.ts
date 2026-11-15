@@ -405,9 +405,9 @@ export const MESSAGES = {
     ja: 'アーカイブに data/ ディレクトリがありません。KomaYomi のバックアップではない可能性があります',
   },
   ERR_SECRETS_DECRYPT_FAILED: {
-    en: 'Stored storage credentials could not be decrypted; the secrets file was left unchanged. Restore the matching .secret.key or re-enter the passwords.',
-    zh: '无法解密已保存的存储凭据；密钥与凭据文件均已原样保留。请恢复匹配的 .secret.key，或重新输入密码。',
-    ja: '保存された認証情報を復号できませんでした。ファイルは変更していません。対応する .secret.key を復元するか、パスワードを再入力してください。',
+    en: 'Stored storage credentials could not be decrypted; the secrets file was left unchanged. Restore the matching .secret.key, or delete the secrets file and re-enter the passwords.',
+    zh: '无法解密已保存的存储凭据；密钥与凭据文件均已原样保留。请恢复匹配的 .secret.key，或删除凭据文件后重新输入密码。',
+    ja: '保存された認証情報を復号できませんでした。ファイルは変更していません。対応する .secret.key を復元するか、認証情報ファイルを削除してパスワードを再入力してください。',
   },
   ERR_PAGE_CORRUPT: {
     en: 'The saved data for page {page} of {volume}/{chapter} is damaged and was left untouched. Restore it from a backup, or delete the damaged file to start a new page.',

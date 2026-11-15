@@ -181,7 +181,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_REMOTE_SOURCE_MISSING`    | 400  | No remote image source configured     | Sync requested before setup           | Configure a source in Settings → Storage.          |
 | `ERR_STORAGE_TARGET_NOT_FOUND` | 404  | Unknown storage target id            | Target deleted, stale tab             | Reload storage settings.                           |
 | `ERR_STORAGE_LIST_FAILED`      | 503  | Cannot list the directory            | Offline share, permission denied      | Check connectivity and credentials.                |
-| `ERR_SECRETS_DECRYPT_FAILED`   | 500  | Stored credentials cannot be decrypted | `.secret.key` rotated or missing, secrets file edited | Restore the matching `.secret.key`, then re-enter passwords. Files are left untouched. |
+| `ERR_SECRETS_DECRYPT_FAILED`   | 500  | Stored credentials cannot be decrypted | `.secret.key` rotated or missing, secrets file edited | Restore the matching `.secret.key`, or delete the secrets file and re-enter passwords. Files are left untouched. |
 | `ERR_BACKUP_UPLOAD_FAILED`     | 503  | Backup upload failed                 | WebDAV error, disk full               | Check the `detail` param and the target.           |
 | `ERR_AUTO_BACKUP_FAILED`       | 500  | Scheduled backup failed              | Target unwritable when the job ran, disk full | Check `detail`; the backup target list keeps the failure info. |
 

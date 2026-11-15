@@ -171,7 +171,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_REMOTE_SOURCE_MISSING`    | 400  | リモート素材ディレクトリがまだ設定されていません | 未設定のまま同期を要求 | 「設定 → ストレージ」で元を設定する。         |
 | `ERR_STORAGE_TARGET_NOT_FOUND` | 404  | ストレージターゲットが見つかりません：{targetId} | 保存先が削除された、タブが古い | ストレージ設定を再読み込みする。  |
 | `ERR_STORAGE_LIST_FAILED`      | 503  | ディレクトリを一覧できません：{detail} | 共有がオフライン、権限不足     | 接続と認証情報を確認する。                    |
-| `ERR_SECRETS_DECRYPT_FAILED`   | 500  | 保存された認証情報を復号できません | `.secret.key` の交換・消失、ファイルの改変 | 対応する `.secret.key` を戻してパスワードを再入力する。ファイルは変更されない。 |
+| `ERR_SECRETS_DECRYPT_FAILED`   | 500  | 保存された認証情報を復号できません | `.secret.key` の交換・消失、ファイルの改変 | 対応する `.secret.key` を戻すか、認証情報ファイルを削除してパスワードを再入力する。ファイルは変更されない。 |
 | `ERR_BACKUP_UPLOAD_FAILED`     | 503  | バックアップのアップロードに失敗しました：{detail} | WebDAV のエラー、ディスク満杯 | `detail` と保存先を確認する。                 |
 | `ERR_AUTO_BACKUP_FAILED`       | 500  | 定期バックアップに失敗しました：{detail} | 実行時に保存先が書けない、ディスク満杯 | `detail` を確認する。バックアップ先一覧に失敗情報が残る。 |
 
