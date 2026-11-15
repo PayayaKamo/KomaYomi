@@ -206,7 +206,7 @@ exports/            生成した HTML・PNG、バックアップ、プロジェ�
 | `data/backups/`                                     | 復元やプロジェクトのインポート前に取られるスナップショット。                                               |
 | `exports/`                                          | 出力した HTML / PNG、バックアップ ZIP、`.mnproj` プロジェクト。                                            |
 
-バックアップ ZIP は `data/`（サムネイルキャッシュを除く）を含み、復元前にファイル数とページ数の確認を求めます。復元前には現在のデータがスナップショットされます。`.mnproj` には参照モード（パスと SHA-1、小さい）とパッケージモード（画像同梱、可搬、大きい）があります。詳しい流れは [docs/remote-backup.md](docs/remote-backup.md) を参照してください。
+バックアップ ZIP は `data/`（サムネイルキャッシュを除く）を含み、復元前にファイル数とページ数の確認を求めます。復元前には現在のデータがスナップショットされます。`.mnproj` には参照モード（パスと SHA-1、小さい）とパッケージモード（画像同梱、可搬、大きい）があります。詳しい流れは[リモート保存とバックアップ](https://payayakamo.github.io/KomaYomi-docs/ja/guide/remote)を参照してください。
 
 デスクトップアプリのデータフォルダは `%APPDATA%/manga-memo/config.json` に記憶されます。
 
@@ -214,18 +214,18 @@ exports/            生成した HTML・PNG、バックアップ、プロジェ�
 
 ページ検出時、サーバーはまずページ・話・巻に結び付いたレイアウトテンプレートを試し、次に `plugins/` または `data/plugins/` の一致するプラグイン、最後に組み込み検出器を使います。例外・タイムアウト（2.5 秒）・コマ 0 件のプラグインは警告を出して組み込み検出に戻ります。プラグインはサーバープロセスで Node の権限で動くため、信頼できるものだけを入れてください。
 
-プラグインのインターフェース、テンプレートの仕様、API は [docs/extending.md](docs/extending.md) にあります。
+プラグインのインターフェース、テンプレートの仕様、API は[レイアウトテンプレートとプラグイン](https://payayakamo.github.io/KomaYomi-docs/ja/extending)にあります。
 
 ## ドキュメント
 
-完全なドキュメントは VitePress サイトとして [`docs/`](docs/) にあります。
+完全なドキュメントは [payayakamo.github.io/KomaYomi-docs](https://payayakamo.github.io/KomaYomi-docs/ja/) で公開されています。ソースは VitePress サイトとして [`docs/`](docs/) にあり、ローカルでもプレビューできます。
 
 ```bash
 npm run docs:dev     # http://127.0.0.1:5174
 npm run docs:build
 ```
 
-英語が主言語で、中国語は `zh/`、日本語は `ja/` にあります。
+[英語版](https://payayakamo.github.io/KomaYomi-docs/)、[中国語版](https://payayakamo.github.io/KomaYomi-docs/zh/)、[日本語版](https://payayakamo.github.io/KomaYomi-docs/ja/) を公開しています。英語が主言語で、翻訳のソースは `zh/` と `ja/` にあります。
 
 ## ロードマップ
 

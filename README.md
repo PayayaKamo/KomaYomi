@@ -206,7 +206,7 @@ The directory tree is the configuration; there is no import step and no database
 | `data/backups/`                                     | Snapshots taken before a restore or a project import.                                                     |
 | `exports/`                                          | Exported HTML / PNG, backup ZIPs and `.mnproj` projects.                                                  |
 
-Backup ZIP covers `data/` (excluding the thumbnail cache) and asks you to inspect file and page counts before restoring; the current data is snapshotted first. `.mnproj` comes in reference mode (paths and SHA-1, small) and packaged mode (images embedded, portable, large). See [docs/remote-backup.md](docs/remote-backup.md) for the full workflow.
+Backup ZIP covers `data/` (excluding the thumbnail cache) and asks you to inspect file and page counts before restoring; the current data is snapshotted first. `.mnproj` comes in reference mode (paths and SHA-1, small) and packaged mode (images embedded, portable, large). See [Remote Storage & Backup](https://payayakamo.github.io/KomaYomi-docs/guide/remote) for the full workflow.
 
 In the desktop app the data directory is remembered in `%APPDATA%/manga-memo/config.json`.
 
@@ -214,18 +214,18 @@ In the desktop app the data directory is remembered in `%APPDATA%/manga-memo/con
 
 When a page is detected, the server tries a layout template bound to the page, chapter or volume first, then a matching plugin from `plugins/` or `data/plugins/`, then the built-in detector. A plugin that throws, times out (2.5 s) or returns no panels falls back to the built-in detector with a visible warning. Plugins run in the server process with full Node access, so only install ones you trust.
 
-See [docs/extending.md](docs/extending.md) for the plugin interface, template contract and API endpoints.
+See [Layout Templates & Plugins](https://payayakamo.github.io/KomaYomi-docs/extending) for the plugin interface, template contract and API endpoints.
 
 ## Documentation
 
-The full documentation lives in [`docs/`](docs/) as a VitePress site:
+The full documentation is published at [payayakamo.github.io/KomaYomi-docs](https://payayakamo.github.io/KomaYomi-docs/). Its sources live in [`docs/`](docs/) as a VitePress site and can be previewed locally:
 
 ```bash
 npm run docs:dev     # http://127.0.0.1:5174
 npm run docs:build
 ```
 
-English is the primary language; Chinese and Japanese translations live under `zh/` and `ja/`.
+Published in English, [Chinese](https://payayakamo.github.io/KomaYomi-docs/zh/) and [Japanese](https://payayakamo.github.io/KomaYomi-docs/ja/); the translation sources are under `zh/` and `ja/`.
 
 ## Roadmap
 

@@ -206,7 +206,7 @@ exports/            生成的 HTML / PNG、备份、工程包（已 gitignore）
 | `data/backups/`                                     | 恢复或导入工程前的快照。                                              |
 | `exports/`                                          | 导出的 HTML / PNG、备份 ZIP 与 `.mnproj` 工程。                       |
 
-备份 ZIP 覆盖 `data/`（不含缩略图缓存），恢复前会要求确认文件数与页面数，并先给当前数据拍快照。`.mnproj` 分为引用模式（路径 + SHA-1，体积小）和打包模式（内嵌图片，便于携带，体积大）。完整流程见 [docs/remote-backup.md](docs/remote-backup.md)。
+备份 ZIP 覆盖 `data/`（不含缩略图缓存），恢复前会要求确认文件数与页面数，并先给当前数据拍快照。`.mnproj` 分为引用模式（路径 + SHA-1，体积小）和打包模式（内嵌图片，便于携带，体积大）。完整流程见[远端存储与备份](https://payayakamo.github.io/KomaYomi-docs/zh/guide/remote)。
 
 桌面版的数据目录记录在 `%APPDATA%/manga-memo/config.json`。
 
@@ -214,18 +214,18 @@ exports/            生成的 HTML / PNG、备份、工程包（已 gitignore）
 
 检测页面时，服务端依次尝试绑定到该页、该话或该卷的布局模板，然后是 `plugins/` 或 `data/plugins/` 中匹配的插件，最后才用内置检测器。插件抛错、超时（2.5 秒）或返回零个分格时会给出提示并回退到内置检测。插件运行在服务端进程中，拥有完整的 Node 权限，请只安装你信任的插件。
 
-插件接口、模板约定与 API 端点见 [docs/extending.md](docs/extending.md)。
+插件接口、模板约定与 API 端点见[布局模板与插件](https://payayakamo.github.io/KomaYomi-docs/zh/extending)。
 
 ## 文档
 
-完整文档在 [`docs/`](docs/) 中，是一个 VitePress 站点：
+完整文档发布在 [payayakamo.github.io/KomaYomi-docs](https://payayakamo.github.io/KomaYomi-docs/zh/)，源码在 [`docs/`](docs/) 中，是一个 VitePress 站点，可以在本地预览：
 
 ```bash
 npm run docs:dev     # http://127.0.0.1:5174
 npm run docs:build
 ```
 
-文档以英文为主，中文在 `zh/`，日文在 `ja/`。
+提供[英文版](https://payayakamo.github.io/KomaYomi-docs/)、[中文版](https://payayakamo.github.io/KomaYomi-docs/zh/)与[日文版](https://payayakamo.github.io/KomaYomi-docs/ja/)；英文为主语言，译文源码分别在 `zh/` 与 `ja/`。
 
 ## 路线图
 
