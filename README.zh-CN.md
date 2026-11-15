@@ -1,6 +1,6 @@
 # KomaYomi
 
-**Manga Learner —— 用漫画学语言，顺手记笔记。**
+**日本語はすべて漫画から学んだ~**
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 

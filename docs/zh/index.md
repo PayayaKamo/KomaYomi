@@ -7,7 +7,7 @@ title: KomaYomi — Manga Learner 文档
 hero:
   name: KomaYomi
   text: Manga Learner
-  tagline: 把生肉和熟肉拆成一格一格对着看，吐槽和笔记都留在自己机器上。
+  tagline: 日本語はすべて漫画から学んだ~
   image:
     src: /assets/screenshots/hero-real-library.png
     alt: 真实图库的三语对照阅读界面，漫画画面已模糊处理

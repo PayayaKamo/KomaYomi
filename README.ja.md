@@ -1,6 +1,6 @@
 # KomaYomi
 
-**Manga Learner — 漫画で語学を学び、ノートを残す。**
+**日本語はすべて漫画から学んだ~**
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 

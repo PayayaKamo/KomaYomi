@@ -7,7 +7,7 @@ title: KomaYomi — Manga Learner documentation
 hero:
   name: KomaYomi
   text: Manga Learner
-  tagline: Split the raw into panels, line it up with the translation, and keep every TL note on your own machine.
+  tagline: 日本語はすべて漫画から学んだ~
   image:
     src: /assets/screenshots/hero-real-library.png
     alt: Compare reader with three language panes from a real library; the manga artwork is blurred
