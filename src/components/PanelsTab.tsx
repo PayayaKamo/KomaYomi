@@ -15,11 +15,13 @@ import type { ResizeHandle } from '../lib/geometry';
 import { api } from '../api';
 import type { HistorySource } from '../api';
 import { formatDate, formatNumber, langLabel, useI18n } from '../i18n';
+import type { MessageKey } from '../i18n';
 import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationLayer } from './AnnotationLayer';
 import type { AnnotationTool } from './AnnotationLayer';
 import { useAnnSurface } from '../lib/annotationSurface';
 import { PANEL_SECTIONS, setPanelSection, togglePanelSection, usePanelSections } from '../lib/panelsSections';
 import type { PanelSection } from '../lib/panelsSections';
+import { toggleToolbarFold, useToolbarFolds } from '../lib/panelToolbarFolds';
 
 type Props = {
   doc: PageDoc;
@@ -46,6 +48,14 @@ type Props = {
 };
 
 const HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+/** Alignment modes are stored per page; the chip lists them with the same wording as the compare bar. */
+const ALIGN_MODE_KEYS: Record<PageDoc['alignMode'], MessageKey> = {
+  page: 'align.mode.page',
+  panel: 'align.mode.panel',
+  anchors: 'align.mode.anchors',
+  grid: 'align.mode.grid',
+};
 
 /** Snapping distance in screen pixels while drawing a new panel. */
 const SNAP_PX = 6;
@@ -174,6 +184,9 @@ export function PanelsTab({
   const sections = usePanelSections();
   const [secMenuOpen, setSecMenuOpen] = useState(false);
   const secMenuRef = useRef<HTMLDivElement>(null);
+  const folds = useToolbarFolds();
+  const [metaOpen, setMetaOpen] = useState(false);
+  const metaRef = useRef<HTMLDivElement>(null);
   const sectionLabels: Record<PanelSection, string> = {
     grid: t('panels.grid'),
     template: t('panels.templates'),
@@ -197,6 +210,22 @@ export function PanelsTab({
       document.removeEventListener('keydown', onKey);
     };
   }, [secMenuOpen]);
+
+  useEffect(() => {
+    if (!metaOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!metaRef.current?.contains(e.target as Node)) setMetaOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMetaOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [metaOpen]);
 
   const annotations = doc.annotations ?? [];
   // Older pages have no flag; annotations were visible by default before the toggle existed.
@@ -746,6 +775,15 @@ export function PanelsTab({
   };
 
   const url = page.files[refLang];
+  /** Same wording the old status strip used, now shown inside the details popover. */
+  const detectSourceLabel =
+    doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
+      ? t('panels.manualEdited')
+      : doc.detectSource === 'template'
+        ? t('panels.fromTemplate')
+        : doc.detectSource === 'plugin'
+          ? t('panels.fromPlugin')
+          : t('panels.autoDetectSource');
 
   return (
     <div className="panels-tab" onKeyDown={onKeyDown} tabIndex={0}>
@@ -770,106 +808,177 @@ export function PanelsTab({
         </div>
 
         <div className="tb-group tb-split">
+          <button
+            type="button"
+            className="tb-fold"
+            aria-expanded={folds.split}
+            title={t(folds.split ? 'panels.foldGroup' : 'panels.unfoldGroup')}
+            onClick={() => toggleToolbarFold('split')}
+          >
+            {folds.split ? '▾' : '▸'}
+          </button>
           <span className="tb-label tb-group-label">{t('panels.grpSplit')}</span>
-          <button type="button" className="btn" onClick={() => onDetect(refLang)} disabled={detecting || !url}>
-            {detecting ? t('panels.detecting') : t('panels.autoSplit')}
-          </button>
-          <button type="button" className="btn" onClick={() => addPanel()} disabled={!imgLoaded}>
-            {t('panels.addPanel')}
-          </button>
-          <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
-            {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
-          </button>
-          <button type="button" className="btn" onClick={createGroup} disabled={!selected.length}>
-            {t('groups.create')} {selected.length ? `(${formatNumber(selected.length)})` : ''}
-          </button>
-          <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
-            {t('common.delete')}
-          </button>
-        </div>
-
-        <div className="tb-group save-group tb-edit">
-          <span className="tb-label tb-group-label">{t('panels.grpEdit')}</span>
-          <div className="seg">
-            <button
-              type="button"
-              className={saveMode === 'auto' ? 'on' : ''}
-              onClick={() => setSaveMode('auto')}
-              title={t('panels.saveAutoTitle')}
-            >
-              {t('panels.saveAuto')}
-            </button>
-            <button
-              type="button"
-              className={saveMode === 'confirm' ? 'on' : ''}
-              onClick={() => setSaveMode('confirm')}
-              title={t('panels.saveConfirmTitle')}
-            >
-              {t('panels.saveConfirm')}
-            </button>
-          </div>
-          {saveMode === 'confirm' && dirty && <span className="unsaved-flag">{t('panels.unsaved')}</span>}
-          <button type="button" className="btn icon" disabled={!canUndo} onClick={onUndo} title={t('panels.undoTitle')}>
-            ↶
-          </button>
-          <button type="button" className="btn icon" disabled={!canRedo} onClick={onRedo} title={t('panels.redoTitle')}>
-            ↷
-          </button>
-          {saveMode === 'confirm' && dirty && (
+          {folds.split && (
             <>
-              <button
-                type="button"
-                className="btn primary"
-                onClick={onCommit}
-                disabled={saving}
-                title={t('panels.commitTitle')}
-              >
-                ✓
+              <button type="button" className="btn" onClick={() => onDetect(refLang)} disabled={detecting || !url}>
+                {detecting ? t('panels.detecting') : t('panels.autoSplit')}
               </button>
-              <button type="button" className="btn danger" onClick={onDiscard} title={t('panels.discardTitle')}>
-                ×
+              <button type="button" className="btn" onClick={() => addPanel()} disabled={!imgLoaded}>
+                {t('panels.addPanel')}
+              </button>
+              <button type="button" className="btn" onClick={mergeSelected} disabled={selected.length < 2}>
+                {t('panels.merge')} {selected.length >= 2 ? `(${formatNumber(selected.length)})` : ''}
+              </button>
+              <button type="button" className="btn" onClick={createGroup} disabled={!selected.length}>
+                {t('groups.create')} {selected.length ? `(${formatNumber(selected.length)})` : ''}
+              </button>
+              <button type="button" className="btn danger" onClick={deleteSelected} disabled={!selected.length}>
+                {t('common.delete')}
               </button>
             </>
           )}
         </div>
 
-        {/* Detection details are a status strip, not a control: keep them off the
-            primary row so wrapping never leaves the view group alone. */}
-        <div className="tb-break" aria-hidden="true" />
-        <div className="tb-group detect-meta">
-          <span className="tb-label">{t('panels.detectLabel')}</span>
-          <span className="chip-mini" title={t('panels.detectorVersionTitle')}>
-            {doc.detectorVersion ?? t('panels.legacyData')}
-          </span>
-          <span className="muted tiny">
-            {doc.detectSource === 'manual' || doc.panels.some((p) => p.source !== 'auto')
-              ? t('panels.manualEdited')
-              : doc.detectSource === 'template'
-                ? t('panels.fromTemplate')
-                : doc.detectSource === 'plugin'
-                  ? t('panels.fromPlugin')
-                  : t('panels.autoDetectSource')}
-            {doc.editCount ? t('panels.editCount', { count: formatNumber(doc.editCount) }) : ''}
-            {doc.lastEditedAt ? t('panels.lastEditedAt', { date: formatDate(doc.lastEditedAt) }) : ''}
-            {doc.lastEditSummary ? ` · ${doc.lastEditSummary}` : ''}
-          </span>
+        <div className="tb-group save-group tb-edit">
+          <button
+            type="button"
+            className="tb-fold"
+            aria-expanded={folds.save}
+            title={t(folds.save ? 'panels.foldGroup' : 'panels.unfoldGroup')}
+            onClick={() => toggleToolbarFold('save')}
+          >
+            {folds.save ? '▾' : '▸'}
+          </button>
+          <span className="tb-label tb-group-label">{t('panels.grpEdit')}</span>
+          {folds.save && (
+            <>
+              <div className="seg">
+                <button
+                  type="button"
+                  className={saveMode === 'auto' ? 'on' : ''}
+                  onClick={() => setSaveMode('auto')}
+                  title={t('panels.saveAutoTitle')}
+                >
+                  {t('panels.saveAuto')}
+                </button>
+                <button
+                  type="button"
+                  className={saveMode === 'confirm' ? 'on' : ''}
+                  onClick={() => setSaveMode('confirm')}
+                  title={t('panels.saveConfirmTitle')}
+                >
+                  {t('panels.saveConfirm')}
+                </button>
+              </div>
+              {saveMode === 'confirm' && dirty && <span className="unsaved-flag">{t('panels.unsaved')}</span>}
+              <button
+                type="button"
+                className="btn icon"
+                disabled={!canUndo}
+                onClick={onUndo}
+                title={t('panels.undoTitle')}
+              >
+                ↶
+              </button>
+              <button
+                type="button"
+                className="btn icon"
+                disabled={!canRedo}
+                onClick={onRedo}
+                title={t('panels.redoTitle')}
+              >
+                ↷
+              </button>
+              {saveMode === 'confirm' && dirty && (
+                <>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={onCommit}
+                    disabled={saving}
+                    title={t('panels.commitTitle')}
+                  >
+                    ✓
+                  </button>
+                  <button type="button" className="btn danger" onClick={onDiscard} title={t('panels.discardTitle')}>
+                    ×
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Detection details are status, not controls: keep them behind ⓘ so the
+            primary row stays a single line. */}
+        <div className="tb-group tb-info" ref={metaRef}>
+          <button
+            type="button"
+            className={`btn icon ${metaOpen ? 'on' : ''}`}
+            aria-expanded={metaOpen}
+            aria-haspopup="dialog"
+            title={t('panels.infoTitle')}
+            aria-label={t('panels.infoTitle')}
+            onClick={() => setMetaOpen((v) => !v)}
+          >
+            ⓘ
+          </button>
+          {metaOpen && (
+            <div className="meta-pop" role="dialog" aria-label={t('panels.infoTitle')}>
+              <dl className="meta-list">
+                <dt>{t('panels.detectLabel')}</dt>
+                <dd>
+                  <span className="chip-mini" title={t('panels.detectorVersionTitle')}>
+                    {doc.detectorVersion ?? t('panels.legacyData')}
+                  </span>
+                </dd>
+                <dt>{t('panels.sourceLabel')}</dt>
+                <dd>{detectSourceLabel}</dd>
+                <dt>{t('panels.saveCountLabel')}</dt>
+                <dd>{formatNumber(doc.editCount ?? 0)}</dd>
+                <dt>{t('panels.lastSavedLabel')}</dt>
+                <dd>{doc.lastEditedAt ? formatDate(doc.lastEditedAt) : '—'}</dd>
+                <dt>{t('panels.alignModeLabel')}</dt>
+                <dd>{t(ALIGN_MODE_KEYS[doc.alignMode])}</dd>
+                {doc.lastEditSummary && (
+                  <>
+                    <dt>{t('panels.lastEditLabel')}</dt>
+                    <dd>{doc.lastEditSummary}</dd>
+                  </>
+                )}
+              </dl>
+            </div>
+          )}
         </div>
 
         <div className="tb-group right tb-view">
+          <button
+            type="button"
+            className="tb-fold"
+            aria-expanded={folds.view}
+            title={t(folds.view ? 'panels.foldGroup' : 'panels.unfoldGroup')}
+            onClick={() => toggleToolbarFold('view')}
+          >
+            {folds.view ? '▾' : '▸'}
+          </button>
           <span className="tb-label tb-group-label">{t('panels.grpView')}</span>
-          <label className="tb-check" title={t('panels.numbers')}>
-            <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
-            <span className="tb-num-text">{t('panels.numbers')}</span>
-          </label>
-          <div className="zoom">
-            <button type="button" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}>
-              −
-            </button>
-            <span>{Math.round(zoom * 100)}%</span>
-            <button type="button" onClick={() => setZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))}>
-              ＋
-            </button>
-          </div>
+          {folds.view && (
+            <label className="tb-check" title={t('panels.numbers')}>
+              <input type="checkbox" checked={showNumbers} onChange={(e) => setShowNumbers(e.target.checked)} />
+              <span className="tb-num-text">{t('panels.numbers')}</span>
+            </label>
+          )}
+          {folds.view && (
+            <div className="zoom">
+              <button type="button" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}>
+                −
+              </button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button type="button" onClick={() => setZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))}>
+                ＋
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
