@@ -357,6 +357,8 @@ export type DetectResult = {
   source?: 'auto' | 'template' | 'plugin';
   lang?: string;
   warnings?: string[];
+  /** Code for a failed step (e.g. `ERR_PLUGIN_TIMEOUT`) so clients can display it next to the text. */
+  errorCode?: string;
 };
 
 export type PageResponse = {

@@ -63,14 +63,23 @@ const pluginDirs = (rootDir: string, dataRoot: string) => [
   path.join(dataRoot, 'plugins'),
 ];
 
+/** Deterministic filename order: `page2.js` sorts before `page10.js` regardless of the filesystem. */
+const compareNames = new Intl.Collator('en', { numeric: true, sensitivity: 'base' }).compare;
+
+/**
+ * Plugin files in load order: `plugins/` (project root) first, then `data/plugins/`, each
+ * directory sorted by filename. `runPlugin` uses the first matching entry, so this order is
+ * what users rely on when two plugins claim the same pages.
+ */
 function listPluginFiles(rootDir: string, dataRoot: string): string[] {
   const files: string[] = [];
   for (const dir of pluginDirs(rootDir, dataRoot)) {
     if (!fs.existsSync(dir)) continue;
-    for (const name of fs.readdirSync(dir)) {
-      if (!/\.(mjs|cjs|js)$/i.test(name) || name.startsWith('.')) continue;
-      files.push(path.join(dir, name));
-    }
+    const names = fs
+      .readdirSync(dir)
+      .filter((name) => /\.(mjs|cjs|js)$/i.test(name) && !name.startsWith('.'))
+      .sort(compareNames);
+    for (const name of names) files.push(path.join(dir, name));
   }
   return files;
 }
@@ -153,6 +162,7 @@ export async function listPlugins(rootDir: string, dataRoot: string): Promise<Pl
         file: path.basename(file),
         name: path.basename(file),
         error: err instanceof Error ? err.message : String(err),
+        errorCode: err instanceof AppError ? err.code : 'ERR_PLUGIN_LOAD',
       });
     }
   }
@@ -176,7 +186,12 @@ export async function runPlugin(
       plugin = await importPlugin(file);
     } catch (err) {
       if (only && !file.toLowerCase().includes(only.toLowerCase())) continue;
-      return { ok: false, plugin: path.basename(file), error: err instanceof Error ? err.message : String(err) };
+      return {
+        ok: false,
+        plugin: path.basename(file),
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: err instanceof AppError ? err.code : 'ERR_PLUGIN_LOAD',
+      };
     }
     if (!plugin) continue;
     const name = plugin.name ?? path.basename(file);
@@ -190,6 +205,9 @@ export async function runPlugin(
           setTimeout(() => reject(new AppError('ERR_PLUGIN_TIMEOUT', { ms: PLUGIN_TIMEOUT }, 504)), PLUGIN_TIMEOUT),
         ),
       ]);
+      if (!Array.isArray(result) && !(result && typeof result === 'object' && Array.isArray(result.panels))) {
+        return { ok: false, plugin: name, error: t('ERR_PLUGIN_BAD_RESULT'), errorCode: 'ERR_PLUGIN_BAD_RESULT' };
+      }
       const panels = normalizeRects(Array.isArray(result) ? result : result.panels);
       const warnings = Array.isArray(result) ? [] : (result.warnings ?? []);
       if (!panels.length) {
@@ -201,7 +219,7 @@ export async function runPlugin(
         ok: false,
         plugin: name,
         error: err instanceof AppError ? t(err.code, err.params) : err instanceof Error ? err.message : String(err),
-        errorCode: err instanceof AppError ? err.code : undefined,
+        errorCode: err instanceof AppError ? err.code : 'ERR_PLUGIN_RUN_FAILED',
       };
     }
   }

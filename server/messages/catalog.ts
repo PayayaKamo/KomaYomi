@@ -448,6 +448,21 @@ export const MESSAGES = {
     zh: '没有导出 panels 函数',
     ja: 'panels 関数がエクスポートされていません',
   },
+  ERR_PLUGIN_LOAD: {
+    en: 'The plugin could not be loaded',
+    zh: '插件加载失败',
+    ja: 'プラグインを読み込めませんでした',
+  },
+  ERR_PLUGIN_RUN_FAILED: {
+    en: 'The plugin threw an error',
+    zh: '插件执行时抛出异常',
+    ja: 'プラグインの実行中にエラーが発生しました',
+  },
+  ERR_PLUGIN_BAD_RESULT: {
+    en: 'The plugin returned an unsupported value (expected an array or { panels })',
+    zh: '插件返回了不受支持的结果（应为数组或 { panels }）',
+    ja: 'プラグインが未対応の値を返しました（配列または { panels } が必要です）',
+  },
   ERR_PLUGIN_TIMEOUT: {
     en: 'The plugin timed out after {ms}ms',
     zh: '插件执行超时（{ms}ms）',

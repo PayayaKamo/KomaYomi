@@ -242,11 +242,15 @@ export function usePage(sel: Selection | null) {
           }),
           { source: 'detect' },
         );
-        // Detector warnings come from the server in their own language; join them for display.
+        // Detector warnings come from the server in their own language; join them for display
+        // and keep the machine-readable code visible when there is one.
+        const warnings = res.warnings ?? [];
         setState((s) => ({
           ...s,
           detecting: false,
-          error: res.warnings?.length ? res.warnings.join(t('common.listSeparator')) : null,
+          error: warnings.length
+            ? `${res.errorCode ? `[${res.errorCode}] ` : ''}${warnings.join(t('common.listSeparator'))}`
+            : null,
         }));
       } catch (err) {
         setState((s) => ({

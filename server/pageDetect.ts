@@ -18,6 +18,8 @@ export type PageDetectResult = {
   lang?: string;
   warnings: string[];
   warningCodes: { code: string; params: MessageParams }[];
+  /** Machine-readable reason when a plugin failed, so the UI can show the code next to the text. */
+  errorCode?: string;
 };
 
 /**
@@ -92,6 +94,7 @@ export async function detectPage(args: {
     source: 'auto',
     warnings,
     warningCodes,
+    errorCode: plugin.plugin ? plugin.errorCode : undefined,
   };
 }
 
