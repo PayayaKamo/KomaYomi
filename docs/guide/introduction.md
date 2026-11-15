@@ -43,12 +43,12 @@ A page can carry any number of languages. The language chips in the compare read
 
 ## The first ten minutes
 
-1. Start the app (`npm run dev` or the desktop build) and open `http://127.0.0.1:5173`.
-2. Put one volume under `raw/` — or click **＋ Add manga** in the sidebar and point it at an existing folder.
-3. Click a page in the sidebar. The first open runs automatic panel detection and saves the result to `data/pages/`.
-4. Switch to **Compare** (`C`), pick `JA` and `ZH`, and drag one pane until the panels line up. One panel at a time beats wrestling the whole page.
-5. Open **Notes** (`N`), select a panel, and write your first note. Press `Ctrl+Enter` to save.
-6. Press `E` to export an HTML file and open it in a browser.
+1. Get the app running — `npm run dev` from the repo, or just launch the desktop build — then open `http://127.0.0.1:5173` in your browser.
+2. Give the library something to read: drop a volume into `raw/`, or click **＋ Add manga** in the sidebar and pick a folder you already have.
+3. Open any page from the sidebar. The first visit splits it into panels automatically and keeps the result in `data/pages/`.
+4. To read two languages against each other, switch to **Compare** (`C`), tick `JA` and `ZH`, and drag one pane until the same panel lines up in both. Working panel by panel is much easier than nudging the whole page.
+5. When something is worth keeping, open **Notes** (`N`), select a panel, and write your first note. `Ctrl+Enter` saves it.
+6. Finally, press `E` to export an HTML file and open it in your browser to see how it reads.
 
 ## What is implemented
 

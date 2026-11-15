@@ -8,7 +8,7 @@ KomaYomi 既可以作为**由本地 Node 服务器支撑的浏览器应用**运�
 
 ## 环境要求
 
-- **Node.js 20 或更高版本**（服务器 bundle 以 Node 20 为目标；仓库的开发环境使用 Node 22+）。
+- **Node.js 20 或更高版本**（服务器 bundle 按 Node 20 构建；仓库的开发环境用的是 Node 22+）。
 - npm（随 Node 一起提供）。
 - 可选：Electron 相关依赖会随 `npm install` 一起安装。
 
@@ -70,7 +70,7 @@ npm run dist:dir   # 在 release/ 下生成未打包的应用，适合快速冒�
 
 - 唯一配置的目标是 Windows x64；没有 macOS 或 Linux 打包。
 - 安装程序未签名，因此 Windows SmartScreen 可能在首次启动时给出警告。
-- 本仓库尚未端到端产出过安装包；在你亲自做冒烟测试之前，请把首次 `npm run dist:win` 的输出视为**未经校验**。
+- 本仓库还没有完整走过一次打包流程；第一次运行 `npm run dist:win` 的产物，请当作**未经验证**，测过再信。
 - 没有自动更新通道。
 
 ## 构建产物
@@ -81,7 +81,7 @@ npm run dist:dir   # 在 release/ 下生成未打包的应用，适合快速冒�
 | `npm run server:build` | `dist-server/app.mjs` | Electron 使用的打包 Node 服务器。 |
 | `npm run dist:dir` | `release/` | 用于冒烟测试的未打包 Electron 应用。 |
 | `npm run dist:win` | `release/` | Windows x64 NSIS 安装程序与便携版 `.exe`（尚未验证）。 |
-| `npm run preview` | — | 用 Vite preview 提供构建后的前端。API 中间件是开发服务器的特性；若要访问 API，请使用桌面应用或 `npm run dev`。 |
+| `npm run preview` | — | 用 Vite preview 提供构建后的前端。API 中间件只有开发服务器才有；要用 API，请启动桌面应用或 `npm run dev`。 |
 | `npm run typecheck` | — | TypeScript 项目检查。 |
 
 ## 数据目录结构
