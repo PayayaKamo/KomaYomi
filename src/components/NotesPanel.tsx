@@ -112,9 +112,35 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
   const { t } = useI18n();
   const [mode, setMode] = useState<NoteViewMode>(readNoteMode);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  /** Text fed to the preview pane; lags the editor by a debounce so typing stays smooth. */
+  const [previewText, setPreviewText] = useState(value);
+  /** Re-entrancy guard so the two panes do not fight over the scroll position. */
+  const syncing = useRef(false);
+
+  useEffect(() => {
+    if (mode === 'edit') return;
+    const timer = window.setTimeout(() => setPreviewText(value), 250);
+    return () => window.clearTimeout(timer);
+  }, [value, mode]);
+
+  /** Keep the other pane roughly at the same relative position. */
+  const syncScroll = (from: HTMLElement | null, to: HTMLElement | null) => {
+    if (!from || !to || syncing.current) return;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    const toMax = to.scrollHeight - to.clientHeight;
+    if (fromMax <= 0 || toMax <= 0) return;
+    syncing.current = true;
+    to.scrollTop = (from.scrollTop / fromMax) * toMax;
+    requestAnimationFrame(() => {
+      syncing.current = false;
+    });
+  };
 
   const changeMode = (next: NoteViewMode) => {
     setMode(next);
+    // Show what is already typed instead of waiting one debounce after switching.
+    if (next !== 'edit') setPreviewText(value);
     try {
       localStorage.setItem(NOTE_MODE_KEY, next);
     } catch {
@@ -182,10 +208,17 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
     }
   };
 
-  const previewBody = value.trim() ? (
-    <div className="md-body md-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(value) }} />
+  const previewBody = previewText.trim() ? (
+    <div
+      className="md-body md-preview"
+      ref={previewRef}
+      onScroll={(e) => syncScroll(e.currentTarget, ref.current)}
+      dangerouslySetInnerHTML={{ __html: renderMarkdown(previewText) }}
+    />
   ) : (
-    <div className="md-preview muted tiny">{t('notes.emptyPreview')}</div>
+    <div className="md-preview muted tiny" ref={previewRef}>
+      {t('notes.emptyPreview')}
+    </div>
   );
 
   return (
@@ -250,6 +283,7 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
             placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={keydown}
+            onScroll={(e) => syncScroll(e.currentTarget, previewRef.current)}
           />
         )}
         {mode !== 'edit' && previewBody}
