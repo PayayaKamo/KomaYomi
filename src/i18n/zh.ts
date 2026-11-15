@@ -588,6 +588,11 @@ export const zh = {
   'export.wordHint': 'Word 会保留整页图片，笔记转为可编辑文本。',
   'export.generateDocx': '生成 Word',
   'export.downloadDocx': '下载 .docx',
+  'export.formatPdf': 'PDF（打印）',
+  'export.pdfHint': '生成打印版并自动打开浏览器打印对话框，选择“另存为 PDF”。图片缩放到单页内，备注跟在对应页后。',
+  'export.generatePdf': '生成打印页',
+  'export.openPrint': '打开打印页',
+  'export.printHint': '在打印对话框中选择“另存为 PDF”。',
 
   /* ---- backup & restore ---- */
   'backup.title': '备份与恢复',

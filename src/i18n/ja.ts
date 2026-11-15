@@ -605,6 +605,12 @@ export const ja = {
   'export.wordHint': 'Word はページ画像を保持し、メモは編集可能なテキストになります。',
   'export.generateDocx': 'Word を生成',
   'export.downloadDocx': '.docx をダウンロード',
+  'export.formatPdf': 'PDF（印刷）',
+  'export.pdfHint':
+    '印刷用ページを生成して印刷ダイアログを開きます。「PDF に保存」を選んでください。画像は 1 ページに収まり、メモは対応するページの後に続きます。',
+  'export.generatePdf': '印刷ページを生成',
+  'export.openPrint': '印刷ページを開く',
+  'export.printHint': '印刷ダイアログで「PDF に保存」を選択してください。',
 
   /* ---- backup & restore ---- */
   'backup.title': 'バックアップと復元',

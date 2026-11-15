@@ -611,6 +611,12 @@ export const en = {
   'export.wordHint': 'Word keeps the page images and turns notes into editable text.',
   'export.generateDocx': 'Generate Word',
   'export.downloadDocx': 'Download .docx',
+  'export.formatPdf': 'PDF (print)',
+  'export.pdfHint':
+    'Creates a print view and opens the browser print dialog — choose “Save as PDF”. Images fit one page and notes stay with their page.',
+  'export.generatePdf': 'Generate print view',
+  'export.openPrint': 'Open print view',
+  'export.printHint': 'In the print dialog choose “Save as PDF”.',
 
   /* ---- backup & restore ---- */
   'backup.title': 'Backup & restore',

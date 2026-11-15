@@ -241,6 +241,28 @@ describe('exportChapter', () => {
     expect(buffer.length).toBeGreaterThan(1000);
   });
 
+  it('writes a print view that opens the print dialog', async () => {
+    const { root, dataRoot, library } = seedExportRoot();
+
+    const result = await runWithLang('en', () =>
+      exportChapter({
+        rootDir: root,
+        rawRoot: path.join(root, 'raw'),
+        dataRoot,
+        exportRoot: path.join(root, 'exports'),
+        config: config({ print: true }),
+        library,
+      }),
+    );
+
+    expect(result.file.endsWith('-print.html')).toBe(true);
+    const html = fs.readFileSync(path.join(root, 'exports', result.file), 'utf8');
+    expect(html).toContain('window.print()');
+    expect(html).toContain('@page{size:A4');
+    expect(html).toContain('break-inside:avoid');
+    expect(html).toContain('max-height:150mm');
+  });
+
   it('fails loudly for a missing chapter and for an empty export', async () => {
     const { root, dataRoot, library } = seedExportRoot();
     const exportRoot = path.join(root, 'exports');

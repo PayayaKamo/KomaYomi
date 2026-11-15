@@ -85,10 +85,10 @@ export function ExportDialog({
   const { t } = useI18n();
   const [cfg, setCfg] = useState<ExportConfig | null>(null);
   const [scope, setScope] = useState<'page' | 'chapter'>('page');
-  const [format, setFormat] = useState<'html' | 'docx'>('html');
+  const [format, setFormat] = useState<'html' | 'docx' | 'pdf'>('html');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ExportResult | null>(null);
-  const [resultFormat, setResultFormat] = useState<'html' | 'docx'>('html');
+  const [resultFormat, setResultFormat] = useState<'html' | 'docx' | 'pdf'>('html');
   const [error, setError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
@@ -172,6 +172,7 @@ export function ExportDialog({
       const payload: ExportConfig = {
         ...cfg,
         pageIndices: scope === 'page' ? [sel.pageIndex] : [],
+        print: format === 'pdf',
       };
       const res = format === 'docx' ? await api.exportDocx(payload) : await api.exportHtml(payload);
       setResult(res);
@@ -405,8 +406,12 @@ export function ExportDialog({
                 <button type="button" className={format === 'docx' ? 'on' : ''} onClick={() => setFormat('docx')}>
                   {t('export.formatDocx')}
                 </button>
+                <button type="button" className={format === 'pdf' ? 'on' : ''} onClick={() => setFormat('pdf')}>
+                  {t('export.formatPdf')}
+                </button>
               </div>
               {format === 'docx' && <p className="hint">{t('export.wordHint')}</p>}
+              {format === 'pdf' && <p className="hint">{t('export.pdfHint')}</p>}
             </section>
 
             <section>
@@ -670,8 +675,9 @@ export function ExportDialog({
                 <div>
                   {t('export.exportedPages', { pages: formatNumber(result.pages) })} <code>{result.file}</code>
                 </div>
-                {resultFormat === 'html' && (
+                {resultFormat !== 'docx' && (
                   <>
+                    {resultFormat === 'pdf' && <div className="tiny muted">{t('export.printHint')}</div>}
                     <div className="tiny muted">
                       {result.imageMode === 'embed'
                         ? t('export.imagesEmbedded')
@@ -681,7 +687,7 @@ export function ExportDialog({
                     </div>
                     <div className="row-actions">
                       <a className="btn primary" href={result.url} target="_blank" rel="noreferrer">
-                        {t('export.openHtml')}
+                        {resultFormat === 'pdf' ? t('export.openPrint') : t('export.openHtml')}
                       </a>
                       <a className="btn" href={`/api/export/download?file=${encodeURIComponent(result.file)}`}>
                         {t('export.downloadHtml')}
@@ -717,7 +723,13 @@ export function ExportDialog({
               {t('common.close')}
             </button>
             <button type="button" className="btn primary" onClick={generate} disabled={busy}>
-              {busy ? t('export.generating') : format === 'docx' ? t('export.generateDocx') : t('export.generateHtml')}
+              {busy
+                ? t('export.generating')
+                : format === 'docx'
+                  ? t('export.generateDocx')
+                  : format === 'pdf'
+                    ? t('export.generatePdf')
+                    : t('export.generateHtml')}
             </button>
           </div>
         </footer>

@@ -299,11 +299,20 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .note-src a:hover{text-decoration:underline}
 .empty{color:var(--muted);font-size:13px;padding:8px 0}
 footer.doc{margin-top:48px;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:12px}
-@media print{body{background:#fff}.wrap{max-width:none;padding:0}
-.page{page-break-after:always;break-after:page;margin-bottom:0}
-.page:last-of-type{page-break-after:auto;break-after:auto}
-.panel-row,.shot,.notes-group{break-inside:avoid}
-header.doc{margin-bottom:20px}
+@media print{@page{size:A4;margin:12mm}
+body{background:#fff;color:#000}
+.wrap{max-width:none;padding:0}
+header.doc{margin-bottom:14px}
+.page{margin:0;break-after:page;page-break-after:always;break-inside:avoid}
+.page:last-of-type{break-after:auto;page-break-after:auto}
+.page-body,.page-body.stack{display:block}
+.shot{border:0;background:none;break-inside:avoid}
+.shot img{width:auto;height:auto;max-width:100%;max-height:150mm;margin:0 auto;object-fit:contain}
+.page-body .notes{margin-top:6mm}
+.compare{display:flex;flex-direction:column;gap:12px}
+.compare .notes-group{order:2;grid-column:auto}
+.panel-row,.notes-group,.note,.note-images,.crop-wrap{break-inside:avoid}
+a{color:#000}
 footer.doc{display:none}}
 `;
 
@@ -509,11 +518,12 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   ${sections.join('\n')}
   <footer class="doc">${esc(t('EXPORT_FOOTER', { pages: exported }))}</footer>
 </div>
+${config.print ? '<script>window.addEventListener("load",()=>window.print())</script>' : ''}
 </body>
 </html>`;
 
   fs.mkdirSync(exportRoot, { recursive: true });
-  const filename = `${base}.html`;
+  const filename = `${base}${config.print ? '-print' : ''}.html`;
   fs.writeFileSync(path.join(exportRoot, filename), html, 'utf8');
   return {
     file: filename,

@@ -336,6 +336,8 @@ export type ExportConfig = {
   includeNotes: boolean;
   /** Export only pages that have notes. */
   onlyWithNotes?: boolean;
+  /** Generate a print-ready page that opens the browser print dialog (Save as PDF). */
+  print?: boolean;
   noteFilterTags: string[];
   pageWidthRatio: number;
   columnGap: number;
