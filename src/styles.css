@@ -829,6 +829,13 @@ code {
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+/* While a menu, picker or dialog is up it owns the pointer: the handles below must not
+   show the resize cursor or start a drag. Keyed off the overlays themselves so every
+   popover entry (file menu, recent flyout, crumb pickers, dialogs) is covered at once. */
+.app:has(.file-pop, .file-sub, .crumb-pop, .modal-backdrop) .pane-splitter {
+  pointer-events: none;
+}
+
 /* While dragging, keep the resize cursor everywhere and never select page text. */
 body.pane-resizing {
   cursor: col-resize;
