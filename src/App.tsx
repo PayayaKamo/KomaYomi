@@ -4,10 +4,12 @@ import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
+import { FileMenu } from './components/FileMenu';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
 import { api } from './api';
+import { pushRecent } from './lib/recent';
 import { LANGUAGES } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
@@ -100,6 +102,11 @@ export default function App() {
     const next = `#/${encodeURIComponent(sel.volume)}/${encodeURIComponent(sel.chapter)}/${sel.pageIndex + 1}/${view}`;
     if (location.hash !== next) history.replaceState(null, '', next);
   }, [sel, view]);
+
+  // Remember the last page of each chapter for File → Recent.
+  useEffect(() => {
+    if (sel) pushRecent({ volume: sel.volume, chapter: sel.chapter, pageIndex: sel.pageIndex });
+  }, [sel]);
 
   const loadLibrary = useCallback(() => {
     api
@@ -252,6 +259,19 @@ export default function App() {
     <div className={`app ${notesOpen ? 'show-notes' : ''} ${sidebarOpen ? '' : 'sidebar-closed'}`}>
       <header className="topbar">
         <div className="tb-left">
+          <FileMenu
+            library={library}
+            selection={sel}
+            dirty={pageState.dirty}
+            hasDoc={Boolean(doc)}
+            onOpenSelection={openSelection}
+            onReloadLibrary={() => {
+              loadLibrary();
+              loadTags();
+            }}
+            onExport={() => setExportOpen(true)}
+            onSave={() => void pageState.commit()}
+          />
           <button
             type="button"
             className={`btn icon ${sidebarOpen ? 'on' : ''}`}

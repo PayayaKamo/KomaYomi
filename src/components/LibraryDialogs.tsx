@@ -7,13 +7,15 @@ import { langLabel, useI18n } from '../i18n';
 type AddProps = {
   onClose: () => void;
   onDone: (library: Library) => void;
+  /** Pre-filled folder path, used by the File → Open library action. */
+  initialPath?: string;
 };
 
 /** 添加漫画：选择本地文件夹（桌面端）或手动填路径；也可以只在 raw 下建一个空目录 */
-export function AddVolumeDialog({ onClose, onDone }: AddProps) {
+export function AddVolumeDialog({ onClose, onDone, initialPath = '' }: AddProps) {
   const { t } = useI18n();
-  const [pathValue, setPathValue] = useState('');
-  const [name, setName] = useState('');
+  const [pathValue, setPathValue] = useState(initialPath);
+  const [name, setName] = useState(() => initialPath.split(/[\\/]/).filter(Boolean).pop() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
