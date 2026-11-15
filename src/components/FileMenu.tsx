@@ -145,7 +145,7 @@ export function FileMenu({
     const wrap = recentWrapRef.current;
     if (!wrap) return;
     const r = wrap.getBoundingClientRect();
-    const width = Math.min(360, window.innerWidth - 24);
+    const width = Math.min(640, window.innerWidth - 24);
     const flip = r.right + width + 12 > window.innerWidth;
     setSubPos({ top: Math.max(8, r.top - 8), left: flip ? Math.max(8, r.left - width - 6) : r.right + 6 });
   };
@@ -303,6 +303,7 @@ export function FileMenu({
                   ) : (
                     recent.map((entry, i) => {
                       const info = resolve(entry);
+                      const path = `raw/${info.title}${entry.chapter ? `/${entry.chapter}` : ''}`;
                       const newGroup = i === 0 || recent[i - 1].volume !== entry.volume;
                       return (
                         <div key={`${entry.volume}/${entry.chapter}`}>
@@ -323,13 +324,11 @@ export function FileMenu({
                                 {info.title} / {entry.chapter || t('sidebar.singleChapter')}
                                 {info.missing && <em className="file-badge">{t('file.recentMissing')}</em>}
                               </span>
-                              <span className="file-recent-meta">
-                                <span className="file-recent-path">
-                                  {`raw/${info.title}${entry.chapter ? `/${entry.chapter}` : ''}`}
-                                </span>
-                                <span>
-                                  {t('format.page', { page: fmt(info.pageIndex + 1) })} · {formatDate(entry.at)}
-                                </span>
+                              <span className="file-recent-path" title={path}>
+                                {path}
+                              </span>
+                              <span className="file-recent-when">
+                                {t('format.page', { page: fmt(info.pageIndex + 1) })} · {formatDate(entry.at)}
                               </span>
                             </button>
                             <button
