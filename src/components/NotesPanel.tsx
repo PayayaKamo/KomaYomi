@@ -117,6 +117,11 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
   const [previewText, setPreviewText] = useState(value);
   /** Re-entrancy guard so the two panes do not fight over the scroll position. */
   const syncing = useRef(false);
+  /** Table dialog: shape is chosen before the skeleton is inserted at the caret. */
+  const [tableOpen, setTableOpen] = useState(false);
+  const [tableRows, setTableRows] = useState(3);
+  const [tableCols, setTableCols] = useState(3);
+  const [tableHead, setTableHead] = useState(true);
 
   useEffect(() => {
     if (mode === 'edit') return;
@@ -174,8 +179,40 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
     });
   };
 
-  const wrap = (mark: string, placeholderText: string) =>
-    apply((sel) => `${mark}${sel || placeholderText}${mark}`, `${mark}${placeholderText}${mark}`);
+  /**
+   * Wrap the selection, or unwrap it when the mark is already there. With no selection a
+   * placeholder is inserted and selected, so typing replaces it.
+   */
+  const toggle = (open: string, close: string, placeholderText: string) => {
+    const el = ref.current;
+    if (!el) {
+      onChange(`${value}${open}${placeholderText}${close}`);
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = value.slice(start, end);
+    const select = (from: number, to: number) =>
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(from, to);
+      });
+
+    if (selected.startsWith(open) && selected.endsWith(close) && selected.length >= open.length + close.length) {
+      const inner = selected.slice(open.length, selected.length - close.length);
+      onChange(value.slice(0, start) + inner + value.slice(end));
+      select(start, start + inner.length);
+      return;
+    }
+    if (value.slice(start - open.length, start) === open && value.slice(end, end + close.length) === close) {
+      onChange(value.slice(0, start - open.length) + selected + value.slice(end + close.length));
+      select(start - open.length, start - open.length + selected.length);
+      return;
+    }
+    const inner = selected || placeholderText;
+    onChange(value.slice(0, start) + open + inner + close + value.slice(end));
+    select(start + open.length, start + open.length + inner.length);
+  };
 
   const prefixLines = (prefix: string) =>
     apply(
@@ -189,16 +226,107 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
 
   const insertRule = () => apply(() => '\n\n---\n\n', '\n\n---\n\n');
 
+  const insertCodeBlock = () =>
+    apply(
+      (sel) => `\`\`\`\n${sel || t('notes.codeBlockPlaceholder')}\n\`\`\``,
+      `\`\`\`\n${t('notes.codeBlockPlaceholder')}\n\`\`\``,
+    );
+
+  const ALIGNED_LINE = /^<div align="(left|center|right)">(.*)<\/div>$/;
+
+  /**
+   * Align the touched lines. Inside a table Markdown only supports alignment through the
+   * delimiter row, so the row is rewritten instead of wrapping cells in HTML.
+   */
+  const alignLines = (align: 'left' | 'center' | 'right') => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const from = value.lastIndexOf('\n', start - 1) + 1;
+    const lineEnd = value.indexOf('\n', end);
+    const to = lineEnd === -1 ? value.length : lineEnd;
+    const lines = value.slice(from, to).split('\n');
+    const mark = align === 'center' ? ':---:' : align === 'right' ? '---:' : ':---';
+    const isSeparator = (line: string) => line.includes('|') && /^[\s|:-]*-[\s|:-]*$/.test(line);
+
+    if (lines.some((line) => line.includes('|'))) {
+      const all = value.split('\n');
+      const first = value.slice(0, from).split('\n').length - 1;
+      let top = first;
+      while (top > 0 && all[top - 1].includes('|')) top--;
+      let bottom = first + lines.length - 1;
+      while (bottom < all.length - 1 && all[bottom + 1].includes('|')) bottom++;
+      let sep = -1;
+      for (let i = top; i <= bottom; i++) if (isSeparator(all[i])) sep = i;
+      if (sep >= 0) {
+        const cells = all[sep].trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
+        all[sep] = `| ${cells.map(() => mark).join(' | ')} |`;
+        onChange(all.join('\n'));
+        const caret = all.slice(0, sep).join('\n').length + (sep > 0 ? 1 : 0);
+        requestAnimationFrame(() => {
+          el.focus();
+          el.setSelectionRange(caret, caret + all[sep].length);
+        });
+        return;
+      }
+    }
+
+    const next = lines.map((line) => {
+      const current = ALIGNED_LINE.exec(line.trim());
+      if (current) return current[1] === align ? current[2] : `<div align="${align}">${current[2]}</div>`;
+      if (!line.trim()) return line;
+      return `<div align="${align}">${line}</div>`;
+    });
+    const inserted = next.join('\n');
+    onChange(value.slice(0, from) + inserted + value.slice(to));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(from, from + inserted.length);
+    });
+  };
+
+  const insertTable = () => {
+    const cols = Math.max(1, Math.min(10, tableCols));
+    const rows = Math.max(1, Math.min(20, tableRows));
+    const cells = (valueOf: (i: number) => string) =>
+      `| ${Array.from({ length: cols }, (_, i) => valueOf(i)).join(' | ')} |`;
+    const block = [
+      cells((i) => (tableHead ? `${t('notes.tableColumn')} ${i + 1}` : '')),
+      cells(() => '---'),
+      ...Array.from({ length: rows }, () => cells(() => '')),
+    ].join('\n');
+    const el = ref.current;
+    const pos = el ? el.selectionStart : value.length;
+    const lead = pos > 0 && value[pos - 1] !== '\n' ? '\n\n' : '';
+    onChange(`${value.slice(0, pos)}${lead}${block}\n${value.slice(pos)}`);
+    setTableOpen(false);
+  };
+
+  /** A pasted URL becomes a link; with a selection the selection becomes the label. */
+  const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text/plain').trim();
+    if (!/^https?:\/\/\S+$/i.test(pasted)) return;
+    e.preventDefault();
+    apply(
+      (sel) => (sel.trim() ? `[${sel.trim()}](${pasted})` : `[${t('notes.linkText')}](${pasted})`),
+      `[${t('notes.linkText')}](${pasted})`,
+    );
+  };
+
   const keydown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
-      wrap('**', t('notes.boldText'));
+      toggle('**', '**', t('notes.boldText'));
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
       e.preventDefault();
-      wrap('*', t('notes.italicText'));
+      toggle('*', '*', t('notes.italicText'));
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
+      e.preventDefault();
+      toggle('<u>', '</u>', t('notes.underlineText'));
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      apply((sel) => `[${sel || t('notes.linkText')}](https://)`, `[${t('notes.linkText')}](https://)`);
+      toggle('[', '](https://)', t('notes.linkText'));
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       onSubmit?.();
@@ -224,18 +352,33 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
   return (
     <div className={`md-editor mode-${mode}`}>
       <div className="md-toolbar">
-        <button type="button" title={t('notes.headingTitle')} onClick={() => prefixLines('## ')}>
+        <button type="button" title={t('notes.h1Title')} onClick={() => prefixLines('# ')}>
+          H1
+        </button>
+        <button type="button" title={t('notes.h2Title')} onClick={() => prefixLines('## ')}>
           H2
         </button>
-        <button type="button" title={t('notes.boldTitle')} onClick={() => wrap('**', t('notes.boldText'))}>
+        <button type="button" title={t('notes.h3Title')} onClick={() => prefixLines('### ')}>
+          H3
+        </button>
+        <span className="md-sep" aria-hidden="true" />
+        <button type="button" title={t('notes.boldTitle')} onClick={() => toggle('**', '**', t('notes.boldText'))}>
           <b>B</b>
         </button>
-        <button type="button" title={t('notes.italicTitle')} onClick={() => wrap('*', t('notes.italicText'))}>
+        <button type="button" title={t('notes.italicTitle')} onClick={() => toggle('*', '*', t('notes.italicText'))}>
           <i>I</i>
         </button>
-        <button type="button" title={t('notes.strikeTitle')} onClick={() => wrap('~~', t('notes.strikeText'))}>
+        <button
+          type="button"
+          title={t('notes.underlineTitle')}
+          onClick={() => toggle('<u>', '</u>', t('notes.underlineText'))}
+        >
+          <u>U</u>
+        </button>
+        <button type="button" title={t('notes.strikeTitle')} onClick={() => toggle('~~', '~~', t('notes.strikeText'))}>
           <s>S</s>
         </button>
+        <span className="md-sep" aria-hidden="true" />
         <button type="button" title={t('notes.bulletTitle')} onClick={() => prefixLines('- ')}>
           {t('notes.bulletLabel')}
         </button>
@@ -245,20 +388,42 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
         <button type="button" title={t('notes.quoteTitle')} onClick={() => prefixLines('> ')}>
           {t('notes.quoteLabel')}
         </button>
-        <button type="button" title={t('notes.codeTitle')} onClick={() => wrap('`', 'code')}>
+        <span className="md-sep" aria-hidden="true" />
+        <button type="button" title={t('notes.codeTitle')} onClick={() => toggle('`', '`', t('notes.codeText'))}>
           {'</>'}
+        </button>
+        <button type="button" title={t('notes.codeBlockTitle')} onClick={insertCodeBlock}>
+          {'{ }'}
         </button>
         <button
           type="button"
           title={t('notes.linkTitle')}
-          onClick={() =>
-            apply((sel) => `[${sel || t('notes.linkText')}](https://)`, `[${t('notes.linkText')}](https://)`)
-          }
+          onClick={() => toggle('[', '](https://)', t('notes.linkText'))}
         >
           {t('notes.linkLabel')}
         </button>
+        <button
+          type="button"
+          title={t('notes.imageTitle')}
+          onClick={() => toggle('![', '](https://)', t('notes.imageAlt'))}
+        >
+          {t('notes.imageLabel')}
+        </button>
         <button type="button" title={t('notes.ruleTitle')} onClick={insertRule}>
           —
+        </button>
+        <button type="button" title={t('notes.tableTitle')} onClick={() => setTableOpen((v) => !v)}>
+          {t('notes.tableLabel')}
+        </button>
+        <span className="md-sep" aria-hidden="true" />
+        <button type="button" title={t('notes.alignLeftTitle')} onClick={() => alignLines('left')}>
+          ⬅
+        </button>
+        <button type="button" title={t('notes.alignCenterTitle')} onClick={() => alignLines('center')}>
+          ↔
+        </button>
+        <button type="button" title={t('notes.alignRightTitle')} onClick={() => alignLines('right')}>
+          ➡
         </button>
         <span className="spacer" />
         <div className="md-modes" role="group" aria-label={t('notes.togglePreviewTitle')}>
@@ -275,6 +440,40 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
           ))}
         </div>
       </div>
+      {tableOpen && (
+        <div className="md-table-pop" role="dialog" aria-label={t('notes.tableTitle')}>
+          <label>
+            {t('notes.tableRows')}
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={tableRows}
+              onChange={(e) => setTableRows(Number(e.target.value) || 1)}
+            />
+          </label>
+          <label>
+            {t('notes.tableCols')}
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={tableCols}
+              onChange={(e) => setTableCols(Number(e.target.value) || 1)}
+            />
+          </label>
+          <label className="md-table-head">
+            <input type="checkbox" checked={tableHead} onChange={(e) => setTableHead(e.target.checked)} />
+            {t('notes.tableHeader')}
+          </label>
+          <button type="button" className="primary" onClick={insertTable}>
+            {t('notes.tableInsert')}
+          </button>
+          <button type="button" onClick={() => setTableOpen(false)}>
+            {t('common.cancel')}
+          </button>
+        </div>
+      )}
       <div className="md-panes">
         {mode !== 'preview' && (
           <textarea
@@ -283,6 +482,7 @@ function MarkdownEditor({ value, placeholder, onChange, onSubmit }: EditorProps)
             placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={keydown}
+            onPaste={handlePaste}
             onScroll={(e) => syncScroll(e.currentTarget, previewRef.current)}
           />
         )}

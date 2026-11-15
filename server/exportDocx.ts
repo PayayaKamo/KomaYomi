@@ -36,17 +36,31 @@ function imageKind(head: Buffer, ext: string): ImageKind | null {
   return null;
 }
 
-/** Minimal inline markdown: bold and inline code become runs, everything else stays literal. */
+/**
+ * Minimal inline markdown: bold, italic, underline, strikethrough, inline code and links
+ * become runs. Tags never leak into the document as literal text.
+ */
 function inlineRuns(text: string): TextRun[] {
   const runs: TextRun[] = [];
-  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const re = /(<u>[\s\S]*?<\/u>|\*\*[^*]+\*\*|~~[^~]+~~|`[^`]+`|!?\[[^\]]*\]\([^)]*\))/g;
   let last = 0;
   for (const match of text.matchAll(re)) {
     const index = match.index ?? 0;
     if (index > last) runs.push(new TextRun(text.slice(last, index)));
     const token = match[0];
-    if (token.startsWith('**')) runs.push(new TextRun({ text: token.slice(2, -2), bold: true }));
-    else runs.push(new TextRun({ text: token.slice(1, -1), font: 'Consolas' }));
+    if (token.startsWith('<u>')) {
+      runs.push(new TextRun({ text: token.slice(3, -4), underline: {} }));
+    } else if (token.startsWith('**')) {
+      runs.push(new TextRun({ text: token.slice(2, -2), bold: true }));
+    } else if (token.startsWith('~~')) {
+      runs.push(new TextRun({ text: token.slice(2, -2), strike: true }));
+    } else if (token.startsWith('`')) {
+      runs.push(new TextRun({ text: token.slice(1, -1), font: 'Consolas' }));
+    } else {
+      // Links and images keep their visible text; the URL would not be clickable in print.
+      const label = token.replace(/^!?\[([^\]]*)\]\([^)]*\)$/, '$1');
+      if (label) runs.push(new TextRun(label));
+    }
     last = index + token.length;
   }
   if (last < text.length) runs.push(new TextRun(text.slice(last)));
@@ -71,11 +85,28 @@ function markdownParagraphs(md: string): Paragraph[] {
       out.push(new Paragraph({ children: [new TextRun('')] }));
       continue;
     }
+    const aligned = /^<div align="(left|center|right)">(.*)<\/div>$/.exec(trimmed);
+    if (aligned) {
+      const alignment =
+        aligned[1] === 'center'
+          ? AlignmentType.CENTER
+          : aligned[1] === 'right'
+            ? AlignmentType.RIGHT
+            : AlignmentType.LEFT;
+      out.push(new Paragraph({ alignment, children: inlineRuns(aligned[2]) }));
+      continue;
+    }
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
       out.push(
         new Paragraph({
-          children: [new TextRun({ text: heading[2], bold: true, size: Math.max(20, 30 - heading[1].length * 2) })],
+          children: [
+            new TextRun({
+              text: heading[2].replace(/<\/?u>/g, ''),
+              bold: true,
+              size: Math.max(20, 30 - heading[1].length * 2),
+            }),
+          ],
           spacing: { before: 120, after: 60 },
         }),
       );

@@ -4510,6 +4510,57 @@ kbd {
   background: var(--accent-soft);
 }
 
+.md-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--line);
+}
+
+.md-table-pop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.md-table-pop label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.md-table-pop input[type='number'] {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.md-table-pop button {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 8px;
+  background: var(--panel-3);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.md-table-pop button.primary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .md-modes {
   display: inline-flex;
   gap: 2px;
@@ -4564,6 +4615,14 @@ kbd {
 }
 .md-body > :last-child {
   margin-bottom: 0;
+}
+.md-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.md-body u {
+  text-decoration: underline;
 }
 .md-body h1,
 .md-body h2,

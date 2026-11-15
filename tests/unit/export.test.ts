@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../server/errors.ts';
 import { exportChapter } from '../../server/export.ts';
@@ -78,6 +79,32 @@ function config(over: Partial<ExportConfig> = {}): ExportConfig {
     offsets: {},
     ...over,
   };
+}
+
+/** Reads one file out of a .docx (a zip) so tests can inspect the generated XML. */
+function readZipEntry(file: string, entry: string): string {
+  const buf = fs.readFileSync(file);
+  let eocd = buf.length - 22;
+  while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd--;
+  if (eocd < 0) throw new Error('zip: no end of central directory');
+  const count = buf.readUInt16LE(eocd + 10);
+  let offset = buf.readUInt32LE(eocd + 16);
+  for (let i = 0; i < count; i++) {
+    const method = buf.readUInt16LE(offset + 10);
+    const compSize = buf.readUInt32LE(offset + 20);
+    const nameLen = buf.readUInt16LE(offset + 28);
+    const extraLen = buf.readUInt16LE(offset + 30);
+    const commentLen = buf.readUInt16LE(offset + 32);
+    const local = buf.readUInt32LE(offset + 42);
+    const name = buf.subarray(offset + 46, offset + 46 + nameLen).toString('utf8');
+    if (name === entry) {
+      const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+      const data = buf.subarray(start, start + compSize);
+      return method === 0 ? data.toString('utf8') : zlib.inflateRawSync(data).toString('utf8');
+    }
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+  throw new Error(`zip: ${entry} not found`);
 }
 
 describe('exportChapter', () => {
@@ -287,6 +314,30 @@ describe('exportChapter', () => {
     const buffer = fs.readFileSync(path.join(exportRoot, result.file));
     expect(buffer.subarray(0, 2).toString()).toBe('PK');
     expect(buffer.length).toBeGreaterThan(1000);
+  });
+
+  it('renders underline and alignment in Word instead of leaking the tags', async () => {
+    const { root, dataRoot, library } = seedExportRoot();
+    const doc = noteDoc();
+    doc.notes = [{ ...doc.notes[0], text: '<u>underlined</u> text\n\n<div align="center">centered</div>' }];
+    writePageDoc(dataRoot, doc);
+    const exportRoot = path.join(root, 'exports');
+
+    const result = await runWithLang('en', () =>
+      exportChapterDocx({
+        rootDir: root,
+        dataRoot,
+        exportRoot,
+        config: config({ pageIndices: [0] }),
+        library,
+      }),
+    );
+
+    const xml = readZipEntry(path.join(exportRoot, result.file), 'word/document.xml');
+    expect(xml).toContain('<w:u ');
+    expect(xml).toContain('w:val="center"');
+    expect(xml).not.toContain('&lt;u&gt;');
+    expect(xml).not.toContain('&lt;div');
   });
 
   it('writes a print view that opens the print dialog', async () => {

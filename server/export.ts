@@ -289,6 +289,8 @@ header.doc .meta{color:var(--muted);font-size:13px;display:flex;gap:16px;flex-wr
 .md th{background:#faf7f4}
 .md a{color:var(--accent)}
 .md hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+.md img{max-width:100%;height:auto;border-radius:4px}
+.md u{text-decoration:underline}
 .compare{display:grid;gap:20px;align-items:start}
 .compare .notes-group{grid-column:1/-1}
 .panel-row{margin:0 0 26px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:8px}

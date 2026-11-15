@@ -25,10 +25,18 @@ function inline(input: string): string {
     return `\u0000${codes.length - 1}\u0000`;
   });
 
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, src: string) => {
+    const safe = /^https?:\/\//i.test(src) ? src : '';
+    return safe ? `<img src="${safe}" alt="${alt}" loading="lazy" />` : alt;
+  });
+
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, text: string, href: string) => {
     const safe = /^(https?:|mailto:|#|\/)/i.test(href) ? href : '#';
     return `<a href="${safe}" target="_blank" rel="noreferrer noopener">${text}</a>`;
   });
+
+  // Underline is the one inline HTML the editor emits; allow exactly this tag back in.
+  s = s.replace(/&lt;u&gt;/g, '<u>').replace(/&lt;\/u&gt;/g, '</u>');
 
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
@@ -48,8 +56,12 @@ function isTableStart(lines: string[], i: number): boolean {
   return /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1]) && lines[i + 1].includes('-');
 }
 
+/** `<div align="center">…</div>` is the only block HTML the editor emits, for text alignment. */
+const ALIGN_RE = /^\s*<div align="(left|center|right)">(.*)<\/div>\s*$/;
+
 function isBlockStart(lines: string[], i: number): boolean {
   const line = lines[i];
+  if (ALIGN_RE.test(line)) return true;
   if (/^```/.test(line)) return true;
   if (/^#{1,6}\s+/.test(line)) return true;
   if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(line)) return true;
@@ -165,6 +177,13 @@ function blocks(lines: string[]): string[] {
       continue;
     }
 
+    const aligned = line.match(ALIGN_RE);
+    if (aligned) {
+      out.push(`<div style="text-align:${aligned[1]}">${inline(aligned[2])}</div>`);
+      i++;
+      continue;
+    }
+
     const heading = line.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
       const level = heading[1].length;
@@ -225,6 +244,7 @@ export function markdownExcerpt(src: string, max = 80): string {
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<\/?(?:u|div)[^>]*>/g, '')
     .replace(/[#>*_~|-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
