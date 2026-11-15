@@ -582,6 +582,34 @@ body {
   color: var(--vp-c-text-3);
 }
 
+.mm-footer__build {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.mm-footer__build a {
+  margin-left: 6px;
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.mm-footer__build a:hover {
+  text-decoration: underline;
+}
+
+.mm-footer__sha {
+  margin-left: 6px;
+  color: var(--vp-c-text-2);
+}
+
+.mm-footer__sep {
+  margin: 0 6px;
+  color: var(--vp-c-text-3);
+}
+
 /* ========================================
    Print
    ======================================== */

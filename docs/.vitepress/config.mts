@@ -17,6 +17,19 @@ const SITE_SUBTITLE = 'Manga Learner'
 const AUTHOR = 'PayayaKamo'
 const SOCIAL_IMAGE = `${SITE_URL}/social-card.png`
 
+/**
+ * Build stamp rendered in the footer, so a reader can tell which build a page
+ * came from. CI provides the commit in `GITHUB_SHA`; local builds show `local`.
+ * The timestamp is formatted in the build machine's timezone, never relative.
+ */
+const BUILD_SHA = (process.env.GITHUB_SHA || '').trim()
+const BUILD_SHA_SHORT = BUILD_SHA ? BUILD_SHA.slice(0, 7) : 'local'
+const buildDate = new Date()
+const pad = (value: number) => String(value).padStart(2, '0')
+const BUILD_TIME = `${buildDate.getFullYear()}-${pad(buildDate.getMonth() + 1)}-${pad(
+  buildDate.getDate(),
+)} ${pad(buildDate.getHours())}:${pad(buildDate.getMinutes())}`
+
 type LocaleCode = 'en' | 'zh' | 'ja'
 
 const localeMeta: Record<
@@ -638,6 +651,13 @@ export default defineConfig({
               : {}),
           }
         })
+    },
+  },
+  vite: {
+    define: {
+      __BUILD_SHA_SHORT__: JSON.stringify(BUILD_SHA_SHORT),
+      __BUILD_SHA_FULL__: JSON.stringify(BUILD_SHA),
+      __BUILD_TIME__: JSON.stringify(BUILD_TIME),
     },
   },
   head: [
