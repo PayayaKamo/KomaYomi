@@ -226,7 +226,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
     const pathname = url.pathname;
 
     try {
-      // ---- 缩略图（带磁盘缓存；本地缺失时按需拉取远端原图） ----
+      // ---- Thumbnails (disk-cached; fetch the remote original on demand when missing locally) ----
       if (pathname === '/thumb') {
         const src = url.searchParams.get('src') ?? '';
         const w = Math.min(600, Math.max(80, Number(url.searchParams.get('w')) || 200));
@@ -257,7 +257,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      // ---- 原始图片（只读；本地优先，其次远端按需缓存） ----
+      // ---- Raw images (read-only; local first, remote cached on demand) ----
       if (pathname.startsWith('/raw/')) {
         const rel = decodeURIComponent(pathname.slice('/raw/'.length));
         const file = safeResolve(rawRoot, rel);
@@ -285,7 +285,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      // ---- 导出文件（html 与同名 .files 目录） ----
+      // ---- Exported files (HTML plus the sibling .files directory) ----
       if (pathname.startsWith('/exports/')) {
         const rel = decodeURIComponent(pathname.slice('/exports/'.length));
         const file = safeResolve(exportRoot, rel);
@@ -321,7 +321,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 目录识别规则（声明式 / 可预览） ---------------- */
+      /* ---------------- Directory rules (declarative, previewable) ---------------- */
       if (pathname === '/api/dir-rules' && req.method === 'GET') {
         const cfg = readLibraryConfig(dataRoot);
         sendJson(res, 200, {
@@ -349,7 +349,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 语言顺序（对照视图与导出共用） ---------------- */
+      /* ---------------- Language order (shared by compare view and exports) ---------------- */
       if (pathname === '/api/lang-order' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { order?: unknown };
         const cfg = readLibraryConfig(dataRoot);
@@ -413,7 +413,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 页面版本历史（跨会话，独立于撤销栈） ---------------- */
+      /* ---------------- Page version history (cross-session, independent of the undo stack) ---------------- */
       if (pathname === '/api/page-history' && req.method === 'GET') {
         const volume = url.searchParams.get('volume') ?? '';
         const chapter = url.searchParams.get('chapter') ?? '';
@@ -490,7 +490,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const file = path.join(rootDir, decodeURIComponent(rel));
         const buf = fs.readFileSync(file);
 
-        // 优先级：单页/话/卷版式模板 > 插件 > 自动检测
+        // Priority: page/chapter/volume layout template > plugin > auto detection
         const layout = resolveLayout(dataRoot, body.volume, body.chapter, body.pageIndex);
         if (layout) {
           const panels = expandLayout(layout, body.pageIndex);
@@ -542,7 +542,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 分格模板 ---------------- */
+      /* ---------------- Panel templates ---------------- */
       if (pathname === '/api/panel-templates' && req.method === 'GET') {
         sendJson(res, 200, { templates: listPanelTemplates(dataRoot) });
         return true;
@@ -601,7 +601,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 声明式版式模板 ---------------- */
+      /* ---------------- Declarative layout templates ---------------- */
       if (pathname === '/api/layouts' && req.method === 'GET') {
         sendJson(res, 200, { layouts: listLayouts(dataRoot) });
         return true;
@@ -618,7 +618,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      // 从某页现有分格「抓取」成版式模板，便于用户快速起步后再手改 JSON
+      // Capture a page's current panels as a layout template, so users can start from it and edit the JSON afterwards.
       if (pathname === '/api/layouts/capture' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as {
           volume?: string;
@@ -680,7 +680,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
             const rects = expandLayout(layout, index);
             const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection);
             const panels = rects.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
-            // 格数一致时按阅读顺序迁移格级批注，避免套模板丢笔记
+            // When the panel count matches, migrate panel-level notes in reading order so applying a template does not drop them.
             const notes =
               oldOrder.length === panels.length
                 ? doc.notes.map((n) => {
@@ -709,13 +709,13 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 切格插件列表 ---------------- */
+      /* ---------------- Panel detector plugins ---------------- */
       if (pathname === '/api/plugins' && req.method === 'GET') {
         sendJson(res, 200, { plugins: await listPlugins(rootDir, dataRoot) });
         return true;
       }
 
-      /* ---------------- 对齐预设 ---------------- */
+      /* ---------------- Align presets ---------------- */
       if (pathname === '/api/align-presets' && req.method === 'GET') {
         sendJson(res, 200, { presets: listAlignPresets(dataRoot) });
         return true;
@@ -789,7 +789,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 导出模板 ---------------- */
+      /* ---------------- Export templates ---------------- */
       if (pathname === '/api/export-templates' && req.method === 'GET') {
         sendJson(res, 200, { templates: listExportTemplates(dataRoot) });
         return true;
@@ -822,7 +822,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      // 导出文件的默认下载名
+      // Default download name for exported files
       if (pathname === '/api/export/download') {
         const file = url.searchParams.get('file') ?? '';
         const target = safeResolve(exportRoot, file);
@@ -834,7 +834,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 多漫画管理 ---------------- */
+      /* ---------------- Multiple manga management ---------------- */
       if (pathname === '/api/library/volume-config' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as {
           volume?: string;
@@ -867,7 +867,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 笔记索引（全文搜索 / 跨页总览） ---------------- */
+      /* ---------------- Note index (full-text search / cross-page overview) ---------------- */
       if (pathname === '/api/notes' && req.method === 'GET') {
         const pageIndexRaw = url.searchParams.get('pageIndex');
         sendJson(
@@ -886,7 +886,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 笔记来源：抓取网页标题（可选） ---------------- */
+      /* ---------------- Note source: fetch page title (optional) ---------------- */
       if (pathname === '/api/link-title' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { url?: string };
         const target = (body.url ?? '').trim();
@@ -923,7 +923,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 备份 / 恢复 ---------------- */
+      /* ---------------- Backup / restore ---------------- */
       if (pathname === '/api/backup' && req.method === 'POST') {
         const { buffer, entries } = createBackupBuffer(dataRoot);
         fs.mkdirSync(exportRoot, { recursive: true });
@@ -956,7 +956,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 存储提供者（本机 / 网络盘 / WebDAV） ---------------- */
+      /* ---------------- Storage providers (local / network drive / WebDAV) ---------------- */
       if (pathname === '/api/storage' && req.method === 'GET') {
         sendJson(res, 200, {
           config: markSecrets(dataRoot, readStorageConfig(dataRoot)),
@@ -1062,7 +1062,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 工程文件 .mnproj ---------------- */
+      /* ---------------- Project files .mnproj ---------------- */
       if (pathname === '/api/project/export' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { mode?: string; name?: string; notes?: string };
         const result = createProjectBuffer({
@@ -1132,7 +1132,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         return true;
       }
 
-      /* ---------------- 统一交换格式 .mntpl / .mnexp / .mnpage.json ---------------- */
+      /* ---------------- Unified exchange format .mntpl / .mnexp / .mnpage.json ---------------- */
       if (pathname === '/api/exchange/layout/export' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { layoutId?: string; id?: string };
         sendJson(
@@ -1276,7 +1276,7 @@ const STATIC_MIME: Record<string, string> = {
   txt: 'text/plain; charset=utf-8',
 };
 
-/** 桌面端 / Docker：独立启动一个只提供本地接口的 HTTP 服务；传入 staticDir 时同时托管打包后的前端 */
+/** Desktop / Docker: start a standalone HTTP server exposing only local APIs; when staticDir is given, also serve the built frontend. */
 export function startMangaServer(
   rootDir: string,
   port = 0,
@@ -1294,7 +1294,7 @@ export function startMangaServer(
     if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
       file = candidate;
     } else {
-      // 前端是单页应用：没有扩展名的路径回退到 index.html
+      // The frontend is a single-page app: paths without an extension fall back to index.html
       const index = path.join(staticDir, 'index.html');
       if (path.extname(rel) || !fs.existsSync(index)) return false;
       file = index;

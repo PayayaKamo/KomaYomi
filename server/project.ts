@@ -13,9 +13,9 @@ import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
 
 /**
- * 工程文件 .mnproj = zip 容器 + 纯文本 JSON。
- * - 引用模式：只记录图片路径与 sha1，体积小，换机器后可用「补链目录」找回图片。
- * - 打包模式：图片按内容哈希去重后放进 assets/，可独立分发。
+ * Project file .mnproj = zip container + plain-text JSON.
+ * - Reference mode: stores only image paths and sha1, keeping files small; images can be relinked after moving machines.
+ * - Packaged mode: images are deduplicated by content hash into assets/ and can be distributed standalone.
  */
 
 export const PROJECT_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION.mnproj;
@@ -29,16 +29,16 @@ const APP_FALLBACK_VERSION = '0.1.0';
 export type ProjectImage = {
   volume: string;
   chapter: string;
-  /** 0 起的页序 */
+  /** Zero-based page index. */
   pageIndex: number;
   lang: Lang;
-  /** 原始文件名 */
+  /** Original file name. */
   name: string;
   sha1: string;
   size: number;
-  /** 引用模式：相对工程根目录的路径，例如 raw/卷/ja/172/01.jpg */
+  /** Reference mode: path relative to the project root, e.g. raw/<volume>/ja/172/01.jpg */
   path?: string;
-  /** 打包模式：assets/<sha1>.<ext> */
+  /** Packaged mode: assets/<sha1>.<ext> */
   asset?: string;
 };
 
@@ -53,9 +53,9 @@ export type ProjectManifest = {
   storageMode: ProjectStorageMode;
   name?: string;
   language: {
-    /** data/library.json 里用户手动指定的映射 */
+    /** Mapping explicitly set by the user in data/library.json */
     volumes: Record<string, ProjectLangDirs>;
-    /** 图库扫描实际使用的目录 */
+    /** Directories actually used by the library scan */
     resolved: Record<string, ProjectLangDirs>;
   };
   inventory: {
@@ -69,11 +69,11 @@ export type ProjectManifest = {
     images: ProjectImage[];
   };
   notes?: {
-    /** data/pages 下的页面 JSON 数量 */
+    /** Number of page JSON files under data/pages */
     pages: number;
     noteCount: number;
     annotationCount: number;
-    /** 用户填写的备注 */
+    /** Free-form note written by the user */
     text?: string;
   };
 };
@@ -137,7 +137,7 @@ type ParsedProject = {
   warnings: string[];
 };
 
-/* ---------------- 通用工具 ---------------- */
+/* ---------------- Shared utilities ---------------- */
 
 const isRecord = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
@@ -157,7 +157,7 @@ function isInside(root: string, target: string): boolean {
   return abs === base || abs.startsWith(guard);
 }
 
-/** 目录/文件片段：拒绝空、点、路径分隔符与控制字符，避免写出 root */
+/** Directory/file path segment: rejects empty, dot, path separators and control characters so writes cannot escape root. */
 function safeSegment(input: string): string | null {
   const clean = String(input ?? '').trim();
   if (!clean || clean === '.' || clean === '..') return null;
@@ -172,7 +172,7 @@ function writeFileAtomic(file: string, data: Buffer) {
   fs.renameSync(tmp, file);
 }
 
-/** 工程文件下载名：去掉 Windows 非法字符 */
+/** Download name for a project file: strips characters that are invalid on Windows. */
 export function projectFileName(name: string): string {
   const clean = name
     .trim()
@@ -243,7 +243,7 @@ function listImageFilesRecursive(root: string): string[] {
           if (fs.statSync(full).isDirectory()) walk(full, depth + 1);
           else if (IMAGE_EXT.test(entry.name)) out.push(full);
         } catch {
-          /* 断链忽略 */
+          /* Broken links are ignored */
         }
       }
     }
@@ -252,7 +252,7 @@ function listImageFilesRecursive(root: string): string[] {
   return out;
 }
 
-/* ---------------- manifest 迁移与校验 ---------------- */
+/* ---------------- Manifest migration and validation ---------------- */
 
 function normalizeImage(input: Record<string, unknown>): ProjectImage {
   const volume = String(input.volume ?? '').trim();
@@ -302,14 +302,14 @@ function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedF
   manifest.name = typeof manifest.name === 'string' ? manifest.name : undefined;
   manifest.inventory.pageCount = Math.max(0, Math.trunc(Number(manifest.inventory.pageCount) || 0));
 
-  // 先完整校验，再允许调用方进入「快照 → 写盘」流程，避免半加载。
+  // Validate everything first, then let callers enter the snapshot -> write flow, so nothing is left half-loaded.
   const check = validateExchange('mnproj', manifest);
   if (!check.ok) throw new AppError('ERR_MANIFEST_INCOMPLETE', { errors: check.errors.join('; ') }, 400);
 
   return { manifest, migratedFrom: migrated ? version : undefined };
 }
 
-/* ---------------- 导出 ---------------- */
+/* ---------------- Export ---------------- */
 
 export type ProjectExportOptions = {
   rootDir: string;
@@ -456,7 +456,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
   return { buffer: createZip(entries), manifest, entries: entries.length, warnings };
 }
 
-/* ---------------- 读取与校验 ---------------- */
+/* ---------------- Read and validation ---------------- */
 
 function hasUnsafeName(name: string): boolean {
   if (name.startsWith('/') || /^[a-zA-Z]:/.test(name)) return true;
@@ -521,7 +521,7 @@ function parseProject(buffer: Buffer): ParsedProject {
   return { manifest, migratedFrom, files, assets, warnings };
 }
 
-/** 引用模式下检查图片是否还在原位（文件大小 + sha1） */
+/** Reference mode: check the image is still in place (file size + sha1). */
 function verifyReferenceImages(rootDir: string, manifest: ProjectManifest): MissingAsset[] {
   const missing: MissingAsset[] = [];
   if (manifest.storageMode !== 'reference') return missing;
@@ -623,9 +623,9 @@ export function inspectProject(opts: { rootDir: string; buffer: Buffer }): Proje
   };
 }
 
-/* ---------------- 导入 ---------------- */
+/* ---------------- Import ---------------- */
 
-/** 合并：保留现有分格/标注（来件缺失时），笔记按 id 取并集，来件同 id 覆盖，绝不删除现有笔记 */
+/** Merge: keep existing panels/annotations when the incoming file lacks them, union notes by id, let the incoming copy override the same id, and never delete existing notes. */
 export function mergePageDocs(existing: PageDoc, incoming: PageDoc): PageDoc {
   const merged: PageDoc = { ...incoming };
 
@@ -684,7 +684,7 @@ function findRelinkSource(candidates: string[], image: ProjectImage, cache: Map<
   const wanted = image.name.toLowerCase();
   const byName = candidates.filter((file) => path.basename(file).toLowerCase() === wanted);
   if (!byName.length) return null;
-  // 同名多个时优先路径里包含卷名/话号的
+  // When several candidates share a name, prefer the path containing the volume/chapter name.
   const scored = byName
     .map((file) => {
       const normalized = file.replace(/\\/g, '/').toLowerCase();
@@ -701,9 +701,9 @@ export type ProjectImportOptions = {
   rootDir: string;
   buffer: Buffer;
   conflict?: ProjectConflictMode;
-  /** 引用模式缺失图片时，从这里按 sha1 / 文件名找回并复制到 raw */
+  /** Source for relinking missing images in reference mode: match by sha1 / filename and copy them into raw. */
   relinkDir?: string | null;
-  /** 导入前是否快照 data/，默认 true */
+  /** Whether to snapshot data/ before importing; defaults to true. */
   snapshot?: boolean;
 };
 
@@ -719,7 +719,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
   const warnings = [...parsed.warnings];
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-  // 1. 先给当前 data/ 拍快照，任何写入之前
+  // 1. Snapshot the current data/ first, before any write.
   let snapshot: string | null = null;
   if (opts.snapshot !== false) {
     try {
@@ -733,7 +733,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
     }
   }
 
-  // 2. 保留原始工程文件，便于追溯
+  // 2. Keep the original project file for traceability.
   const backupDir = path.join(dataRoot, 'backups', 'projects');
   let projectBackup = '';
   try {
@@ -744,7 +744,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
     warnings.push(t('WARN_PROJECT_COPY_FAILED', { detail: err instanceof Error ? err.message : String(err) }));
   }
 
-  // 3. 恢复 pages / templates / presets / config
+  // 3. Restore pages / templates / presets / config.
   let restored = 0;
   let merged = 0;
   let skipped = 0;
@@ -801,11 +801,11 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
       }
       continue;
     }
-    // 模板/预设：合并模式不覆盖现有文件
+    // Templates/presets: merge mode does not overwrite existing files.
     skipped++;
   }
 
-  // 4. 图片：打包模式直接释放到 raw；引用模式检查原位并支持补链
+  // 4. Images: packaged mode extracts straight into raw; reference mode checks in place and supports relinking.
   const hashCache = new Map<string, string>();
   const missing: MissingAsset[] = [];
   let imagesWritten = 0;
@@ -853,7 +853,7 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
       continue;
     }
 
-    // 引用模式：原位还在且哈希一致就不动
+    // Reference mode: leave the file alone when it is still in place with a matching hash.
     const source = image.path ? resolveInside(rootDir, image.path) : null;
     let sourceIsFile = false;
     if (source) {

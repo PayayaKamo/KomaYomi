@@ -145,7 +145,7 @@ function xyCut(
   const sum = (x0: number, y0: number, x1: number, y1: number) =>
     integral[y1 * iw + x1] - integral[y0 * iw + x1] - integral[y1 * iw + x0] + integral[y0 * iw + x0];
 
-  // 行/列是否整段全白（容忍极少数扫描噪点，否则一道细缝里一个脏点就会让整页无法切分）
+  // Whether a row/column is entirely white. A few scan specks are tolerated, otherwise one dirty pixel in a thin gutter would make the whole page unsplittable.
   const tolX = Math.max(4, Math.round((region.y1 - region.y0) * 0.03));
   const tolY = Math.max(4, Math.round((region.x1 - region.x0) * 0.03));
   const colWhite = (x: number, y0: number, y1: number) => sum(x, y0, x + 1, y1) >= y1 - y0 - tolX;
@@ -179,7 +179,7 @@ function xyCut(
   }
   if (x1 - x0 < 8 || y1 - y0 < 8) return;
 
-  // 2. 找内部全白分隔带（分隔带在原图上往往只有 5~8px，抽样后可能只剩 2px）
+  // 2. Find internal all-white gutters (often only 5-8px in the original, possibly 2px after downsampling).
   const minV = Math.max(3, Math.round(W * 0.004));
   const minH = Math.max(3, Math.round(H * 0.004));
 
@@ -227,7 +227,7 @@ function xyCut(
     return;
   }
 
-  // 3. 兜底：分隔白缝被溢出的对话气泡打断时，改用格子黑色边框线切分（至少两条平行边框线才认定是分格，避免把画面里的长直线当成边框）
+  // 3. Fallback: when a gutter is interrupted by a speech bubble spilling over it, cut on the panel's dark border lines instead. Require at least two parallel border lines, otherwise long lines in the artwork would be mistaken for borders.
   if (depth < 12) {
     const minRunX = Math.floor((x1 - x0) * 0.72);
     const minRunY = Math.floor((y1 - y0) * 0.72);
@@ -259,7 +259,7 @@ function xyCut(
   out.push({ x0, y0, x1, y1 });
 }
 
-/** 在区域内寻找“细长的深色直线”（格子边框），返回切分位置 */
+/** Find thin, long dark lines (panel borders) inside a region and return the cut positions. */
 function findLineCuts(
   gray: Gray,
   W: number,
@@ -288,7 +288,7 @@ function findLineCuts(
     }
     if (best >= minRun) positions.push(i);
   }
-  // 连续行合并为一条线，取中心；过粗的不算边框线
+  // Merge consecutive rows into one line and take its centre; overly thick runs are not borders.
   const cuts: number[] = [];
   let start = -1;
   const flush = (end: number) => {
@@ -309,7 +309,7 @@ function findLineCuts(
   return cuts;
 }
 
-/** 检测一页的格子，返回归一化坐标（相对整页） */
+/** Detect the panels of one page and return normalized coordinates (relative to the page). */
 export function detectPanels(buf: Buffer, filename: string): DetectResult {
   const t0 = Date.now();
   const full = decodeGray(buf, filename);
@@ -321,7 +321,7 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
   const isWhite = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) isWhite[i] = gray.data[i] >= threshold ? 1 : 0;
 
-  // 积分图（尺寸 (W+1)x(H+1)）
+  // Integral image, sized (W+1)x(H+1).
   const iw = W + 1;
   const integral = new Uint32Array((W + 1) * (H + 1));
   for (let y = 0; y < H; y++) {
@@ -335,7 +335,7 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
   const regions: Region[] = [];
   xyCut(gray, isWhite, integral, iw, { x0: 0, y0: 0, x1: W, y1: H }, regions);
 
-  // 过滤：面积过小、或内部几乎没有墨迹（纯白）的区块
+  // Filter out regions that are too small or contain almost no ink (pure white).
   const pageArea = W * H;
   const inkCount = (r: Region) => {
     let ink = 0;
@@ -351,18 +351,19 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
     const area = (r.x1 - r.x0) * (r.y1 - r.y0);
     if (area < pageArea * 0.006) return false;
     if (inkCount(r) < 0.004) return false;
-    // 过滤扫描噪点/装饰线造成的细长条（真实漫画格不会出现极扁的横条）
+    // Drop thin strips left by scan noise or decorative lines (real manga panels are never extremely flat bars).
     const rw = (r.x1 - r.x0) / W;
     const rh = (r.y1 - r.y0) / H;
     if (Math.min(rw, rh) < 0.035 && Math.max(rw, rh) / Math.min(rw, rh) > 4) return false;
-    // 过滤贴边竖排「あらすじ」/作者旁注文字条：窄、长、贴着左右页边，长宽比很高。
-    // 它在 118 页样本里稳定复现（如 173/p5、176/p4、179/p6、181/p7、182/p5），不属于漫画分格。
+    // Drop border-hugging vertical text strips such as "あらすじ" or author notes: narrow, tall,
+    // flush with the left or right page edge and with a very high aspect ratio.
+    // They recur across the 118-page sample (e.g. 173/p5, 176/p4, 179/p6, 181/p7, 182/p5) and are not manga panels.
     const edge = r.x0 / W < 0.035 || r.x1 / W > 0.965;
     if (edge && rw < 0.09 && rh > 0.18 && rh / rw >= 3.2) return false;
     return true;
   });
 
-  // 归一化 + 轻微外扩（把格子边框包含进来）
+  // Normalize and expand slightly so panel borders are included.
   const pad = 0.002;
   const panels: PanelRect[] = kept.map((r) => {
     const x = Math.max(0, r.x0 / W - pad);
@@ -382,7 +383,7 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
-/** 按阅读顺序排序：rtl 行内右→左；ltr 行内左→右；ttb 列从右→左、列内上→下 */
+/** Sort in reading order: rtl right-to-left within a row; ltr left-to-right within a row; ttb columns right-to-left, top-to-bottom within a column. */
 export function sortReadingOrder<T>(
   items: T[],
   dir: ReadingDirection,
