@@ -1,5 +1,4 @@
 import type { ExportTemplate, LayoutTemplate, PageDoc } from './types.ts';
-import { LANGUAGES } from './types.ts';
 import { migrateExportTemplateV0, migrateLayoutTemplateV0, migrateManifestV0, migratePageV0 } from './migrations.ts';
 
 /**
@@ -356,7 +355,7 @@ const exportConfigSpec = object(
     volume: str(),
     chapter: str(),
     pageIndices: array(int({ min: 0 })),
-    languages: array(str({ enum: LANGUAGES })),
+    languages: array(str({ minLength: 1 })),
     embedImages: bool(),
     offsets: record(offsetSpec),
     showPanelBoxes: bool(),
@@ -390,7 +389,7 @@ const inventoryChapterSpec = object({ chapter: str(), pages: int({ min: 0 }), im
 const inventoryVolumeSpec = object(
   {
     volume: str({ minLength: 1 }),
-    languages: array(str({ enum: LANGUAGES })),
+    languages: array(str({ minLength: 1 })),
     langDirs: langDirsSpec,
     chapters: array(inventoryChapterSpec),
   },
@@ -401,7 +400,7 @@ const inventoryImageSpec = object(
     volume: str({ minLength: 1 }),
     chapter: str({ minLength: 1 }),
     pageIndex: int({ min: 0 }),
-    lang: str({ enum: LANGUAGES }),
+    lang: str({ minLength: 1 }),
     name: str({ minLength: 1 }),
     sha1: str(),
     size: int({ min: 0 }),
@@ -501,7 +500,7 @@ const dirRuleSpec = object(
     pattern: str({ minLength: 1 }),
     ignore: array(str()),
     extensions: array(str()),
-    language: str({ enum: LANGUAGES }),
+    language: str({ minLength: 1 }),
     enabled: bool(),
   },
   ['id', 'pattern'],
@@ -513,7 +512,7 @@ const libraryConfigSpec = object(
     kind: str({ enum: ['mnconfig'] }),
     volumes: record(object({ dirs: record(str()) }, [])),
     rules: array(dirRuleSpec),
-    langOrder: array(str({ enum: LANGUAGES })),
+    langOrder: array(str({ minLength: 1 })),
   },
   ['$schema', 'schemaVersion', 'kind'],
 );

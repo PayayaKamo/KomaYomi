@@ -1,20 +1,33 @@
+/** Built-in languages shipped with the app; a library may detect more at runtime. */
 export const LANGUAGES = ['ja', 'zh', 'en'] as const;
-export type Lang = (typeof LANGUAGES)[number];
+export const DEFAULT_LANGUAGES: readonly Lang[] = LANGUAGES;
+/** Language id: a built-in code, or the normalized folder name for other languages. */
+export type Lang = string;
 
 /** Chapter name used when a rule has no {chapter} placeholder (single-chapter volumes). */
 export const SINGLE_CHAPTER = '全一话';
 
-export const LANG_LABEL: Record<Lang, string> = {
+export const LANG_LABEL: Record<string, string> = {
   ja: '日本語',
   zh: '中文',
   en: 'English',
 };
 
-export const LANG_SHORT: Record<Lang, string> = {
+export const LANG_SHORT: Record<string, string> = {
   ja: 'JA',
   zh: 'ZH',
   en: 'EN',
 };
+
+/** Badge text for any language id; unknown languages fall back to the id itself. */
+export function langShort(lang: Lang): string {
+  return LANG_SHORT[lang] ?? (lang || '?').slice(0, 3).toUpperCase();
+}
+
+/** Native display name for known languages; unknown ids are shown as-is. */
+export function langName(lang: Lang): string {
+  return LANG_LABEL[lang] ?? (lang || '?');
+}
 
 /** Rectangle normalized to 0..1 relative to the full page. */
 export type PanelRect = { x: number; y: number; w: number; h: number };

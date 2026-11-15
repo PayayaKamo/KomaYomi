@@ -34,7 +34,7 @@
               "volume": { "type": "string", "minLength": 1 },
               "languages": {
                 "type": "array",
-                "items": { "enum": ["ja", "zh", "en"] }
+                "items": { "type": "string", "minLength": 1 }
               },
               "langDirs": { "$ref": "#/$defs/langDirs" },
               "chapters": {
@@ -62,7 +62,7 @@
               "volume": { "type": "string", "minLength": 1 },
               "chapter": { "type": "string", "minLength": 1 },
               "pageIndex": { "type": "integer", "minimum": 0 },
-              "lang": { "enum": ["ja", "zh", "en"] },
+              "lang": { "type": "string", "minLength": 1 },
               "name": { "type": "string", "minLength": 1 },
               "sha1": { "type": "string" },
               "size": { "type": "integer", "minimum": 0 },

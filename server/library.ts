@@ -58,13 +58,17 @@ export type LibraryConfig = {
   historyLimit?: number;
 };
 
-/** Keep only known languages, drop duplicates, and append anything missing. */
-export function normalizeLangOrder(value: Lang[] | undefined): Lang[] {
+/**
+ * Merge a stored order with the languages discovered on disk: configured entries
+ * come first (unknown ids are dropped), then any newly found language is appended.
+ */
+export function normalizeLangOrder(value: Lang[] | undefined, discovered: readonly Lang[] = LANGUAGES): Lang[] {
+  const known = new Set(discovered);
   const out: Lang[] = [];
   for (const lang of value ?? []) {
-    if (LANGUAGES.includes(lang) && !out.includes(lang)) out.push(lang);
+    if (typeof lang === 'string' && known.has(lang) && !out.includes(lang)) out.push(lang);
   }
-  for (const lang of LANGUAGES) {
+  for (const lang of discovered) {
     if (!out.includes(lang)) out.push(lang);
   }
   return out;
@@ -93,6 +97,33 @@ export function guessLang(dirName: string): Lang | null {
     if (LANG_ALIASES[lang].includes(key)) return lang;
   }
   return null;
+}
+
+/**
+ * Language id for a directory: built-in spellings map to ja/zh/en, anything else
+ * keeps its folder name so new languages work without a code change.
+ */
+export function normalizeLang(dirName: string | undefined): Lang | null {
+  const raw = String(dirName ?? '').trim();
+  if (!raw) return null;
+  const known = guessLang(raw);
+  if (known) return known;
+  const clean = raw
+    .replace(/[\\/]+/g, ' ')
+    .trim()
+    .slice(0, 40);
+  return clean || null;
+}
+
+/**
+ * Built-in languages keep their historical order (ja, zh, en) so existing libraries
+ * do not reshuffle; unknown languages found on disk follow in natural order.
+ */
+function orderDiscovered(discovered: readonly Lang[]): Lang[] {
+  const set = new Set(discovered);
+  const known = LANGUAGES.filter((lang) => set.has(lang));
+  const extra = [...set].filter((lang) => !(LANGUAGES as readonly string[]).includes(lang)).sort(naturalCompare);
+  return [...known, ...extra];
 }
 
 /** Natural sort for page images in a directory: numeric segments compare by value. */
@@ -216,6 +247,8 @@ export function previewDirs(rawRoot: string, dataRoot: string, dir = '', rulesOv
   if (safeDir.split('/').some((s) => s === '..')) throw new AppError('ERR_DIR_UNSAFE', {}, 400);
 
   const scan = resolveFiles(rawRoot, rules, safeDir, pinned);
+  const discovered = orderDiscovered([...new Set(scan.files.map((r) => r.lang))]);
+  const order = normalizeLangOrder(config.langOrder, discovered);
   const byVolume = new Map<string, typeof scan.files>();
   for (const row of scan.files) {
     const list = byVolume.get(row.volumeId);
@@ -226,7 +259,7 @@ export function previewDirs(rawRoot: string, dataRoot: string, dir = '', rulesOv
   const tree = [...byVolume.entries()]
     .sort(([a], [b]) => naturalCompare(a, b))
     .map(([id, rows]) => {
-      const languages = LANGUAGES.filter((lang) => rows.some((r) => r.lang === lang));
+      const languages = order.filter((lang) => rows.some((r) => r.lang === lang));
       const chapters = [...new Set(rows.map((r) => r.chapter))].sort(naturalCompare).map((chapter) => {
         const chapterRows = rows.filter((r) => r.chapter === chapter);
         const langs: Partial<Record<Lang, number>> = {};
@@ -266,11 +299,10 @@ export type LibraryResult = Library & { scan: LibraryScanInfo };
  */
 export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult {
   const config = readLibraryConfig(dataRoot);
-  const langOrder = normalizeLangOrder(config.langOrder);
   const empty: LibraryResult = {
     root: rawRoot,
     languages: [...LANGUAGES],
-    langOrder,
+    langOrder: normalizeLangOrder(config.langOrder),
     volumes: [],
     scan: { rules: DEFAULT_RULES, unmatchedCount: 0, unmatched: [], truncated: false },
   };
@@ -297,6 +329,10 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
     else rowsByVolume.set(row.volumeId, [row]);
   }
 
+  // Languages are whatever the scan found, keeping the user's order for the ones they arranged.
+  const discovered = orderDiscovered([...new Set([...rowsByVolume.values()].flat().map((r) => r.lang))]);
+  const langOrder = normalizeLangOrder(config.langOrder, discovered.length ? discovered : LANGUAGES);
+
   const volumes: VolumeEntry[] = [];
 
   for (const [volumeId, rows] of rowsByVolume) {
@@ -309,11 +345,10 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
       : [...new Set(rows.map((r) => r.langDir.split('/')[0]).filter(Boolean))].sort(naturalCompare);
 
     const langDirs: Partial<Record<Lang, string>> = {};
-    for (const lang of LANGUAGES) {
-      const row = rows.find((r) => r.lang === lang);
-      if (row) langDirs[lang] = row.langDir;
+    for (const row of rows) {
+      if (!langDirs[row.lang]) langDirs[row.lang] = row.langDir;
     }
-    const langsInVolume = LANGUAGES.filter((l) => langDirs[l]);
+    const langsInVolume = langOrder.filter((l) => Boolean(langDirs[l]));
     const volumeWarnings: string[] = [];
 
     const usedTopDirs = new Set(
@@ -437,7 +472,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
 
   return {
     root: rawRoot,
-    languages: [...LANGUAGES],
+    languages: langOrder,
     langOrder,
     volumes,
     scan: {

@@ -3,8 +3,11 @@ import type { Lang } from '../shared/types';
 export type { Lang } from '../shared/types';
 export {
   LANGUAGES,
+  DEFAULT_LANGUAGES,
   LANG_LABEL,
   LANG_SHORT,
+  langShort,
+  langName,
   READING_LABEL,
   DEFAULT_OFFSET,
   DEFAULT_EXPORT_CONFIG,

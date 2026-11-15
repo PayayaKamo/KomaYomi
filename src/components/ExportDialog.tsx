@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ExportConfig, ExportTemplate, Lang, Library, PageDoc, PageEntry, Panel } from '../types';
-import { DEFAULT_EXPORT_CONFIG, LANGUAGES, LANG_SHORT } from '../types';
+import { DEFAULT_EXPORT_CONFIG, langShort } from '../types';
 import { api } from '../api';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { exportPng } from '../lib/pngExport';
@@ -18,6 +18,8 @@ type Props = {
   library: Library | null;
   sel: Selection | null;
   langs: Lang[];
+  /** Library-wide language order (languages are discovered at runtime). */
+  allLangs: Lang[];
   tagStats: { tag: string; count: number }[];
   /** Project root, shown so the exported file's absolute path can be displayed. */
   rootPath: string;
@@ -67,7 +69,19 @@ function readLayout(): Partial<ExportConfig> | null {
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]/g, '_');
 
-export function ExportDialog({ open, onClose, doc, page, panel, library, sel, langs, tagStats, rootPath }: Props) {
+export function ExportDialog({
+  open,
+  onClose,
+  doc,
+  page,
+  panel,
+  library,
+  sel,
+  langs,
+  allLangs,
+  tagStats,
+  rootPath,
+}: Props) {
   const { t } = useI18n();
   const [cfg, setCfg] = useState<ExportConfig | null>(null);
   const [scope, setScope] = useState<'page' | 'chapter'>('page');
@@ -381,7 +395,11 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
             <section>
               <h3>{t('export.languageSection')}</h3>
               <div className="lang-chips">
-                {[...cfg.languages, ...LANGUAGES.filter((l) => !cfg.languages.includes(l))].map((l) => (
+                {[
+                  ...cfg.languages,
+                  ...allLangs.filter((l) => !cfg.languages.includes(l)),
+                  ...Object.keys(page?.files ?? {}).filter((l) => !cfg.languages.includes(l) && !allLangs.includes(l)),
+                ].map((l) => (
                   <button
                     type="button"
                     key={l}
@@ -396,7 +414,7 @@ export function ExportDialog({ open, onClose, doc, page, panel, library, sel, la
                     }
                     disabled={cfg.languages.length === 1 && cfg.languages.includes(l)}
                   >
-                    {LANG_SHORT[l]} {langLabel(l)}
+                    {langShort(l)} {langLabel(l)}
                   </button>
                 ))}
               </div>

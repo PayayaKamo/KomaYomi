@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { guessLang, naturalCompare } from './library.ts';
+import { normalizeLang, naturalCompare } from './library.ts';
 import { SINGLE_CHAPTER } from '../shared/types.ts';
 import type { Lang } from '../shared/types.ts';
 import { AppError } from './errors.ts';
@@ -118,10 +118,11 @@ export function validateRules(rules: unknown): DirRule[] {
     const segments = parsePattern(pattern);
     const names = new Set(segments.filter((s) => s.kind === 'placeholder').map((s) => s.name));
     if (!names.has('page')) throw new AppError('ERR_RULE_PAGE_MISSING', { index: i + 1 }, 400);
-    const fallback = rule.language ? String(rule.language).toLowerCase() : undefined;
-    if (fallback && !['ja', 'zh', 'en'].includes(fallback)) {
+    const fallbackRaw = rule.language ? String(rule.language).trim() : '';
+    if (fallbackRaw && /[\\/]/.test(fallbackRaw)) {
       throw new AppError('ERR_RULE_LANGUAGE_INVALID', { index: i + 1, value: rule.language ?? '' }, 400);
     }
+    const fallback = fallbackRaw ? (normalizeLang(fallbackRaw) ?? undefined) : undefined;
     if (!names.has('language') && !fallback) {
       throw new AppError('ERR_RULE_LANGUAGE_MISSING', { index: i + 1 }, 400);
     }
@@ -302,15 +303,14 @@ export function resolveFiles(
         if (!closestReason) closestReason = t('WARN_RULE_LEVEL_MISMATCH', { rule: rule.name ?? rule.pattern });
         continue;
       }
-      // A matched shape is not enough: the language folder must map to a known
-      // language, otherwise the page cannot be paired across languages. Rules
-      // without a {language} segment may declare a fixed fallback language.
+      // Any language folder is accepted: built-ins map to ja/zh/en, everything
+      // else keeps its directory name so new languages need no code change.
       const langRaw = m.values.language ?? rule.language ?? '';
       if (!langRaw) {
         closestReason = t('WARN_RULE_NO_LANGUAGE', { language: '{language}' });
         continue;
       }
-      if (!guessLang(langRaw) && !Object.values(pinned).some((dirs) => Object.values(dirs ?? {}).includes(langRaw))) {
+      if (!normalizeLang(langRaw)) {
         closestReason = t('WARN_UNKNOWN_LANGUAGE_DIR', { dir: langRaw });
         continue;
       }
@@ -331,7 +331,7 @@ export function resolveFiles(
     const langPos = positions.language ?? -1;
     const volumePos = positions.volume ?? positions.series ?? -1;
 
-    let lang = guessLang(langSegment);
+    let lang = normalizeLang(langSegment);
     const override = pinned[volumeId];
     if (override && values.language) {
       const pinnedLang = (Object.keys(override) as Lang[]).find((l) => override[l] === langSegment);

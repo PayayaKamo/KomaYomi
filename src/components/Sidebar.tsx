@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ChapterEntry, Lang, Library, PageEntry, VolumeEntry } from '../types';
-import { LANGUAGES, LANG_SHORT, SINGLE_CHAPTER } from '../types';
+import { langShort, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { thumbUrl } from '../api';
 import { useI18n } from '../i18n';
@@ -20,8 +20,12 @@ type Props = {
   dirty: boolean;
 };
 
-function pickFile(page: PageEntry): { url: string; lang: Lang } | null {
-  for (const lang of LANGUAGES) {
+function pickFile(page: PageEntry, volume?: VolumeEntry): { url: string; lang: Lang } | null {
+  const order = [
+    ...(volume?.languages ?? []),
+    ...Object.keys(page.files).filter((l) => !volume?.languages.includes(l)),
+  ];
+  for (const lang of order) {
     const url = page.files[lang];
     if (url) return { url, lang };
   }
@@ -150,7 +154,8 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
     );
   }
 
-  const renderChapter = (volumeId: string, chapter: ChapterEntry) => {
+  const renderChapter = (volume: VolumeEntry, chapter: ChapterEntry) => {
+    const volumeId = volume.id;
     const key = `${volumeId}/${chapter.chapter}`;
     const isOpen = expanded[key];
     const pageWarnings = chapter.pages.reduce((n, p) => n + p.warnings.length, 0);
@@ -189,7 +194,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
             ))}
             <div className="page-grid">
               {chapter.pages.map((page) => {
-                const file = pickFile(page);
+                const file = pickFile(page, volume);
                 const active =
                   selection?.volume === volumeId &&
                   selection.chapter === chapter.chapter &&
@@ -216,7 +221,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
                     <em>{formatNumber(page.index + 1)}</em>
                     {page.warnings.length > 0 && <i className="thumb-warn">!</i>}
                     {page.annotated && <i className="thumb-dot" />}
-                    {file && <b className="thumb-lang">{LANG_SHORT[file.lang]}</b>}
+                    {file && <b className="thumb-lang">{langShort(file.lang)}</b>}
                   </button>
                 );
               })}
@@ -255,13 +260,13 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
               </span>
               <span
                 className="volume-langs"
-                title={volume.languages.length ? volume.languages.map((l) => LANG_SHORT[l]).join(' · ') : undefined}
+                title={volume.languages.length ? volume.languages.map((l) => langShort(l)).join(' · ') : undefined}
               >
                 {volume.languages.length ? (
                   <>
                     {volume.languages
                       .slice(0, 2)
-                      .map((l) => LANG_SHORT[l])
+                      .map((l) => langShort(l))
                       .join(' · ')}
                     {volume.languages.length > 2 && <b className="volume-langs-more">+{volume.languages.length - 2}</b>}
                   </>
@@ -283,7 +288,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
                 {w}
               </em>
             ))}
-            {volume.chapters.map((chapter) => renderChapter(volume.id, chapter))}
+            {volume.chapters.map((chapter) => renderChapter(volume, chapter))}
           </div>
         ))}
       </div>

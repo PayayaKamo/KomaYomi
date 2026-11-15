@@ -108,15 +108,16 @@ describe('createLibrary', () => {
     expect(library.volumes[0].chapters[0].pages).toHaveLength(1);
   });
 
-  it('lists volumes with images but no recognizable language folder', () => {
+  it('accepts an unknown language folder as a runtime language', () => {
     const root = tempRoot(['raw/Mystery/fr/172/01.png']);
     const library = runWithLang('en', () => createLibrary(path.join(root, 'raw'), path.join(root, 'data')));
 
     expect(library.volumes).toHaveLength(1);
     expect(library.volumes[0].id).toBe('Mystery');
-    expect(library.volumes[0].chapters).toHaveLength(0);
-    expect(library.volumes[0].dirs).toEqual(['fr']);
-    expect(library.volumes[0].warnings.join(' ').length).toBeGreaterThan(0);
+    expect(library.volumes[0].languages).toEqual(['fr']);
+    expect(library.volumes[0].langDirs).toEqual({ fr: 'fr' });
+    expect(library.volumes[0].chapters).toHaveLength(1);
+    expect(library.volumes[0].chapters[0].pages[0].files).toHaveProperty('fr');
   });
 
   it('returns an empty library when raw/ does not exist', () => {

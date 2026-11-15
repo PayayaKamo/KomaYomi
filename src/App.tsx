@@ -13,7 +13,7 @@ import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
-import { LANGUAGES } from './types';
+import { DEFAULT_LANGUAGES } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
@@ -36,7 +36,7 @@ export default function App() {
   const [libError, setLibError] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   const [view, setView] = useState<'panels' | 'compare'>('panels');
-  const [langs, setLangsState] = useState<Lang[]>(['ja', 'zh', 'en']);
+  const [langs, setLangsState] = useState<Lang[]>([...DEFAULT_LANGUAGES]);
   const [overlay, setOverlay] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
@@ -269,7 +269,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [doc, goPage, undoPage, redoPage]);
 
-  const availableLangs = page ? LANGUAGES.filter((l) => Boolean(page.files[l])) : [];
+  // Library-wide language order; the runtime list grows with whatever the scan finds.
+  const allLangs = useMemo<Lang[]>(
+    () => (library?.langOrder?.length ? library.langOrder : [...DEFAULT_LANGUAGES]),
+    [library],
+  );
+  const pageLangs = useMemo(() => (page ? Object.keys(page.files) : []), [page]);
+  const availableLangs = useMemo(
+    () => [...allLangs.filter((l) => pageLangs.includes(l)), ...pageLangs.filter((l) => !allLangs.includes(l))],
+    [allLangs, pageLangs],
+  );
+  const expectedLangs = useMemo(() => {
+    const volume = sel && library ? library.volumes.find((v) => v.id === sel.volume) : null;
+    return volume?.languages?.length ? volume.languages : allLangs;
+  }, [allLangs, library, sel]);
+  const missingLangs = expectedLangs.filter((l) => !pageLangs.includes(l));
 
   const saveLabel = !doc
     ? ''
@@ -501,6 +515,7 @@ export default function App() {
                 canRedo={pageState.canRedo}
                 onUndo={pageState.undo}
                 onRedo={pageState.redo}
+                allLangs={allLangs}
               />
             ) : (
               <CompareTab
@@ -512,6 +527,7 @@ export default function App() {
                 setSelected={setSelected}
                 langs={langs}
                 setLangs={setLangs}
+                allLangs={allLangs}
                 overlay={overlay}
                 setOverlay={setOverlay}
                 canUndo={pageState.canUndo}
@@ -549,6 +565,7 @@ export default function App() {
         library={library}
         sel={sel}
         langs={langs}
+        allLangs={allLangs}
         tagStats={tagStats}
         rootPath={rootPath}
       />
@@ -567,12 +584,10 @@ export default function App() {
 
       {sel && availableLangs.length === 0 && <div className="banner error floating">{t('app.noImages')}</div>}
 
-      {availableLangs.length > 0 && availableLangs.length < 3 && sel && (
+      {availableLangs.length > 0 && missingLangs.length > 0 && sel && (
         <div className="banner info floating">
           {t('app.missingLangs', {
-            langs: LANGUAGES.filter((l) => !availableLangs.includes(l))
-              .map((l) => langLabel(l))
-              .join(' / '),
+            langs: missingLangs.map((l) => langLabel(l)).join(' / '),
           })}
         </div>
       )}

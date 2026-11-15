@@ -518,9 +518,9 @@ export const MESSAGES = {
     ja: '{index} 番目のルールには {page} プレースホルダーが必要です',
   },
   ERR_RULE_LANGUAGE_INVALID: {
-    en: 'Rule #{index} has an unsupported "language" value "{value}" (use ja/zh/en)',
-    zh: '第 {index} 条规则的 language 值「{value}」不受支持（请用 ja/zh/en）',
-    ja: '{index} 番目のルールの language 値「{value}」は未対応です（ja/zh/en を使用）',
+    en: 'Rule #{index} has an invalid "language" value "{value}" (path separators are not allowed)',
+    zh: '第 {index} 条规则的 language 值「{value}」无效（不能包含路径分隔符）',
+    ja: '{index} 番目のルールの language 値「{value}」が無効です（パス区切り文字は使用できません）',
   },
   ERR_RULE_LANGUAGE_MISSING: {
     en: 'Rule #{index} needs a {language} placeholder or a "language" fallback',

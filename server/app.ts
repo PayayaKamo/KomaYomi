@@ -354,9 +354,11 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         const body = JSON.parse(await readBody(req)) as { order?: unknown };
         const cfg = readLibraryConfig(dataRoot);
         if (Array.isArray(body.order)) {
-          const known = new Set<string>(LANGUAGES);
+          const current = createLibrary(rawRoot, dataRoot);
+          const known = new Set<string>(current.languages.length ? current.languages : LANGUAGES);
           cfg.langOrder = normalizeLangOrder(
             body.order.filter((lang): lang is Lang => typeof lang === 'string' && known.has(lang)),
+            [...known],
           );
         } else {
           delete cfg.langOrder;
@@ -480,7 +482,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           });
           return true;
         }
-        const order: string[] = [body.lang ?? '', 'ja', 'zh', 'en'];
+        const order: string[] = [body.lang ?? '', ...Object.keys(found.page.files)];
         const lang = order.find((l) => found.page.files[l as keyof PageEntry['files']]);
         const rel = lang ? found.page.files[lang as keyof PageEntry['files']] : undefined;
         if (!rel) {

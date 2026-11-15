@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Lang, Note, PageDoc } from '../shared/types.ts';
-import { LANGUAGES } from '../shared/types.ts';
 import { createLibrary, readLibraryConfig } from './library.ts';
 import { createBackupBuffer } from './backup.ts';
 import { createZip, readZip } from './zip.ts';
@@ -261,7 +260,7 @@ function normalizeImage(input: Record<string, unknown>): ProjectImage {
   if (!volume || !chapter || !name) {
     throw new AppError('ERR_PROJECT_IMAGE_ENTRY', {}, 400);
   }
-  const lang = LANGUAGES.includes(input.lang as Lang) ? (input.lang as Lang) : 'ja';
+  const lang = typeof input.lang === 'string' && input.lang.trim() ? input.lang.trim() : 'ja';
   return {
     volume,
     chapter,
@@ -340,7 +339,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
   for (const vol of library.volumes) {
     for (const chapter of vol.chapters) {
       for (const page of chapter.pages) {
-        for (const lang of LANGUAGES) {
+        for (const lang of Object.keys(page.files)) {
           const url = page.files[lang];
           if (!url) continue;
           let rel: string;

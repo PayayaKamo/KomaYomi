@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { LANGUAGES, guessLang, listDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
+import { listDirs, normalizeLang, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import type { Lang } from '../shared/types.ts';
 import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
@@ -19,8 +19,8 @@ function assertName(name: string): string {
 /** Whether a directory looks like a volume (it contains language folders, or its language folders contain chapter folders). */
 function looksLikeVolume(dir: string): boolean {
   const subs = listDirs(dir);
-  if (subs.some((d) => guessLang(d))) return true;
-  return subs.some((sub) => listDirs(path.join(dir, sub)).some((d) => guessLang(d)));
+  if (subs.some((d) => normalizeLang(d))) return true;
+  return subs.some((sub) => listDirs(path.join(dir, sub)).some((d) => normalizeLang(d)));
 }
 
 export type AddVolumeResult = { added: string[]; warnings: string[] };
@@ -136,9 +136,10 @@ export function setVolumeDirs(
   if (!fs.existsSync(volumePath)) throw new AppError('ERR_VOLUME_NOT_FOUND', { volume }, 404);
   const existing = new Set(listDirs(volumePath));
   const clean: Partial<Record<Lang, string>> = {};
-  for (const lang of LANGUAGES) {
-    const dir = dirs[lang];
+  for (const [rawLang, dir] of Object.entries(dirs)) {
     if (!dir) continue;
+    const lang = normalizeLang(rawLang);
+    if (!lang) continue;
     if (!existing.has(dir)) throw new AppError('ERR_DIR_NOT_IN_VOLUME', { dir, volume }, 400);
     clean[lang] = dir;
   }

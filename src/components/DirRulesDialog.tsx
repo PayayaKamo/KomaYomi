@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DirPreview, DirRule, Lang, Library } from '../types';
-import { LANG_SHORT } from '../types';
+import { langShort } from '../types';
 import { api } from '../api';
 import { formatNumber, t, useI18n } from '../i18n';
 
@@ -220,7 +220,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
                         <span className="dirrules-langs">
                           {volume.languages.map((l: Lang) => (
                             <span className="chip-mini ok" key={l}>
-                              {LANG_SHORT[l]}
+                              {langShort(l)}
                             </span>
                           ))}
                         </span>
@@ -230,7 +230,7 @@ export function DirRulesDialog({ onClose, onSaved }: Props) {
                           <span>{chapter.chapter}</span>
                           <span className="muted tiny">
                             {t('dirRules.chapterPages', { count: formatNumber(chapter.pages) })} ·{' '}
-                            {volume.languages.map((l) => `${LANG_SHORT[l]} ${chapter.langs[l] ?? 0}`).join(' / ')}
+                            {volume.languages.map((l) => `${langShort(l)} ${chapter.langs[l] ?? 0}`).join(' / ')}
                           </span>
                         </div>
                       ))}

@@ -27,7 +27,7 @@
         },
         "languages": {
           "type": "array",
-          "items": { "enum": ["ja", "zh", "en"] }
+          "items": { "type": "string", "minLength": 1 }
         },
         "embedImages": { "type": "boolean" },
         "offsets": {
