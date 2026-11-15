@@ -14,6 +14,14 @@ import { findVersion, listVersions, readHistory, readHistoryLimit, recordVersion
 import { exportChapter } from './export.ts';
 import { exportChapterDocx } from './exportDocx.ts';
 import { createBackupBuffer, inspectBackup, restoreBackup } from './backup.ts';
+import {
+  listAutoBackups,
+  normalizeAutoBackupConfig,
+  readAutoBackupConfig,
+  readAutoBackupState,
+  runAutoBackup,
+  startAutoBackupScheduler,
+} from './autoBackup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
 import {
   exportExportTemplate,
@@ -171,6 +179,9 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
   const dataRoot = dataDir ? path.resolve(dataDir) : path.join(rootDir, 'data');
   const exportRoot = exportDir ? path.resolve(exportDir) : path.join(rootDir, 'exports');
   const thumbRoot = path.join(dataRoot, 'cache', 'thumbs');
+
+  // Scheduled local backups run on their own timer; manual backups keep the `backup-` prefix.
+  startAutoBackupScheduler({ dataRoot, exportRoot });
 
   /** package.json is the single source for the metadata shown in the About dialog. */
   const appMeta = (() => {
@@ -1002,6 +1013,36 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         sendJson(res, 200, {
           ...result,
           library: createLibrary(rawRoot, dataRoot),
+        });
+        return true;
+      }
+
+      /* ---------------- Scheduled local backups ---------------- */
+      if (pathname === '/api/backup/schedule' && req.method === 'GET') {
+        sendJson(res, 200, {
+          config: readAutoBackupConfig(readLibraryConfig(dataRoot)),
+          state: readAutoBackupState(dataRoot),
+          files: listAutoBackups(exportRoot),
+        });
+        return true;
+      }
+
+      if (pathname === '/api/backup/schedule' && req.method === 'PUT') {
+        const body = JSON.parse(await readBody(req)) as { config?: unknown };
+        const config = normalizeAutoBackupConfig(body.config);
+        writeLibraryConfig(dataRoot, { ...readLibraryConfig(dataRoot), autoBackup: config });
+        sendJson(res, 200, { config, state: readAutoBackupState(dataRoot), files: listAutoBackups(exportRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/backup/schedule/run' && req.method === 'POST') {
+        const config = readAutoBackupConfig(readLibraryConfig(dataRoot));
+        const result = runAutoBackup(dataRoot, exportRoot, config);
+        sendJson(res, 200, {
+          ...result,
+          config,
+          state: readAutoBackupState(dataRoot),
+          files: listAutoBackups(exportRoot),
         });
         return true;
       }

@@ -121,6 +121,16 @@ export type ProjectImport = {
   library: Library;
 };
 
+/* ---- Scheduled local backups ---- */
+
+export type AutoBackupConfig = { enabled: boolean; intervalHours: number; keep: number };
+
+export type AutoBackupState = { lastRunAt?: string; lastFile?: string; lastSize?: number; lastError?: string };
+
+export type AutoBackupFile = { name: string; size: number; at: string };
+
+export type BackupSchedule = { config: AutoBackupConfig; state: AutoBackupState; files: AutoBackupFile[] };
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const text = await res.text();
@@ -212,6 +222,22 @@ export const api = {
     request<{ restored: number; snapshot: string | null; warnings: string[]; library: Library }>(
       '/api/backup/restore',
       json({ data }),
+    ),
+
+  /* ---- Scheduled local backups ---- */
+  backupSchedule: () => request<BackupSchedule>('/api/backup/schedule'),
+
+  saveBackupSchedule: (config: AutoBackupConfig) =>
+    request<BackupSchedule>('/api/backup/schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config }),
+    }),
+
+  runBackupSchedule: () =>
+    request<BackupSchedule & { file: string; size: number; entries: number; at: string; pruned: number }>(
+      '/api/backup/schedule/run',
+      json({}),
     ),
 
   /* ---- Storage providers: local / network drive / WebDAV ---- */

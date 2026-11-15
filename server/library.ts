@@ -56,6 +56,8 @@ export type LibraryConfig = {
   langOrder?: Lang[];
   /** How many page-history snapshots to keep per page (default 50, clamped 5..200). */
   historyLimit?: number;
+  /** Automatic local backups into exports/ (see server/autoBackup.ts). */
+  autoBackup?: { enabled?: boolean; intervalHours?: number; keep?: number };
 };
 
 /**

@@ -384,6 +384,11 @@ export const MESSAGES = {
     zh: '压缩包里没有 data/ 目录，可能不是本工具的备份',
     ja: 'アーカイブに data/ ディレクトリがありません。KomaYomi のバックアップではない可能性があります',
   },
+  ERR_AUTO_BACKUP_FAILED: {
+    en: 'Scheduled backup failed: {detail}',
+    zh: '定时备份失败：{detail}',
+    ja: '定期バックアップに失敗しました：{detail}',
+  },
 
   /* ---------------------------------- storage --------------------------------- */
   ERR_UNSAFE_PATH: {
