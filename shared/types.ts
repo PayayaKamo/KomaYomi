@@ -234,18 +234,28 @@ export type AlignPreset = {
   createdAt: string;
 };
 
+/** Built-in page roles the preprocessing wizard can mark (the list stays open for future kinds). */
+export type PageKind = 'cover' | 'toc' | 'author' | 'ad' | 'recruit';
+export const PAGE_KINDS: readonly PageKind[] = ['cover', 'toc', 'author', 'ad', 'recruit'];
+
 export type PageEntry = {
   index: number;
   files: Partial<Record<Lang, string>>;
   filenames: Partial<Record<Lang, string>>;
   warnings: string[];
   annotated: boolean;
+  /** Hidden from the reading body and exports by the preprocessing wizard. */
+  excluded?: boolean;
+  /** Optional page role assigned by the preprocessing wizard. */
+  kind?: PageKind;
 };
 
 export type ChapterEntry = {
   id: string;
   volume: string;
   chapter: string;
+  /** Display name from the library config; falls back to the folder name. */
+  title?: string;
   pages: PageEntry[];
   warnings: string[];
 };
@@ -269,6 +279,24 @@ export type Library = {
   /** User-defined language order, shared by the compare view and exports. */
   langOrder?: Lang[];
   volumes: VolumeEntry[];
+};
+
+/** Per-chapter display/order/exclusion overrides stored in data/library.json. */
+export type ChapterOverride = {
+  title?: string;
+  /** Page document indices (`PageEntry.index`) in the desired reading order. */
+  order?: number[];
+  /** Page document indices hidden from the body and exports. */
+  excluded?: number[];
+  /** Page document index -> role, for covers, ads and similar front/back matter. */
+  kinds?: Record<string, PageKind>;
+};
+
+/** Per-volume overrides stored in data/library.json; folder names stay untouched on disk. */
+export type VolumeOverride = {
+  title?: string;
+  dirs?: Partial<Record<Lang, string>>;
+  chapters?: Record<string, ChapterOverride>;
 };
 
 export type DetectResult = {

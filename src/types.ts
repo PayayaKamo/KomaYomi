@@ -22,6 +22,7 @@ export type {
   Annotation,
   AnnotationKind,
   ChapterEntry,
+  ChapterOverride,
   DetectResult,
   ExportConfig,
   ExportTemplate,
@@ -37,6 +38,7 @@ export type {
   NoteSource,
   PageDoc,
   PageEntry,
+  PageKind,
   PageResponse,
   Panel,
   PanelGroup,
@@ -44,6 +46,7 @@ export type {
   PanelTemplate,
   ReadingDirection,
   VolumeEntry,
+  VolumeOverride,
 } from '../shared/types';
 
 /* ---- Directory recognition rules (frontend view; the same-named server type is the source) ---- */

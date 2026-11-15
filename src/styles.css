@@ -4655,3 +4655,80 @@ kbd {
     max-width: none;
   }
 }
+
+/* ---------------- preprocessing wizard ---------------- */
+.preprocess-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.preprocess-section h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.preprocess-section h3 em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.6;
+}
+.preprocess-dirs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.preprocess-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  font-size: 12px;
+}
+.preprocess-dir code {
+  font-size: 12px;
+}
+.preprocess-pages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.preprocess-page {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.preprocess-page img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+.preprocess-page.excluded {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.preprocess-page figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+.preprocess-page figcaption em {
+  font-style: normal;
+  color: var(--danger, #d9534f);
+}
+.preprocess-thumb-missing {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  font-size: 11px;
+  opacity: 0.6;
+}

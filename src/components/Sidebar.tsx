@@ -9,6 +9,7 @@ import { DataToolsDialog } from './DataToolsDialog';
 import { ProjectDialog } from './ProjectDialog';
 import { ExchangeDialog } from './ExchangeDialog';
 import { DirRulesDialog } from './DirRulesDialog';
+import { PreprocessDialog } from './PreprocessDialog';
 
 type Props = {
   library: Library | null;
@@ -32,7 +33,7 @@ function pickFile(page: PageEntry, volume?: VolumeEntry): { url: string; lang: L
   return null;
 }
 
-type FootIconName = 'project' | 'exchange' | 'rules' | 'backup';
+type FootIconName = 'project' | 'exchange' | 'rules' | 'backup' | 'preprocess';
 
 /** Logo, product name and the localised tagline (two lines at most). */
 function Brand() {
@@ -83,6 +84,12 @@ function FootIcon({ name }: { name: FootIconName }) {
           <circle cx="4.4" cy="10.4" r="1.3" fill="currentColor" stroke="none" />
         </>
       )}
+      {name === 'preprocess' && (
+        <>
+          <path d="M2.4 3.4h9.2v3.2H2.4zM2.4 8.8h9.2" />
+          <path d="M4.6 11.2h3.2" />
+        </>
+      )}
       {name === 'backup' && (
         <>
           <path d="M7 1.8v6.4m0 0L4.4 5.6M7 8.2l2.6-2.6" />
@@ -102,6 +109,7 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
   const [projectOpen, setProjectOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [dirRulesOpen, setDirRulesOpen] = useState(false);
+  const [preprocessOpen, setPreprocessOpen] = useState(false);
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
@@ -320,6 +328,16 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
           <button
             type="button"
             className="btn tiny foot-btn"
+            onClick={() => setPreprocessOpen(true)}
+            title={t('sidebar.preprocessTitle')}
+            aria-label={t('sidebar.preprocessTitle')}
+          >
+            <FootIcon name="preprocess" />
+            <span className="foot-label">{t('sidebar.preprocess')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny foot-btn"
             onClick={() => setDirRulesOpen(true)}
             title={t('sidebar.dirRulesTitle')}
             aria-label={t('sidebar.dirRulesTitle')}
@@ -372,6 +390,14 @@ export function Sidebar({ library, rootPath, selection, onOpen, onReload, dirty 
         />
       )}
       {dirRulesOpen && <DirRulesDialog onClose={() => setDirRulesOpen(false)} onSaved={(lib) => onReload(lib)} />}
+      {preprocessOpen && (
+        <PreprocessDialog
+          library={library}
+          initialVolume={selection?.volume}
+          onClose={() => setPreprocessOpen(false)}
+          onDone={(lib) => onReload(lib)}
+        />
+      )}
     </aside>
   );
 }

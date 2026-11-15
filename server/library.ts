@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { LANGUAGES, LANG_LABEL, SINGLE_CHAPTER } from '../shared/types.ts';
+import { LANGUAGES, LANG_LABEL, PAGE_KINDS, SINGLE_CHAPTER } from '../shared/types.ts';
 import { preserveUnknown } from '../shared/format.ts';
 import { assertWritableFile, readRawRecord, readStoredFile, writeStoredFile } from './schemaStore.ts';
-import type { Lang, Library, PageEntry, ChapterEntry, VolumeEntry } from '../shared/types.ts';
+import type { Lang, Library, PageEntry, PageKind, ChapterEntry, VolumeEntry, VolumeOverride } from '../shared/types.ts';
 import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
 import type { DirRule, UnmatchedFile } from './dirRules.ts';
 import { AppError } from './errors.ts';
@@ -49,7 +49,7 @@ export type LibraryConfig = {
   $schema?: string;
   schemaVersion?: number;
   kind?: 'mnconfig';
-  volumes?: Record<string, { dirs?: Partial<Record<Lang, string>> }>;
+  volumes?: Record<string, VolumeOverride>;
   /** Declarative scan rules, tried in order. Empty/absent means DEFAULT_RULES. */
   rules?: DirRule[];
   /** Preferred language order for the compare view and exports. */
@@ -124,6 +124,21 @@ function orderDiscovered(discovered: readonly Lang[]): Lang[] {
   const known = LANGUAGES.filter((lang) => set.has(lang));
   const extra = [...set].filter((lang) => !(LANGUAGES as readonly string[]).includes(lang)).sort(naturalCompare);
   return [...known, ...extra];
+}
+
+/** Reorder pages by stored document indices; unknown indices are ignored and the rest keep natural order. */
+function reorderPages(pages: PageEntry[], order: number[] | undefined): PageEntry[] {
+  if (!order?.length) return pages;
+  const byIndex = new Map(pages.map((page) => [page.index, page]));
+  const out: PageEntry[] = [];
+  for (const index of order) {
+    const page = byIndex.get(index);
+    if (!page) continue;
+    out.push(page);
+    byIndex.delete(index);
+  }
+  out.push(...pages.filter((page) => byIndex.has(page.index)));
+  return out;
 }
 
 /** Natural sort for page images in a directory: numeric segments compare by value. */
@@ -438,12 +453,32 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         });
       }
 
-      chapters.push({ id: `${volumeId}/${chapter}`, volume: volumeId, chapter, pages, warnings: chapterWarnings });
+      // Display name, page order, exclusion and roles come from data/library.json, never from disk renames.
+      const chapterCfg = config.volumes?.[volumeId]?.chapters?.[chapter];
+      const excluded = new Set(chapterCfg?.excluded ?? []);
+      const kinds = chapterCfg?.kinds ?? {};
+      const orderedPages = reorderPages(pages, chapterCfg?.order).map((page) => {
+        const kind = kinds[String(page.index)];
+        return {
+          ...page,
+          excluded: excluded.has(page.index) || undefined,
+          kind: kind && PAGE_KINDS.includes(kind) ? (kind as PageKind) : undefined,
+        };
+      });
+
+      chapters.push({
+        id: `${volumeId}/${chapter}`,
+        volume: volumeId,
+        chapter,
+        title: chapterCfg?.title?.trim() || undefined,
+        pages: orderedPages,
+        warnings: chapterWarnings,
+      });
     }
 
     volumes.push({
       id: volumeId,
-      title: volumeId,
+      title: config.volumes?.[volumeId]?.title?.trim() || volumeId,
       chapters,
       warnings: volumeWarnings,
       langDirs,

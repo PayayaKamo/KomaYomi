@@ -145,7 +145,10 @@ export function setVolumeDirs(
   }
   const cfg = readLibraryConfig(dataRoot);
   const volumes = { ...(cfg.volumes ?? {}) };
-  if (Object.keys(clean).length) volumes[volume] = { dirs: clean };
+  const next = { ...(volumes[volume] ?? {}) };
+  if (Object.keys(clean).length) next.dirs = clean;
+  else delete next.dirs;
+  if (Object.keys(next).length) volumes[volume] = next;
   else delete volumes[volume];
   writeLibraryConfig(dataRoot, { ...cfg, volumes });
 }

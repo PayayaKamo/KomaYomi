@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import { addVolume, removeVolume, setVolumeDirs } from './libraryAdmin.ts';
+import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
 import { detectPanels, sniffFormat, DETECTOR_VERSION, imageSize, sortReadingOrder } from './detect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, resolveLayout, saveLayout } from './layouts.ts';
 import { listPlugins, runPlugin } from './plugins.ts';
@@ -124,7 +125,8 @@ function safeResolve(root: string, rel: string): string | null {
 function findPage(library: Library, volume: string, chapter: string, index: number) {
   const vol = library.volumes.find((v) => v.id === volume);
   const ch = vol?.chapters.find((c) => c.chapter === chapter);
-  const page = ch?.pages[index];
+  // `index` is the stable document key; the pages array may be reordered by preprocessing overrides.
+  const page = ch?.pages.find((p) => p.index === index);
   return page ? { page: page as PageEntry, chapterEntry: ch! } : null;
 }
 
@@ -848,6 +850,44 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
         }
         setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
         sendJson(res, 200, { library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- Preprocessing wizard ---------------- */
+      if (pathname === '/api/preprocess/backup' && req.method === 'GET') {
+        sendJson(res, 200, { backup: readPreprocessBackup(dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/preprocess/apply' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          volume?: string;
+          title?: string;
+          chapters?: Record<string, unknown>;
+          dirs?: Partial<Record<string, string | null>>;
+        };
+        if (!body.volume) {
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
+          return true;
+        }
+        const result = applyPreprocess(rawRoot, dataRoot, {
+          volume: body.volume,
+          title: body.title,
+          chapters: body.chapters,
+          dirs: body.dirs,
+        });
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/preprocess/restore' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { volume?: string };
+        if (!body.volume) {
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
+          return true;
+        }
+        const result = restorePreprocess(dataRoot, body.volume);
+        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
         return true;
       }
 

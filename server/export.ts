@@ -331,8 +331,8 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
   let direction: ReadingDirection | null = null;
 
   for (const index of indices) {
-    const page = chapter.pages[index];
-    if (!page) continue;
+    const page = chapter.pages.find((p) => p.index === index);
+    if (!page || page.excluded) continue;
     const doc = readPageDoc(dataRoot, config.volume, config.chapter, index);
     if (!doc) {
       warnings.push(t('WARN_PAGE_SKIPPED_NO_PANELS', { page: index + 1 }));

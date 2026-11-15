@@ -3,6 +3,7 @@ import type {
   DetectResult,
   DirPreview,
   DirRule,
+  ChapterOverride,
   ExportConfig,
   ExportTemplate,
   Lang,
@@ -160,6 +161,20 @@ export const api = {
 
   /** Persist the compare/export language order; null restores the default. */
   saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
+
+  /* ---- Preprocessing wizard ---- */
+
+  preprocessBackup: () => request<{ backup: { at: string; volume: string } | null }>('/api/preprocess/backup'),
+
+  applyPreprocess: (input: {
+    volume: string;
+    title?: string;
+    chapters?: Record<string, ChapterOverride>;
+    dirs?: Partial<Record<Lang, string | null>>;
+  }) => request<{ backupAt: string; library: Library }>('/api/preprocess/apply', json(input)),
+
+  restorePreprocess: (volume: string) =>
+    request<{ at: string; library: Library }>('/api/preprocess/restore', json({ volume })),
 
   /* ---- Directory recognition rules ---- */
   dirRules: () =>
