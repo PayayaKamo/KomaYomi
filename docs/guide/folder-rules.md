@@ -1,10 +1,10 @@
 # Folder Detection Rules
 
-Folder rules describe where the volume, language, chapter and page live inside a path. They exist for libraries that cannot use the default `raw/<volume>/<language>/<chapter>/<page>` shape.
+Folder rules teach the scanner where the volume, language, chapter and page sit inside a path. They exist for libraries that refuse to follow the default `raw/<volume>/<language>/<chapter>/<page>` shape.
 
 ## The problem it solves
 
-Real collections are not consistent. A series may add a top-level author folder, a publisher may put the language last, and a one-language set may have no language folder at all. Renaming thousands of files is the wrong fix. Rules let the scanner understand the shape you already have.
+Real collections are not tidy. A series may sit under an author folder, a publisher may put the language last, and a single-language set may have no language folder at all. Renaming thousands of files is the wrong fix. Rules let the scanner understand the shape you already have.
 
 <figure class="shot">
   <img src="/assets/screenshots/folder-rules.png" alt="Folder detection rules dialog with a rule array, a live preview and Save rules">
@@ -28,7 +28,7 @@ The preview updates while you type. **Restore defaults** discards your edits; **
 | `{series}` | `{seriesName}`, `{work}` | A series folder above the volume; include it only when that level exists. |
 | `{volume}` | `{vol}`, `{book}` | The volume shown in the sidebar. |
 | `{chapter}` | `{chap}`, `{ch}`, `{episode}` | A chapter folder. |
-| `{language}` | `{lang}`, `{locale}` | A folder recognised as Japanese, Chinese or English. |
+| `{language}` | `{lang}`, `{locale}` | A folder recognised as a language: a built-in alias such as `ja` or `zh-cn`, or a folder mapped in volume settings. |
 | `{page}` | `{file}`, `{image}`, `{img}` | The image file. Required in every rule. |
 
 Matching is case-insensitive on every platform, so a rule copied from a Windows machine still works elsewhere.
@@ -70,13 +70,13 @@ A rule must contain `{page}`. It must also contain `{language}`, unless it decla
 | `pattern` | Yes | Slash-separated path with placeholders. |
 | `ignore` | No | Folder names that are never descended into. |
 | `extensions` | No | Accepted file extensions, with or without a leading dot. Defaults to `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.avif`, `.bmp`. |
-| `language` | No | Fallback language for patterns without `{language}`; `ja`, `zh` or `en`. |
+| `language` | No | Fallback language for patterns without `{language}`; a language id such as `ja`, `zh` or `en`. |
 | `enabled` | No | Set to `false` to keep a rule without using it. |
 
 ## Order, language and conflicts
 
 - Rules are tried **in order** and the first match wins. Put the most specific rule first.
-- Inside a `{language}` segment, folder names are still recognised by alias — `ja`, `jp`, `日本語`, `zh-cn`, `cn`, `english` and so on. See [Library & Import](/guide/gallery#language-directory-names).
+- Inside a `{language}` segment, folder names are still recognised by alias — `ja`, `jp`, `日本語`, `zh-cn`, `cn`, `english`, a folder mapped in volume settings, and so on. See [Library & Import](/guide/gallery#language-directory-names).
 - Without a `{language}` segment, the rule's `language` value is used for every page it matches.
 - A file that matches no enabled rule appears in the **unrecognized** list and is not added to the library.
 - Rules only affect detection. They never rename, move, copy or convert a file.
@@ -99,4 +99,4 @@ Page data is stored under `data/pages/<volume>/<chapter>/<index>.json`. Changing
 - [Library & Import](/guide/gallery) — the default layout and volume settings.
 - [Preparing & Renaming Images](/guide/preprocess) — what to fix before scanning.
 - [Data Formats](/data-format) — how volume and chapter ids appear in page data.
-- [Terminology](/terminology) — the shared three-language vocabulary.
+- [Terminology](/terminology) — the shared vocabulary for panels, pages and annotations.

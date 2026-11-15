@@ -1,12 +1,12 @@
 # Library & Import
 
-The library is built by scanning the `raw/` folder each time the app loads. There is no database and no import step that copies your images: **the directory structure is the configuration**.
+The library is built by scanning `raw/` every time the app loads. No database, no import step that copies your scans: **the folder tree is the configuration**.
 
-This page covers how to lay out files, how the scanner pairs languages, how to add a folder that lives somewhere else, and which import dialogs exist.
+This page covers how to lay out files, how the scanner pairs languages, how to link a folder that lives somewhere else, and which import door leads where.
 
 ## The problem it solves
 
-Manga scans arrive in arbitrary folder shapes: `Vol.14/Japanese/ch01`, `点兔第14卷/ja/172`, `manga/zh-cn/172`. You want one shelf that lists volumes and chapters, pairs page 1 of every language with page 1 of every other language, and tells you where a file is missing — without renaming or moving anything.
+Scans arrive in whatever shape the previous owner left them: `Vol.14/Japanese/ch01`, `点兔第14卷/ja/172`, `manga/zh-cn/172`. You want one shelf that lists volumes and chapters, lines page 1 of every language up with page 1 of the others, and tells you where a file is missing — without renaming or moving anything first.
 
 ## Directory shape
 
@@ -20,12 +20,12 @@ raw/
 ```
 
 - A **volume** is any top-level folder under `raw/`.
-- A **chapter** is any folder inside a language directory. Chapters are unioned across languages, so one language may be missing a chapter folder.
-- **Pages are paired by sorted position, not by filename.** Each language's files are sorted with a natural sort (digit runs compared numerically), then paired by index. `1.jpg`, `2.jpg`, `10.jpg` sorts correctly.
+- A **chapter** is any folder inside a language directory. Chapters are unioned across languages, so one edition may skip a chapter folder entirely.
+- **Pages pair by sorted position, not by filename.** Each language sorts naturally (digit runs compared as numbers), then pairs by index. `1.jpg`, `2.jpg`, `10.jpg` come out in the right order.
 
 <figure class="shot">
   <img src="/assets/screenshots/library-overview.png" alt="Library sidebar with volumes, chapters and language badges">
-  <figcaption>The sidebar lists volume → chapter → pages. Language badges show which languages exist for a volume; warnings appear inline.</figcaption>
+  <figcaption>The sidebar lists volume → chapter → pages. Language badges show which editions exist for a volume; warnings appear inline.</figcaption>
 </figure>
 
 ## Language directory names
@@ -38,7 +38,7 @@ The scanner normalizes a folder name (lowercase, spaces and underscores to hyphe
 | Chinese (`zh`) | `zh`, `zh-cn`, `zh-hans`, `zh-sg`, `cn`, `chs`, `zh-tw`, `zh-hk`, `zh-hant`, `cht`, `tw`, `hk`, `中`, `中文`, `繁中`, `简中` |
 | English (`en`) | `en`, `en-us`, `en-gb`, `us`, `uk`, `eng`, `english`, `英`, `英文` |
 
-If a folder name is not recognized, the volume still appears but with a warning. Open **volume settings** (the gear on the volume row) to pin a directory to a language. The choice is stored in `data/library.json`:
+If a folder name is not recognized, the volume still appears, wearing a warning. Open **volume settings** (the gear on the volume row) to pin a directory to a language. The choice is stored in `data/library.json`:
 
 ```json
 {
@@ -50,23 +50,23 @@ If a folder name is not recognized, the volume still appears but with a warning.
 }
 ```
 
-A volume may have one, two or three languages. The compare reader only offers languages that actually exist for the current page.
+A volume can carry as many languages as you can map; the three built-ins are just the usual suspects. The compare reader only offers languages that actually exist for the current page.
 
 ## Volume settings
 
-Volume settings is the repair tool for a volume whose folders were not recognised automatically. Open it with the gear on the volume row.
+Volume settings is the repair bay for a volume whose folders did not introduce themselves properly. Open it with the gear on the volume row.
 
-1. The dialog lists one dropdown per language: **Japanese**, **中文** and **English**.
-2. Choose the subfolder that holds each language. **Not used / auto** leaves the folder to automatic detection.
-3. Click **Save**. The library is rescanned and the volume's language badges update.
-4. **Remove from library** deletes only the link under `raw/`; images in the original folder and annotations under `data/pages/` are kept.
+1. The dialog lists a dropdown for each language detected on the volume, plus **Japanese**, **中文** and **English** as defaults.
+2. Choose the subfolder that holds each language. **Not used / auto** hands the folder back to auto-detection.
+3. Click **Save**. The library rescans and the volume's language badges update.
+4. **Remove from library** deletes only the link under `raw/`; the images in the original folder and the annotations under `data/pages/` survive.
 
-A folder can be assigned to only one language; already-used folders disappear from the other dropdowns. If no language folder is detected, the dialog says so and lists the volume warnings that explain why.
+A folder can belong to only one language; folders already taken disappear from the other dropdowns. If no language folder was detected at all, the dialog says so and repeats the volume warnings that explain why.
 
 <figure class="shot">
   <div class="shot-missing">
     <strong>Screenshot pending: volume settings dialog</strong>
-    A capture of the three language dropdowns, the warning banner and the Save / Remove buttons will be added here.
+    A capture of the language dropdowns, the warning banner and the Save / Remove buttons will be added here.
   </div>
   <figcaption>Planned screenshot: mapping folders to languages.</figcaption>
 </figure>
@@ -88,7 +88,7 @@ Optional: give the volume a different display name. The hint under the field rep
 
 **Remove from library** (in volume settings) deletes only the link under `raw/`; images in the original folder are untouched, and annotations already saved under `data/pages/` are kept.
 
-In a plain browser the folder picker is not available. Type the absolute path instead, or use the desktop build and click **Choose a folder…**.
+In a plain browser there is no folder picker. Type the absolute path instead, or use the desktop build and click **Choose a folder…**.
 
 ## Page and language roles
 
@@ -104,7 +104,7 @@ Panels and notes are stored once per page, not once per language. Alignment offs
 
 ## Warnings you will see
 
-Library warnings are informational; the page still opens.
+Library warnings are gossip, not errors: the page still opens.
 
 | Warning | Meaning | Fix |
 | --- | --- | --- |

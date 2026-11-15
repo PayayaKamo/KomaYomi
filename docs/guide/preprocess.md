@@ -1,10 +1,10 @@
 # Preparing & Renaming Images
 
-KomaYomi reads image folders in place. It never copies, converts or renames your files, so the few minutes you spend preparing a volume before adding it decide how well detection, page pairing and compare reading will work.
+KomaYomi reads image folders in place. It never copies, converts or renames your files, which means the minutes you spend tidying a volume before adding it decide how well detection, page pairing and compare reading go. Slightly annoying, much cheaper than fixing the same page three times.
 
 ## The problem it solves
 
-Panel detection is tuned for clean page scans. A volume with rotated pages, scanner borders, mixed WebP files or a missing page in one language will still open, but every later step — pairing, alignment, notes, export — inherits the problem. Preparing the images once is cheaper than correcting the same page three times.
+Panel detection is happiest with clean page scans. A volume with rotated pages, scanner borders, a pile of WebP files or one edition missing a page will still open, but every later step — pairing, alignment, notes, export — inherits the mess. Fix it once, at the source.
 
 ## What KomaYomi does with your files
 
@@ -27,10 +27,10 @@ Work on a copy if the originals matter. The order below matters more than the to
 
 1. **Rotate and deskew.** Reading direction is stored per page; a sideways scan cannot be fixed by the compare reader.
 2. **Crop scanner borders and facing-page shadows.** Panels that touch the edge are detected more reliably when the page edge is square.
-3. **Convert WebP to JPEG or PNG** if you want automatic splitting. Keep the quality high enough that lettering stays legible.
+3. **Convert WebP to JPEG or PNG** if you want automatic splitting. Keep the quality high enough that the lettering stays legible.
 4. **One chapter per folder.** Do not mix two chapters in one directory; the chapter becomes the unit for templates, alignment presets and export.
-5. **Remove non-page images** such as covers, credits, colour inserts or bonus art that does not exist in the other editions. They shift every later page.
-6. **Keep spreads unsplit, or split every edition.** A spread counts as one page. If you split the Japanese scan but not the Chinese one, page 12 in one language becomes pages 12–13 in the other and pairing breaks.
+5. **Remove non-page images** such as covers, credits, colour inserts or bonus art that does not exist in the other editions. One extra page shifts every page after it.
+6. **Keep spreads unsplit, or split every edition.** A spread counts as one page. If you split the Japanese raw but not the Chinese scanlation, page 12 in one language becomes pages 12–13 in the other and pairing breaks.
 7. **Normalise filenames only if it helps you.** Zero-padded numbers (`001.jpg`) make diffs and manual checks easier, but the scanner uses sorted position and natural order, so `1.jpg` and `001.jpg` both work.
 
 ## Renaming a chapter in bulk
@@ -55,7 +55,7 @@ If a rename changes the number of pages or their order, `data/pages/<volume>/<ch
 ## Verify before you annotate
 
 1. Add the volume and open it in the sidebar.
-2. Read the warnings on the volume and chapter rows. *Page counts differ across languages* and *Filename does not match page number* are the two that usually mean a preparation mistake.
+2. Read the warnings on the volume and chapter rows. *Page counts differ across languages* and *Filename does not match page number* usually mean a preparation mistake.
 3. If the folder shape is unusual, open **Folder rules…** and use its preview before saving; see [Folder Detection Rules](/guide/folder-rules).
 4. Open the first, middle and last page. Confirm that the same panel really contains the same artwork in every language; if not, the page counts or the spread handling are wrong.
 5. Only then run **Auto split** and start writing notes.
@@ -83,4 +83,4 @@ If a rename changes the number of pages or their order, `data/pages/<volume>/<ch
 - [Folder Detection Rules](/guide/folder-rules) — supporting unusual directory layouts.
 - [Panel Workbench](/guide/panels) — what happens after the first page opens.
 - [Project Files & Formats](/guide/project-files) — how page data is keyed and versioned.
-- [Terminology](/terminology) — the shared three-language vocabulary.
+- [Terminology](/terminology) — the shared vocabulary for panels, pages and annotations.
