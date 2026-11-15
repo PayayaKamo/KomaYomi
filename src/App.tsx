@@ -22,6 +22,7 @@ import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
 import type { CSSProperties } from 'react';
 import { applyGroupOrder, sortPanels } from './lib/geometry';
+import { enqueueOutbox } from './lib/outbox';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
 
@@ -183,7 +184,12 @@ export default function App() {
   // Keep the persisted order in sync whenever the compare bar changes it.
   const setLangs = useCallback((next: Lang[]) => {
     setLangsState(next);
-    api.saveLangOrder(next).catch(() => undefined);
+    api.saveLangOrder(next).catch((err: unknown) => {
+      // Queue it instead of dropping the order silently; the pending chip shows it.
+      if (!enqueueOutbox({ kind: 'langOrder', order: next })) {
+        setLibError(err instanceof Error ? err.message : String(err));
+      }
+    });
   }, []);
 
   const loadTags = useCallback(() => {
@@ -192,6 +198,19 @@ export default function App() {
       .then((res) => setTagStats(res.tags))
       .catch(() => setTagStats([]));
   }, []);
+
+  // Once the queued writes have all reached the server, refetch the library so offline
+  // volume-directory / language-order edits show up without a manual reload.
+  const drainedOutbox = useRef(false);
+  useEffect(() => {
+    if (outbox.count > 0) {
+      drainedOutbox.current = true;
+      return;
+    }
+    if (!drainedOutbox.current) return;
+    drainedOutbox.current = false;
+    loadLibrary();
+  }, [outbox.count, loadLibrary]);
 
   // Library warnings are rendered by the server in the interface language, so a locale
   // switch refetches the library (and its tag counts) instead of keeping stale wording.

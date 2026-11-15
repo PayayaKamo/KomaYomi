@@ -698,9 +698,11 @@ export const zh = {
 
   /* ---- offline write queue ---- */
   'outbox.queued': '无法连接服务器，本页已保存在本机，稍后会自动重试。（{detail}）',
-  'outbox.pending': '待同步 {count} 页',
+  'outbox.queuedOp': '无法连接服务器，此修改已保存在本机，稍后会自动同步。（{detail}）',
+  'outbox.pending': '待同步 {count} 项',
   'outbox.syncing': '同步中…',
   'outbox.retryTitle': '离线修改已保存在本机，点击立即重试。',
+  'outbox.replayFailed': '{count} 项修改暂未同步成功。（{detail}）',
 
   /* ---- installed app (offline / update) ---- */
   'pwa.offline': '离线中 — 已缓存的页面与批注仍可打开',

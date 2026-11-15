@@ -724,9 +724,11 @@ export const en = {
 
   /* ---- offline write queue ---- */
   'outbox.queued': 'Server unreachable — this page is saved on this device and will retry automatically. ({detail})',
+  'outbox.queuedOp': 'Server unreachable — this change is saved on this device and will sync automatically. ({detail})',
   'outbox.pending': '{count} pending',
   'outbox.syncing': 'Syncing…',
   'outbox.retryTitle': 'Offline edits are kept on this device. Click to retry now.',
+  'outbox.replayFailed': '{count} change(s) could not reach the server yet. ({detail})',
 
   /* ---- installed app (offline / update) ---- */
   'pwa.offline': 'Offline — cached pages and annotations still open',

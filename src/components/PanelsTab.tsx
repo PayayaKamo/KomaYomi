@@ -31,6 +31,7 @@ import { PanelOrderDialog } from './PanelOrderDialog';
 import { PanelSplitDialog } from './PanelSplitDialog';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
+import { enqueueOutbox } from '../lib/outbox';
 
 type Props = {
   doc: PageDoc;
@@ -817,25 +818,29 @@ export function PanelsTab({
   const saveTemplate = async () => {
     if (!doc.panels.length) return;
     setTplBusy(true);
+    const input = {
+      name:
+        tplName.trim() ||
+        t('panels.defaultTemplateName', {
+          chapter: doc.chapter,
+          page: formatNumber(doc.pageIndex + 1),
+        }),
+      volume: doc.volume,
+      chapter: doc.chapter,
+      panels: doc.panels.map((p) => p.rect),
+      readingDirection: doc.readingDirection,
+    };
     try {
-      const res = await api.savePanelTemplate({
-        name:
-          tplName.trim() ||
-          t('panels.defaultTemplateName', {
-            chapter: doc.chapter,
-            page: formatNumber(doc.pageIndex + 1),
-          }),
-        volume: doc.volume,
-        chapter: doc.chapter,
-        panels: doc.panels.map((p) => p.rect),
-        readingDirection: doc.readingDirection,
-      });
+      const res = await api.savePanelTemplate(input);
       setTplName('');
       setSelectedTpl(res.template.id);
       setTplMsg(t('panels.templateSaved', { name: res.template.name }));
       loadTemplates();
     } catch (err) {
-      setTplMsg(err instanceof Error ? err.message : t('panels.templateSaveFailed'));
+      const detail = err instanceof Error ? err.message : t('panels.templateSaveFailed');
+      // Queue the template so an offline save is not silently lost.
+      const queued = enqueueOutbox({ kind: 'panelTemplate', input });
+      setTplMsg(queued ? t('outbox.queuedOp', { detail }) : detail);
     } finally {
       setTplBusy(false);
     }

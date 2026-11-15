@@ -114,7 +114,7 @@ export function usePage(sel: Selection | null) {
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       // Never lose notes: keep an offline copy that the outbox replays later.
-      const queued = enqueueOutbox(doc, source);
+      const queued = enqueueOutbox({ kind: 'page', doc, source });
       pending.current = doc;
       setState((s) => ({
         ...s,
@@ -353,7 +353,7 @@ export function usePage(sel: Selection | null) {
       // A keepalive body over the browser's 64 KiB cap is rejected silently, so queue
       // that write for the outbox instead of pretending it was sent.
       const fallback = () => {
-        enqueueOutbox(doc, pendingSource.current);
+        enqueueOutbox({ kind: 'page', doc, source: pendingSource.current });
       };
       if (!keepaliveFits(body)) {
         fallback();

@@ -3,6 +3,7 @@ import type { Lang, Library, VolumeEntry } from '../types';
 import { DEFAULT_LANGUAGES } from '../types';
 import { api } from '../api';
 import { langLabel, useI18n } from '../i18n';
+import { enqueueOutbox } from '../lib/outbox';
 
 type AddProps = {
   onClose: () => void;
@@ -139,14 +140,17 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
   const save = async () => {
     setBusy(true);
     setError(null);
+    const dirs: Partial<Record<Lang, string | null>> = {};
+    for (const lang of langs) dirs[lang] = choice[lang] || null;
     try {
-      const dirs: Partial<Record<Lang, string | null>> = {};
-      for (const lang of langs) dirs[lang] = choice[lang] || null;
       const res = await api.saveVolumeDirs(volume.id, dirs);
       onDone(res.library);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const detail = err instanceof Error ? err.message : String(err);
+      // Keep the mapping instead of losing it: replay applies it once the server is back.
+      const queued = enqueueOutbox({ kind: 'volumeDirs', volume: volume.id, dirs });
+      setError(queued ? t('outbox.queuedOp', { detail }) : detail);
     } finally {
       setBusy(false);
     }

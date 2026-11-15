@@ -718,9 +718,11 @@ export const ja = {
 
   /* ---- offline write queue ---- */
   'outbox.queued': 'サーバーに接続できません。このページは端末内に保存し、後で自動的に再試行します。（{detail}）',
+  'outbox.queuedOp': 'サーバーに接続できません。この変更は端末内に保存し、後で自動的に同期します。（{detail}）',
   'outbox.pending': '未同期 {count} 件',
   'outbox.syncing': '同期中…',
   'outbox.retryTitle': 'オフラインの変更は端末内に保存されています。クリックで再試行します。',
+  'outbox.replayFailed': '{count} 件の変更はまだ同期できていません。（{detail}）',
 
   /* ---- installed app (offline / update) ---- */
   'pwa.offline': 'オフライン — キャッシュ済みのページと注釈は開けます',

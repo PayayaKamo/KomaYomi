@@ -15,6 +15,7 @@ import { useAnnSurface } from '../lib/annotationSurface';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
 import { exportPng } from '../lib/pngExport';
+import { enqueueOutbox } from '../lib/outbox';
 import { useCompareLayout } from '../hooks/useCompareLayout';
 
 type Props = {
@@ -245,6 +246,7 @@ export function CompareTab({
   const [presetId, setPresetId] = useState('');
   const [presetName, setPresetName] = useState('');
   const [presetBusy, setPresetBusy] = useState(false);
+  const [presetMsg, setPresetMsg] = useState<string | null>(null);
   const [pendingAnchor, setPendingAnchor] = useState<{ panelId: string; lang: Lang; x: number; y: number } | null>(
     null,
   );
@@ -842,22 +844,27 @@ export function CompareTab({
   const savePreset = async (scope: 'page' | 'chapter') => {
     if (!presetName.trim()) return;
     setPresetBusy(true);
+    setPresetMsg(null);
+    const preset = {
+      name: presetName.trim(),
+      scope,
+      volume: doc.volume,
+      chapter: doc.chapter,
+      mode,
+      offsets: doc.offsets,
+      panelOffsets: doc.panelOffsets,
+      gridStep: doc.gridStep,
+    };
     try {
-      const res = await api.saveAlignPreset({
-        name: presetName.trim(),
-        scope,
-        volume: doc.volume,
-        chapter: doc.chapter,
-        mode,
-        offsets: doc.offsets,
-        panelOffsets: doc.panelOffsets,
-        gridStep: doc.gridStep,
-      });
+      const res = await api.saveAlignPreset(preset);
       setPresetName('');
       setPresetId(res.preset.id);
       loadPresets();
-    } catch {
-      /* Keep reading; a failed save only shows in the status bar */
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      // Keep the preset instead of losing it: replay applies it once the server is back.
+      const queued = enqueueOutbox({ kind: 'alignPreset', preset });
+      setPresetMsg(queued ? t('outbox.queuedOp', { detail }) : detail);
     } finally {
       setPresetBusy(false);
     }
@@ -1700,6 +1707,7 @@ export function CompareTab({
               {t('common.delete')}
             </button>
           </div>
+          {presetMsg && <div className="muted tiny preset-msg">{presetMsg}</div>}
         </div>
       )}
 
