@@ -7,7 +7,7 @@ title: KomaYomi — Manga Learner ドキュメント
 hero:
   name: KomaYomi
   text: Manga Learner
-  tagline: 漫画で言語を学び、ノートを取る。コマ、比較、ノートはすべて手元のマシンに。
+  tagline: 生肉と翻訳版をコマ単位で並べ、訳注は手元に残す。
   image:
     src: /assets/screenshots/hero-real-library.png
     alt: 実際のライブラリを使った3言語の比較リーダー。漫画の絵はぼかし処理済み

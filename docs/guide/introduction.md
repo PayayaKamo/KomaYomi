@@ -1,37 +1,37 @@
 # Introduction
 
-KomaYomi — **Manga Learner** — is a local-first web app for learning languages with manga. You keep the same pages in Japanese, Chinese and English, split the page into panels, read the panels side by side, and write Markdown notes that stay attached to the exact panel they describe.
+KomaYomi — **Manga Learner** — is a local-first web app for reading manga in more than one language at once. Maybe you are learning Japanese with one eye on the translation, maybe you are doing scanlation and want to check your typesetting against the raw, maybe you just need to know how that one line was handled in the official release. KomaYomi splits a page into panels, lines up the same panel across Japanese, Chinese and English, and lets you pin Markdown notes — TL notes, typesetting questions, vocabulary — to the exact panel they belong to.
 
-It is not a manga reader for casual reading and not a distribution platform. Everything runs on your own machine, against your own image folders.
+It is not a general-purpose manga reader and not a distribution platform. Everything runs on your own machine, against your own image folders.
 
 ## The problem it solves
 
-A translation is easiest to study panel by panel, not page by page. But scans of the same book in three languages rarely line up: the page is shifted, the panel is cropped differently, the lettering sits somewhere else. A normal image viewer gives you one zoom level, no notes and no way to say "this balloon, in these three editions".
+Translations are easiest to study panel by panel, not page by page. But three scans of the same book almost never line up: the page is shifted, the panel is cropped differently, the lettering sits somewhere else. A normal image viewer gives you one zoom level, no notes, and no way to say "this balloon, in these three editions".
 
 KomaYomi adds the missing middle layer:
 
-1. **Structure** — panels are detected and stored as normalized rectangles, so they survive any zoom or export size.
-2. **Alignment** — each language can be nudged independently so the same panel really overlaps.
-3. **Notes** — every remark is scoped to a page or a panel, in Markdown, with tags and sources.
+1. **Structure** — panels are detected and stored as normalized rectangles, so your boxes survive any zoom, window size or export resolution.
+2. **Alignment** — each language can be nudged independently until the same panel really overlaps. Yes, finally.
+3. **Notes** — every remark is scoped to a page or a panel, in Markdown, with tags and sources. "I'll remember it later" is no longer a plan.
 
 ## The workflow
 
 | Step | What you do | Page |
 | --- | --- | --- |
-| 1 | Prepare the scans and lay out images as `raw/<volume>/<language>/<chapter>/01.jpg`, or add an existing folder. | [Preparing & Renaming Images](/guide/preprocess), [Library & Import](/guide/gallery) |
-| 2 | Open a page, let it auto-split, then correct the boxes by hand. | [Panel Workbench](/guide/panels) |
-| 3 | Read 2–3 languages side by side or in overlay, align them, mask the ones you are testing. | [Compare Reader](/guide/compare) |
-| 4 | Write page and panel notes with tags, sources and screenshots. | [Notes](/guide/notes) |
+| 1 | Get the scans in order: `raw/<volume>/<language>/<chapter>/01.jpg`, or point the app at a folder you already have. | [Preparing & Renaming Images](/guide/preprocess), [Library & Import](/guide/gallery) |
+| 2 | Open a page, let it auto-split, then fix the boxes by hand. Detection is a draft, not a verdict. | [Panel Workbench](/guide/panels) |
+| 3 | Read 2–3 languages side by side or in overlay, align them, mask the ones you are testing yourself on. | [Compare Reader](/guide/compare) |
+| 4 | Write page and panel notes with tags, sources and screenshots. TL notes very much welcome. | [Notes](/guide/notes) |
 | 5 | Export a study HTML, PNGs for slides, or a project package for another machine. | [Export](/guide/export) |
 
 ## A tour of the screen
 
 <figure class="shot">
   <img src="/assets/screenshots/panel-workspace.png" alt="Panel workbench with a manga page, detected panels, resize handles and the annotation toolbar">
-  <figcaption>The panel workbench. Top bar: page navigation, Panels / Compare, reading order, theme, interface language, Notes and Export. Left: library. Right: notes. Middle: the page with panel boxes.</figcaption>
+  <figcaption>The panel workbench. Top bar: page navigation, Panels / Compare, reading order, theme, interface language, Notes and Export. Left: library. Right: notes. Middle: the page with panel boxes — where you will spend most of your time.</figcaption>
 </figure>
 
-The window has five regions that never move:
+The window has five regions that never move, so muscle memory can take over:
 
 - **Top bar** — brand (back to the library), volume / chapter / page, `‹` `›` page arrows, the save indicator, the **Panels / Compare** switch, the reading-direction selector, the UI theme, the interface language, **Notes** and **Export**.
 - **Library sidebar** (`S`) — volumes → chapters → pages, with per-page warnings and the entry points for adding a manga, folder rules, project files, exchange files and backup.
@@ -46,7 +46,7 @@ A page can be in one, two or three languages. The language chips in the compare 
 1. Start the app (`npm run dev` or the desktop build) and open `http://127.0.0.1:5173`.
 2. Put one volume under `raw/` — or click **＋ Add manga** in the sidebar and point it at an existing folder.
 3. Click a page in the sidebar. The first open runs automatic panel detection and saves the result to `data/pages/`.
-4. Switch to **Compare** (`C`), pick `JA` and `ZH`, and drag one pane until the panels line up.
+4. Switch to **Compare** (`C`), pick `JA` and `ZH`, and drag one pane until the panels line up. One panel at a time beats wrestling the whole page.
 5. Open **Notes** (`N`), select a panel, and write your first note. Press `Ctrl+Enter` to save.
 6. Press `E` to export an HTML file and open it in a browser.
 
@@ -74,7 +74,7 @@ These items are marked <Badge type="warning" text="Planned" /> wherever they app
 
 <figure class="shot">
   <img src="/assets/screenshots/mobile-narrow.png" alt="Compare reader in a narrow window with the language panes stacked vertically">
-  <figcaption>Narrow window: panes stack vertically, the library becomes a drawer. This is a responsive web layout, not a native app.</figcaption>
+  <figcaption>Narrow window: panes stack vertically, the library becomes a drawer. A responsive web layout, not a native app — but it still works on a phone-sized screen.</figcaption>
 </figure>
 
 ## Light and dark
