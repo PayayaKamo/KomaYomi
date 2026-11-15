@@ -6,7 +6,7 @@ import type { MessageKey } from './en';
 
 export const zh = {
   /* ---- app shell ---- */
-  'app.tagline': '读漫画，学语言。',
+  'app.tagline': '日本語はすべて漫画から学んだ~',
   'app.brandHome': '返回图库',
   'app.toggleSidebarTitle': '显示/隐藏图库侧栏（S）',
   'app.helpTitle': '快捷键与使用帮助（?）',

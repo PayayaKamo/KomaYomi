@@ -6,7 +6,7 @@
  */
 export const en = {
   /* ---- app shell ---- */
-  'app.tagline': 'Read manga, learn languages.',
+  'app.tagline': '日本語はすべて漫画から学んだ~',
   'app.brandHome': 'Back to the library',
   'app.toggleSidebarTitle': 'Show/hide library sidebar (S)',
   'app.helpTitle': 'Keyboard shortcuts & help (?)',

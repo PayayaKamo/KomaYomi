@@ -5,7 +5,7 @@ import type { MessageKey } from './en';
 
 export const ja = {
   /* ---- app shell ---- */
-  'app.tagline': '漫画を読んで、言語を学ぶ。',
+  'app.tagline': '日本語はすべて漫画から学んだ~',
   'app.brandHome': 'ライブラリに戻る',
   'app.toggleSidebarTitle': 'ライブラリサイドバーの表示/非表示（S）',
   'app.helpTitle': 'ショートカットとヘルプ（?）',
