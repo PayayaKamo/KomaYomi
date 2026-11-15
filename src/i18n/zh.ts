@@ -9,6 +9,8 @@ export const zh = {
   'app.tagline': 'Manga Learner',
   'app.toggleSidebarTitle': '显示/隐藏图库侧栏（S）',
   'app.helpTitle': '快捷键与使用帮助（?）',
+  'pane.libraryHandle': '拖动调整图库宽度 · 双击恢复默认',
+  'pane.notesHandle': '拖动调整笔记栏宽度 · 双击恢复默认',
   'app.prevPageTitle': '上一页（[）',
   'app.nextPageTitle': '下一页（]）',
   'app.tabPanels': '分格',

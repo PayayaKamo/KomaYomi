@@ -8,6 +8,8 @@ export const ja = {
   'app.tagline': 'Manga Learner',
   'app.toggleSidebarTitle': 'ライブラリサイドバーの表示/非表示（S）',
   'app.helpTitle': 'ショートカットとヘルプ（?）',
+  'pane.libraryHandle': 'ドラッグでライブラリ幅を変更 · ダブルクリックで既定値',
+  'pane.notesHandle': 'ドラッグでノート欄の幅を変更 · ダブルクリックで既定値',
   'app.prevPageTitle': '前のページ（[）',
   'app.nextPageTitle': '次のページ（]）',
   'app.tabPanels': 'コマ',

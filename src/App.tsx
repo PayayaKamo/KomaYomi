@@ -4,6 +4,7 @@ import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
+import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
 import { api } from './api';
@@ -11,12 +12,17 @@ import { LANGUAGES } from './types';
 import type { Lang, Library, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
+import type { CSSProperties } from 'react';
 import { sortPanels } from './lib/geometry';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
 
 /** Order used by the reading-direction selector; the labels come from i18n. */
 const READING_DIRECTIONS: ReadingDirection[] = ['rtl', 'ltr', 'ttb'];
+
+/** Drag-resizable panes: storage key and the range that keeps both usable. */
+const SIDEBAR_PANE = { key: 'manga-memo.sidebar-width', min: 200, max: 420 };
+const NOTES_PANE = { key: 'manga-memo.notes-width', min: 260, max: 560 };
 
 export default function App() {
   const { t, locale, setLocale, formatNumber } = useI18n();
@@ -32,6 +38,12 @@ export default function App() {
   const [tagStats, setTagStats] = useState<{ tag: string; count: number }[]>([]);
   const [notesOpen, setNotesOpen] = useState(() => window.innerWidth > 1180);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
+  const [sidebarWidth, setSidebarWidth] = useState<number | null>(() =>
+    loadPaneWidth(SIDEBAR_PANE.key, SIDEBAR_PANE.min, SIDEBAR_PANE.max),
+  );
+  const [notesWidth, setNotesWidth] = useState<number | null>(() =>
+    loadPaneWidth(NOTES_PANE.key, NOTES_PANE.min, NOTES_PANE.max),
+  );
   const [helpOpen, setHelpOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
@@ -49,6 +61,16 @@ export default function App() {
     applyTheme(theme);
     return watchSystemTheme(theme);
   }, [theme]);
+
+  // Keep customized pane widths usable when the window shrinks; never invent one.
+  useEffect(() => {
+    const onResize = () => {
+      setSidebarWidth((w) => (w === null ? w : clampPaneWidth(w, SIDEBAR_PANE.min, SIDEBAR_PANE.max)));
+      setNotesWidth((w) => (w === null ? w : clampPaneWidth(w, NOTES_PANE.min, NOTES_PANE.max)));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const pageState = usePage(sel);
   const { doc, page } = pageState;
@@ -331,7 +353,15 @@ export default function App() {
         </div>
       </header>
 
-      <div className="body-area">
+      <div
+        className="body-area"
+        style={
+          {
+            '--sidebar-w': sidebarWidth === null ? undefined : `${sidebarWidth}px`,
+            '--notes-w': notesWidth === null ? undefined : `${notesWidth}px`,
+          } as CSSProperties
+        }
+      >
         <Sidebar
           library={library}
           rootPath={rootPath}
@@ -351,6 +381,36 @@ export default function App() {
         )}
 
         <main className="stage">
+          {sidebarOpen && (
+            <PaneSplitter
+              edge="left"
+              target=".sidebar"
+              min={SIDEBAR_PANE.min}
+              max={SIDEBAR_PANE.max}
+              label={t('pane.libraryHandle')}
+              onChange={setSidebarWidth}
+              onCommit={(w) => savePaneWidth(SIDEBAR_PANE.key, w)}
+              onReset={() => {
+                setSidebarWidth(null);
+                savePaneWidth(SIDEBAR_PANE.key, null);
+              }}
+            />
+          )}
+          {notesOpen && (
+            <PaneSplitter
+              edge="right"
+              target=".notes-col"
+              min={NOTES_PANE.min}
+              max={NOTES_PANE.max}
+              label={t('pane.notesHandle')}
+              onChange={setNotesWidth}
+              onCommit={(w) => savePaneWidth(NOTES_PANE.key, w)}
+              onReset={() => {
+                setNotesWidth(null);
+                savePaneWidth(NOTES_PANE.key, null);
+              }}
+            />
+          )}
           {libError && <div className="banner error">{t('app.libraryError', { error: libError })}</div>}
           {pageState.error && <div className="banner error">{pageState.error}</div>}
 

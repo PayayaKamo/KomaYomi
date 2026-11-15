@@ -9,6 +9,8 @@ export const en = {
   'app.tagline': 'Manga Learner',
   'app.toggleSidebarTitle': 'Show/hide library sidebar (S)',
   'app.helpTitle': 'Keyboard shortcuts & help (?)',
+  'pane.libraryHandle': 'Drag to resize the library · double-click to reset',
+  'pane.notesHandle': 'Drag to resize the notes panel · double-click to reset',
   'app.prevPageTitle': 'Previous page ([)',
   'app.nextPageTitle': 'Next page (])',
   'app.tabPanels': 'Panels',

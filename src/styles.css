@@ -249,11 +249,11 @@ code {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr) 0;
+  grid-template-columns: var(--sidebar-w, 268px) minmax(0, 1fr) 0;
 }
 
 .app.show-notes .body-area {
-  grid-template-columns: 268px minmax(0, 1fr) 340px;
+  grid-template-columns: var(--sidebar-w, 268px) minmax(0, 1fr) var(--notes-w, 340px);
 }
 
 .stage {
@@ -263,6 +263,73 @@ code {
   flex-direction: column;
   background: var(--bg);
   position: relative;
+}
+
+/* ---------------- pane splitters ---------------- */
+.pane-splitter {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  z-index: 8;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.pane-splitter.left {
+  left: -5px;
+}
+
+.pane-splitter.right {
+  right: -5px;
+}
+
+.pane-splitter::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.pane-splitter:hover::after,
+.pane-splitter.active::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* While dragging, keep the resize cursor everywhere and never select page text. */
+body.pane-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.pane-resizing * {
+  cursor: col-resize !important;
+}
+
+/* The library is a drawer below 1025px, so dragging is only offered on desktop. */
+@media (min-width: 1025px) {
+  .pane-splitter.left {
+    display: block;
+  }
+
+  .app.sidebar-closed .pane-splitter.left {
+    display: none;
+  }
+}
+
+/* Below 1181px the notes column turns into an overlay drawer. */
+@media (min-width: 1181px) {
+  .app.show-notes .pane-splitter.right {
+    display: block;
+  }
 }
 
 /* ---------------- buttons ---------------- */
@@ -2070,10 +2137,10 @@ code {
 
 @media (max-width: 1240px) {
   .app.show-notes .body-area {
-    grid-template-columns: 240px minmax(0, 1fr) 300px;
+    grid-template-columns: var(--sidebar-w, 240px) minmax(0, 1fr) var(--notes-w, 300px);
   }
   .body-area {
-    grid-template-columns: 240px minmax(0, 1fr) 0;
+    grid-template-columns: var(--sidebar-w, 240px) minmax(0, 1fr) 0;
   }
 }
 
@@ -2291,7 +2358,7 @@ code {
 }
 
 .app.sidebar-closed.show-notes .body-area {
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) var(--notes-w, 340px);
 }
 
 /* Only shown when the library becomes a drawer on narrow screens. */
@@ -2303,7 +2370,7 @@ code {
 @media (max-width: 1180px) {
   .app.show-notes .body-area,
   .app.sidebar-closed.show-notes .body-area {
-    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-w, 240px) minmax(0, 1fr);
   }
   .app.sidebar-closed.show-notes .body-area {
     grid-template-columns: minmax(0, 1fr);
@@ -2313,7 +2380,7 @@ code {
     right: 0;
     top: var(--topbar-h);
     bottom: 0;
-    width: 340px;
+    width: var(--notes-w, 340px);
     max-width: 92vw;
     z-index: 30;
     box-shadow: -12px 0 32px var(--shadow-lg);
