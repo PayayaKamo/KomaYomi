@@ -115,7 +115,10 @@ jobs:
             platform: win
             arch: arm64
             builder_args: --win --arm64
-          - os: macos-13
+          # macOS Intel images (macos-13) are no longer scheduled, so both architectures are
+          # packaged on the Apple Silicon image; electron-builder only repackages the
+          # prebuilt Electron binaries, so cross-arch packaging needs no compilation.
+          - os: macos-15
             label: macOS x64
             platform: mac
             arch: x64
