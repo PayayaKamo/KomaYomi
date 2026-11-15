@@ -108,6 +108,8 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_MISSING_VOLUME_CHAPTER`  | 400  | Volume and/or chapter not supplied        | Client forgot a field                            | Send both `volume` and `chapter`.                      |
 | `ERR_MISSING_VOLUME`          | 400  | Volume name not supplied                  | Destructive action without a target              | Pass `volume`.                                         |
 | `ERR_MISSING_VOLUME_DIRS`     | 400  | Volume name or language dirs not supplied | Creating a volume without directories            | Send `{ volume, dirs }`.                               |
+| `ERR_UNKNOWN_DIRECTION`       | 400  | Reading direction is not supported        | Client sent a removed or misspelled value         | Use one of the seven reading directions still in the UI. |
+| `ERR_PREPROCESS_NO_BACKUP`    | 404  | No previous preprocessing result to roll back | Preprocessing never ran, or was already rolled back | Run preprocessing once, then roll back.          |
 | `ERR_URL_NOT_HTTP`            | 400  | Title fetch only supports http(s)         | `file://` or relative URL                        | Use an `http(s)` URL.                                  |
 | `ERR_PAGE_NO_IMAGES`          | 400  | Page has no image in any language         | Empty chapter folder, naming mismatch            | Check the files for that page index.                   |
 | `ERR_PAGE_NO_PANELS`          | 400  | Operation needs panels first              | Capturing a layout from a page without panels    | Detect panels on that page, then retry.                |
@@ -118,12 +120,13 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSAFE_SEGMENT`          | 400  | Volume/chapter name has unsafe characters  | `/`, `..`, control characters                   | Use a plain folder-safe name.                          |
 | `ERR_DIR_UNSAFE`              | 400  | Directory contains `..`                   | Malicious or malformed rule input                | Use a relative path without `..`.                      |
 | `ERR_DIR_NAME_EMPTY`          | 400  | Directory name is empty                   | Form submitted empty                             | Provide a name.                                        |
-| `ERR_DIR_NAME_INVALID`        | 400  | Directory name has `\ / : * ? " < > |`    | Copy-pasted Windows path                         | Strip illegal characters.                              |
+| `ERR_DIR_NAME_INVALID`        | 400  | Directory name has `\ / : * ? " < > \|`  | Copy-pasted Windows path                         | Strip illegal characters.                              |
 | `ERR_DIR_NOT_FOUND`           | 400  | Source directory does not exist           | Folder moved after selection                     | Re-select the folder.                                  |
 | `ERR_DIR_NOT_IN_VOLUME`       | 400  | Directory is not under that volume        | Stale directory list                             | Refresh the volume settings.                           |
 | `ERR_VOLUME_EXISTS`           | 409  | A same-named directory already exists     | Adding the same source twice                     | Remove the old entry or pick another name.             |
 | `ERR_LINK_CREATE_FAILED`      | 500  | Cannot create the directory link          | No permission, filesystem without symlink support | Run on a filesystem that supports links, or copy files.|
 | `ERR_REAL_DIRECTORY`          | 409  | Refusing to delete a real directory       | Volume folder is not a link                      | Delete it manually under `raw/` if intended.           |
+| `ERR_HISTORY_VERSION_NOT_FOUND`| 404 | Page version no longer exists             | History trimmed to the retention limit, stale link | Refresh the page history; save a new version if needed. |
 
 ### Templates and presets
 
@@ -156,6 +159,8 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_MANIFEST_INCOMPLETE`         | 400  | Manifest failed schema validation              | Missing required fields               | Fix the listed paths, or re-export.              |
 | `ERR_MANIFEST_MISSING`            | 400  | Archive has no `manifest.json`                 | Not a `.mnproj`                       | Choose the right archive.                        |
 | `ERR_LIBRARY_NOT_OBJECT`          | 400  | `library.json` / config is not an object       | Hand-edited config                     | Restore a valid config or start fresh.           |
+| `ERR_SCHEMA_TOO_NEW`              | 409  | File comes from a newer schema than this build | Written by a newer KomaYomi            | Upgrade the app before writing; open it read-only for now. |
+| `ERR_SCHEMA_MIGRATION`            | 500  | File cannot be migrated from its schema        | Corrupt file, unknown old version      | Restore from a backup; report the `detail` with the file. |
 | `ERR_BACKUP_NOT_KOMAYOMI`         | 400  | Archive has no `data/` directory               | Not a KomaYomi backup                 | Choose a backup created by this app.             |
 
 ### Storage and remote backups
@@ -171,6 +176,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_STORAGE_TARGET_NOT_FOUND` | 404  | Unknown storage target id            | Target deleted, stale tab             | Reload storage settings.                           |
 | `ERR_STORAGE_LIST_FAILED`      | 503  | Cannot list the directory            | Offline share, permission denied      | Check connectivity and credentials.                |
 | `ERR_BACKUP_UPLOAD_FAILED`     | 503  | Backup upload failed                 | WebDAV error, disk full               | Check the `detail` param and the target.           |
+| `ERR_AUTO_BACKUP_FAILED`       | 500  | Scheduled backup failed              | Target unwritable when the job ran, disk full | Check `detail`; the backup target list keeps the failure info. |
 
 ### Plugins
 
@@ -206,7 +212,7 @@ detection falls back to the automatic detector, so the HTTP call still succeeds.
 | `ERR_RULE_PATTERN_MISSING`     | 400  | Rule has no `pattern`                       | Partial rule                       | Add `pattern`.                               |
 | `ERR_RULE_PATTERN_ABSOLUTE`    | 400  | Rule is absolute or contains `..`           | Pasted filesystem path             | Use a relative pattern.                      |
 | `ERR_RULE_PAGE_MISSING`        | 400  | Rule has no `{page}`                        | Forgot the page segment            | Add `{page}`.                                |
-| `ERR_RULE_LANGUAGE_INVALID`    | 400  | `language` is not ja/zh/en                  | Typo in the fallback language      | Use `ja`, `zh` or `en`.                      |
+| `ERR_RULE_LANGUAGE_INVALID`    | 400  | Rule `language` value is invalid (no path separators) | `language` contains `/` or `\` | Use a language code such as `ja`, not a path. |
 | `ERR_RULE_LANGUAGE_MISSING`    | 400  | Rule has no language info                   | No `{language}` and no fallback    | Add `{language}` or `language`.              |
 | `ERR_RULE_DUPLICATE_ID`        | 409  | Two rules share an id                       | Copy-pasted rule                   | Give each rule a unique id.                  |
 | `ERR_RULE_PARSE`               | 400  | A stored rule cannot be parsed              | Corrupt `config/dir-rules.json`    | Fix the rule; the library otherwise falls back to defaults. |
@@ -223,7 +229,8 @@ the server generated them itself.
 | `WARN_PLUGIN_FAILED_FALLBACK`     | Plugin failed, automatic detection used               | Plugin error or timeout                       |
 | `WARN_TITLE_FETCH_FAILED`         | Title could not be fetched                           | Network restriction, blocked host             |
 | `WARN_PAGE_SKIPPED_NO_PANELS`     | Page skipped: no panels                              | Detected but never saved                      |
-| `WARN_PAGE_SKIPPED_NO_ANNOTATIONS`| Page skipped: no annotations                         | Nothing to export on that page                |
+| `WARN_EXPORT_AUTODETECTED`        | Pages without panel data were detected before export | Not split before exporting                    |
+| `WARN_PAGE_SKIPPED_NO_CONTENT`    | Page skipped: no panels or notes                     | Nothing to export on that page                |
 | `WARN_PAGE_IMAGE_UNREADABLE`      | Page image cannot be decoded                         | Corrupt image, unsupported codec              |
 | `WARN_DIR_RULES_FALLBACK`         | Invalid directory rules, defaults used               | Corrupt `config/dir-rules.json`               |
 | `WARN_UNRECOGNIZED_DIRS`          | Directories could not be mapped to a language        | Non-standard folder names                     |
