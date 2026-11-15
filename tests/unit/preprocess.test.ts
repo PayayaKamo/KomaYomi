@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyPreprocess } from '../../server/preprocess.ts';
+import { applyPreprocess, restorePreprocess } from '../../server/preprocess.ts';
 import { readLibraryConfig } from '../../server/library.ts';
 import { makeTempDir, removeDir, writeFiles } from '../helpers/tmp.ts';
 
@@ -44,5 +44,28 @@ describe('applyPreprocess', () => {
   it('rejects a volume that is not on disk', () => {
     const { rawRoot, dataRoot } = seed();
     expect(() => applyPreprocess(rawRoot, dataRoot, { volume: 'Missing' })).toThrow();
+  });
+});
+
+describe('restorePreprocess', () => {
+  it('rolls the volume config back to the state before the last apply', () => {
+    const { rawRoot, dataRoot } = seed();
+    applyPreprocess(rawRoot, dataRoot, { volume: 'Vol1', title: 'First' });
+    applyPreprocess(rawRoot, dataRoot, { volume: 'Vol1', title: 'Second', chapters: { '01': { excluded: [0] } } });
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.title).toBe('Second');
+
+    restorePreprocess(dataRoot, 'Vol1');
+    const entry = readLibraryConfig(dataRoot).volumes?.Vol1;
+    expect(entry?.title).toBe('First');
+    expect(entry?.chapters).toBeUndefined();
+    expect(fs.existsSync(path.join(dataRoot, 'preprocess-backup.json'))).toBe(false);
+    expect(() => restorePreprocess(dataRoot, 'Vol1')).toThrow();
+  });
+
+  it('removes a volume entry that had no config before the apply', () => {
+    const { rawRoot, dataRoot } = seed();
+    applyPreprocess(rawRoot, dataRoot, { volume: 'Vol1', title: 'First' });
+    restorePreprocess(dataRoot, 'Vol1');
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1).toBeUndefined();
   });
 });

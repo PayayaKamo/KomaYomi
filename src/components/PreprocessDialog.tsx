@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Library, PageEntry, PageKind, VolumeEntry } from '../types';
 import { PAGE_KINDS, SINGLE_CHAPTER } from '../types';
 import { langLabel, useI18n } from '../i18n';
@@ -36,7 +36,19 @@ const KIND_KEYS = {
 } as const;
 
 /** Editor for one volume; remounted with `key` so switching volumes resets the local drafts. */
-function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (library: Library) => void }) {
+function PreprocessEditor({
+  volume,
+  backup,
+  onBackupChange,
+  onRestored,
+  onDone,
+}: {
+  volume: VolumeEntry;
+  backup: { at: string; volume: string } | null;
+  onBackupChange: (backup: { at: string; volume: string } | null) => void;
+  onRestored: () => void;
+  onDone: (library: Library) => void;
+}) {
   const { t, formatNumber } = useI18n();
   const [title, setTitle] = useState(() => (volume.title === volume.id ? '' : volume.title));
   const [chapters, setChapters] = useState<Record<string, ChapterDraft>>(() => {
@@ -54,6 +66,7 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
     return draft;
   });
   const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   // Folder name -> language id; an empty value means "detect from the folder name".
@@ -104,11 +117,29 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
         ),
       });
       onDone(res.library);
+      onBackupChange({ at: res.backupAt, volume: volume.id });
       setStatus(t('preprocess.applied'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** One-shot undo of the last apply for this volume. */
+  const restore = async () => {
+    setRestoring(true);
+    setError(null);
+    setStatus('');
+    try {
+      const res = await api.restorePreprocess(volume.id);
+      onBackupChange(null);
+      onDone(res.library);
+      onRestored();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -131,6 +162,14 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
   return (
     <>
       <div className="modal-body preprocess-body">
+        {backup?.volume === volume.id && (
+          <div className="banner info preprocess-backup">
+            <span>{t('preprocess.backupAvailable')}</span>
+            <button type="button" className="btn" disabled={restoring || busy} onClick={() => void restore()}>
+              {restoring ? t('preprocess.restoring') : t('preprocess.restore')}
+            </button>
+          </div>
+        )}
         <div className="preprocess-grid">
           <label className="field">
             <span>{t('preprocess.volumeTitle')}</span>
@@ -314,7 +353,29 @@ function PreprocessEditor({ volume, onDone }: { volume: VolumeEntry; onDone: (li
 export function PreprocessDialog({ library, initialVolume, onClose, onDone }: Props) {
   const { t } = useI18n();
   const [volumeId, setVolumeId] = useState(() => initialVolume ?? library.volumes[0]?.id ?? '');
-  const volume = useMemo(() => library.volumes.find((v) => v.id === volumeId) ?? null, [library, volumeId]);
+  const [backup, setBackup] = useState<{ at: string; volume: string } | null>(null);
+  const [notice, setNotice] = useState('');
+  // Latest library returned by apply/restore, so the editor sees it before the parent reload lands.
+  const [localLibrary, setLocalLibrary] = useState<Library | null>(null);
+  // Bumped after a restore so the editor remounts with the rolled-back config.
+  const [revision, setRevision] = useState(0);
+  const source = localLibrary ?? library;
+  const volume = useMemo(() => source.volumes.find((v) => v.id === volumeId) ?? null, [source, volumeId]);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .preprocessBackup()
+      .then((res) => {
+        if (alive) setBackup(res.backup);
+      })
+      .catch(() => {
+        /* the wizard still works without the backup hint */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -328,7 +389,7 @@ export function PreprocessDialog({ library, initialVolume, onClose, onDone }: Pr
             ×
           </button>
         </header>
-        {!library.volumes.length ? (
+        {!source.volumes.length ? (
           <div className="modal-body">
             <div className="banner info">{t('preprocess.noVolumes')}</div>
           </div>
@@ -337,8 +398,14 @@ export function PreprocessDialog({ library, initialVolume, onClose, onDone }: Pr
             <div className="preprocess-toolbar">
               <label className="field">
                 <span>{t('preprocess.volume')}</span>
-                <select value={volumeId} onChange={(e) => setVolumeId(e.target.value)}>
-                  {library.volumes.map((v) => (
+                <select
+                  value={volumeId}
+                  onChange={(e) => {
+                    setVolumeId(e.target.value);
+                    setNotice('');
+                  }}
+                >
+                  {source.volumes.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.title}
                     </option>
@@ -346,7 +413,23 @@ export function PreprocessDialog({ library, initialVolume, onClose, onDone }: Pr
                 </select>
               </label>
             </div>
-            {volume && <PreprocessEditor key={volume.id} volume={volume} onDone={onDone} />}
+            {notice && <div className="banner info preprocess-notice">{notice}</div>}
+            {volume && (
+              <PreprocessEditor
+                key={`${volume.id}:${revision}`}
+                volume={volume}
+                backup={backup}
+                onBackupChange={setBackup}
+                onRestored={() => {
+                  setRevision((n) => n + 1);
+                  setNotice(t('preprocess.restored'));
+                }}
+                onDone={(lib) => {
+                  setLocalLibrary(lib);
+                  onDone(lib);
+                }}
+              />
+            )}
           </>
         )}
         <footer className="modal-foot">
