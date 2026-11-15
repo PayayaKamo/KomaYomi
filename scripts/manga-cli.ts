@@ -22,7 +22,7 @@ import { listPlugins, runPlugin } from '../server/plugins.ts';
 import { AppError } from '../server/errors.ts';
 import { langFromEnv, normalizeLang, runWithLang, t } from '../server/messages/index.ts';
 import type { MessageLang } from '../server/messages/index.ts';
-import type { PageDoc, Panel, PanelRect } from '../shared/types.ts';
+import type { PageDoc, Panel, PanelRect, ReadingDirection } from '../shared/types.ts';
 
 type Flags = Record<string, string | boolean>;
 
@@ -190,6 +190,7 @@ async function detectPage(
   index: number,
   file: string,
   flags: Flags,
+  direction: ReadingDirection,
 ): Promise<{ rects: PanelRect[]; source: 'auto' | 'template' | 'plugin'; label: string; warnings: string[] }> {
   const buf = fs.readFileSync(file);
   if (!flags.auto) {
@@ -211,7 +212,7 @@ async function detectPage(
     );
     if (plugin.ok) {
       return {
-        rects: sortReadingOrder(plugin.panels, 'rtl'),
+        rects: sortReadingOrder(plugin.panels, direction, (rect) => rect),
         source: 'plugin',
         label: `plugin:${plugin.plugin}`,
         warnings: plugin.warnings,
@@ -225,7 +226,7 @@ async function detectPage(
         warnings: [t('CLI_PLUGIN_FAILED', { plugin: plugin.plugin, detail: plugin.error })],
       };
   }
-  const result = detectPanels(buf, file);
+  const result = detectPanels(buf, file, direction);
   return { rects: result.panels, source: 'auto', label: 'auto', warnings: [] };
 }
 
@@ -246,7 +247,10 @@ async function cmdDetect(flags: Flags) {
       const rel = findLangFile(page, contentLang(flags));
       if (!rel) continue;
       const file = path.join(root, decodeURIComponent(rel));
-      const detected = await detectPage(volume, ch.chapter, index, file, flags);
+      // Prefer the saved page direction, then the volume default; only then the legacy rtl.
+      const savedDoc = readPageDoc(dataRoot, volume, ch.chapter, index);
+      const direction = savedDoc?.readingDirection ?? vol.defaultDirection ?? 'rtl';
+      const detected = await detectPage(volume, ch.chapter, index, file, flags, direction);
       const label = `${ch.chapter}/p${index + 1}`;
       if (!detected.rects.length) {
         console.log(
@@ -257,7 +261,7 @@ async function cmdDetect(flags: Flags) {
         );
         continue;
       }
-      const doc = loadDoc(volume, ch.chapter, index);
+      const doc = savedDoc ?? { ...createEmptyDoc(volume, ch.chapter, index), readingDirection: direction };
       if (doc.panels.length && !flags.overwrite) {
         console.log(t('CLI_DETECT_SKIPPED_EXISTING', { page: label, panels: doc.panels.length }));
         continue;

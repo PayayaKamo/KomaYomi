@@ -230,7 +230,7 @@ export function usePage(sel: Selection | null) {
       if (!sel) return;
       setState((s) => ({ ...s, detecting: true, error: null }));
       try {
-        const res = await api.detect(sel.volume, sel.chapter, sel.pageIndex, lang);
+        const res = await api.detect(sel.volume, sel.chapter, sel.pageIndex, lang, docRef.current?.readingDirection);
         const panels = res.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
         mutate(
           (doc) => ({
@@ -302,7 +302,7 @@ export function usePage(sel: Selection | null) {
         if (!res.exists && res.doc.panels.length === 0 && hasImage) {
           // First open: auto-detect panels (the result is autosaved along with the next edit).
           void api
-            .detect(sel.volume, sel.chapter, sel.pageIndex)
+            .detect(sel.volume, sel.chapter, sel.pageIndex, undefined, res.doc.readingDirection)
             .then((det) => {
               if (cancelled || lastKey.current !== key) return;
               const panels = det.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));

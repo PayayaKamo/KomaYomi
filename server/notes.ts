@@ -94,7 +94,7 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
         const doc: PageDoc | null = readPageDoc(dataRoot, volume, chapter, pageIndex);
         if (!doc || !doc.notes.length) continue;
         pageCount++;
-        const order = sortReadingOrder(doc.panels, doc.readingDirection);
+        const order = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
         for (const note of doc.notes) {
           const domain = domainOf(note.source);
           if (tag && !note.tags.includes(tag)) continue;

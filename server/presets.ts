@@ -155,7 +155,7 @@ export function applyPanelTemplate(
   const template = readPanelTemplate(dataRoot, templateId);
   if (!template) return null;
 
-  const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection);
+  const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
   const panels: Panel[] = template.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' }));
   let droppedNotes = 0;
   const notes =

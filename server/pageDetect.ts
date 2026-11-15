@@ -6,7 +6,7 @@ import { runPlugin } from './plugins.ts';
 import { createEmptyDoc, readPageDoc, writePageDoc } from './storage.ts';
 import { t } from './messages/index.ts';
 import type { MessageParams } from './messages/index.ts';
-import type { Library, PageEntry, PanelRect } from '../shared/types.ts';
+import type { Library, PageEntry, PanelRect, ReadingDirection } from '../shared/types.ts';
 
 export type PageDetectResult = {
   width: number;
@@ -34,8 +34,11 @@ export async function detectPage(args: {
   pageIndex: number;
   page: PageEntry;
   lang?: string;
+  /** Page or volume reading direction; detection falls back to the legacy rtl order. */
+  readingDirection?: ReadingDirection;
 }): Promise<PageDetectResult | null> {
   const { rootDir, dataRoot, volume, chapter, pageIndex, page } = args;
+  const direction = args.readingDirection ?? 'rtl';
   const order: string[] = [args.lang ?? '', ...Object.keys(page.files)];
   const lang = order.find((l) => page.files[l as keyof PageEntry['files']]);
   const rel = lang ? page.files[lang as keyof PageEntry['files']] : undefined;
@@ -72,7 +75,7 @@ export async function detectPage(args: {
   if (plugin.ok) {
     return {
       ...size,
-      panels: sortReadingOrder(plugin.panels, 'rtl'),
+      panels: sortReadingOrder(plugin.panels, direction, (rect) => rect),
       meta: { scale: 1, threshold: 0, ms: 0 },
       version: `plugin:${plugin.plugin}`,
       source: 'plugin',
@@ -88,7 +91,7 @@ export async function detectPage(args: {
   }
 
   return {
-    ...detectPanels(buf, file),
+    ...detectPanels(buf, file, direction),
     lang,
     version: DETECTOR_VERSION,
     source: 'auto',
@@ -124,13 +127,23 @@ export async function fillMissingPageDocs(args: {
     if (readPageDoc(dataRoot, volume, chapter, page.index)) continue;
     let detected: PageDetectResult | null = null;
     try {
-      detected = await detectPage({ rootDir, dataRoot, volume, chapter, pageIndex: page.index, page });
+      detected = await detectPage({
+        rootDir,
+        dataRoot,
+        volume,
+        chapter,
+        pageIndex: page.index,
+        page,
+        // These pages have no saved document, so the volume default is the only direction hint.
+        readingDirection: volumeEntry?.defaultDirection,
+      });
     } catch {
       // An unreadable image simply stays out of the export, as before.
       continue;
     }
     if (!detected) continue;
     const doc = createEmptyDoc(volume, chapter, page.index);
+    doc.readingDirection = volumeEntry?.defaultDirection ?? 'rtl';
     doc.panels = detected.panels.map((rect, i) => ({
       id: `p${i + 1}`,
       rect,

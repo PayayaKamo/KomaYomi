@@ -74,6 +74,13 @@ describe('detectPanels', () => {
     expect(result.panels.every((p) => p.w > 0 && p.h > 0 && p.x + p.w <= 1 && p.y + p.h <= 1)).toBe(true);
   });
 
+  it('sorts detection output with the page direction instead of always rtl', () => {
+    const ltr = detectPanels(threePanelPage(), 'page.png', 'ltr');
+    expect(ltr.panels[0].x).toBeLessThan(ltr.panels[1].x);
+    const rtl = detectPanels(threePanelPage(), 'page.png');
+    expect(rtl.panels[0].x).toBeGreaterThan(rtl.panels[1].x);
+  });
+
   it('ignores a narrow vertical note strip glued to the left edge (あらすじ regression)', () => {
     const result = detectPanels(sidebarNotePage(), 'page.png');
     expect(result.panels).toHaveLength(1);

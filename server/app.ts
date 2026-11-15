@@ -423,7 +423,13 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           return true;
         }
         const saved = readPageDoc(dataRoot, volume, chapter, index);
-        const doc = saved ?? createEmptyDoc(volume, chapter, index);
+        const volumeEntry = library.volumes.find((v) => v.id === volume);
+        // A page without a document yet inherits its volume direction, so the first
+        // detection already sorts in the direction the reader will use.
+        const doc = saved ?? {
+          ...createEmptyDoc(volume, chapter, index),
+          readingDirection: volumeEntry?.defaultDirection ?? 'rtl',
+        };
         sendJson(res, 200, {
           doc,
           exists: saved !== null,
@@ -514,6 +520,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           chapter: string;
           pageIndex: number;
           lang?: string;
+          readingDirection?: string;
         };
         const found = findPage(library, body.volume, body.chapter, body.pageIndex);
         if (!found) {
@@ -524,6 +531,12 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           });
           return true;
         }
+        const volumeEntry = library.volumes.find((v) => v.id === body.volume);
+        const readingDirection =
+          readReadingDirection(body.readingDirection) ??
+          readPageDoc(dataRoot, body.volume, body.chapter, body.pageIndex)?.readingDirection ??
+          volumeEntry?.defaultDirection ??
+          'rtl';
         const detected = await detectPage({
           rootDir,
           dataRoot,
@@ -532,6 +545,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           pageIndex: body.pageIndex,
           page: found.page,
           lang: body.lang,
+          readingDirection,
         });
         if (!detected) {
           fail(res, 400, 'ERR_PAGE_NO_IMAGES', { volume: body.volume, chapter: body.chapter });
@@ -678,7 +692,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir }: Mang
           for (const index of pageRange(body.pageIndices, ch.pages.length)) {
             const doc = readPageDoc(dataRoot, volume, ch.chapter, index) ?? createEmptyDoc(volume, ch.chapter, index);
             const rects = expandLayout(layout, index);
-            const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection);
+            const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
             const panels = rects.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
             // When the panel count matches, migrate panel-level notes in reading order so applying a template does not drop them.
             const notes =

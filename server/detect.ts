@@ -2,7 +2,7 @@
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import type { DetectResult, PanelRect, ReadingDirection } from '../shared/types.ts';
-import { isRightToLeft, isVerticalReading } from '../shared/types.ts';
+import { sortReadingOrder } from '../shared/panelOrder.ts';
 import { AppError } from './errors.ts';
 
 type Gray = { width: number; height: number; data: Uint8Array };
@@ -311,7 +311,7 @@ function findLineCuts(
 }
 
 /** Detect the panels of one page and return normalized coordinates (relative to the page). */
-export function detectPanels(buf: Buffer, filename: string): DetectResult {
+export function detectPanels(buf: Buffer, filename: string, direction: ReadingDirection = 'rtl'): DetectResult {
   const t0 = Date.now();
   const full = decodeGray(buf, filename);
   const { gray, scale } = downsample(full, 1000);
@@ -377,53 +377,12 @@ export function detectPanels(buf: Buffer, filename: string): DetectResult {
   return {
     width: full.width,
     height: full.height,
-    panels: sortReadingOrder(panels, 'rtl'),
+    panels: sortReadingOrder(panels, direction, (rect) => rect),
     meta: { scale, threshold, ms: Date.now() - t0 },
   };
 }
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
-/** Sort in reading order: rtl right-to-left within a row; ltr left-to-right within a row; ttb columns right-to-left, top-to-bottom within a column. */
-export function sortReadingOrder<T>(
-  items: T[],
-  dir: ReadingDirection,
-  getRect: (item: T) => PanelRect = (item) => item as unknown as PanelRect,
-): T[] {
-  const list = [...items];
-  const rects = list.map((item) => ({ item, rect: getRect(item) }));
-  if (isVerticalReading(dir)) {
-    const medianW = median(rects.map((r) => r.rect.w)) || 0.2;
-    const columns: (typeof rects)[] = [];
-    const xSorted = [...rects].sort((a, b) =>
-      isRightToLeft(dir)
-        ? b.rect.x + b.rect.w / 2 - (a.rect.x + a.rect.w / 2)
-        : a.rect.x + a.rect.w / 2 - (b.rect.x + b.rect.w / 2),
-    );
-    for (const r of xSorted) {
-      const cx = r.rect.x + r.rect.w / 2;
-      const group = columns.find((g) => Math.abs(g[0].rect.x + g[0].rect.w / 2 - cx) < medianW * 0.6);
-      if (group) group.push(r);
-      else columns.push([r]);
-    }
-    return columns.flatMap((g) => g.sort((a, b) => a.rect.y - b.rect.y).map((r) => r.item));
-  }
-  const medianH = median(rects.map((r) => r.rect.h)) || 0.2;
-  const rows: (typeof rects)[] = [];
-  const ySorted = [...rects].sort((a, b) => a.rect.y + a.rect.h / 2 - (b.rect.y + b.rect.h / 2));
-  for (const r of ySorted) {
-    const cy = r.rect.y + r.rect.h / 2;
-    const group = rows.find((g) => Math.abs(g[0].rect.y + g[0].rect.h / 2 - cy) < medianH * 0.6);
-    if (group) group.push(r);
-    else rows.push([r]);
-  }
-  return rows.flatMap((g) =>
-    g.sort((a, b) => (isRightToLeft(dir) ? b.rect.x - a.rect.x : a.rect.x - b.rect.x)).map((r) => r.item),
-  );
-}
-
-function median(nums: number[]): number {
-  if (!nums.length) return 0;
-  const s = [...nums].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
-}
+/** Re-exported so existing callers keep importing the shared rule from one place. */
+export { sortReadingOrder } from '../shared/panelOrder.ts';

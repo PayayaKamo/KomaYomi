@@ -342,8 +342,11 @@ export const api = {
 
   setHistoryLimit: (limit: number) => request<{ limit: number }>('/api/history-limit', json({ limit })),
 
-  detect: (volume: string, chapter: string, pageIndex: number, lang?: string) =>
-    request<DetectResult & { lang?: string }>('/api/detect', json({ volume, chapter, pageIndex, lang })),
+  detect: (volume: string, chapter: string, pageIndex: number, lang?: string, readingDirection?: ReadingDirection) =>
+    request<DetectResult & { lang?: string }>(
+      '/api/detect',
+      json({ volume, chapter, pageIndex, lang, readingDirection }),
+    ),
 
   tags: () => request<{ tags: { tag: string; count: number }[] }>('/api/tags'),
 
