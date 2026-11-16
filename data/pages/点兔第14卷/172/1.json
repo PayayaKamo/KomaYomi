@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 1,
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 1,
@@ -85,22 +86,16 @@
     }
   ],
   "notes": [],
-  "offsets": {
-    "ja": {
-      "x": 0,
-      "y": 0,
-      "scale": 0.937
-    }
-  },
+  "offsets": {},
   "alignMode": "page",
   "panelOffsets": {},
   "gridStep": 1,
   "readingDirection": "rtl",
-  "updatedAt": "2026-11-15T05:45:43.458Z",
-  "editCount": 13,
-  "lastEditedAt": "2026-11-15T05:45:43.458Z",
-  "lastEditSummary": "调整格框",
-  "schemaVersion": 1,
+  "updatedAt": "2026-11-16T02:01:55.387Z",
+  "editCount": 14,
+  "lastEditedAt": "2026-11-16T02:01:55.387Z",
+  "lastEditSummary": "saved",
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "kind": "page"
+  "kind": "page",
+  "appVersion": "0.1.0-rc.3"
 }
