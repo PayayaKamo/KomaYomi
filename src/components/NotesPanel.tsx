@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, DragEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
 import type { Lang, Note, NoteAnchor, NoteImage, NoteSource, NoteTypeDef, PageDoc, Panel } from '../types';
@@ -681,14 +681,65 @@ function loadTemplate(fallback: string): string {
 
 /* ---------------- Notes panel ---------------- */
 
-const ROW_H = 96;
+type GroupBy = 'page' | 'panel' | 'date';
 
 type FlatHeader =
-  | { kind: 'header'; key: string; count: number; group: 'chapter'; volume: string; chapter: string }
-  | { kind: 'header'; key: string; count: number; group: 'tag'; tag: string | null }
-  | { kind: 'header'; key: string; count: number; group: 'source'; domain: string };
+  | {
+      kind: 'header';
+      key: string;
+      count: number;
+      group: 'page';
+      volume: string;
+      chapter: string;
+      pageIndex: number;
+    }
+  | {
+      kind: 'header';
+      key: string;
+      count: number;
+      group: 'panel';
+      volume: string;
+      chapter: string;
+      pageIndex: number;
+      panelNo: number | null;
+    }
+  | { kind: 'header'; key: string; count: number; group: 'date'; date: string };
 
 type FlatRow = FlatHeader | { kind: 'note'; note: NotesIndex['notes'][number] };
+
+/** First non-empty line of a note, stripped of Markdown markers, for the collapsed row. */
+function firstLine(text: string): string {
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw
+      .replace(/^[\s>#*+-]+/, '')
+      .replace(/[*_`~]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (line) return line;
+  }
+  return '';
+}
+
+/** Wrap every case-insensitive hit of `query` in <mark> so search results stay scannable. */
+function highlightMatch(text: string, query: string): ReactNode {
+  const needle = query.trim();
+  if (!needle) return text;
+  const haystack = text.toLowerCase();
+  const target = needle.toLowerCase();
+  const nodes: ReactNode[] = [];
+  let from = 0;
+  for (;;) {
+    const at = haystack.indexOf(target, from);
+    if (at < 0) {
+      nodes.push(text.slice(from));
+      break;
+    }
+    if (at > from) nodes.push(text.slice(from, at));
+    nodes.push(<mark key={nodes.length}>{text.slice(at, at + target.length)}</mark>);
+    from = at + target.length;
+  }
+  return nodes;
+}
 
 export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPanel(
   {
@@ -712,7 +763,7 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   },
   ref,
 ) {
-  const { t, formatDate, formatNumber } = useI18n();
+  const { t, locale, formatDate, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
   const editorApi = useRef<EditorApi | null>(null);
   const [tab, setTab] = useState<'page' | 'all'>('page');
@@ -831,11 +882,11 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   const [fVolume, setFVolume] = useState('');
   const [fChapter, setFChapter] = useState('');
   const [fPage, setFPage] = useState('');
-  const [groupBy, setGroupBy] = useState<'chapter' | 'tag' | 'source'>('chapter');
+  const [groupBy, setGroupBy] = useState<GroupBy>('page');
   const [result, setResult] = useState<NotesIndex | null>(null);
   const [loading, setLoading] = useState(false);
-  const [scrollTop, setScrollTop] = useState(0);
-  const listRef = useRef<HTMLDivElement>(null);
+  /** Collapsed by default: the overview stays one compact row per note until opened. */
+  const [expandedHits, setExpandedHits] = useState<Set<string>>(() => new Set());
 
   // Reset the composer when the target panel/page changes. Keying on primitives
   // avoids re-running this whenever an unrelated field of the page doc mutates.
@@ -961,7 +1012,7 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
 
   const typeById = useMemo(() => new Map(typeList.map((ty) => [ty.id, ty])), [typeList]);
   /** Legacy notes may still miss a category (or reference a deleted one): show them as the default. */
-  const typeKey = (note: Note): string => {
+  const typeKey = (note: { type?: string }): string => {
     const id = note.type ?? DEFAULT_NOTE_TYPE;
     return typeById.has(id) ? id : DEFAULT_NOTE_TYPE;
   };
@@ -1430,28 +1481,58 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     </div>
   );
 
-  /* ---- Overview: grouped by chapter / tag / source, with virtual scrolling ---- */
+  /* ---- Overview: one full-width column, grouped by page / panel / date ---- */
   // Keep localized labels out of the memo so a locale switch re-renders them,
   // while grouping itself only depends on the search result.
   const flat = useMemo<FlatRow[]>(() => {
     if (!result) return [];
     const headers = new Map<string, FlatHeader>();
     const rows: FlatRow[] = [];
-    for (const note of result.notes) {
-      const key =
-        groupBy === 'chapter'
-          ? `${note.volume}/${note.chapter}`
-          : groupBy === 'tag'
-            ? (note.tags[0] ?? '')
-            : note.domain || '';
+    // Date grouping reads best newest-first; the server already returns reading order.
+    const source =
+      groupBy === 'date'
+        ? [...result.notes].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+        : result.notes;
+    for (const note of source) {
+      let key: string;
+      if (groupBy === 'page') {
+        key = `${note.volume}/${note.chapter}/${note.pageIndex}`;
+      } else if (groupBy === 'panel') {
+        key = `${note.volume}/${note.chapter}/${note.pageIndex}/${note.panelNo ?? 0}`;
+      } else {
+        const date = new Date(note.updatedAt);
+        key = Number.isNaN(date.getTime())
+          ? ''
+          : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(
+              2,
+              '0',
+            )}`;
+      }
       let header = headers.get(key);
       if (!header) {
         header =
-          groupBy === 'chapter'
-            ? { kind: 'header', key, count: 0, group: 'chapter', volume: note.volume, chapter: note.chapter }
-            : groupBy === 'tag'
-              ? { kind: 'header', key, count: 0, group: 'tag', tag: note.tags[0] ?? null }
-              : { kind: 'header', key, count: 0, group: 'source', domain: note.domain || '' };
+          groupBy === 'page'
+            ? {
+                kind: 'header',
+                key,
+                count: 0,
+                group: 'page',
+                volume: note.volume,
+                chapter: note.chapter,
+                pageIndex: note.pageIndex,
+              }
+            : groupBy === 'panel'
+              ? {
+                  kind: 'header',
+                  key,
+                  count: 0,
+                  group: 'panel',
+                  volume: note.volume,
+                  chapter: note.chapter,
+                  pageIndex: note.pageIndex,
+                  panelNo: note.panelNo,
+                }
+              : { kind: 'header', key, count: 0, group: 'date', date: key };
         headers.set(key, header);
         rows.push(header);
       }
@@ -1461,15 +1542,34 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     return rows;
   }, [result, groupBy]);
 
-  const headerLabel = (row: FlatHeader): string => {
-    if (row.group === 'chapter') return `${row.volume} · ${t('format.chapter', { chapter: row.chapter })}`;
-    if (row.group === 'tag') return row.tag ? `# ${row.tag}` : t('notes.untagged');
-    return row.domain || t('notes.noSource');
+  const dateLabel = (key: string): string => {
+    if (!key) return '—';
+    const [year, month, day] = key.split('-').map(Number);
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(year, month - 1, day));
   };
 
-  const totalHeight = flat.length * ROW_H;
-  const windowStart = Math.max(0, Math.floor(scrollTop / ROW_H) - 4);
-  const windowEnd = Math.min(flat.length, Math.ceil((scrollTop + (listRef.current?.clientHeight ?? 600)) / ROW_H) + 6);
+  const headerLabel = (row: FlatHeader): string => {
+    if (row.group === 'date') return dateLabel(row.date);
+    const base = `${row.volume} · ${t('format.chapter', { chapter: row.chapter })}`;
+    if (row.group === 'page') return `${base} · ${t('notes.pageHeading', { page: formatNumber(row.pageIndex + 1) })}`;
+    return row.panelNo
+      ? `${base} · ${t('notes.jumpWithPanel', {
+          page: formatNumber(row.pageIndex + 1),
+          panel: formatNumber(row.panelNo),
+        })}`
+      : `${base} · ${t('notes.jumpWholePage', { page: formatNumber(row.pageIndex + 1) })}`;
+  };
+
+  const hasFilters = Boolean(query.trim() || filterTag || filterSource || fVolume || fChapter || fPage);
+
+  const toggleHit = (key: string) => {
+    setExpandedHits((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const chaptersForVolume = useMemo(() => {
     const vol = library?.volumes.find((v) => v.id === fVolume);
@@ -1589,12 +1689,12 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
               <select
                 value={groupBy}
                 onChange={(e) =>
-                  setGroupBy(e.target.value === 'tag' ? 'tag' : e.target.value === 'source' ? 'source' : 'chapter')
+                  setGroupBy(e.target.value === 'panel' ? 'panel' : e.target.value === 'date' ? 'date' : 'page')
                 }
               >
-                <option value="chapter">{t('notes.groupByChapter')}</option>
-                <option value="tag">{t('notes.groupByTag')}</option>
-                <option value="source">{t('notes.groupBySource')}</option>
+                <option value="page">{t('notes.groupByPage')}</option>
+                <option value="panel">{t('notes.groupByPanel')}</option>
+                <option value="date">{t('notes.groupByDate')}</option>
               </select>
             </div>
             <div className="muted tiny">
@@ -1621,61 +1721,88 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
             </div>
           </div>
 
-          <div className="notes-list" ref={listRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
-            <div className="virtual-space" style={{ height: totalHeight }}>
-              {flat.slice(windowStart, windowEnd).map((row, i) => {
-                const index = windowStart + i;
+          <div className="notes-list">
+            {flat.length === 0 ? (
+              <div className="notes-empty">
+                {loading
+                  ? t('notes.searching')
+                  : result
+                    ? hasFilters
+                      ? t('notes.searchEmpty')
+                      : t('notes.libraryEmpty')
+                    : t('notes.searchIdle')}
+              </div>
+            ) : (
+              flat.map((row) => {
                 if (row.kind === 'header') {
                   return (
-                    <div className="note-group-head" key={`h-${row.key}-${index}`} style={{ top: index * ROW_H }}>
+                    <div className="note-group-head" key={`h-${row.key}`}>
                       {headerLabel(row)}
                       <span>{formatNumber(row.count)}</span>
                     </div>
                   );
                 }
                 const n = row.note;
+                const key = `${n.volume}/${n.chapter}/${n.pageIndex}/${n.id}`;
+                const expanded = expandedHits.has(key);
+                const typeId = typeKey(n);
                 return (
-                  <div
-                    className="note-hit"
-                    key={`${n.volume}/${n.chapter}/${n.pageIndex}/${n.id}`}
-                    style={{ top: index * ROW_H }}
-                  >
-                    <button
-                      type="button"
-                      className="note-hit-jump"
-                      onClick={() =>
-                        onJump({ volume: n.volume, chapter: n.chapter, pageIndex: n.pageIndex }, n.panelId)
-                      }
-                      title={t('notes.jumpTitle')}
-                    >
-                      {n.panelNo
-                        ? t('notes.jumpWithPanel', {
-                            page: formatNumber(n.pageIndex + 1),
-                            panel: formatNumber(n.panelNo),
-                          })
-                        : t('notes.jumpWholePage', { page: formatNumber(n.pageIndex + 1) })}
-                    </button>
-                    <div className="note-hit-text">{n.excerpt}</div>
-                    <div className="note-hit-tags">
-                      {n.domain && <span className="src-badge">{n.domain}</span>}
-                      {n.tags.map((tag) => (
-                        <button
-                          type="button"
-                          key={tag}
-                          className="tag ghost"
-                          onClick={() => {
-                            setFilterTag(tag);
-                            setTab('all');
-                          }}
-                        >
-                          {tag}
-                        </button>
-                      ))}
+                  <div className={`note-hit${expanded ? ' open' : ''}`} key={key}>
+                    <div className="note-hit-row">
+                      <button
+                        type="button"
+                        className="note-hit-toggle"
+                        aria-expanded={expanded}
+                        onClick={() => toggleHit(key)}
+                      >
+                        <span className="note-hit-type" style={{ '--type-color': typeColor(typeId) } as CSSProperties}>
+                          {typeName(typeId)}
+                        </span>
+                        <span className="note-hit-summary">{highlightMatch(firstLine(n.text), query)}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="note-hit-where"
+                        title={`${t('notes.jumpTitle')} · ${n.volume} · ${t('format.chapter', {
+                          chapter: n.chapter,
+                        })}`}
+                        onClick={() =>
+                          onJump({ volume: n.volume, chapter: n.chapter, pageIndex: n.pageIndex }, n.panelId)
+                        }
+                      >
+                        {n.panelNo
+                          ? t('notes.hitPanel', {
+                              page: formatNumber(n.pageIndex + 1),
+                              panel: formatNumber(n.panelNo),
+                            })
+                          : t('notes.hitPage', { page: formatNumber(n.pageIndex + 1) })}
+                      </button>
                     </div>
+                    {expanded && (
+                      <div className="note-hit-body">
+                        <div className="note-hit-full">{highlightMatch(n.text, query)}</div>
+                        <div className="note-hit-tags">
+                          {n.domain && <span className="src-badge">{n.domain}</span>}
+                          {n.tags.map((tag) => (
+                            <button
+                              type="button"
+                              key={tag}
+                              className="tag ghost"
+                              onClick={() => {
+                                setFilterTag(tag);
+                                setTab('all');
+                              }}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
-              })}
-            </div>
+              })
+            )}
           </div>
         </>
       ) : (

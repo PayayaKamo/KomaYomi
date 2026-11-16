@@ -27,6 +27,8 @@ export type NoteHit = {
   panelId: string | null;
   /** 1-based panel number in reading order; null for page notes */
   panelNo: number | null;
+  /** Category id (built-in, language or user-defined) so the overview can show a type badge. */
+  type?: string;
   text: string;
   excerpt: string;
   tags: string[];
@@ -129,6 +131,7 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
             scope: note.scope,
             panelId: note.scope === 'panel' ? (note.panelId ?? null) : null,
             panelNo: panelNo > 0 ? panelNo : null,
+            type: note.type,
             text: note.text,
             excerpt: markdownExcerpt(note.text, 140),
             tags: note.tags,
