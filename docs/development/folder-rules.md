@@ -4,17 +4,16 @@ Folder rules describe where the volume, language, chapter and page sit inside a 
 
 ## Where rules are stored
 
-Rules live in `data/library.json` as a `rules` array (kind `mnconfig`). When the array is missing or empty, the built-in rule applies:
+Rules live in `data/library.json` as a `rules` array (kind `mnconfig`). When the array is missing or empty, two built-in rules apply, tried in this order:
 
 ```json
-{
-  "id": "volume-language-chapter-page",
-  "name": "{volume}/{language}/{chapter}/{page}",
-  "pattern": "{volume}/{language}/{chapter}/{page}"
-}
+[
+  { "id": "volume-language-chapter-page", "name": "{volume}/{language}/{chapter}/{page}", "pattern": "{volume}/{language}/{chapter}/{page}" },
+  { "id": "series-volume-language-chapter-page", "name": "{series}/{volume}/{language}/{chapter}/{page}", "pattern": "{series}/{volume}/{language}/{chapter}/{page}" }
+]
 ```
 
-The dialog's **Restore defaults** writes that shape back; **Save rules** validates the whole array before anything is rescanned.
+The second rule covers a root that holds several works. The dialog's **Restore defaults** writes those two rules back; **Save rules** validates the whole array before anything is rescanned.
 
 ## Placeholders
 
@@ -28,7 +27,7 @@ The dialog's **Restore defaults** writes that shape back; **Save rules** validat
 
 Aliases are case-insensitive (`{seriesName}` and `{seriesname}` are the same). A rule must contain `{page}`, and must contain `{language}` unless it declares a fallback `language`.
 
-When both `{series}` and `{volume}` match, the volume id becomes `"<series> / <volume>"`, which keeps two series with identically named volumes apart.
+When both `{series}` and `{volume}` match, the series name is stored next to the volume, not inside its id. The volume id stays the volume folder name; the series path is carried separately for the "series · volume" label. `{series}` may span several directories. If two series ship identically named volumes, the collision is resolved by prefixing the volume id with the last series folder (`alpha-vol-01`), so their page data does not merge.
 
 ## Optional segments and wildcards
 

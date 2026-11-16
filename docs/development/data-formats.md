@@ -126,10 +126,18 @@ Rules worth knowing before you write a page by hand:
   "volumes": {
     "点兔第14卷": {
       "title": "点兔 第14卷",
+      "series": "请问您今天要来点兔子吗？",
       "dirs": { "ja": "raw-ja", "zh": "raw-zh" },
       "defaultDirection": "rtl",
       "chapters": {
-        "172": { "title": "第172话", "order": [0, 1, 2], "excluded": [12], "kinds": { "0": "cover" } }
+        "172": {
+          "title": "第172话",
+          "order": [0, 1, 2],
+          "excluded": [12],
+          "kinds": { "0": "cover" },
+          "hidden": false,
+          "pageOffsets": { "zh": { "from": 5, "to": 6 } }
+        }
       }
     }
   },
@@ -137,6 +145,10 @@ Rules worth knowing before you write a page by hand:
     {
       "id": "volume-language-chapter-page",
       "pattern": "{volume}/{language}/{chapter}/{page}"
+    },
+    {
+      "id": "series-volume-language-chapter-page",
+      "pattern": "{series}/{volume}/{language}/{chapter}/{page}"
     }
   ],
   "langOrder": ["ja", "zh", "en"],
@@ -145,8 +157,9 @@ Rules worth knowing before you write a page by hand:
 }
 ```
 
-- `volumes` holds overrides only; folders on disk are never renamed.
-- `rules` is tried in order and falls back to the built-in shape when empty. See [Folder rules](/development/folder-rules).
+- `volumes` holds overrides only; folders on disk are never renamed. `title` and `series` change the sidebar label, `defaultDirection` is inherited by new pages.
+- `chapters` is keyed by chapter id: `hidden: true` removes a chapter from the library while keeping its folder and page data, and `pageOffsets` aligns one language from page `from` to page `to` of the reference edition.
+- `rules` is tried in order and falls back to the two built-in rules when empty. See [Folder rules](/development/folder-rules).
 - `langOrder` is a preference. Language ids discovered during a scan are appended after the configured ones.
 - `historyLimit` defaults to 50 and is clamped to `5..200`.
 - `autoBackup` is optional; the schedule runs while the app or server is running.

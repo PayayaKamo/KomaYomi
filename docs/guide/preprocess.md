@@ -4,7 +4,7 @@ KomaYomi reads image folders in place. It never copies or converts your files, a
 
 ## The problem it solves
 
-Panel detection is happiest with clean page scans. A volume with rotated pages, scanner borders, a pile of WebP files or one edition missing a page will still open, but every later step — pairing, alignment, notes, export — inherits the mess. Fix it once, at the source.
+Panel detection is happiest with clean page scans. A volume with rotated pages, scanner borders, a pile of AVIF/HEIC files or one edition missing a page will still open, but every later step — pairing, alignment, notes, export — inherits the mess. Fix it once, at the source.
 
 ## What KomaYomi does with your files
 
@@ -13,7 +13,7 @@ Panel detection is happiest with clean page scans. A volume with rotated pages, 
 | Images are read from the folder you point at. | Nothing is imported or duplicated; edits stay in `data/`. Renaming and splitting happen only when you use the wizard. |
 | Pages are paired by **sorted position**, not by filename. | Renaming changes the order. Insert one page and every later page shifts. |
 | Sorting is natural: digit runs compare as numbers. | `2.jpg` comes before `10.jpg` even without zero padding. |
-| WebP is displayed but not decoded for panel detection. | Convert WebP pages to JPEG or PNG if you rely on **Auto split**. Splitting a page in the wizard also needs PNG or JPEG. |
+| WebP is decoded for detection and splitting; AVIF, HEIC, GIF and BMP are not. | Convert AVIF/HEIC/GIF/BMP to JPEG or PNG if you rely on **Auto split**. Splitting a WebP page works and writes PNG halves. |
 | One image is one page. | A scanned spread must be split in every language, either in the wizard or before importing. |
 
 <figure class="shot">
@@ -27,7 +27,7 @@ Work on a copy if the originals matter. The order below matters more than the to
 
 1. **Rotate and deskew.** Reading direction is stored per page; a sideways scan cannot be fixed by the compare reader.
 2. **Crop scanner borders and facing-page shadows.** Panels that touch the edge are detected more reliably when the page edge is square.
-3. **Convert WebP to JPEG or PNG** if you want automatic splitting. Keep the quality high enough that the lettering stays legible.
+3. **Convert AVIF, HEIC, GIF or BMP to JPEG or PNG** if you want automatic splitting; WebP pages can stay as they are. Keep the quality high enough that the lettering stays legible.
 4. **One chapter per folder.** Do not mix two chapters in one directory; the chapter becomes the unit for templates, alignment presets and export.
 5. **Remove non-page images** such as covers, credits, colour inserts or bonus art that does not exist in the other editions. One extra page shifts every page after it.
 6. **Keep spreads unsplit, or split every edition at the same place.** A spread counts as one page. If you split the Japanese raw but not the Chinese scanlation, page 12 in one language becomes pages 12–13 in the other and pairing breaks. Use **Split…** in the wizard so every language is cut at once.
@@ -43,7 +43,7 @@ Page data, history, exclusions, page roles and the saved order are keyed by page
 
 Before anything moves, a manifest is written to `data/file-ops/`. It lists every old and new name. If a rename fails midway, the whole batch is rolled back, the manifest is marked `rolled-back`, and the folder is left exactly as it was. A target name that already belongs to another file is refused with an error instead of being overwritten.
 
-**Split a page.** Press **Split…** under a page, choose **Left / right** for a spread or **Top / bottom**, set the cut position as a percentage and confirm. The image is cut into `<name>-a` and `<name>-b`; the second half becomes the next page and every later page shifts down. Every language that contains this page is cut at the same position, so pairing stays intact. Splitting needs a real PNG or JPEG; WebP, GIF and BMP are refused. The original image is copied to `data/file-ops/` before it is removed.
+**Split a page.** Press **Split…** under a page, choose **Left / right** for a spread or **Top / bottom**, set the cut position as a percentage and confirm. The image is cut into `<name>-a` and `<name>-b`; the second half becomes the next page and every later page shifts down. Every language that contains this page is cut at the same position, so pairing stays intact. Splitting accepts PNG, JPEG and WebP; WebP halves are written as PNG. GIF and BMP are refused. The original image is copied to `data/file-ops/` before it is removed.
 
 The page document is clipped into both halves: panels and annotations on a half are kept there with rescaled coordinates, panel notes follow their panel, and page-level notes stay on the first half. Both halves keep the page's reading direction. Check both pages afterwards, especially when the cut crossed a panel.
 
@@ -63,7 +63,7 @@ The **Restore previous** banner only rolls back `library.json`. File renames and
 
 - **One language is one page longer.** Usually an extra cover or credits page. Remove it or add the equivalent page to the other languages.
 - **A spread is split in only one edition.** Keep spreads whole, or split every edition at the same place.
-- **Auto split produces nonsense on a WebP page.** Convert the file; detection never decodes WebP.
+- **Auto split produces nonsense on an AVIF or HEIC page.** Convert the file; detection does not decode AVIF, HEIC, GIF or BMP.
 - **Renaming shifted a note to the next page.** Page data is keyed by index, so renames done in Explorer or a shell do not move it. Use **Rename files** in the wizard, or rename before annotating.
 - **The split cut through a panel.** Pick a cut position between panels, or correct the panels on both halves afterwards. Page-level notes stay on the first half by design.
 - **Pages look fine but thumbnails are mixed.** Thumbnails follow the file content, not the extension; a `.png` that is really a JPEG still renders. This is cosmetic.

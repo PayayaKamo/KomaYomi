@@ -12,8 +12,10 @@ Shortcuts are scattered across the library, the workbench, the compare reader an
 | --- | --- |
 | `[` | Previous page (crosses chapter boundaries). |
 | `]` | Next page (crosses chapter boundaries). |
+| `←` / `→` | Previous / next page following the reading direction; vertical reading uses `↑` / `↓`. |
 | `P` | Switch to the panel workbench. |
 | `C` | Switch to the compare reader. |
+| `O` | Switch to the original-page view. |
 | `S` | Show or hide the library sidebar. |
 | `N` | Show or hide the notes column. |
 | `E` | Open the export dialog (when a page is open). |

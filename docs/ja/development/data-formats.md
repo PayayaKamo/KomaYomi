@@ -126,10 +126,18 @@ KomaYomi は状態をすべて JSON としてディスクに保存します。�
   "volumes": {
     "点兔第14卷": {
       "title": "点兔 第14巻",
+      "series": "ご注文はうさぎですか？",
       "dirs": { "ja": "raw-ja", "zh": "raw-zh" },
       "defaultDirection": "rtl",
       "chapters": {
-        "172": { "title": "第172話", "order": [0, 1, 2], "excluded": [12], "kinds": { "0": "cover" } }
+        "172": {
+          "title": "第172話",
+          "order": [0, 1, 2],
+          "excluded": [12],
+          "kinds": { "0": "cover" },
+          "hidden": false,
+          "pageOffsets": { "zh": { "from": 5, "to": 6 } }
+        }
       }
     }
   },
@@ -137,6 +145,10 @@ KomaYomi は状態をすべて JSON としてディスクに保存します。�
     {
       "id": "volume-language-chapter-page",
       "pattern": "{volume}/{language}/{chapter}/{page}"
+    },
+    {
+      "id": "series-volume-language-chapter-page",
+      "pattern": "{series}/{volume}/{language}/{chapter}/{page}"
     }
   ],
   "langOrder": ["ja", "zh", "en"],
@@ -145,8 +157,9 @@ KomaYomi は状態をすべて JSON としてディスクに保存します。�
 }
 ```
 
-- `volumes` は上書きだけを持ち、ディスク上のフォルダー名は変えません。
-- `rules` は上から順に試し、空なら内蔵の形に戻ります。書き方は[フォルダー判定ルール](/ja/development/folder-rules)へ。
+- `volumes` は上書きだけを持ち、ディスク上のフォルダー名は変えません。`title` と `series` はサイドバーの表示、`defaultDirection` はその巻の新しいページが継承する閲覧方向です。
+- `chapters` は話 ID をキーにします。`hidden: true` はフォルダーとページデータを残したままライブラリから外し、`pageOffsets` はある言語の `from` ページ目を参照版の `to` ページ目に合わせます。
+- `rules` は上から順に試し、空なら 2 つの内蔵ルールに戻ります。書き方は[フォルダー判定ルール](/ja/development/folder-rules)へ。
 - `langOrder` はあくまで優先順です。走査で見つかった言語は設定済みの後ろに並びます。
 - `historyLimit` の既定値は 50 で、`5..200` に制限されます。
 - `autoBackup` は省略可能です。アプリまたはサーバーが動いている間だけ実行されます。

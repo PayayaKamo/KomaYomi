@@ -126,10 +126,18 @@ KomaYomi 的全部状态都保存在磁盘上的 JSON 里。本页写给需要�
   "volumes": {
     "点兔第14卷": {
       "title": "点兔 第14卷",
+      "series": "请问您今天要来点兔子吗？",
       "dirs": { "ja": "raw-ja", "zh": "raw-zh" },
       "defaultDirection": "rtl",
       "chapters": {
-        "172": { "title": "第172话", "order": [0, 1, 2], "excluded": [12], "kinds": { "0": "cover" } }
+        "172": {
+          "title": "第172话",
+          "order": [0, 1, 2],
+          "excluded": [12],
+          "kinds": { "0": "cover" },
+          "hidden": false,
+          "pageOffsets": { "zh": { "from": 5, "to": 6 } }
+        }
       }
     }
   },
@@ -137,6 +145,10 @@ KomaYomi 的全部状态都保存在磁盘上的 JSON 里。本页写给需要�
     {
       "id": "volume-language-chapter-page",
       "pattern": "{volume}/{language}/{chapter}/{page}"
+    },
+    {
+      "id": "series-volume-language-chapter-page",
+      "pattern": "{series}/{volume}/{language}/{chapter}/{page}"
     }
   ],
   "langOrder": ["ja", "zh", "en"],
@@ -145,8 +157,9 @@ KomaYomi 的全部状态都保存在磁盘上的 JSON 里。本页写给需要�
 }
 ```
 
-- `volumes` 只存覆盖项，不会重命名磁盘上的目录。
-- `rules` 按顺序尝试，为空时回退到内建形状。写法见[目录规则](/zh/development/folder-rules)。
+- `volumes` 只存覆盖项，不会重命名磁盘上的目录。`title`、`series` 改侧栏显示，`defaultDirection` 由该卷的新页面继承。
+- `chapters` 以话 ID 为键：`hidden: true` 把话从图库移除但保留文件夹和页面数据，`pageOffsets` 让某语言从第 `from` 页对齐到参考版的第 `to` 页。
+- `rules` 按顺序尝试，为空时回退到两条内建规则。写法见[目录规则](/zh/development/folder-rules)。
 - `langOrder` 只是偏好。扫描时新发现的语言会排在配置的语言之后。
 - `historyLimit` 默认 50，限制在 `5..200`。
 - `autoBackup` 可省略；应用或服务运行时才会按计划执行。

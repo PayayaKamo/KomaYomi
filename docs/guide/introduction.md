@@ -33,9 +33,9 @@ KomaYomi adds the missing middle layer:
 
 The window has five regions that never move, so muscle memory can take over:
 
-- **Top bar** — brand (back to the library), volume / chapter / page, `‹` `›` page arrows, the save indicator, the **Edit / Read** usage mode, the **Panels / Compare** switch, the reading-direction selector, focus mode (`⛶`), the UI theme, the interface language, **Notes** and **Export**.
+- **Top bar** — brand (back to the library), volume / chapter / page, `‹` `›` page arrows, the save indicator, the **Edit / Read** usage mode, the **Panels / Compare / Original** switch, the reading-direction selector, focus mode (`⛶`), help (`?`), settings (`⚙`, edit mode only), about (`ⓘ`), the UI theme, the interface language, **Notes** and **Export**.
 - **Library sidebar** (`S`) — volumes → chapters → pages, with per-page warnings and the entry points for adding a manga, folder rules, project files, exchange files and backup.
-- **Stage** — the panel workbench or the compare reader, depending on the view switch.
+- **Stage** — the panel workbench, the compare reader or the original-page view, depending on the view switch.
 - **Notes column** (`N`) — page notes, panel notes, overview search and the scratchpad.
 - **Pane splitters** — drag the vertical handle between library and stage, or between stage and notes, to resize; double-click to reset.
 
@@ -78,14 +78,14 @@ Focus mode (the `⛶` button in the top bar, or `R`) is a different thing: it on
 ## What is implemented
 
 <div class="status-list">
-  <div><strong>Library</strong> — scans volumes, recognizes language folder aliases, pairs pages by sorted position, warns about missing pages and naming mismatches.</div>
-  <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / group / delete, numbering, percentage inputs, grid generator, panel templates, declarative layouts, plugins, cross-session page history.</div>
-  <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, page-level visibility switch, PNG export support.</div>
-  <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order.</div>
-  <div><strong>Notes</strong> — page/panel notes, Markdown with a toolbar and live preview, tags, sources, attached images, overview search, copy-for-LLM, scratchpad.</div>
-  <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), PDF via the browser print dialog, Word (`.docx`) with page images and notes, panel-border overlay, print styles, export templates.</div>
+  <div><strong>Library</strong> — scans volumes, including several works side by side under one root, recognizes language folder aliases, pairs pages by sorted position, warns about missing pages and naming mismatches.</div>
+  <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / group / split / delete, manual reordering of the numbering, percentage inputs, grid generator, panel templates, declarative layouts, plugins, cross-session page history.</div>
+  <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, optional anchor points with leader lines, page-level visibility switch, PNG export support.</div>
+  <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order, a third original-page view, previous/next panel across page and chapter boundaries, and panel detail views with per-panel deep links.</div>
+  <div><strong>Notes</strong> — page/panel notes, Markdown with a toolbar and live preview, editing an existing note in the same single editor, tags, sources, attached images, overview search, copy-for-LLM, scratchpad.</div>
+  <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), PDF via the browser print dialog, Word (`.docx`) with page images and notes and annotations baked by default, panel-border overlay, print styles, export templates.</div>
   <div><strong>Modes</strong> — edit and read modes; switching to read saves first and then disables every write, and focus mode (`R`) clears the interface for immersive reading.</div>
-  <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching and a bounded LRU cache.</div>
+  <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching, a bounded LRU cache, scheduled automatic backups and cache management.</div>
   <div><strong>Portability</strong> — `.mnproj` project packages, `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas.</div>
 </div>
 
@@ -95,7 +95,8 @@ These items are marked <Badge type="warning" text="Planned" /> wherever they app
 
 - Vocabulary-list export. PDF and Word are available as **PDF (print)** and **Word document** in the export dialog.
 - An in-app image format converter. Renaming and splitting images are part of [preprocessing](/guide/preprocess); converting between formats still has to happen outside the app.
-- A native mobile app. The web UI does work in a narrow browser window (see below).
+- A full native mobile app. The responsive web UI does work in a narrow browser window (see below).
+- Broader automated integration tests for the import / export round trip.
 
 <figure class="shot">
   <img src="/assets/screenshots/mobile-narrow.png" alt="Compare reader in a narrow window with the language panes stacked vertically">

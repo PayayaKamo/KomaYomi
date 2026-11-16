@@ -171,6 +171,8 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 
 Coordinates are relative to the annotation's scope (page box or panel box). Freehand pen strokes use the full `points` polyline; arrows use first/last points.
 
+An optional `anchor` is a locator in page coordinates: `{ "x": 0.5, "y": 0.4 }`, or a box when `w` / `h` are present. The annotation points at it; `showLeader` controls the leader line between the annotation and its locator and defaults to `true` (usually omitted in JSON).
+
 ## Version rules
 
 ### Page documents
@@ -397,10 +399,21 @@ The thumbnail cache (`data/cache/`) and `.tmp` / `.log` files are excluded. Rest
   "appVersion": "0.1.0",
   "volumes": {
     "点兔第14卷": {
-      "dirs": { "ja": "raw-ja", "zh": "raw-zh" }
+      "title": "Gochiusa Vol. 14",
+      "series": "Is the Order a Rabbit?",
+      "dirs": { "ja": "raw-ja", "zh": "raw-zh" },
+      "defaultDirection": "rtl",
+      "chapters": {
+        "第1话": {
+          "hidden": false,
+          "pageOffsets": {
+            "zh": { "from": 5, "to": 6 }
+          }
+        }
+      }
     }
   }
 }
 ```
 
-Only manual overrides live here. Automatic language detection still runs for volumes without an entry.
+Only manual overrides live here. Automatic language detection still runs for volumes without an entry. `title` overrides the display name, `series` is the series label in the sidebar, `dirs` maps languages to folders, and `defaultDirection` is the inherited reading direction for new pages in the volume. `chapters` is keyed by chapter id (the folder name): `hidden: true` removes a chapter from the library while keeping its files, and `pageOffsets` aligns one language from page `from` to page `to` of the reference edition. `appVersion` just records the app version that wrote the file and is not validated on read.

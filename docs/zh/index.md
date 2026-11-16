@@ -41,11 +41,22 @@ KomaYomi（**Manga Learner**）是一个用漫画学语言、做笔记的**本�
 KomaYomi 目前处于 **0.2.0 版本，正在积极开发中**。本文档会区分已经实现的功能和计划中的功能。
 
 <div class="status-list">
-  <div><strong>当前可用</strong> —— 图库扫描、XY-cut 分格检测、手动编辑分格、分格分组与页面历史、分格/布局模板、矢量标注（矩形、椭圆、箭头、文本）、带遮罩和四种对齐模式的对照阅读、可搜索的 Markdown 笔记、HTML / PNG / PDF（打印）/ Word 导出、备份 ZIP 及上传到 WebDAV/网络目标、带按需 LRU 缓存和离线写入队列的 WebDAV/网络图片源、`.mnproj` 项目导出/导入、CLI 批处理工具。</div>
-  <div><strong>计划中</strong> —— 词表导出；原生移动端应用；更广泛的集成测试。</div>
+  <div><strong>当前可用</strong> —— 图库扫描（含多作品根目录）、XY-cut 分格检测、手动编辑分格、拆分格子与手工重排编号、分格分组与页面历史、分格/布局模板、带锚点引线的矢量标注、带遮罩和四种对齐模式的对照阅读、按语言整页并排的原版阅读视图（可独立缩放拖动）、分格详情视图与按分格 ID 的深链、跨页跨话的上一格 / 下一格、专注模式、编辑 / 阅读（只读）模式、可搜索的 Markdown 笔记与单编辑器编辑、HTML / PNG / PDF（打印）/ 默认烘焙标注的 Word 导出、备份 ZIP 与定时自动备份、缓存管理、上传到 WebDAV/网络目标、带按需 LRU 缓存和离线写入队列的 WebDAV/网络图片源、`.mnproj` 项目导出/导入、CLI 批处理工具。</div>
+  <div><strong>计划中</strong> —— 词表导出；应用内的图片格式转换（重命名与拆分已在预处理中）；完整形态的原生移动端应用（响应式 Web 界面在窄窗口下可用）；更广泛的集成测试。</div>
 </div>
 
 本站中标记为 <Badge type="warning" text="计划中" /> 的任何内容都**尚未实现**。如果某个页面描述了代码中并不存在的行为，请以本条说明为准，并视该功能为不可用。
+
+## KomaYomi 的四个仓库
+
+本站记录的是桌面端完整版。同一个项目还有另外三种形态：
+
+- [KomaYomi](https://github.com/PayayaKamo/KomaYomi) —— 桌面端完整版（Electron 加本地服务），也就是本站介绍的对象。
+- [KomaYomi-online](https://github.com/PayayaKamo/KomaYomi-online) —— 纯浏览器版，打开 `.mnproj` 工程即可阅读、标注与导出，不需要服务端。
+- [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile) —— React Native 的 Android / iOS 应用；鸿蒙 NEXT 目前只有占位。
+- [KomaYomi-docs](https://github.com/PayayaKamo/KomaYomi-docs) —— 本站的构建产物，由 CI 推送；要改文档请回主仓库。
+
+各形态共用同一套页面 JSON 与 `.mnproj` 格式，工作内容可以在它们之间迁移。
 
 ## 接下来去哪里
 

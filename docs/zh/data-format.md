@@ -171,6 +171,8 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 
 坐标相对于标注的作用范围（页面框或分格框）。自由画笔使用完整的 `points` 折线；箭头使用首尾两个点。
 
+可选的 `anchor` 是页面坐标里的定位点：`{ "x": 0.5, "y": 0.4 }`，带 `w` / `h` 时表示一个框。标注会指向它；`showLeader` 控制是否画从标注到定位点的引出线，缺省视为 `true`（JSON 里通常直接省略）。
+
 ## 版本规则
 
 ### 页面文档
@@ -397,10 +399,21 @@ data/.backup-meta.json
   "appVersion": "0.1.0",
   "volumes": {
     "点兔第14卷": {
-      "dirs": { "ja": "raw-ja", "zh": "raw-zh" }
+      "title": "点兔 第14卷",
+      "series": "请问您今天要来点兔子吗？",
+      "dirs": { "ja": "raw-ja", "zh": "raw-zh" },
+      "defaultDirection": "rtl",
+      "chapters": {
+        "第1话": {
+          "hidden": false,
+          "pageOffsets": {
+            "zh": { "from": 5, "to": 6 }
+          }
+        }
+      }
     }
   }
 }
 ```
 
-这里只存放手动覆盖项。没有条目的卷仍会进行自动语言识别。
+这里只存放手动覆盖项。没有条目的卷仍会进行自动语言识别。`title` 改显示名，`series` 是侧栏里的系列名，`dirs` 把语言映射到目录，`defaultDirection` 是该卷新页面的默认阅读方向。`chapters` 以话 ID（文件夹名）为键：`hidden: true` 表示从图库移除但保留磁盘内容，`pageOffsets` 让某语言从第 `from` 页起对齐到参考版的第 `to` 页。`appVersion` 只是记录写入时的应用版本，读取时不做校验。

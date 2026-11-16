@@ -4,17 +4,16 @@
 
 ## 规则存在哪
 
-规则保存在 `data/library.json` 的 `rules` 数组里（`kind` 为 `mnconfig`）。数组不存在或为空时，使用内建规则：
+规则保存在 `data/library.json` 的 `rules` 数组里（`kind` 为 `mnconfig`）。数组不存在或为空时，按顺序使用两条内建规则：
 
 ```json
-{
-  "id": "volume-language-chapter-page",
-  "name": "{volume}/{language}/{chapter}/{page}",
-  "pattern": "{volume}/{language}/{chapter}/{page}"
-}
+[
+  { "id": "volume-language-chapter-page", "name": "{volume}/{language}/{chapter}/{page}", "pattern": "{volume}/{language}/{chapter}/{page}" },
+  { "id": "series-volume-language-chapter-page", "name": "{series}/{volume}/{language}/{chapter}/{page}", "pattern": "{series}/{volume}/{language}/{chapter}/{page}" }
+]
 ```
 
-对话框里的**恢复默认**会写回这个形状；**保存规则**会先校验整个数组，再触发重新扫描。
+第二条覆盖"一个根目录下并列多部作品"的结构。对话框里的**恢复默认**会写回这两条；**保存规则**会先校验整个数组，再触发重新扫描。
 
 ## 占位符
 
@@ -28,7 +27,7 @@
 
 别名不区分大小写（`{seriesName}` 和 `{seriesname}` 等价）。规则必须包含 `{page}`；没有 `{language}` 时必须声明兜底 `language`。
 
-同时匹配到 `{series}` 和 `{volume}` 时，卷 id 会拼成 `"<系列> / <卷>"`，避免两个系列下同名卷互相覆盖。
+同时匹配到 `{series}` 和 `{volume}` 时，系列名会单独记录，不拼进卷 id。卷 id 仍是卷文件夹名，"系列 · 卷"只是显示用的标签；`{series}` 可以跨越好几层目录。如果两个系列下有同名卷，冲突时会给卷 id 加上最后一级系列目录前缀（如 `alpha-vol-01`），避免两边的页面数据合并。
 
 ## 可选段与通配
 

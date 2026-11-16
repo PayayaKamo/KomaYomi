@@ -137,6 +137,8 @@ The annotation layer draws on top of the artwork and lives separately from panel
 | **Text** | Click, then type the label. |
 | **Number badge** | Click, then type a number. |
 | **Mosaic** | Drag a rectangle; the area is pixelated. |
+| **Anchor** | Places a locator for the selected mark: click a point, drag a box. **Clear anchor** removes it. |
+| **Leader** | Turns the leader line between a mark and its locator on or off. |
 | **Colour swatches** | Sets the colour for new marks; clicking a swatch while a mark is selected recolours it. |
 | **Delete** | Deletes the selected mark. |
 | **Clear all** | Deletes every mark on the page after confirmation. |
@@ -234,7 +236,7 @@ Avoid re-running **Auto split** after hand edits unless you are willing to lose 
 
 - **Auto split replaced my boxes.** Detection overwrites. Use a panel template or edit by hand after the first successful split.
 - **A page has no image.** Detection is disabled and the stage shows an empty state. Add the missing language folder or map it in volume settings.
-- **WebP pages do not detect.** WebP is displayed but not decoded for detection; convert to JPEG or PNG.
+- **AVIF, HEIC, GIF and BMP pages do not detect.** They are displayed but not decoded for detection; WebP pages are decoded. Convert the other formats to JPEG or PNG.
 - **Panel notes disappeared after applying a template.** The template had a different panel count, so panel notes were dropped; page notes were kept. Restore from a backup if needed.
 - **“Unsaved changes” will not go away.** You are in Confirm mode. Press `✓` or `Enter`; `×` discards.
 - **Marks are invisible.** The annotation layer is hidden, or a panel filter is active. Check **Annotations: Shown**.

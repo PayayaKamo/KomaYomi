@@ -39,7 +39,7 @@ Sorting is **natural**: digit runs compare numerically, so `2.jpg` comes before 
 - **The left/right vertical strip is ignored.** This is intentional: the narrow edge strip (typically *あらすじ* or an author note) is filtered so it does not become a false panel. Draw a legitimate edge panel manually.
 - **Splash pages** often produce one big panel plus fragments. Select the fragments and **Merge**.
 - **Very small or very thin boxes** are filtered as noise. Add them manually if they are real.
-- **WebP pages are not decoded** for detection. Convert to JPEG/PNG if you need automatic detection.
+- **WebP is decoded; AVIF and HEIC are not.** Detection and thumbnails handle WebP pages. Convert AVIF, HEIC, GIF or BMP to JPEG/PNG if you need automatic detection.
 - **Fixed magazine layouts** are better served by a [layout template](/extending) than by detection.
 
 After correcting panels, avoid re-running auto detection unless you accept losing the manual boxes.
@@ -84,6 +84,10 @@ Vite is configured with `strictPort: false`, so it moves to the next free port. 
 - **Copying folders** — `raw/` is your images; `data/` is your work; `exports/` is regenerable.
 
 See [Remote Storage & Backup](/remote-backup).
+
+## What does an error code mean?
+
+The server and CLI return stable `ERR_*` / `WARN_*` / `STATUS_*` codes, while the `error` / `message` text is localized to the request language. The full table and the HTTP contract are in [Server & CLI message codes](/server/error-codes).
 
 ## Thumbnails look stale or broken
 

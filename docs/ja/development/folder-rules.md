@@ -4,17 +4,16 @@
 
 ## ルールの保存場所
 
-ルールは `data/library.json` の `rules` 配列に入ります（`kind` は `mnconfig`）。配列がない、または空のときは内蔵ルールが使われます。
+ルールは `data/library.json` の `rules` 配列に入ります（`kind` は `mnconfig`）。配列がない、または空のときは、次の 2 つの内蔵ルールが順番に使われます。
 
 ```json
-{
-  "id": "volume-language-chapter-page",
-  "name": "{volume}/{language}/{chapter}/{page}",
-  "pattern": "{volume}/{language}/{chapter}/{page}"
-}
+[
+  { "id": "volume-language-chapter-page", "name": "{volume}/{language}/{chapter}/{page}", "pattern": "{volume}/{language}/{chapter}/{page}" },
+  { "id": "series-volume-language-chapter-page", "name": "{series}/{volume}/{language}/{chapter}/{page}", "pattern": "{series}/{volume}/{language}/{chapter}/{page}" }
+]
 ```
 
-ダイアログの**既定に戻す**がこの形を書き戻し、**ルールを保存**が配列全体を検証してから再走査します。
+2 つ目は、1 つのルートに複数の作品が並ぶ構成を扱います。ダイアログの**既定に戻す**がこの 2 つを書き戻し、**ルールを保存**が配列全体を検証してから再走査します。
 
 ## プレースホルダー
 
@@ -28,7 +27,7 @@
 
 別名は大文字小文字を区別しません（`{seriesName}` と `{seriesname}` は同じ）。ルールには `{page}` が必要で、`{language}` がない場合は既定の `language` を宣言する必要があります。
 
-`{series}` と `{volume}` の両方が一致すると、巻 id は `"<シリーズ> / <巻>"` になります。同名の巻を持つシリーズが混ざるのを防ぐためです。
+`{series}` と `{volume}` の両方が一致しても、シリーズ名は巻 id には入りません。巻 id は巻フォルダーの名前のままで、シリーズのパスは「シリーズ · 巻」表示用に別途保持されます。`{series}` は複数の階層にまたがれます。同名の巻を持つシリーズが衝突する場合は、巻 id の先頭に最後のシリーズフォルダー名（`alpha-vol-01` など）が付き、ページデータが混ざらないようになります。
 
 ## 省略可能な階層とワイルドカード
 

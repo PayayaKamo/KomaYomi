@@ -46,19 +46,22 @@ Sample manga is used for demonstration only; all rights belong to the original a
 
 - Scans `raw/` as the library: `raw/<volume>/<language>/<chapter>/<pages>`, or `raw/<work>/<volume>/<language>/<chapter>/<pages>` when several works share one root, with one or more languages per volume.
 - Pairs pages across languages by sorted position and reports pages that are missing a language.
-- Compare reader: side-by-side or overlay, per-language mask, wheel zoom and pan, full page or one panel at a time.
+- Compare reader: side-by-side or overlay, per-language mask, wheel zoom and pan, full page or one panel at a time, previous/next panel across page and chapter boundaries.
+- Original view: the uncropped page per language, with independent zoom and pan, for checking what sits outside the detected panels.
+- Panel detail views with `#/<volume>/<chapter>/<page>/panel/<id>` deep links, switchable panel by panel.
 - Alignment in four ways — whole-page offset, per-panel offset, two-anchor point-to-point, and grid/percentage snapping — savable as presets for a page or a chapter.
 
 **Panels**
 
 - Automatic XY-cut detection that ignores the narrow strip at the page edge (the _あらすじ_ column) instead of turning it into a false panel.
-- Manual editing: drag to draw a panel with live preview and snapping, eight-direction resize, direct `X / Y / width / height` input, keyboard nudge, multi-select, merge and delete.
+- Manual editing: drag to draw a panel with live preview and snapping, eight-direction resize, direct `X / Y / width / height` input, keyboard nudge, multi-select, merge, split and delete.
+- Manual numbering: insert a panel after the selected one and shift the rest, split a panel in place, or reorder everything in the order dialog.
 - Panel templates: capture the current page and apply it to other pages of the chapter. Declarative layout templates in `data/layouts/` are applied automatically during detection.
 - Annotation layer: arrows, boxes, ellipses, highlights, freehand pen, text, badges and a real mosaic, on the whole page or inside one panel. Annotations can be baked into PNG exports or left out.
 
 **Notes**
 
-- Markdown notes at page or panel scope, with edit / split / preview modes, a formatting toolbar and an auto-growing editor.
+- Markdown notes at page or panel scope, with edit / split / preview modes, a formatting toolbar and an auto-growing editor; editing an existing note reuses the same single editor.
 - Tags, sources with an optional page-title fetch, pasted or dropped screenshots, and a scratch pad.
 - Full-text search across pages, tags and sources, plus "copy context" to hand the page's notes to an LLM or a translation tool.
 
@@ -67,12 +70,13 @@ Sample manga is used for demonstration only; all rights belong to the original a
 - HTML export in two modes: a `.html` file plus a sibling `<name>.files/` image folder (default), or a single file with images inlined.
 - Export a whole page or a whole chapter, choose which languages to include, and pick a layout template. Print styles avoid splitting panels and notes across pages.
 - PNG export: the whole page, the current panel, or a three-language collage.
-- PDF through the browser print dialog, and Word (`.docx`) export with page images and notes; annotations are not embedded in the `.docx` yet.
-- Backup ZIP of `data/` with an inspection step before restore, and `.mnproj` projects in reference mode (paths + SHA-1) or packaged mode (images embedded, with relink on import).
+- PDF through the browser print dialog, and Word (`.docx`) export with page images and notes; annotations are baked into the `.docx` by default, with a warning and an un-baked fallback if a page cannot be composed.
+- Backup ZIP of `data/` with an inspection step before restore, scheduled automatic backups with a configurable interval and retention count, cache management, and `.mnproj` projects in reference mode (paths + SHA-1) or packaged mode (images embedded, with relink on import).
 
 **Desktop, offline and interface**
 
 - Runs in the browser against a local Node server, or in an Electron window.
+- Edit and read-only modes, focus mode (`R`), and a settings dialog for annotation-tool placement, cache clearing and the panel-detection cache.
 - WebDAV, network drives and local folders as remote image sources, with on-demand caching and a browser-side outbox that replays failed writes.
 - Light and dark palettes, English / Chinese / Japanese interface, drawer navigation and touch zoom on narrow screens.
 - Installable PWA; the web manifest ships with the web build.
@@ -232,27 +236,30 @@ The full user guide is published at **https://payayakamo.github.io/KomaYomi-docs
 | 中文     | https://payayakamo.github.io/KomaYomi-docs/zh/ |
 | 日本語   | https://payayakamo.github.io/KomaYomi-docs/ja/ |
 
-## Try it online (in development)
+## The KomaYomi repositories
 
-The browser-only edition is still in development and has no public demo URL yet. Its source lives at `https://github.com/PayayaKamo/KomaYomi-online`; this section will get a working link once it ships.
+KomaYomi is one project split across four repositories. This one is the reference implementation.
 
-What to expect when it does:
+| Repository                                                           | What it is                                                                                                                                                                                                |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [KomaYomi](https://github.com/PayayaKamo/KomaYomi) (this repository) | Full desktop edition: an Electron window around a local Node server. It scans folders, runs panel detection and plugins, talks to WebDAV, and provides every feature listed above.                        |
+| [KomaYomi-online](https://github.com/PayayaKamo/KomaYomi-online)     | Browser-only edition. Opens a `.mnproj` project, reads, annotates and exports static HTML or PNG entirely in the tab — no server, works offline. It cannot scan folders or run automatic panel detection. |
+| [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile)     | React Native app for Android and iOS. HarmonyOS NEXT currently has a placeholder only.                                                                                                                    |
+| [KomaYomi-docs](https://github.com/PayayaKamo/KomaYomi-docs)         | Build output of this documentation site, generated and pushed by CI. Do not edit it by hand.                                                                                                              |
 
-- **Static pages, no server.** It can open a `.mnproj` project file for viewing and editing, but it cannot scan a folder on your computer, and automatic panel detection has not been ported to the browser yet.
-- **Data lives in IndexedDB.** Your work is stored in the browser's IndexedDB. Export the project before switching devices or clearing site data or cache.
-- **Folder access is Chromium-only.** Picking a folder will be supported in Chromium-based browsers once phase 2 lands; Safari and Firefox have to select files manually.
-- **Your manga stays yours.** Manga images always stay on your own machine; this project hosts no manga content.
+All three editions use the same page JSON and the same `.mnproj` project format, so a project can move between the desktop, browser and mobile builds. The mobile app is a separate client, not a wrapper around the desktop build.
 
 ## Roadmap
 
 - Vocabulary-list export; PDF and Word are available in the export dialog today.
-- Scheduled backups; backups are started manually today.
+- An in-app image format converter; renaming and splitting live in preprocessing.
+- A full native mobile app; the responsive web UI already works in narrow windows.
 - Automated integration tests for the import / export round trip.
 
 ## Known limitations
 
 - Single user, no authentication. Do not expose the server or the container to a network you do not control.
-- Automatic detection does not decode WebP pages; convert them to JPEG or PNG first.
+- Automatic detection decodes WebP pages; AVIF, HEIC, GIF and BMP still need converting to JPEG or PNG.
 - Folder-mode HTML exports need the sibling `.files/` folder; moving the HTML away from it breaks the images. Single-file exports avoid this at the cost of size (a chapter can reach tens of megabytes).
 - Applying a panel template or re-detecting drops panel-scoped notes when the panel count changes; page-scoped notes are kept.
 - The interface is localized in English, Chinese and Japanese; documents and error strings from plugins are not translated.

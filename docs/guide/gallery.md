@@ -74,6 +74,11 @@ Volume settings is the repair bay for a volume whose folders did not introduce t
 
 A folder can belong to only one language; folders already taken disappear from the other dropdowns. If no language folder was detected at all, the dialog says so and repeats the volume warnings that explain why.
 
+The same dialog has a **Chapters** section listing every chapter of the volume:
+
+- **Remove** next to a chapter only unlinks it from the library. The chapter folder, images, notes and annotations stay on disk; removed chapters appear under **Removed chapters**, where **Restore** brings them back.
+- **Page offset** handles pages inserted mid-chapter that shift every later page number: align this language from page N to page M of the reference edition, or leave it empty for no offset. Offsets are stored as `pageOffsets` in `data/library.json`; they affect display and pairing only, never file names on disk.
+
 <figure class="shot">
   <img src="/assets/screenshots/volume-settings.png" alt="Volume settings dialog with one dropdown per language: ja, zh and en, plus Remove from library, Cancel and Save">
   <figcaption>Volume settings. Each dropdown maps a language to its subfolder; Save rescans the volume, and Remove from library only deletes the link under raw/.</figcaption>
@@ -175,7 +180,7 @@ Thumbnails are generated on demand and cached in `data/cache/thumbs/`. Deleting 
 - **Renaming a file changes its page position.** Pairing is by sorted index; inserting a page shifts every page after it. Add the new page at the end, or rename the whole chapter consistently. See [Preparing & Renaming Images](/guide/preprocess).
 - **One missing language is not an error.** The page opens, and the compare reader shows a placeholder for the missing language.
 - **A folder link is not a copy.** If you move or delete the original folder, the library breaks. Re-add the folder after moving it.
-- **WebP is displayed but not decoded for detection.** Use JPEG or PNG when you rely on automatic splitting (see [Panel Workbench](/guide/panels)).
+- **AVIF, HEIC, GIF and BMP are displayed but not decoded for detection.** WebP is decoded. Use JPEG or PNG when you rely on automatic splitting (see [Panel Workbench](/guide/panels)).
 - **The sidebar is the truth.** If a volume or chapter is missing, check the folder name casing and the language aliases before anything else.
 - **A language dropdown does not offer the folder.** It is already assigned to another language in volume settings.
 

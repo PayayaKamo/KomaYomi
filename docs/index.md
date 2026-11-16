@@ -41,11 +41,22 @@ It is designed for study and translation review rather than for hosting copyrigh
 KomaYomi is at **0.2.0 and under active development**. The documentation distinguishes what exists today from what is planned.
 
 <div class="status-list">
-  <div><strong>Working today</strong> — library scanning, XY-cut panel detection, manual panel editing, panel grouping and page history, panel/layout templates, vector annotations (rectangle, ellipse, arrow, text), compare reader with masks and four alignment modes, Markdown notes with search, HTML / PNG / PDF (print) / Word export, backup ZIP plus upload to a WebDAV/network target, a WebDAV/network image source with on-demand LRU caching and an offline write queue, `.mnproj` project export/import, CLI batch tools.</div>
-  <div><strong>Planned</strong> — vocabulary-list export; a native mobile app; broader integration tests.</div>
+  <div><strong>Working today</strong> — library scanning including multi-work roots, XY-cut panel detection, manual panel editing, splitting a panel and reordering the numbering, panel grouping and page history, panel/layout templates, vector annotations with anchor leaders, compare reader with masks and four alignment modes, a third original-page view with per-language zoom and pan, panel detail views with per-panel deep links, previous/next panel across page and chapter boundaries, focus mode, edit and read-only modes, Markdown notes with search and single-editor editing, HTML / PNG / PDF (print) / Word export with annotations baked by default, backup ZIP plus scheduled automatic backups, cache management, upload to a WebDAV/network target, a WebDAV/network image source with on-demand LRU caching and an offline write queue, `.mnproj` project export/import, CLI batch tools.</div>
+  <div><strong>Planned</strong> — vocabulary-list export; an in-app image format converter (renaming and splitting live in preprocessing); a full native mobile app (the responsive web UI works in narrow browser windows); broader integration tests.</div>
 </div>
 
 Anything marked <Badge type="warning" text="Planned" /> in this site is **not implemented yet**. If a page describes behavior that is not in the code, treat this note as authoritative and the feature as unavailable.
+
+## The KomaYomi repositories
+
+This site documents the desktop edition. The same project ships in three other forms:
+
+- [KomaYomi](https://github.com/PayayaKamo/KomaYomi) — the full desktop edition (Electron plus a local server) that this documentation covers.
+- [KomaYomi-online](https://github.com/PayayaKamo/KomaYomi-online) — a browser-only build that opens `.mnproj` projects, reads, annotates and exports without a server.
+- [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile) — a React Native app for Android and iOS; HarmonyOS NEXT is a placeholder for now.
+- [KomaYomi-docs](https://github.com/PayayaKamo/KomaYomi-docs) — the generated build of this site, pushed by CI; edit the docs in the main repository instead.
+
+Projects use the same page JSON and the same `.mnproj` format across the editions, so work can move between them.
 
 ## Where to go next
 
