@@ -11,10 +11,12 @@ release/
 pnpm-lock.yaml
 pnpm-workspace.yaml
 
-# Runtime caches and generated deliverables
-data/cache/
-# Rename manifests and original images kept by the preprocessing file tools.
-data/file-ops/
+# Runtime data directory: caches, page docs, history, settings and other generated state.
+# Tracked templates stay available to every checkout; everything else is local-only.
+data/*
+!data/templates/
+!data/templates/**
+# Generated deliverables
 exports/
 .screenshots/
 .trae-html-share-packages/
@@ -25,11 +27,12 @@ raw/*
 !raw/.gitkeep
 
 # Local-only scratch data
-data/tmp/
-data/backups/
-data/history/
-data/pages/_uicheck/
 .tmp/
+
+# Build / test intermediates that are safe to regenerate
+vite.config.ts.timestamp-*.mjs
+tests/.coverage/
+coverage/
 
 # Schema-migration backups (pre-upgrade bytes, kept next to the migrated file)
 *.v[0-9].bak
