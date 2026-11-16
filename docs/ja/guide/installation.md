@@ -114,8 +114,8 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 - Electron ウィンドウは一時的な localhost ポートと通信します。
 
 <figure class="shot">
-  <img src="/assets/screenshots/first-launch-empty.webp" alt="初回起動の空のライブラリ。サイドバーに「＋ 漫画を追加」、中央に 4 ステップの案内">
-  <figcaption>初回起動でライブラリが空の状態。「＋ 漫画を追加」が入口で、中央の 4 枚のカードが流れを説明します。</figcaption>
+  <img src="/assets/screenshots/first-launch-empty.webp" alt="初回起動の空のライブラリ。サイドバーに「＋ 漫画を追加」、中央に 6 ステップの案内と「内蔵デモを開く」ボタン">
+  <figcaption>初回起動でライブラリが空の状態。取り込み・新規作成・プロジェクトを開くに加えて、「内蔵デモを開く」で同梱サンプルのコピーを展開できます。同梱ファイル自体は変更されません。</figcaption>
 </figure>
 
 ## 初回起動

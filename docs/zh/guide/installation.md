@@ -114,8 +114,8 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 - Electron 窗口连接一个临时的 localhost 端口。
 
 <figure class="shot">
-  <img src="/assets/screenshots/first-launch-empty.webp" alt="首次启动的空图库：侧栏显示“＋ 添加漫画”，主区域显示四步导览">
-  <figcaption>首次启动时图库为空：左侧的“＋ 添加漫画”是入口，中间四张卡片概述了使用流程。</figcaption>
+  <img src="/assets/screenshots/first-launch-empty.webp" alt="首次启动的空图库：侧栏提示添加漫画，主区域是六步导览与“打开内置演示”入口">
+  <figcaption>首次启动时图库为空：除了导入、新建和打开工程，还可以直接“打开内置演示”——它解包随应用附带的示例工程的副本，原文件不会被改动。</figcaption>
 </figure>
 
 ## 首次运行

@@ -74,8 +74,8 @@ Current limitations:
 - There is no auto-update channel.
 
 <figure class="shot">
-  <img src="/assets/screenshots/first-launch-empty.webp" alt="First launch with an empty library: the sidebar shows Add manga and the main area shows a four-step tour">
-  <figcaption>First launch with an empty library. ＋ Add manga is the way in; the four cards outline the workflow.</figcaption>
+  <img src="/assets/screenshots/first-launch-empty.webp" alt="First launch with an empty library: the sidebar offers Add manga, and the main area shows the six-step tour with a Try the built-in demo button">
+  <figcaption>First launch with an empty library. Besides importing, creating a library or opening a project, Try the built-in demo unpacks a copy of the bundled sample project, so the original file is never modified.</figcaption>
 </figure>
 
 ## Build outputs
