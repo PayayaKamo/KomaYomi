@@ -17,6 +17,18 @@ const ROOT = path.resolve(__dirname, '..');
 const IS_DEV_RUN = Boolean(process.defaultApp); // started from source via `electron .`
 let server = null;
 
+/**
+ * Built-in demo: the installer carries demo-project.mnproj as an extra resource.
+ * Running from source falls back to the copy in resources/. The server reads this
+ * path only when the user asks for the demo; the bundled file is never written.
+ */
+const DEMO_SOURCE = app.isPackaged
+  ? path.join(process.resourcesPath, 'demo', 'demo-project.mnproj')
+  : path.join(ROOT, 'resources', 'demo-project.mnproj');
+// Demo edits are linked to a copy under userData, so the installed resource stays pristine.
+process.env.KOMAYOMI_DEMO_PROJECT = DEMO_SOURCE;
+process.env.KOMAYOMI_DEMO_COPY = path.join(app.getPath('userData'), 'demo', 'demo-project.mnproj');
+
 const configPath = () => path.join(app.getPath('userData'), 'config.json');
 
 function readConfig() {

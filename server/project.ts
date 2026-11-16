@@ -753,6 +753,8 @@ export type ProjectImportOptions = {
   relinkDir?: string | null;
   /** Whether to snapshot data/ before importing; defaults to true. */
   snapshot?: boolean;
+  /** Keep a copy of the imported archive under data/backups/projects; demo opens skip it. */
+  keepProjectBackup?: boolean;
 };
 
 export function importProject(opts: ProjectImportOptions): ProjectImportResult {
@@ -784,12 +786,14 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
   // 2. Keep the original project file for traceability.
   const backupDir = path.join(dataRoot, 'backups', 'projects');
   let projectBackup = '';
-  try {
-    fs.mkdirSync(backupDir, { recursive: true });
-    projectBackup = path.join(backupDir, `${stamp}-${sha1Hex(buffer).slice(0, 8)}.mnproj`);
-    fs.writeFileSync(projectBackup, buffer);
-  } catch (err) {
-    warnings.push(t('WARN_PROJECT_COPY_FAILED', { detail: err instanceof Error ? err.message : String(err) }));
+  if (opts.keepProjectBackup !== false) {
+    try {
+      fs.mkdirSync(backupDir, { recursive: true });
+      projectBackup = path.join(backupDir, `${stamp}-${sha1Hex(buffer).slice(0, 8)}.mnproj`);
+      fs.writeFileSync(projectBackup, buffer);
+    } catch (err) {
+      warnings.push(t('WARN_PROJECT_COPY_FAILED', { detail: err instanceof Error ? err.message : String(err) }));
+    }
   }
 
   // 3. Restore pages / templates / presets / config.

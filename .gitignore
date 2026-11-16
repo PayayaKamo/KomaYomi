@@ -56,3 +56,5 @@ desktop.ini
 data/secrets.json
 data/secrets.json.enc
 *.mnproj
+# The built-in demo is a packaged resource that must ship with the installer.
+!resources/demo-project.mnproj

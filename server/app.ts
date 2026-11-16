@@ -42,6 +42,7 @@ import {
   startAutoBackupScheduler,
 } from './autoBackup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
+import { closeBuiltInDemo, closeDemoIfActive, demoStatus, openBuiltInDemo } from './demoProject.ts';
 import {
   clearProjectLink,
   createProjectSync,
@@ -1473,11 +1474,33 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         return true;
       }
 
+      /* ---- Built-in demo: open the bundled project without touching the shipped file ---- */
+      if (pathname === '/api/project/demo' && req.method === 'GET') {
+        sendJson(res, 200, demoStatus(dataRoot));
+        return true;
+      }
+
+      if (pathname === '/api/project/demo/open' && req.method === 'POST') {
+        const { library, status } = openBuiltInDemo({ rootDir, dataRoot, rawRoot });
+        sendJson(res, 200, { library, link: projectSync.status(), demo: status });
+        return true;
+      }
+
+      if (pathname === '/api/project/demo/close' && req.method === 'POST') {
+        const { closed, library, status } = closeBuiltInDemo({ rootDir, dataRoot, rawRoot });
+        sendJson(res, 200, { closed, library, link: projectSync.status(), demo: status });
+        return true;
+      }
+
       if (pathname === '/api/project/open' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { path?: string; conflict?: string; relinkDir?: string };
         const target = resolveProjectFilePath(body.path);
         const buffer = readProjectFile(target);
         const info = inspectProject({ rootDir, buffer });
+        // Opening a real project while the demo is active must unwind the demo first,
+        // so its pages/images do not leak into the user's library. Do it after the file
+        // has been validated, so a failed open leaves the demo untouched.
+        closeDemoIfActive({ rootDir, dataRoot, rawRoot });
         const result = importProject({
           rootDir,
           buffer,
@@ -1546,6 +1569,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
           conflictRaw = body.conflict;
           relinkDir = body.relinkDir;
         }
+        closeDemoIfActive({ rootDir, dataRoot, rawRoot });
         const result = importProject({
           rootDir,
           buffer,

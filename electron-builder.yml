@@ -23,6 +23,11 @@ files:
   - dist-server/**/*
   - electron/**/*
   - package.json
+# The built-in demo project is shipped next to the app resources, so the welcome
+# screen can open it without downloading anything or asking for a file.
+extraResources:
+  - from: resources/demo-project.mnproj
+    to: demo/demo-project.mnproj
 # dist-server/*.mjs already bundles its dependencies, so no node_modules are shipped.
 win:
   target:

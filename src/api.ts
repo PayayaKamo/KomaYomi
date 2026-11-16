@@ -67,6 +67,8 @@ export type NotesIndex = {
     scope: 'page' | 'panel';
     panelId: string | null;
     panelNo: number | null;
+    /** Note category id, used by the overview type badge. */
+    type?: string;
     text: string;
     excerpt: string;
     tags: string[];
@@ -153,6 +155,15 @@ export type ProjectWriteBack = {
   sha1: string;
   at: string;
   backup: string | null;
+};
+
+/** Whether the bundled demo project is currently open. */
+export type DemoStatus = {
+  active: boolean;
+  name?: string;
+  copy?: string;
+  volumes?: string[];
+  openedAt?: string;
 };
 
 /* ---- Scheduled local backups ---- */
@@ -441,6 +452,20 @@ export const api = {
 
   /** Stop writing back to the opened file (the working copy in data/ is kept). */
   unlinkProject: () => request<{ removed: boolean; link: ProjectLinkStatus }>('/api/project/unlink', json({})),
+
+  /* ---- Built-in demo project (shipped with the installer) ---- */
+  demoStatus: () => request<DemoStatus>('/api/project/demo'),
+
+  /** Unpack the bundled demo and link its user-directory copy (never the shipped file). */
+  openDemo: () =>
+    request<{ library: Library; link: ProjectLinkStatus; demo: DemoStatus }>('/api/project/demo/open', json({})),
+
+  /** Remove everything the demo import added and restore the previous config/link. */
+  closeDemo: () =>
+    request<{ closed: boolean; library: Library; link: ProjectLinkStatus; demo: DemoStatus }>(
+      '/api/project/demo/close',
+      json({}),
+    ),
 
   page: (volume: string, chapter: string, index: number) =>
     request<PageResponse>(

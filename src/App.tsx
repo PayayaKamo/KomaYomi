@@ -23,6 +23,7 @@ import { usePwaStatus } from './hooks/usePwaStatus';
 import { useModalFocusGuard } from './hooks/useModalFocusGuard';
 import { isModalOpen } from './lib/modalOpen';
 import { api } from './api';
+import type { DemoStatus } from './api';
 import { pushRecent } from './lib/recent';
 import { DEFAULT_LANGUAGES, READING_DIRECTIONS, isRightToLeft, isVerticalReading } from './types';
 import type { Lang, Library, NoteTypeDef, ReadingDirection } from './types';
@@ -78,6 +79,9 @@ export default function App() {
   const [rootPath, setRootPath] = useState('');
   const [rawPath, setRawPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
+  /** Built-in demo: whether it is open, so the banner can offer a clean exit. */
+  const [demo, setDemo] = useState<DemoStatus | null>(null);
+  const [demoBusy, setDemoBusy] = useState(false);
   const [sel, setSel] = useState<Selection | null>(null);
   const [view, setView] = useState<AppView>('panels');
   /** Panel whose detail view is open on top of the compare reading view. */
@@ -349,7 +353,64 @@ export default function App() {
         setLibError(null);
       })
       .catch((err: unknown) => setLibError(err instanceof Error ? err.message : String(err)));
+    // The demo flag lives on the server, so every reload (including opening or importing
+    // another project, which unwinds the demo) also refreshes the banner.
+    void api
+      .demoStatus()
+      .then(setDemo)
+      .catch(() => setDemo(null));
   }, []);
+
+  /** Welcome-screen demo: unpack the shipped project and jump to its first page. */
+  const openBuiltInDemo = useCallback(async () => {
+    if (demoBusy) return;
+    const ok = await confirmLeave();
+    if (!ok) return;
+    setDemoBusy(true);
+    try {
+      const res = await api.openDemo();
+      setDemo(res.demo);
+      setLibrary(res.library);
+      setNoteTypes(res.library.noteTypes ?? []);
+      if (res.library.langOrder?.length) setLangsState(res.library.langOrder);
+      setLibError(null);
+      const first = res.library.volumes[0]?.chapters[0];
+      if (first) {
+        detailPushed.current = false;
+        setDetailPanel(null);
+        setSelected([]);
+        setView('panels');
+        setSel({ volume: first.volume, chapter: first.chapter, pageIndex: 0 });
+      }
+    } catch (err) {
+      setLibError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDemoBusy(false);
+    }
+  }, [confirmLeave, demoBusy]);
+
+  /** Leave the demo: the server removes its pages/images and restores the previous state. */
+  const exitBuiltInDemo = useCallback(async () => {
+    if (demoBusy) return;
+    const ok = await confirmLeave();
+    if (!ok) return;
+    setDemoBusy(true);
+    try {
+      const res = await api.closeDemo();
+      setDemo(res.demo);
+      setLibrary(res.library);
+      setNoteTypes(res.library.noteTypes ?? []);
+      if (res.library.langOrder?.length) setLangsState(res.library.langOrder);
+      setSelected([]);
+      setView('panels');
+      setSel(null);
+      history.replaceState(null, '', `${location.pathname}${location.search}`);
+    } catch (err) {
+      setLibError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDemoBusy(false);
+    }
+  }, [confirmLeave, demoBusy]);
 
   /** Custom note categories are project-level data, shared by the panel and the compare view. */
   const saveNoteTypes = useCallback(
@@ -1077,6 +1138,14 @@ export default function App() {
               }}
             />
           )}
+          {demo?.active && (
+            <div className="banner demo">
+              <span>{t('app.demo.active')}</span>
+              <button type="button" className="btn tiny" onClick={() => void exitBuiltInDemo()} disabled={demoBusy}>
+                {demoBusy ? t('app.demo.closing') : t('app.demo.exit')}
+              </button>
+            </div>
+          )}
           {libError && <div className="banner error">{t('app.libraryError', { error: libError })}</div>}
           {pageState.error && <div className="banner error">{pageState.error}</div>}
 
@@ -1085,6 +1154,9 @@ export default function App() {
               library={library}
               onOpen={openSelection}
               readOnly={readOnly}
+              demoAvailable={!library || library.volumes.length === 0}
+              demoBusy={demoBusy}
+              onOpenDemo={() => void openBuiltInDemo()}
               onImportImages={() => setFileIntent('library')}
               onNewLibrary={() => setFileIntent('add')}
               onOpenProject={() => setFileIntent('project')}
@@ -1448,6 +1520,9 @@ function Welcome({
   onNewLibrary,
   onOpenProject,
   onOpenHelp,
+  demoAvailable,
+  demoBusy,
+  onOpenDemo,
 }: {
   library: Library | null;
   onOpen: (sel: Selection) => void;
@@ -1456,6 +1531,10 @@ function Welcome({
   onNewLibrary: () => void;
   onOpenProject: () => void;
   onOpenHelp: () => void;
+  /** Shown only while there is no usable library, so it never competes with real projects. */
+  demoAvailable: boolean;
+  demoBusy: boolean;
+  onOpenDemo: () => void;
 }) {
   const { t, locale } = useI18n();
   const first = library?.volumes[0]?.chapters[0];
@@ -1491,6 +1570,16 @@ function Welcome({
           <button type="button" className="btn large" onClick={onOpenProject}>
             {t('app.welcome.openProject')}
           </button>
+          {!readOnly && demoAvailable && (
+            <button
+              type="button"
+              className={`btn large demo-open${first ? '' : ' primary'}`}
+              onClick={onOpenDemo}
+              disabled={demoBusy}
+            >
+              {demoBusy ? t('app.demo.opening') : t('app.demo.open')}
+            </button>
+          )}
           <button type="button" className="btn large" onClick={onOpenHelp}>
             {t('app.welcome.guide')}
           </button>
