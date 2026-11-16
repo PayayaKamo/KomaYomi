@@ -231,3 +231,18 @@ describe('markdownExcerpt', () => {
     expect(markdownExcerpt('```js\nconst x = 1;\n```')).toBe('');
   });
 });
+
+describe('malformed fences', () => {
+  it('degrades a fence-like line that does not match the fence syntax to text', () => {
+    const html = renderMarkdown('```js title\nnext line');
+    expect(html).toContain('```js title');
+    expect(html).toContain('next line');
+    expect(html).not.toContain('<pre');
+  });
+
+  it('keeps rendering after the malformed line instead of stalling', () => {
+    const html = renderMarkdown('```js title\n\nafter');
+    expect(html).toContain('```js title');
+    expect(html).toContain('<p>after</p>');
+  });
+});
