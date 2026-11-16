@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type {
   AlignMode,
@@ -41,6 +41,8 @@ import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationL
 import type { AnnotationTool } from './AnnotationLayer';
 import { CropLayer } from './CropLayer';
 import { PanelDetail } from './PanelDetail';
+import type { ZoomImageItem } from './ImageLightbox';
+import type { NoteEditSession } from './NotesPanel';
 import { NoteAnchorLayer } from './NoteAnchorLayer';
 import { clampAnchorPoint } from '../../shared/noteAnchors';
 import { pickNoteAnchor, useAnchorPicking } from '../lib/noteAnchorPick';
@@ -51,6 +53,7 @@ import { copyText } from '../lib/clipboard';
 import { exportPng } from '../lib/pngExport';
 import { enqueueOutbox } from '../lib/outbox';
 import { useCompareLayout } from '../hooks/useCompareLayout';
+import { isModalOpen } from '../lib/modalOpen';
 
 /** Remembered stroke width for new marks; the middle value is the historical default. */
 const ANNOTATION_WIDTH_KEY = 'manga-memo.compare-ann-width';
@@ -93,10 +96,25 @@ type Props = {
   onNoteTypesChange?: (types: NoteTypeDef[]) => void;
   /** Read-only viewer: no authoring tools; alignment stays available for this session only. */
   readOnly?: boolean;
+  /** Single-editor session owned by the app shell, shared with the notes panels. */
+  noteEdit?: NoteEditSession | null;
+  onNoteEditChange?: (next: NoteEditSession | null) => void;
+  /** Open the full-screen viewer with a reading-order list and the clicked image. */
+  onZoomImage?: (items: ZoomImageItem[], index: number) => void;
 };
 
 const sizeCache = new Map<string, { w: number; h: number }>();
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+
+/** First meaningful line of a note with Markdown punctuation stripped, for collapsed cards. */
+function noteSummary(text: string): string {
+  const line = text.split('\n').find((l) => l.trim()) ?? '';
+  const plain = line
+    .replace(/^\s*#{1,6}\s*/, '')
+    .replace(/[*_`~>[\]]/g, '')
+    .trim();
+  return plain.length > 80 ? `${plain.slice(0, 80)}…` : plain;
+}
 
 const ALIGN_MODES: AlignMode[] = ['page', 'panel', 'anchors', 'grid'];
 
@@ -258,6 +276,9 @@ export function CompareTab({
   noteTypes,
   onNoteTypesChange,
   readOnly = false,
+  noteEdit = null,
+  onNoteEditChange,
+  onZoomImage,
 }: Props) {
   const { t, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
@@ -355,6 +376,36 @@ export function CompareTab({
   /** Lane that receives new marks in side-by-side mode; highlighted in the grid. */
   const [annLang, setAnnLang] = useState<Lang>(langs[0] ?? 'ja');
   const [moreOpen, setMoreOpen] = useState(false);
+  /** Popovers that keep the toolbar to one row: drawing tool picker and brush settings. */
+  const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [brushOpen, setBrushOpen] = useState(false);
+
+  // Esc and a click outside close the toolbar popovers; keyboard users get the same path.
+  useEffect(() => {
+    if (!moreOpen && !toolMenuOpen && !brushOpen) return;
+    const close = () => {
+      setMoreOpen(false);
+      setToolMenuOpen(false);
+      setBrushOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    };
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.tb-more-panel, .tb-pop-wrap, .tb-more-btn')) return;
+      close();
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onDown);
+    };
+  }, [moreOpen, toolMenuOpen, brushOpen]);
 
   const annSurface = useAnnSurface();
   /** Reading keeps annotations by default; "panels only" removes them here. */
@@ -444,6 +495,55 @@ export function CompareTab({
   const noteTypeOf = (note: Note): string => (note.type && noteTypeInfo.has(note.type) ? note.type : DEFAULT_NOTE_TYPE);
   const noteTypeColor = (id: string): string => noteTypeInfo.get(id)?.color ?? NOTE_TYPE_COLORS[DEFAULT_NOTE_TYPE];
 
+  /** In-cell note list: one expanded note by default, the rest collapsed to a summary line. */
+  const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  /** App-owned session: the sidebar/detail composer and this inline editor may not both edit. */
+  const noteEditRef = useRef(noteEdit);
+  noteEditRef.current = noteEdit;
+  const onNoteEditChangeRef = useRef(onNoteEditChange);
+  onNoteEditChangeRef.current = onNoteEditChange;
+  const editingNoteRef = useRef(editingNote);
+  editingNoteRef.current = editingNote;
+  const noteDraftRef = useRef(noteDraft);
+  noteDraftRef.current = noteDraft;
+  const releaseInlineSession = () => {
+    if (noteEditRef.current?.surface === 'inline') onNoteEditChangeRef.current?.(null);
+  };
+  const setNotesOpen = (list: Note[], open: boolean) =>
+    setNoteOpen((prev) => {
+      const next = { ...prev };
+      for (const n of list) next[n.id] = open;
+      return next;
+    });
+  const saveInlineNote = (id: string) => {
+    const text = noteDraftRef.current.trim();
+    setEditingNote(null);
+    releaseInlineSession();
+    if (!text) return;
+    const now = new Date().toISOString();
+    mutate((d) => ({ ...d, notes: d.notes.map((n) => (n.id === id ? { ...n, text, updatedAt: now } : n)) }));
+  };
+  /** Double-click a card: claim the shared session, carrying a draft typed in the sidebar. */
+  const startInlineNote = (note: Note) => {
+    const active = noteEditRef.current;
+    const carry = active && active.surface !== 'inline' && active.noteId === note.id ? active.draft : note.text;
+    onNoteEditChangeRef.current?.({ surface: 'inline', noteId: note.id, draft: carry });
+    setNoteOpen((prev) => ({ ...prev, [note.id]: true }));
+    setEditingNote(note.id);
+    setNoteDraft(carry);
+    // Keep the ref current for the flush triggered by the other editor's takeover.
+    noteDraftRef.current = carry;
+  };
+  /** Another editor took the session: persist this draft here, then close the inline editor. */
+  useEffect(() => {
+    if (!noteEdit || noteEdit.surface === 'inline') return;
+    const id = editingNoteRef.current;
+    if (id) saveInlineNote(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteEdit?.surface]);
+
   /** Category id → {count, colour} for one panel, in registry order. */
   const panelTypeCounts = (panelId: string) => {
     const counts = new Map<string, number>();
@@ -485,6 +585,41 @@ export function CompareTab({
   }, [paneLangs, annLang]);
 
   const compareScrollRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Reveal the primary selected panel inside the compare scroller: centred when it fits,
+   * top-aligned with a small margin when it is taller than the viewport. Already fully
+   * visible panels are left alone, so clicking a card does not jitter the page.
+   */
+  const scrollPanelIntoView = useCallback((panelId: string) => {
+    const scroller = compareScrollRef.current;
+    const el = document.getElementById(`panel-${panelId}`);
+    if (!scroller || !el) return;
+    const scRect = scroller.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    if (rect.top >= scRect.top && rect.bottom <= scRect.bottom) return;
+    const margin = 12;
+    const view = scroller.clientHeight;
+    const top = rect.top - scRect.top + scroller.scrollTop;
+    const target = rect.height > view - margin * 2 ? top - margin : top - (view - rect.height) / 2;
+    const max = Math.max(0, scroller.scrollHeight - view);
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scroller.scrollTo({ top: Math.max(0, Math.min(target, max)), behavior: reduce ? 'auto' : 'smooth' });
+  }, []);
+
+  // Any selection change (bottom nav, cross-page steps, sidebar/thumbnail jumps) reveals
+  // the target. Running after commit means a newly loaded page is already on screen.
+  const lastRevealRef = useRef('');
+  useEffect(() => {
+    const id = selected[0];
+    if (!id) return;
+    const key = `${doc.volume}\u0000${doc.chapter}\u0000${doc.pageIndex}\u0000${id}`;
+    if (lastRevealRef.current === key) return;
+    lastRevealRef.current = key;
+    const frame = requestAnimationFrame(() => scrollPanelIntoView(id));
+    return () => cancelAnimationFrame(frame);
+  }, [selected, doc.volume, doc.chapter, doc.pageIndex, scrollPanelIntoView]);
+
   const swipeLangs = !overlay && layout.mode === 'phone' && paneLangs.length === 1 && activeLangs.length > 1;
   useEffect(() => {
     if (!swipeLangs) return;
@@ -655,6 +790,7 @@ export function CompareTab({
   }, [dragging, doc.gridStep, mutate]);
 
   const startPan = (e: ReactPointerEvent<HTMLDivElement>, lang: Lang, panel: Panel) => {
+    if (e.button !== 0 || isModalOpen()) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (mode === 'anchors') {
       e.preventDefault();
@@ -727,7 +863,8 @@ export function CompareTab({
   // attach it in the window capture phase so scroll containers or inner elements cannot consume the event first (causing zoom + scroll).
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
   wheelRef.current = (e: WheelEvent) => {
-    if (!e.deltaY) return;
+    // elementsFromPoint still reaches the panes behind a modal, so bail out explicitly.
+    if (!e.deltaY || isModalOpen()) return;
     const paneEl = paneAtPoint(e.clientX, e.clientY);
     if (!paneEl) return;
     const lang = paneEl.dataset.lang as Lang | undefined;
@@ -879,6 +1016,26 @@ export function CompareTab({
     const onlyThis = activeLangs.length === 1 && activeLangs[0] === lang;
     openMenu(e, [
       {
+        id: 'zoom',
+        label: t('ctx.zoomImage'),
+        disabled: !hasImage || !onZoomImage,
+        onSelect: () => {
+          // Walk the panels in reading order; only the active languages take part.
+          const items: ZoomImageItem[] = [];
+          let target = 0;
+          for (const p of ordered) {
+            for (const l of activeLangs) {
+              const src = page.files[l];
+              if (!src) continue;
+              if (p.id === panel.id && l === lang) target = items.length;
+              items.push({ src, lang: l, panelId: p.id, crop: p.rect });
+            }
+          }
+          onZoomImage?.(items, target);
+        },
+      },
+      { type: 'separator', id: 'sep-zoom' },
+      {
         id: 'hide',
         label: t('ctx.hideLangBar'),
         disabled: !hasImage || activeLangs.length <= 1 || !activeLangs.includes(lang),
@@ -928,7 +1085,7 @@ export function CompareTab({
     }
     const target = ordered[nextIdx];
     setSelected([target.id]);
-    document.getElementById(`panel-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // The selection effect scrolls once the new selection has rendered.
   };
 
   /** Open the enlarged detail view; selection keeps the reading position behind it. */
@@ -1443,442 +1600,558 @@ export function CompareTab({
 
   const detailIndex = detailPanel ? ordered.findIndex((p) => p.id === detailPanel) : -1;
   const detailTarget = detailIndex >= 0 ? ordered[detailIndex] : null;
+  const annWidthLabel = t(ANNOTATION_WIDTH_LABELS[Math.max(0, ANNOTATION_WIDTHS.indexOf(annWidth))]);
+  const annToolLabel = t(ANNOTATION_TOOLS[annTool].labelKey);
 
   return (
     <div className={`compare-tab layout-${layout.mode}`}>
-      <div className={`stage-toolbar ${moreOpen ? 'tb-more-open' : ''}`}>
-        <div className="tb-group">
-          <span className="tb-label">{t('compare.language')}</span>
-          <div className="lang-chips">
-            {langBar.map((l, barIndex) => {
-              const enabled = langs.includes(l);
-              const disabled = !availableLangs.includes(l);
-              const pos = enabled ? langs.indexOf(l) : -1;
-              const isDragging = pos >= 0 && pos === langDragIndex;
-              const dropBefore = pos >= 0 && langDragIndex !== null && langDropIndex === pos;
-              const dropAfter =
-                pos >= 0 &&
-                langDragIndex !== null &&
-                pos === langs.length - 1 &&
-                langDropIndex === langs.length &&
-                langDragIndex !== langs.length - 1;
-              return (
-                <button
-                  type="button"
-                  key={l}
-                  ref={(el) => {
-                    langChipRefs.current[barIndex] = enabled ? el : null;
-                  }}
-                  className={[
-                    'lang-chip',
-                    enabled ? 'on' : '',
-                    isDragging ? 'dragging' : '',
-                    dropBefore ? 'drop-before' : '',
-                    dropAfter ? 'drop-after' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => {
-                    if (suppressChipClick.current) {
-                      suppressChipClick.current = false;
-                      return;
-                    }
-                    toggleLang(l);
-                  }}
-                  onPointerDown={(e) => startLangDrag(e, l, barIndex)}
-                  onPointerMove={moveLangDrag}
-                  onPointerUp={endLangDrag}
-                  onPointerCancel={endLangDrag}
-                  disabled={disabled}
-                  title={
-                    disabled
-                      ? t('compare.langMissing')
-                      : enabled
-                        ? `${langLabel(l)} · ${t('compare.langDragHint')}`
-                        : langLabel(l)
-                  }
-                >
-                  {langShort(l)}
-                </button>
-              );
-            })}
-            {langs.join() !== allLangs.join() && (
-              <button
-                type="button"
-                className="lang-order-reset"
-                onClick={resetLangOrder}
-                title={t('compare.langOrderReset')}
-                aria-label={t('compare.langOrderReset')}
-              >
-                ↺
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="tb-group mask-group tb-collapsible">
-          <span className="tb-label">{t('compare.mask')}</span>
-          <button
-            type="button"
-            className={`btn tiny ${maskPrefs.master ? 'on' : ''}`}
-            onClick={() => {
-              setMaskPrefs((p) => ({ ...p, master: !p.master }));
-              setRevealed({});
-            }}
-            title={t('compare.maskToggleTitle')}
-          >
-            {maskPrefs.master ? t('compare.maskOn') : t('compare.maskOff')}
-          </button>
-          {maskPrefs.master &&
-            availableLangs.map((l) => (
-              <button
-                type="button"
-                key={l}
-                className={`lang-chip ${maskWanted(l) ? 'on' : ''}`}
-                onClick={() => toggleMaskLang(l)}
-                title={
-                  maskWanted(l)
-                    ? t('compare.maskLangTitleMasked', { lang: langLabel(l) })
-                    : t('compare.maskLangTitleVisible', { lang: langLabel(l) })
-                }
-              >
-                {langShort(l)}
-                <i className="mask-icon">{maskWanted(l) ? '◐' : '◯'}</i>
-              </button>
-            ))}
-          {maskPrefs.master && (
-            <>
-              <select
-                className="tb-select"
-                value={maskPrefs.style}
-                onChange={(e) => setMaskPrefs((p) => ({ ...p, style: e.target.value === 'solid' ? 'solid' : 'blur' }))}
-                title={t('compare.maskStyle')}
-              >
-                <option value="blur">{t('compare.maskStyleBlur')}</option>
-                <option value="solid">{t('compare.maskStyleSolid')}</option>
-              </select>
-              <button
-                type="button"
-                className="btn icon tiny"
-                onClick={() => setRevealed({})}
-                title={t('compare.maskAllTitle')}
-                aria-label={t('compare.maskAllTitle')}
-              >
-                ◉
-              </button>
-              <button
-                type="button"
-                className="btn icon tiny"
-                onClick={() => setMaskPrefs((p) => ({ ...p, master: false }))}
-                title={t('compare.maskNoneTitle')}
-                aria-label={t('compare.maskNoneTitle')}
-              >
-                ◯
-              </button>
-              <button
-                type="button"
-                className={`btn icon tiny ${maskDefaultsOpen ? 'on' : ''}`}
-                onClick={() => setMaskDefaultsOpen((v) => !v)}
-                title={t('compare.maskDefaultsTitle')}
-                aria-label={t('compare.maskDefaultsTitle')}
-              >
-                ⚙
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="tb-group">
-          <div className="seg">
-            <button type="button" className={!overlay ? 'on' : ''} onClick={() => setOverlay(false)}>
-              {t('compare.sideBySide')}
-            </button>
-            <button type="button" className={overlay ? 'on' : ''} onClick={() => setOverlay(true)}>
-              {t('compare.overlay')}
-            </button>
-          </div>
-          {overlay && (
-            <>
-              <label className="tb-check">
-                <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} />
-                {t('compare.multiply')}
-              </label>
-              <span className="muted tiny">{t('compare.alignTarget')}</span>
-              <div className="lang-chips">
-                {activeLangs.map((l) => (
+      <div className={`stage-toolbar compare-toolbar ${moreOpen ? 'tb-more-open' : ''}`}>
+        {/* Row 1: what you look at — languages, view mode, alignment, mask, drag scope. */}
+        <div className="tb-row tb-row-view">
+          <div className="tb-group">
+            <span className="tb-label">{t('compare.language')}</span>
+            <div className="lang-chips">
+              {langBar.map((l, barIndex) => {
+                const enabled = langs.includes(l);
+                const disabled = !availableLangs.includes(l);
+                const pos = enabled ? langs.indexOf(l) : -1;
+                const isDragging = pos >= 0 && pos === langDragIndex;
+                const dropBefore = pos >= 0 && langDragIndex !== null && langDropIndex === pos;
+                const dropAfter =
+                  pos >= 0 &&
+                  langDragIndex !== null &&
+                  pos === langs.length - 1 &&
+                  langDropIndex === langs.length &&
+                  langDragIndex !== langs.length - 1;
+                return (
                   <button
                     type="button"
                     key={l}
-                    className={`lang-chip ${dragLang === l ? 'on' : ''}`}
-                    onClick={() => setDragLang(l)}
+                    ref={(el) => {
+                      langChipRefs.current[barIndex] = enabled ? el : null;
+                    }}
+                    className={[
+                      'lang-chip',
+                      enabled ? 'on' : '',
+                      isDragging ? 'dragging' : '',
+                      dropBefore ? 'drop-before' : '',
+                      dropAfter ? 'drop-after' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => {
+                      if (suppressChipClick.current) {
+                        suppressChipClick.current = false;
+                        return;
+                      }
+                      toggleLang(l);
+                    }}
+                    onPointerDown={(e) => startLangDrag(e, l, barIndex)}
+                    onPointerMove={moveLangDrag}
+                    onPointerUp={endLangDrag}
+                    onPointerCancel={endLangDrag}
+                    disabled={disabled}
+                    title={
+                      disabled
+                        ? t('compare.langMissing')
+                        : enabled
+                          ? `${langLabel(l)} · ${t('compare.langDragHint')}`
+                          : langLabel(l)
+                    }
                   >
                     {langShort(l)}
                   </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="tb-group align-mode tb-collapsible">
-          <span className="tb-label">{t('compare.align')}</span>
-          <select
-            className={`tb-select mode mode-${mode}`}
-            value={mode}
-            onChange={(e) => changeMode(e.target.value as AlignMode)}
-            title={t(ALIGN_HINT_KEY[mode])}
-          >
-            {ALIGN_MODES.map((m) => (
-              <option key={m} value={m}>
-                {alignModeLabel(m)}
-              </option>
-            ))}
-          </select>
-          {mode === 'grid' && (
-            <select
-              className="tb-select"
-              value={doc.gridStep ?? 1}
-              onChange={(e) => mutate((d) => ({ ...d, gridStep: Number(e.target.value) }))}
-              title={t('compare.snapStep')}
-            >
-              {[0.5, 1, 2, 5].map((s) => (
-                <option key={s} value={s}>
-                  {s}%
-                </option>
-              ))}
-            </select>
-          )}
-          <button
-            type="button"
-            className={`btn icon tiny ${alignOpen ? 'on' : ''}`}
-            onClick={() => setAlignOpen((v) => !v)}
-            title={t('compare.alignSettingsTitle')}
-            aria-label={t('compare.alignSettingsTitle')}
-          >
-            ⚙
-          </button>
-        </div>
-
-        <div className="tb-group scope-group tb-collapsible">
-          <span className="tb-label">{t('compare.dragZoom')}</span>
-          <div className="seg scope-seg" title={t('compare.scopeTitle')}>
-            <button
-              type="button"
-              className={scopeOfMode === 'page' ? 'on' : ''}
-              onClick={() => changeMode('page')}
-              title={t('compare.scopePageTitle')}
-              aria-label={t('compare.scopePageTitle')}
-            >
-              ▦
-            </button>
-            <button
-              type="button"
-              className={scopeOfMode === 'panel' ? 'on' : ''}
-              onClick={() => changeMode('panel')}
-              title={t('compare.scopePanelTitle')}
-              aria-label={t('compare.scopePanelTitle')}
-            >
-              ▣
-            </button>
+                );
+              })}
+              {langs.join() !== allLangs.join() && (
+                <button
+                  type="button"
+                  className="lang-order-reset"
+                  onClick={resetLangOrder}
+                  title={t('compare.langOrderReset')}
+                  aria-label={t('compare.langOrderReset')}
+                >
+                  ↺
+                </button>
+              )}
+            </div>
           </div>
-          <span className="muted tiny alt-hint" title={t('compare.altHintTitle')}>
-            {t('compare.altHint')}
-          </span>
-        </div>
 
-        {annAllowed && (
-          <div className="tb-group ann-group">
-            <button
-              type="button"
-              className={`btn tiny ${annOn ? 'on' : ''}`}
-              aria-pressed={annOn}
-              title={annOn ? t('ann.hide') : t('ann.show')}
-              onClick={() => {
-                setAnnOn(!annOn);
-                if (annOn) {
-                  setAnnTool('select');
-                  setAnnSelected(null);
-                }
-              }}
-            >
-              {t('ann.layer')}
-            </button>
-            {annOn && !readOnly && (
-              <div className="ann-tools-wrap">
-                <div className="ann-tools">
-                  {ANNOTATION_TOOL_ORDER.map((item) => (
+          <div className="tb-group">
+            <div className="seg">
+              <button type="button" className={!overlay ? 'on' : ''} onClick={() => setOverlay(false)}>
+                {t('compare.sideBySide')}
+              </button>
+              <button type="button" className={overlay ? 'on' : ''} onClick={() => setOverlay(true)}>
+                {t('compare.overlay')}
+              </button>
+            </div>
+            {overlay && (
+              <>
+                <label className="tb-check">
+                  <input type="checkbox" checked={blend} onChange={(e) => setBlend(e.target.checked)} />
+                  {t('compare.multiply')}
+                </label>
+                <span className="muted tiny">{t('compare.alignTarget')}</span>
+                <div className="lang-chips">
+                  {activeLangs.map((l) => (
                     <button
-                      key={item}
                       type="button"
-                      className={`btn icon ann-tool ${annTool === item ? 'on' : ''}`}
-                      title={t(ANNOTATION_TOOLS[item].labelKey)}
-                      aria-label={t(ANNOTATION_TOOLS[item].labelKey)}
-                      aria-pressed={annTool === item}
-                      onClick={() => {
-                        setAnnTool(item);
-                        setAnnSelected(null);
-                      }}
+                      key={l}
+                      className={`lang-chip ${dragLang === l ? 'on' : ''}`}
+                      onClick={() => setDragLang(l)}
                     >
-                      {ANNOTATION_TOOLS[item].icon}
+                      {langShort(l)}
                     </button>
                   ))}
                 </div>
-                <div className="ann-colors" role="group" aria-label={t('ann.color')}>
-                  {ANNOTATION_COLORS.map((swatch) => (
+              </>
+            )}
+          </div>
+
+          <div className="tb-group align-mode">
+            <span className="tb-label">{t('compare.align')}</span>
+            <select
+              className={`tb-select mode mode-${mode}`}
+              value={mode}
+              onChange={(e) => changeMode(e.target.value as AlignMode)}
+              title={t(ALIGN_HINT_KEY[mode])}
+            >
+              {ALIGN_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {alignModeLabel(m)}
+                </option>
+              ))}
+            </select>
+            {mode === 'grid' && (
+              <select
+                className="tb-select"
+                value={doc.gridStep ?? 1}
+                onChange={(e) => mutate((d) => ({ ...d, gridStep: Number(e.target.value) }))}
+                title={t('compare.snapStep')}
+              >
+                {[0.5, 1, 2, 5].map((s) => (
+                  <option key={s} value={s}>
+                    {s}%
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              className={`btn icon tiny ${alignOpen ? 'on' : ''}`}
+              onClick={() => setAlignOpen((v) => !v)}
+              title={t('compare.alignSettingsTitle')}
+              aria-label={t('compare.alignSettingsTitle')}
+            >
+              ⚙
+            </button>
+          </div>
+
+          {/* Mask and drag scope fold into "more" when the row gets tight. */}
+          <div className="tb-more-panel" id="tb-more-panel" role="group" aria-label={t('toolbar.more')}>
+            <div className="tb-more-groups">
+              <div className="tb-group mask-group">
+                <span className="tb-label">{t('compare.mask')}</span>
+                <button
+                  type="button"
+                  className={`btn tiny ${maskPrefs.master ? 'on' : ''}`}
+                  onClick={() => {
+                    setMaskPrefs((p) => ({ ...p, master: !p.master }));
+                    setRevealed({});
+                  }}
+                  title={t('compare.maskToggleTitle')}
+                >
+                  {maskPrefs.master ? t('compare.maskOn') : t('compare.maskOff')}
+                </button>
+                {maskPrefs.master &&
+                  availableLangs.map((l) => (
                     <button
-                      key={swatch}
                       type="button"
-                      className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
-                      style={{ background: swatch }}
-                      title={t('ann.color')}
-                      aria-label={t('ann.color')}
-                      onClick={() => {
-                        setAnnColor(swatch);
-                        // Recolour the selected mark, same shortcut as the panel workspace.
-                        if (annSelected) {
-                          applyAnnotations((list) =>
-                            list.map((a) =>
-                              a.id === annSelected ? { ...a, color: swatch, updatedAt: new Date().toISOString() } : a,
-                            ),
-                          );
-                        }
-                      }}
-                    />
+                      key={l}
+                      className={`lang-chip ${maskWanted(l) ? 'on' : ''}`}
+                      onClick={() => toggleMaskLang(l)}
+                      title={
+                        maskWanted(l)
+                          ? t('compare.maskLangTitleMasked', { lang: langLabel(l) })
+                          : t('compare.maskLangTitleVisible', { lang: langLabel(l) })
+                      }
+                    >
+                      {langShort(l)}
+                      <i className="mask-icon">{maskWanted(l) ? '◐' : '◯'}</i>
+                    </button>
                   ))}
-                </div>
-                <label className="ann-width-group" title={t('ann.width')}>
-                  <span className="tb-label">{t('ann.width')}</span>
-                  <select
-                    className="tb-select ann-width"
-                    value={annWidth}
-                    onChange={(e) => setAnnWidth(Number(e.target.value))}
-                    aria-label={t('ann.width')}
-                  >
-                    {ANNOTATION_WIDTHS.map((w, i) => (
-                      <option key={w} value={w}>
-                        {t(ANNOTATION_WIDTH_LABELS[i])}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="seg ann-scope-seg" title={t('ann.sharedHint')}>
+                {maskPrefs.master && (
+                  <>
+                    <select
+                      className="tb-select"
+                      value={maskPrefs.style}
+                      onChange={(e) =>
+                        setMaskPrefs((p) => ({ ...p, style: e.target.value === 'solid' ? 'solid' : 'blur' }))
+                      }
+                      title={t('compare.maskStyle')}
+                    >
+                      <option value="blur">{t('compare.maskStyleBlur')}</option>
+                      <option value="solid">{t('compare.maskStyleSolid')}</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="btn icon tiny"
+                      onClick={() => setRevealed({})}
+                      title={t('compare.maskAllTitle')}
+                      aria-label={t('compare.maskAllTitle')}
+                    >
+                      ◉
+                    </button>
+                    <button
+                      type="button"
+                      className="btn icon tiny"
+                      onClick={() => setMaskPrefs((p) => ({ ...p, master: false }))}
+                      title={t('compare.maskNoneTitle')}
+                      aria-label={t('compare.maskNoneTitle')}
+                    >
+                      ◯
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn icon tiny ${maskDefaultsOpen ? 'on' : ''}`}
+                      onClick={() => setMaskDefaultsOpen((v) => !v)}
+                      title={t('compare.maskDefaultsTitle')}
+                      aria-label={t('compare.maskDefaultsTitle')}
+                    >
+                      ⚙
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="tb-group scope-group">
+                <span className="tb-label">{t('compare.dragZoom')}</span>
+                <div className="seg scope-seg" title={t('compare.scopeTitle')}>
                   <button
                     type="button"
-                    className={annScope === 'page' ? 'on' : ''}
-                    onClick={() => setAnnScope('page')}
-                    title={`${t('ann.scopePage')} · ${t('ann.sharedHint')}`}
+                    className={scopeOfMode === 'page' ? 'on' : ''}
+                    onClick={() => changeMode('page')}
+                    title={t('compare.scopePageTitle')}
+                    aria-label={t('compare.scopePageTitle')}
                   >
                     ▦
                   </button>
                   <button
                     type="button"
-                    className={annScope === 'panel' ? 'on' : ''}
-                    onClick={() => setAnnScope('panel')}
-                    title={`${t('ann.scopePanelShort')} · ${t('ann.sharedHint')}`}
+                    className={scopeOfMode === 'panel' ? 'on' : ''}
+                    onClick={() => changeMode('panel')}
+                    title={t('compare.scopePanelTitle')}
+                    aria-label={t('compare.scopePanelTitle')}
                   >
                     ▣
                   </button>
                 </div>
-                {/* Opt-in escape hatch: marks that genuinely belong to every edition stay visible everywhere. */}
-                <button
-                  type="button"
-                  className={`btn icon tiny ${annShared ? 'on' : ''}`}
-                  aria-pressed={annShared}
-                  onClick={() => setAnnShared(!annShared)}
-                  title={t('ann.allLangsHint')}
-                  aria-label={t('ann.allLangs')}
-                >
-                  ⧉
-                </button>
-                <button
-                  type="button"
-                  className="btn icon tiny"
-                  onClick={deleteAnnotation}
-                  disabled={!annSelected}
-                  title={t('ann.delete')}
-                  aria-label={t('ann.delete')}
-                >
-                  ✕
-                </button>
-                <button
-                  type="button"
-                  className="btn icon tiny"
-                  onClick={clearAnnotations}
-                  disabled={!annotationsForLang(annotations, overlay ? dragLang : annLang).length}
-                  title={t('ann.clear')}
-                  aria-label={t('ann.clear')}
-                >
-                  ⊗
-                </button>
-                <button
-                  type="button"
-                  className="btn icon tiny"
-                  onClick={onUndo}
-                  disabled={!canUndo}
-                  title={t('panels.undoTitle')}
-                  aria-label={t('panels.undoTitle')}
-                >
-                  ↶
-                </button>
-                <button
-                  type="button"
-                  className="btn icon tiny"
-                  onClick={onRedo}
-                  disabled={!canRedo}
-                  title={t('panels.redoTitle')}
-                  aria-label={t('panels.redoTitle')}
-                >
-                  ↷
-                </button>
-                <span className="muted tiny ann-hint">
-                  {annShared
-                    ? t('ann.allLangsOn')
-                    : t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
+                <span className="muted tiny alt-hint" title={t('compare.altHintTitle')}>
+                  {t('compare.altHint')}
                 </span>
               </div>
-            )}
+            </div>
+          </div>
+
+          <div className="tb-group right">
+            <span className="muted tiny">{readingLabel(doc.readingDirection)}</span>
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={() => goTo(-1)}
+              title={t('compare.prevPanel')}
+              aria-label={t('compare.prevPanel')}
+            >
+              {t('compare.prevPanel')}
+            </button>
+            <button
+              type="button"
+              className="btn tiny tb-nav-btn"
+              onClick={() => goTo(1)}
+              title={t('compare.nextPanel')}
+              aria-label={t('compare.nextPanel')}
+            >
+              {t('compare.nextPanel')}
+            </button>
+            <button
+              type="button"
+              className="btn icon tiny"
+              onClick={resetAll}
+              title={t('compare.resetAll')}
+              aria-label={t('compare.resetAll')}
+            >
+              ↺
+            </button>
+            <button
+              type="button"
+              className={`btn tiny tb-more-btn ${moreOpen ? 'on' : ''}`}
+              aria-expanded={moreOpen}
+              aria-controls="tb-more-panel"
+              onClick={() => {
+                setMoreOpen((v) => !v);
+                setToolMenuOpen(false);
+                setBrushOpen(false);
+              }}
+              title={t('toolbar.more')}
+            >
+              {t('toolbar.more')} ▾
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: what you draw and operate — tool, brush, history, destructive edits. */}
+        {annAllowed && (
+          <div className="tb-row tb-row-draw">
+            <div className="tb-group ann-group">
+              <button
+                type="button"
+                className={`btn tiny ${annOn ? 'on' : ''}`}
+                aria-pressed={annOn}
+                title={annOn ? t('ann.hide') : t('ann.show')}
+                onClick={() => {
+                  setAnnOn(!annOn);
+                  if (annOn) {
+                    setAnnTool('select');
+                    setAnnSelected(null);
+                  }
+                }}
+              >
+                {t('ann.layer')}
+              </button>
+              {annOn && !readOnly && (
+                <div className="ann-tools-wrap">
+                  {/* Drawing tools: the main button shows the active tool and opens the rest. */}
+                  <div className="tb-pop-wrap">
+                    <button
+                      type="button"
+                      className={`btn icon ann-tool-main ${toolMenuOpen ? 'on' : ''}`}
+                      aria-haspopup="menu"
+                      aria-expanded={toolMenuOpen}
+                      aria-controls="ann-tool-menu"
+                      title={`${t('ann.toggleTools')} · ${annToolLabel}`}
+                      aria-label={`${t('ann.currentTool')}: ${annToolLabel}`}
+                      onClick={() => {
+                        setToolMenuOpen((v) => !v);
+                        setBrushOpen(false);
+                      }}
+                    >
+                      <span aria-hidden="true">{ANNOTATION_TOOLS[annTool].icon}</span>
+                      <i className="tb-caret" aria-hidden="true">
+                        ▾
+                      </i>
+                    </button>
+                    {toolMenuOpen && (
+                      <div
+                        className="tb-pop ann-tool-menu"
+                        id="ann-tool-menu"
+                        role="menu"
+                        aria-label={t('ann.toggleTools')}
+                      >
+                        {ANNOTATION_TOOL_ORDER.map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={annTool === item}
+                            className={`ann-tool-menu-item ${annTool === item ? 'on' : ''}`}
+                            onClick={() => {
+                              setAnnTool(item);
+                              setAnnSelected(null);
+                              setToolMenuOpen(false);
+                            }}
+                          >
+                            <span className="ann-tool-menu-icon" aria-hidden="true">
+                              {ANNOTATION_TOOLS[item].icon}
+                            </span>
+                            <span>{t(ANNOTATION_TOOLS[item].labelKey)}</span>
+                            {annTool === item && (
+                              <span className="ann-tool-menu-check" aria-hidden="true">
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Brush: colour and line width share one popover; the button previews both. */}
+                  <div className="tb-pop-wrap">
+                    <button
+                      type="button"
+                      className={`btn ann-brush ${brushOpen ? 'on' : ''}`}
+                      aria-haspopup="dialog"
+                      aria-expanded={brushOpen}
+                      aria-controls="ann-brush-pop"
+                      title={`${t('ann.brush')} · ${t('ann.color')}: ${annWidthLabel}`}
+                      onClick={() => {
+                        setBrushOpen((v) => !v);
+                        setToolMenuOpen(false);
+                      }}
+                    >
+                      <span className="ann-brush-dot" style={{ background: annColor }} aria-hidden="true" />
+                      <span className="ann-brush-label">{annWidthLabel}</span>
+                      <i className="tb-caret" aria-hidden="true">
+                        ▾
+                      </i>
+                    </button>
+                    {brushOpen && (
+                      <div
+                        className="tb-pop ann-brush-pop"
+                        id="ann-brush-pop"
+                        role="dialog"
+                        aria-label={t('ann.brush')}
+                      >
+                        <div className="ann-brush-section">
+                          <span className="tb-label">{t('ann.color')}</span>
+                          <div className="ann-colors" role="group" aria-label={t('ann.color')}>
+                            {ANNOTATION_COLORS.map((swatch) => (
+                              <button
+                                key={swatch}
+                                type="button"
+                                className={`ann-swatch ${annColor === swatch ? 'on' : ''}`}
+                                style={{ background: swatch }}
+                                title={t('ann.color')}
+                                aria-label={t('ann.color')}
+                                aria-pressed={annColor === swatch}
+                                onClick={() => {
+                                  setAnnColor(swatch);
+                                  // Recolour the selected mark, same shortcut as the panel workspace.
+                                  if (annSelected) {
+                                    applyAnnotations((list) =>
+                                      list.map((a) =>
+                                        a.id === annSelected
+                                          ? { ...a, color: swatch, updatedAt: new Date().toISOString() }
+                                          : a,
+                                      ),
+                                    );
+                                  }
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <div className="ann-brush-section">
+                          <span className="tb-label">{t('ann.width')}</span>
+                          <div className="seg ann-width-seg" role="group" aria-label={t('ann.width')}>
+                            {ANNOTATION_WIDTHS.map((w, i) => (
+                              <button
+                                key={w}
+                                type="button"
+                                className={annWidth === w ? 'on' : ''}
+                                aria-pressed={annWidth === w}
+                                title={t(ANNOTATION_WIDTH_LABELS[i])}
+                                onClick={() => setAnnWidth(w)}
+                              >
+                                <i
+                                  className="ann-width-preview"
+                                  style={{ height: `${[1, 2, 4][i]}px` }}
+                                  aria-hidden="true"
+                                />
+                                {t(ANNOTATION_WIDTH_LABELS[i])}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="seg ann-scope-seg" title={t('ann.sharedHint')}>
+                    <button
+                      type="button"
+                      className={annScope === 'page' ? 'on' : ''}
+                      onClick={() => setAnnScope('page')}
+                      title={`${t('ann.scopePage')} · ${t('ann.sharedHint')}`}
+                      aria-label={`${t('ann.scopePage')} · ${t('ann.sharedHint')}`}
+                    >
+                      ▦
+                    </button>
+                    <button
+                      type="button"
+                      className={annScope === 'panel' ? 'on' : ''}
+                      onClick={() => setAnnScope('panel')}
+                      title={`${t('ann.scopePanelShort')} · ${t('ann.sharedHint')}`}
+                      aria-label={`${t('ann.scopePanelShort')} · ${t('ann.sharedHint')}`}
+                    >
+                      ▣
+                    </button>
+                  </div>
+                  {/* Opt-in escape hatch: marks that genuinely belong to every edition stay visible everywhere. */}
+                  <button
+                    type="button"
+                    className={`btn icon tiny ${annShared ? 'on' : ''}`}
+                    aria-pressed={annShared}
+                    onClick={() => setAnnShared(!annShared)}
+                    title={t('ann.allLangsHint')}
+                    aria-label={t('ann.allLangs')}
+                  >
+                    ⧉
+                  </button>
+
+                  {/* Status sits at the right end of the drawing row; actions close it out. */}
+                  <span
+                    className="muted tiny ann-status"
+                    title={
+                      annShared
+                        ? t('ann.allLangsOn')
+                        : t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })
+                    }
+                  >
+                    {annShared
+                      ? t('ann.allLangsOn')
+                      : t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
+                  </span>
+
+                  {/* Actions: history and destructive edits stay together, away from the brush. */}
+                  <div className="ann-actions" role="group" aria-label={t('ann.actions')}>
+                    <button
+                      type="button"
+                      className="btn icon tiny"
+                      onClick={deleteAnnotation}
+                      disabled={!annSelected}
+                      title={t('ann.delete')}
+                      aria-label={t('ann.delete')}
+                    >
+                      ✕
+                    </button>
+                    <button
+                      type="button"
+                      className="btn icon tiny"
+                      onClick={clearAnnotations}
+                      disabled={!annotationsForLang(annotations, overlay ? dragLang : annLang).length}
+                      title={t('ann.clear')}
+                      aria-label={t('ann.clear')}
+                    >
+                      ⊗
+                    </button>
+                    <button
+                      type="button"
+                      className="btn icon tiny"
+                      onClick={onUndo}
+                      disabled={!canUndo}
+                      title={t('panels.undoTitle')}
+                      aria-label={t('panels.undoTitle')}
+                    >
+                      ↶
+                    </button>
+                    <button
+                      type="button"
+                      className="btn icon tiny"
+                      onClick={onRedo}
+                      disabled={!canRedo}
+                      title={t('panels.redoTitle')}
+                      aria-label={t('panels.redoTitle')}
+                    >
+                      ↷
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
-
-        <div className="tb-group right">
-          <span className="muted tiny">{readingLabel(doc.readingDirection)}</span>
-          <button
-            type="button"
-            className="btn tiny"
-            onClick={() => goTo(-1)}
-            title={t('compare.prevPanel')}
-            aria-label={t('compare.prevPanel')}
-          >
-            {t('compare.prevPanel')}
-          </button>
-          <button
-            type="button"
-            className="btn tiny tb-nav-btn"
-            onClick={() => goTo(1)}
-            title={t('compare.nextPanel')}
-            aria-label={t('compare.nextPanel')}
-          >
-            {t('compare.nextPanel')}
-          </button>
-          <button
-            type="button"
-            className="btn icon tiny"
-            onClick={resetAll}
-            title={t('compare.resetAll')}
-            aria-label={t('compare.resetAll')}
-          >
-            ↺
-          </button>
-          <button
-            type="button"
-            className="btn tiny tb-more-btn"
-            aria-expanded={moreOpen}
-            onClick={() => setMoreOpen((v) => !v)}
-            title={t('toolbar.more')}
-          >
-            {t('toolbar.more')}
-          </button>
-        </div>
       </div>
 
       {alignOpen && (
@@ -2161,21 +2434,106 @@ export function CompareTab({
 
               {notes.length > 0 && (
                 <ul className="panel-notes">
-                  {notes.map((n) => (
-                    <li key={n.id}>
-                      <div className="panel-note-tags">
-                        {n.tags.map((t) => (
-                          <span className="tag" key={t}>
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                      <div
-                        className="md-body panel-note-body"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(n.text) }}
-                      />
+                  {notes.length > 1 && (
+                    <li className="panel-notes-tools">
+                      <button type="button" className="btn tiny" onClick={() => setNotesOpen(notes, true)}>
+                        {t('compare.notesExpandAll')}
+                      </button>
+                      <button type="button" className="btn tiny" onClick={() => setNotesOpen(notes, false)}>
+                        {t('compare.notesCollapseAll')}
+                      </button>
                     </li>
-                  ))}
+                  )}
+                  {notes.map((n) => {
+                    const typeId = noteTypeOf(n);
+                    const meta = noteTypeInfo.get(typeId);
+                    const open = noteOpen[n.id] ?? notes.length === 1;
+                    const editing = editingNote === n.id;
+                    return (
+                      <li
+                        key={n.id}
+                        className={`panel-note note-type-surface ${open ? 'open' : ''} ${editing ? 'editing' : ''}`}
+                        style={{ '--type-color': noteTypeColor(typeId) } as CSSProperties}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          startInlineNote(n);
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="panel-note-head"
+                          aria-expanded={open}
+                          onClick={() => setNoteOpen((prev) => ({ ...prev, [n.id]: !open }))}
+                        >
+                          <span
+                            className="note-type-chip on"
+                            style={{ '--type-color': noteTypeColor(typeId) } as CSSProperties}
+                          >
+                            <i aria-hidden="true" />
+                            {meta?.name ?? t('notes.type.background')}
+                          </span>
+                          <span className="panel-note-summary">{noteSummary(n.text)}</span>
+                        </button>
+                        {open && !editing && (
+                          <>
+                            {n.tags.length > 0 && (
+                              <div className="panel-note-tags">
+                                {n.tags.map((tag) => (
+                                  <span className="tag" key={tag}>
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div
+                              className="md-body panel-note-body"
+                              dangerouslySetInnerHTML={{ __html: renderMarkdown(n.text) }}
+                            />
+                          </>
+                        )}
+                        {editing && (
+                          <div className="panel-note-editor">
+                            <textarea
+                              value={noteDraft}
+                              autoFocus
+                              rows={3}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                setNoteDraft(next);
+                                noteDraftRef.current = next;
+                                onNoteEditChangeRef.current?.({ surface: 'inline', noteId: n.id, draft: next });
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation();
+                                  setEditingNote(null);
+                                  releaseInlineSession();
+                                } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                  e.preventDefault();
+                                  saveInlineNote(n.id);
+                                }
+                              }}
+                            />
+                            <div className="panel-note-editor-actions">
+                              <button
+                                type="button"
+                                className="btn tiny"
+                                onClick={() => {
+                                  setEditingNote(null);
+                                  releaseInlineSession();
+                                }}
+                              >
+                                {t('compare.noteCancel')}
+                              </button>
+                              <button type="button" className="btn tiny primary" onClick={() => saveInlineNote(n.id)}>
+                                {t('compare.noteSave')}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </article>
@@ -2209,6 +2567,9 @@ export function CompareTab({
           onNoteTypesChange={onNoteTypesChange}
           focusNoteType={detailNoteType}
           readOnly={readOnly}
+          noteEdit={noteEdit}
+          onNoteEditChange={onNoteEditChange}
+          onZoomImage={onZoomImage}
         />
       )}
     </div>

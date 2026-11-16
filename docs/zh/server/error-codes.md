@@ -163,6 +163,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_PROJECT_PATH_INVALID`          | 400  | 工程路径无效（需要绝对路径且指向 .mnproj/.zip）           | 选错了文件                 | 选择工程文件本身。                                         |
 | `ERR_PROJECT_FILE_MISSING`          | 404  | 找不到已链接的工程文件：{path}                           | 文件被移动/改名/删除       | 把文件放回原处，或停止写回后重新打开。                     |
 | `ERR_PROJECT_WRITE_FAILED`          | 500  | 写回工程文件失败：{detail}（原文件保留）                 | 文件被占用、只读或磁盘满   | 排除原因后用「保存到工程文件」重试。                       |
+| `ERR_PROJECT_SAVE_AS_LINKED`        | 409  | 「另存为」的目标就是当前打开的工程文件                   | 选到了原文件               | 用「保存到工程文件」写回，或换一个文件名。                 |
 | `ERR_MANIFEST_INVALID_JSON`         | 400  | manifest.json 不是有效的 JSON，可能不是 .mnproj 工程文件  | 不是 `.mnproj`，或已损坏   | 检查压缩包内容。                                           |
 | `ERR_MANIFEST_NOT_OBJECT`           | 400  | manifest.json 结构不正确（应为 JSON 对象）               | manifest 损坏              | 重新导出工程。                                             |
 | `ERR_MANIFEST_NO_INVENTORY`         | 400  | 工程文件缺少 inventory（卷话清单）                       | 导出太旧或损坏             | 用当前版本重新导出。                                       |

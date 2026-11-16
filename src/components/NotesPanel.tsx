@@ -21,6 +21,13 @@ import { langLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 
+/**
+ * One note authoring session, owned by a single surface at a time. The app shell holds
+ * this so the sidebar composer, the detail composer and the in-cell inline editor can
+ * never edit two notes at once, and so an unsaved draft survives a hand-off.
+ */
+export type NoteEditSession = { surface: string; noteId: string | null; draft: string };
+
 type Props = {
   doc: PageDoc | null;
   panel: Panel | null;
@@ -45,6 +52,11 @@ type Props = {
   embedded?: boolean;
   /** Category preselected when the compare view opens a panel from a type marker. */
   focusType?: string | null;
+  /** Which editor this instance is ('sidebar' / 'detail' / …); the app shell arbitrates one session. */
+  surface?: string;
+  /** Session owned by the app shell, shared with the other note editors. */
+  noteEdit?: NoteEditSession | null;
+  onNoteEditChange?: (next: NoteEditSession | null) => void;
 };
 
 export type NotesPanelHandle = {
@@ -694,6 +706,9 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     onNoteTypesChange,
     embedded = false,
     focusType = null,
+    surface = 'sidebar',
+    noteEdit = null,
+    onNoteEditChange,
   },
   ref,
 ) {
@@ -721,6 +736,40 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   const anchorPicking = useAnchorPicking();
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
   const composeRef = useRef<HTMLDivElement>(null);
+
+  /* ---- Shared single-editor session (owned by the app shell) ---- */
+  const noteEditRef = useRef(noteEdit);
+  noteEditRef.current = noteEdit;
+  const onNoteEditChangeRef = useRef(onNoteEditChange);
+  onNoteEditChangeRef.current = onNoteEditChange;
+  const composerHasWork = useRef(false);
+  composerHasWork.current = Boolean(editingId || text.trim() || images.length);
+
+  const ownsSession = () => noteEditRef.current?.surface === surface;
+  /** Drop the shared session, but only when this surface still owns it. */
+  const releaseSession = () => {
+    if (ownsSession()) onNoteEditChangeRef.current?.(null);
+  };
+  /**
+   * Take over editing. The same note edited elsewhere hands its unsaved text over, so a
+   * switch between editors never silently drops keystrokes; a different note is left to
+   * the other editor, which saves it when it sees the session move.
+   */
+  const claimSession = (noteId: string | null, fallback: string): string => {
+    const active = noteEditRef.current;
+    const carry = active && active.surface !== surface && active.noteId === noteId ? active.draft : fallback;
+    onNoteEditChangeRef.current?.({ surface, noteId, draft: carry });
+    return carry;
+  };
+  /** Publish the live draft while this surface owns the session. */
+  const publishDraft = (noteId: string | null, draft: string) => {
+    const active = noteEditRef.current;
+    if (active?.surface === surface) {
+      if (active.noteId !== noteId || active.draft !== draft) onNoteEditChangeRef.current?.({ surface, noteId, draft });
+      return;
+    }
+    onNoteEditChangeRef.current?.({ surface, noteId, draft });
+  };
 
   // Custom category manager
   const [typeManageOpen, setTypeManageOpen] = useState(false);
@@ -804,6 +853,7 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     setSrcUrl('');
     setSrcTitle('');
     setSrcText('');
+    releaseSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPanelId, currentPageKey]);
 
@@ -983,14 +1033,16 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     setSourceOpen(false);
     setAnchor(null);
     cancelAnchorPick();
+    releaseSession();
   };
 
   /** Load an existing note into the composer, so editing never spawns a second editor. */
   const startEdit = (note: Note) => {
+    const draft = claimSession(note.id, note.text);
     setEditingId(note.id);
     setScope(note.scope);
     setNoteType(typeKey(note));
-    setText(note.text);
+    setText(draft);
     setImages(note.images ?? []);
     setTags(note.tags);
     setTagInput('');
@@ -1005,6 +1057,7 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
 
   /** Clicking a category starts a blank note of that category in the shared composer. */
   const startNew = (typeId: string) => {
+    claimSession(null, '');
     setEditingId(null);
     setNoteType(typeId);
     setText('');
@@ -1090,6 +1143,13 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   const submitRef = useRef(submit);
   submitRef.current = submit;
   useImperativeHandle(ref, () => ({ flush: () => submitRef.current() }), []);
+
+  // Another editor took the session: save this composer first, then let it go quiet.
+  useEffect(() => {
+    if (!noteEdit || noteEdit.surface === surface) return;
+    if (composerHasWork.current) submitRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteEdit?.surface]);
 
   const addCustomType = () => {
     const name = newTypeName.trim();
@@ -1225,7 +1285,7 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
 
   const renderNote = (note: Note) => (
     <div
-      className={`note ${editingId === note.id ? 'editing' : ''}`}
+      className={`note note-type-surface ${editingId === note.id ? 'editing' : ''}`}
       key={note.id}
       // Type colour on the card itself, so a column of notes is scannable without reading the chip.
       style={{ '--type-color': typeColor(typeKey(note)) } as CSSProperties}
@@ -1776,7 +1836,11 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
               )}
               <MarkdownEditor
                 value={text}
-                onChange={setText}
+                onChange={(next) => {
+                  setText(next);
+                  // Typing here claims the shared session, so the inline editor flushes first.
+                  publishDraft(editingId, next);
+                }}
                 onSubmit={submit}
                 placeholder={scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')}
               />

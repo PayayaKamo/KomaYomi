@@ -12,6 +12,44 @@ export type Selection = { volume: string; chapter: string; pageIndex: number };
 /** Save mode: auto = debounced autosave; confirm = only saves when ✓ is clicked. */
 export type SaveMode = 'auto' | 'confirm';
 
+/** Coarse action label for one undoable edit, surfaced by the operation-history panel. */
+export type UndoKind = 'notes' | 'annotations' | 'panels' | 'other';
+
+/** One entry of the in-memory undo stack, metadata only (the snapshot stays internal). */
+export type UndoEntry = {
+  id: string;
+  at: number;
+  source: HistorySource;
+  kind: UndoKind;
+  /** Panel the edit belongs to, when the diff points at one. */
+  panelId: string | null;
+};
+
+type StackEntry = UndoEntry & { doc: PageDoc };
+
+let entrySeq = 0;
+const nextEntryId = () => `u${Date.now().toString(36)}-${(entrySeq += 1)}`;
+
+/** Compare two documents just enough to name the action that produced the newer one. */
+function describeChange(before: PageDoc, after: PageDoc, source: HistorySource): UndoEntry {
+  let kind: UndoKind = 'other';
+  let panelId: string | null = null;
+  const noteIndex = after.notes.findIndex((n, i) => before.notes[i] !== n);
+  if (before.notes !== after.notes) {
+    kind = 'notes';
+    panelId = (noteIndex >= 0 ? after.notes[noteIndex] : after.notes[after.notes.length - 1])?.panelId ?? null;
+  } else if (before.annotations !== after.annotations) {
+    kind = 'annotations';
+    const afterAnn = after.annotations ?? [];
+    const beforeAnn = before.annotations ?? [];
+    const annIndex = afterAnn.findIndex((a, i) => beforeAnn[i] !== a);
+    panelId = (annIndex >= 0 ? afterAnn[annIndex] : afterAnn[afterAnn.length - 1])?.panelId ?? null;
+  } else if (before.panels !== after.panels) {
+    kind = 'panels';
+  }
+  return { id: nextEntryId(), at: Date.now(), source, kind, panelId };
+}
+
 const SAVE_MODE_KEY = 'manga-memo.save-mode';
 const HISTORY_LIMIT = 60;
 const HISTORY_COALESCE_MS = 600;
@@ -59,7 +97,11 @@ export function usePage(sel: Selection | null, readOnly = false) {
   const [state, setState] = useState<State>(initial);
   const [reloadTick, setReloadTick] = useState(0);
   const [saveMode, setSaveModeState] = useState<SaveMode>(readSaveMode);
-  const [historyState, setHistoryState] = useState({ undo: 0, redo: 0 });
+  const [historyState, setHistoryState] = useState<{ undo: number; redo: number; entries: UndoEntry[] }>({
+    undo: 0,
+    redo: 0,
+    entries: [],
+  });
 
   const pending = useRef<PageDoc | null>(null);
   /** Why the pending save happened; forwarded to the cross-session version history. */
@@ -69,8 +111,8 @@ export function usePage(sel: Selection | null, readOnly = false) {
   const docRef = useRef<PageDoc | null>(null);
   const savedDoc = useRef<PageDoc | null>(null);
   const saveModeRef = useRef<SaveMode>(saveMode);
-  const undoStack = useRef<PageDoc[]>([]);
-  const redoStack = useRef<PageDoc[]>([]);
+  const undoStack = useRef<StackEntry[]>([]);
+  const redoStack = useRef<StackEntry[]>([]);
   const lastHistoryAt = useRef(0);
   /** Read-only mode must never hand the document to a save path, including unload. */
   const readOnlyRef = useRef(readOnly);
@@ -89,7 +131,8 @@ export function usePage(sel: Selection | null, readOnly = false) {
   }, [saveMode]);
 
   const syncHistoryCounts = () => {
-    setHistoryState({ undo: undoStack.current.length, redo: redoStack.current.length });
+    const entries = undoStack.current.map(({ doc: _doc, ...meta }) => meta).reverse();
+    setHistoryState({ undo: undoStack.current.length, redo: redoStack.current.length, entries });
   };
 
   const clearTimer = () => {
@@ -151,11 +194,11 @@ export function usePage(sel: Selection | null, readOnly = false) {
     [flush],
   );
 
-  const pushHistory = useCallback((doc: PageDoc) => {
+  const pushHistory = useCallback((doc: PageDoc, meta: UndoEntry) => {
     const now = Date.now();
     // Dragging fires mutate continuously; coalesce by time window so one undo doesn't move it 1px at a time.
     if (now - lastHistoryAt.current < HISTORY_COALESCE_MS && undoStack.current.length) return;
-    undoStack.current.push(cloneDoc(doc));
+    undoStack.current.push({ ...meta, at: now, doc: cloneDoc(doc) });
     if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift();
     redoStack.current = [];
     lastHistoryAt.current = now;
@@ -168,7 +211,7 @@ export function usePage(sel: Selection | null, readOnly = false) {
       if (!cur) return;
       const next = fn(cur);
       if (next === cur) return;
-      if (opts?.history !== false) pushHistory(cur);
+      if (opts?.history !== false) pushHistory(cur, describeChange(cur, next, opts?.source ?? 'auto'));
       docRef.current = next;
       if (readOnlyRef.current) {
         // View-only session: the change stays in memory and is never scheduled for saving.
@@ -209,37 +252,54 @@ export function usePage(sel: Selection | null, readOnly = false) {
     syncHistoryCounts();
   }, []);
 
-  const undo = useCallback(() => {
-    const cur = docRef.current;
-    const prev = undoStack.current.pop();
-    if (!cur || !prev) return;
-    redoStack.current.push(cloneDoc(cur));
-    docRef.current = prev;
-    if (readOnlyRef.current) {
-      setState((s) => ({ ...s, doc: prev }));
+  /**
+   * Walk back `steps` snapshots (1 = plain undo, more = jump to an older entry from the
+   * history panel). Every step lands on the redo stack, so redo stays in sync.
+   */
+  const undoTo = useCallback(
+    (steps: number) => {
+      if (readOnlyRef.current) return;
+      let remaining = Math.max(1, steps);
+      while (remaining > 0) {
+        const prev = undoStack.current.pop();
+        const cur = docRef.current;
+        if (!prev || !cur) {
+          if (prev) undoStack.current.push(prev);
+          break;
+        }
+        redoStack.current.push({ ...prev, doc: cloneDoc(cur), at: Date.now() });
+        docRef.current = prev.doc;
+        remaining -= 1;
+      }
+      const next = docRef.current;
+      if (!next) {
+        syncHistoryCounts();
+        return;
+      }
+      setState((s) => ({ ...s, doc: next, dirty: true }));
+      if (saveModeRef.current === 'auto') scheduleSave(next);
+      else pending.current = next;
       syncHistoryCounts();
-      return;
-    }
-    setState((s) => ({ ...s, doc: prev, dirty: true }));
-    if (saveModeRef.current === 'auto') scheduleSave(prev);
-    else pending.current = prev;
-    syncHistoryCounts();
-  }, [scheduleSave]);
+    },
+    [scheduleSave],
+  );
+
+  const undo = useCallback(() => undoTo(1), [undoTo]);
 
   const redo = useCallback(() => {
     const cur = docRef.current;
     const next = redoStack.current.pop();
     if (!cur || !next) return;
-    undoStack.current.push(cloneDoc(cur));
-    docRef.current = next;
+    undoStack.current.push({ ...next, doc: cloneDoc(cur), at: Date.now() });
+    docRef.current = next.doc;
     if (readOnlyRef.current) {
-      setState((s) => ({ ...s, doc: next }));
+      setState((s) => ({ ...s, doc: next.doc }));
       syncHistoryCounts();
       return;
     }
-    setState((s) => ({ ...s, doc: next, dirty: true }));
-    if (saveModeRef.current === 'auto') scheduleSave(next);
-    else pending.current = next;
+    setState((s) => ({ ...s, doc: next.doc, dirty: true }));
+    if (saveModeRef.current === 'auto') scheduleSave(next.doc);
+    else pending.current = next.doc;
     syncHistoryCounts();
   }, [scheduleSave]);
 
@@ -428,7 +488,10 @@ export function usePage(sel: Selection | null, readOnly = false) {
     discard,
     undo,
     redo,
+    undoTo,
+    undoEntries: historyState.entries,
     canUndo: historyState.undo > 0,
     canRedo: historyState.redo > 0,
+    redoCount: historyState.redo,
   };
 }

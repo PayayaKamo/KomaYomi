@@ -223,6 +223,44 @@ function rotateProjectBackup(target: string): string | null {
   }
 }
 
+/** Validate a "save as" destination that usually does not exist yet. */
+export function resolveProjectSavePath(input: unknown, dataRoot: string): string {
+  const raw = typeof input === 'string' ? input.trim() : '';
+  if (!raw || !path.isAbsolute(raw) || !/\.mnproj$/i.test(raw)) {
+    throw new AppError('ERR_PROJECT_PATH_INVALID', {}, 400);
+  }
+  const target = path.resolve(raw);
+  // "Save as" must never overwrite the file the user opened: that is what save does.
+  const linked = readProjectLink(dataRoot);
+  if (linked && linked.path.toLowerCase() === target.toLowerCase()) {
+    throw new AppError('ERR_PROJECT_SAVE_AS_LINKED', { path: target }, 409);
+  }
+  let dirStat: fs.Stats;
+  try {
+    dirStat = fs.statSync(path.dirname(target));
+  } catch {
+    throw new AppError('ERR_PROJECT_PATH_INVALID', {}, 400);
+  }
+  if (!dirStat.isDirectory()) throw new AppError('ERR_PROJECT_PATH_INVALID', {}, 400);
+  return target;
+}
+
+/**
+ * Write a standalone copy. It is never linked and never touches the opened file, so a
+ * "save as" keeps producing copies even while another .mnproj receives write-backs.
+ */
+export function writeProjectCopy(
+  target: string,
+  buffer: Buffer,
+): { path: string; size: number; sha1: string; at: string } {
+  try {
+    replaceFileAtomically(target, buffer);
+  } catch (err) {
+    throw new AppError('ERR_PROJECT_WRITE_FAILED', { detail: err instanceof Error ? err.message : String(err) }, 500);
+  }
+  return { path: target, size: buffer.length, sha1: sha1Hex(buffer), at: new Date().toISOString() };
+}
+
 /** Re-pack the working copy and overwrite the linked .mnproj. */
 export function writeBackProject(opts: {
   rootDir: string;

@@ -435,6 +435,10 @@ export const api = {
   saveProjectFile: () =>
     request<{ result: ProjectWriteBack | null; link: ProjectLinkStatus }>('/api/project/save', json({})),
 
+  /** Write a standalone copy to a chosen path; never touches the opened project file. */
+  saveProjectAs: (input: { path: string; mode?: ProjectMode; name?: string; notes?: string }) =>
+    request<ProjectWriteBack>('/api/project/save-as', json(input)),
+
   /** Stop writing back to the opened file (the working copy in data/ is kept). */
   unlinkProject: () => request<{ removed: boolean; link: ProjectLinkStatus }>('/api/project/unlink', json({})),
 

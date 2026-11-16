@@ -163,6 +163,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_PROJECT_PATH_INVALID`          | 400  | プロジェクトのパスが無効です（絶対パスで .mnproj/.zip を指定） | 誤ったファイルを選択 | プロジェクトファイル自体を選ぶ。                       |
 | `ERR_PROJECT_FILE_MISSING`          | 404  | 関連付けたプロジェクトファイルが見つかりません：{path}   | 移動・名前変更・削除       | 元の場所に戻すか、書き戻しを停止して開き直す。           |
 | `ERR_PROJECT_WRITE_FAILED`          | 500  | プロジェクトファイルへの書き戻しに失敗しました：{detail}（元のファイルは保持） | ロック・読み取り専用・空き容量不足 | 原因を解消し、「プロジェクトファイルに保存」で再試行する。 |
+| `ERR_PROJECT_SAVE_AS_LINKED`        | 409  | 「名前を付けて保存」の宛先が開いているプロジェクトファイル | 元のファイルを選択した     | 「保存」で書き戻すか、別のファイル名を選ぶ。             |
 | `ERR_MANIFEST_INVALID_JSON`         | 400  | manifest.json が有効な JSON ではありません。.mnproj プロジェクトファイルではない可能性があります | `.mnproj` でない、または破損 | アーカイブの中身を確認する。               |
 | `ERR_MANIFEST_NOT_OBJECT`           | 400  | manifest.json の構造が正しくありません（JSON オブジェクトが必要です） | manifest の破損 | プロジェクトを再エクスポートする。                     |
 | `ERR_MANIFEST_NO_INVENTORY`         | 400  | プロジェクトファイルに inventory（巻・話の一覧）がありません | 古すぎる、または破損した書き出し | 現行バージョンで再エクスポートする。               |

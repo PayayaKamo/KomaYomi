@@ -5,16 +5,23 @@ import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
 import { OriginalTab } from './components/OriginalTab';
 import { NotesPanel } from './components/NotesPanel';
+import type { NoteEditSession } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
+import { SaveStatus } from './components/SaveStatus';
 import { AboutDialog, DOCS_BASE, DOCS_PATHS } from './components/AboutDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { PageHistoryDialog } from './components/PageHistoryDialog';
+import { UndoHistoryDialog } from './components/UndoHistoryDialog';
+import { ImageLightbox } from './components/ImageLightbox';
+import type { ZoomImageItem } from './components/ImageLightbox';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
 import { usePage } from './hooks/usePage';
 import type { Selection } from './hooks/usePage';
 import { useOutbox } from './hooks/useOutbox';
 import { usePwaStatus } from './hooks/usePwaStatus';
+import { useModalFocusGuard } from './hooks/useModalFocusGuard';
+import { isModalOpen } from './lib/modalOpen';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
 import { DEFAULT_LANGUAGES, READING_DIRECTIONS, isRightToLeft, isVerticalReading } from './types';
@@ -62,6 +69,12 @@ export default function App() {
   const [library, setLibrary] = useState<Library | null>(null);
   /** User-defined note categories; built-in and language categories are derived in the UI. */
   const [noteTypes, setNoteTypes] = useState<NoteTypeDef[]>([]);
+  /**
+   * Single note-authoring session: the sidebar, the detail composer and the in-cell inline
+   * editor all read and claim this, so only one of them edits at a time and a draft can
+   * travel between them instead of being dropped.
+   */
+  const [noteEdit, setNoteEdit] = useState<NoteEditSession | null>(null);
   const [rootPath, setRootPath] = useState('');
   const [rawPath, setRawPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
@@ -102,6 +115,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /** Lightweight in-memory undo stack viewer (distinct from the on-disk page history). */
+  const [undoPanelOpen, setUndoPanelOpen] = useState(false);
+  /** Full-screen image viewer shared by the compare, detail and original views. */
+  const [zoomView, setZoomView] = useState<{ items: ZoomImageItem[]; index: number } | null>(null);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
   /** Panel to focus at the edge of the next page (cross-page ‹ › navigation). */
   const [pendingEdge, setPendingEdge] = useState<{ sel: Selection; edge: 'first' | 'last' } | null>(null);
@@ -202,6 +219,11 @@ export default function App() {
     undoHintTimer.current = window.setTimeout(() => setUndoHint(null), 1800);
   }, []);
 
+  /** Open the full-screen viewer on one image of a reading-order list. */
+  const openZoomImage = useCallback((items: ZoomImageItem[], index: number) => {
+    if (items.length) setZoomView({ items, index: Math.min(Math.max(index, 0), items.length - 1) });
+  }, []);
+
   // No chrome is visible in reading mode, so double-click (or double-tap on touch) on
   // empty stage space also leaves it; R and Esc remain the keyboard paths.
   useEffect(() => {
@@ -272,6 +294,8 @@ export default function App() {
   const pageState = usePage(sel, readOnly);
   const outbox = useOutbox();
   const pwa = usePwaStatus();
+  // Dialogs own the focus while they are open and hand it back to the trigger on close.
+  useModalFocusGuard();
   const { doc, page } = pageState;
 
   // Hash deep link: #/<volume>/<chapter>/<page (1-based)>[/<view>[/panel/<panelId>]],
@@ -607,9 +631,7 @@ export default function App() {
       setSelected([target.id]);
       // Cross-page panel steps inside the detail view land on the edge panel of the new page.
       if (detailPanel) setDetailPanel(target.id);
-      requestAnimationFrame(() => {
-        document.getElementById(`panel-${target.id}`)?.scrollIntoView({ block: 'center' });
-      });
+      // The compare view centres the selection once this new page has rendered.
       return;
     }
     if (!detailPanel) {
@@ -677,13 +699,15 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
+      // A modal owns the keyboard while it is open: undo, export, view switches and
+      // page turns must not fire behind it. Dialogs handle their own keys.
+      if (isModalOpen()) return;
       // The detail view owns keyboard navigation while it is open; page turns stay off.
       if (detailPanel) return;
       // Handled lower in the tree (panel nudging, dialogs) — do not page-turn on top of it.
       if (e.defaultPrevented) return;
-      const modalOpen = Boolean(document.querySelector('.modal-backdrop'));
       // Escape leaves reading mode; dialogs and the detail view keep their own Esc.
-      if (readingMode && e.key === 'Escape' && !modalOpen) {
+      if (readingMode && e.key === 'Escape') {
         e.preventDefault();
         setReadingModePersisted(false);
         return;
@@ -714,7 +738,7 @@ export default function App() {
       if (detailPanel) return;
       // Arrows turn pages along the page's reading direction: RTL reads leftward,
       // TTB reads downward. Modals keep their own keyboard handling.
-      if (e.key.startsWith('Arrow') && doc && !modalOpen) {
+      if (e.key.startsWith('Arrow') && doc) {
         const step = arrowPageStep(doc.readingDirection, e.key);
         if (step) {
           e.preventDefault();
@@ -734,7 +758,7 @@ export default function App() {
       else if (key === 'o') setView('original');
       else if (key === 's') setSidebarOpen((v) => !v);
       else if (key === 'n') setNotesOpen((v) => !v);
-      else if (key === 'r' && !modalOpen) setReadingModePersisted(!readingMode);
+      else if (key === 'r') setReadingModePersisted(!readingMode);
       else if (key === 'e' && doc) setExportOpen(true);
       else if (e.key === '?') setHelpOpen((v) => !v);
     };
@@ -769,16 +793,6 @@ export default function App() {
     return volume?.languages?.length ? volume.languages : allLangs;
   }, [allLangs, library, sel]);
   const missingLangs = expectedLangs.filter((l) => !pageLangs.includes(l));
-
-  const saveLabel = !doc
-    ? ''
-    : pageState.saving
-      ? t('app.saveSaving')
-      : pageState.dirty
-        ? pageState.saveMode === 'confirm'
-          ? t('app.saveUnsaved')
-          : t('app.savePending')
-        : t('app.saveSaved');
 
   return (
     <div
@@ -828,7 +842,15 @@ export default function App() {
               onStep={goPage}
             />
           )}
-          {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {doc && (
+            <SaveStatus
+              dirty={pageState.dirty}
+              saving={pageState.saving}
+              saveMode={pageState.saveMode}
+              readOnly={readOnly}
+              onSavePage={pageState.commit}
+            />
+          )}
           {readOnly && (
             <span className="ro-chip" title={t('mode.readOnlyHint')}>
               {t('mode.readBadge')}
@@ -935,6 +957,15 @@ export default function App() {
               </button>
               <button type="button" className={`btn ${notesOpen ? 'on' : ''}`} onClick={() => setNotesOpen((v) => !v)}>
                 {t('app.notesButton')}
+              </button>
+              <button
+                type="button"
+                className="btn icon undo-history-btn"
+                onClick={() => setUndoPanelOpen(true)}
+                title={t('undoHistory.open')}
+                aria-label={t('undoHistory.open')}
+              >
+                ↺
               </button>
               <button
                 type="button"
@@ -1115,6 +1146,9 @@ export default function App() {
                 noteTypes={noteTypes}
                 onNoteTypesChange={saveNoteTypes}
                 readOnly={readOnly}
+                noteEdit={noteEdit}
+                onNoteEditChange={setNoteEdit}
+                onZoomImage={openZoomImage}
               />
             ) : (
               <OriginalTab
@@ -1125,6 +1159,7 @@ export default function App() {
                 onStepPage={goPage}
                 hasPrevPage={hasPrevPage}
                 hasNextPage={hasNextPage}
+                onZoomImage={openZoomImage}
               />
             )
           ) : (
@@ -1145,6 +1180,9 @@ export default function App() {
           onNoteTypesChange={saveNoteTypes}
           onClose={() => setNotesOpen(false)}
           readOnly={readOnly}
+          surface="sidebar"
+          noteEdit={noteEdit}
+          onNoteEditChange={setNoteEdit}
         />
       </div>
 
@@ -1235,6 +1273,30 @@ export default function App() {
         onBeforeRestore={pageState.flush}
         onRestored={pageState.reload}
       />
+
+      <UndoHistoryDialog
+        open={undoPanelOpen}
+        entries={pageState.undoEntries}
+        redoCount={pageState.redoCount}
+        readOnly={readOnly}
+        pageNumber={doc ? doc.pageIndex + 1 : 1}
+        panelNumberOf={(panelId) => {
+          if (!doc || !panelId) return null;
+          const i = doc.panels.findIndex((p) => p.id === panelId);
+          return i >= 0 ? i + 1 : null;
+        }}
+        onPick={(steps) => pageState.undoTo(steps)}
+        onClose={() => setUndoPanelOpen(false)}
+      />
+
+      {zoomView && (
+        <ImageLightbox
+          items={zoomView.items}
+          index={zoomView.index}
+          onIndexChange={(next) => setZoomView((v) => (v ? { ...v, index: next } : v))}
+          onClose={() => setZoomView(null)}
+        />
+      )}
 
       {pwa.updateReady && (
         <div className="banner info floating pwa-update" role="status">

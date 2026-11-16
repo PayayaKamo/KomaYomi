@@ -444,6 +444,11 @@ export const MESSAGES = {
     zh: '写回工程文件失败：{detail}。原文件保持未改动。',
     ja: 'プロジェクトファイルへの書き戻しに失敗しました：{detail}。元のファイルはそのまま残っています',
   },
+  ERR_PROJECT_SAVE_AS_LINKED: {
+    en: 'This is the project file you opened — use Save to write back to it, or choose another name',
+    zh: '这是当前打开的工程文件，请用「保存」写回，或另选文件名',
+    ja: 'これは開いているプロジェクトファイルです。「保存」で書き戻すか、別の名前を選んでください',
+  },
   ERR_LIBRARY_NOT_OBJECT: {
     en: 'library.json is not a JSON object',
     zh: 'library.json 不是 JSON 对象',

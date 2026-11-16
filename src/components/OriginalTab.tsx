@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { Lang, PageDoc, PageEntry } from '../types';
 import { isRightToLeft, isVerticalReading, langShort } from '../types';
 import { useCompareLayout } from '../hooks/useCompareLayout';
+import type { ZoomImageItem } from './ImageLightbox';
+import { isNativeTextTarget, useContextMenu } from './ContextMenu';
+import { isModalOpen } from '../lib/modalOpen';
 import { langLabel, readingLabel, useI18n } from '../i18n';
 
 type Props = {
@@ -16,6 +19,8 @@ type Props = {
   onStepPage: (delta: number) => void;
   hasPrevPage: boolean;
   hasNextPage: boolean;
+  /** Open the full-screen viewer with every language of this page. */
+  onZoomImage?: (items: ZoomImageItem[], index: number) => void;
 };
 
 type PaneView = { x: number; y: number; scale: number };
@@ -71,8 +76,9 @@ function loadMaskPrefs(): MaskPrefs {
  * apply, so long pages can be inspected without leaving the view. Page turns use
  * the shell's reading-order navigation, which also keeps the arrow keys working.
  */
-export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPage, hasNextPage }: Props) {
+export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPage, hasNextPage, onZoomImage }: Props) {
   const { t } = useI18n();
+  const { openMenu } = useContextMenu();
   const layout = useCompareLayout();
   const [views, setViews] = useState<Record<string, PaneView>>({});
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -175,6 +181,7 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
   // Wheel zoom: capture at the window level so the pane keeps the gesture even over masks/badges.
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
   wheelRef.current = (e: WheelEvent) => {
+    if (isModalOpen()) return;
     const el = e.target instanceof Element ? (e.target.closest('.original-pane') as HTMLElement | null) : null;
     const lang = el?.dataset.lang;
     if (!el || !lang || el.dataset.hasImage !== '1') return;
@@ -225,7 +232,7 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
   }, [draggingLang]);
 
   const startPan = (e: ReactPointerEvent<HTMLDivElement>, lang: Lang) => {
-    if (e.button !== 0 || e.currentTarget.dataset.hasImage !== '1') return;
+    if (e.button !== 0 || e.currentTarget.dataset.hasImage !== '1' || isModalOpen()) return;
     e.preventDefault();
     movedRef.current = false;
     dragRef.current = {
@@ -236,6 +243,30 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
       start: viewOf(lang),
     };
     setDraggingLang(lang);
+  };
+
+  /* Right-click the page: open the shared full-screen viewer on this language. */
+  const openImageMenu = (e: ReactMouseEvent, lang: Lang) => {
+    if (isNativeTextTarget(e.target)) return;
+    const url = page.files[lang];
+    if (!url || !onZoomImage) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const items: ZoomImageItem[] = [];
+    let target = 0;
+    for (const l of activeLangs) {
+      const src = page.files[l];
+      if (!src) continue;
+      if (l === lang) target = items.length;
+      items.push({ src, lang: l });
+    }
+    openMenu(e, [
+      {
+        id: 'zoom',
+        label: t('ctx.zoomImage'),
+        onSelect: () => onZoomImage(items, target),
+      },
+    ]);
   };
 
   const renderPane = (lang: Lang) => {
@@ -256,6 +287,7 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
         data-lang={lang}
         data-has-image="1"
         onPointerDown={(e) => startPan(e, lang)}
+        onContextMenu={(e) => openImageMenu(e, lang)}
       >
         <div
           className="crop-inner"

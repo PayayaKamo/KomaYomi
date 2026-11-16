@@ -204,6 +204,18 @@ ipcMain.handle('pick-folder', async (_event, title) => {
   return res.canceled ? null : res.filePaths[0];
 });
 
+// Pick where a "save as" copy of the library should be written. The renderer never
+// writes files itself: it passes the chosen path to the local server.
+ipcMain.handle('save-project-file', async (_event, title, defaultName) => {
+  const base = typeof defaultName === 'string' && defaultName ? defaultName : 'komayomi-project';
+  const res = await dialog.showSaveDialog({
+    title: typeof title === 'string' && title ? title : '另存为',
+    defaultPath: base.toLowerCase().endsWith('.mnproj') ? base : `${base}.mnproj`,
+    filters: [{ name: 'KomaYomi Project', extensions: ['mnproj'] }],
+  });
+  return res.canceled || !res.filePath ? null : res.filePath;
+});
+
 // Pick a .mnproj to open. The renderer only gets the path: the local server reads the
 // file and remembers it, so every later save is written back to that exact file.
 ipcMain.handle('pick-project-file', async (_event, title) => {

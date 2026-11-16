@@ -48,6 +48,8 @@ import {
   linkProject,
   readProjectFile,
   resolveProjectFilePath,
+  resolveProjectSavePath,
+  writeProjectCopy,
 } from './projectWriteBack.ts';
 import {
   exportExportTemplate,
@@ -1496,6 +1498,27 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
 
       if (pathname === '/api/project/save' && req.method === 'POST') {
         sendJson(res, 200, { result: projectSync.flush(), link: projectSync.status() });
+        return true;
+      }
+
+      // "Save as": a standalone copy at a chosen path, never the opened project file.
+      if (pathname === '/api/project/save-as' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as {
+          path?: string;
+          mode?: string;
+          name?: string;
+          notes?: string;
+        };
+        const target = resolveProjectSavePath(body.path, dataRoot);
+        const packed = createProjectBuffer({
+          rootDir,
+          dataRoot,
+          rawRoot,
+          storageMode: body.mode === 'reference' ? 'reference' : 'packaged',
+          name: body.name?.trim() || path.basename(target, path.extname(target)),
+          notes: body.notes?.trim() || undefined,
+        });
+        sendJson(res, 200, { ...writeProjectCopy(target, packed.buffer), manifest: packed.manifest });
         return true;
       }
 

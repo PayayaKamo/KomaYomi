@@ -2,7 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { Library } from '../types';
 import type { Selection } from '../hooks/usePage';
-import { formatDate, useI18n } from '../i18n';
+import { formatBytes, formatDate, useI18n } from '../i18n';
+import { api } from '../api';
+import type { ProjectLinkStatus } from '../api';
 import { clearRecent, pushRecent, readRecent, removeRecent } from '../lib/recent';
 import { volumeLabel as volumeLabelOf } from '../lib/volumeLabel';
 import type { RecentPage } from '../lib/recent';
@@ -58,6 +60,10 @@ export function FileMenu({
   const [projectOpen, setProjectOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
+  /** Which .mnproj receives write-backs; needed to enable "Save to project file". */
+  const [link, setLink] = useState<ProjectLinkStatus | null>(null);
+  const [fileBusy, setFileBusy] = useState<'save' | 'saveAs' | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const recentWrapRef = useRef<HTMLDivElement>(null);
   const recentBtnRef = useRef<HTMLButtonElement>(null);
@@ -70,11 +76,83 @@ export function FileMenu({
     setRecentOpen(next);
   }, []);
 
+  const refreshLink = useCallback(async () => {
+    try {
+      setLink(await api.projectLink());
+    } catch {
+      setLink(null);
+    }
+  }, []);
+
+  /** Write the working copy back into the opened .mnproj right now (skips the debounce). */
+  const saveToProject = useCallback(async () => {
+    if (readOnly) return;
+    if (!link?.linked) {
+      // Keep the menu visible: the reason is more useful than a silently disabled item.
+      setOpen(true);
+      setNotice({ kind: 'error', text: t('file.saveProjectNoLink') });
+      return;
+    }
+    setFileBusy('save');
+    setNotice(null);
+    try {
+      const res = await api.saveProjectFile();
+      setLink(res.link);
+      setNotice(
+        res.result
+          ? {
+              kind: 'info',
+              text: t('file.saveProjectDone', { path: res.result.path, size: formatBytes(res.result.size) }),
+            }
+          : { kind: 'error', text: t('file.saveProjectNoLink') },
+      );
+    } catch (err) {
+      setNotice({
+        kind: 'error',
+        text: `${t('file.saveProjectFailed')}: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      await refreshLink();
+    } finally {
+      setFileBusy(null);
+    }
+  }, [link?.linked, readOnly, refreshLink, t]);
+
+  /** Pack the whole library into a new .mnproj at a path the user picks — never the opened file. */
+  const saveAsCopy = useCallback(async () => {
+    if (readOnly) return;
+    const desktop = window.mangaDesktop;
+    if (!desktop) {
+      setOpen(true);
+      setNotice({ kind: 'error', text: t('file.saveAsBrowser') });
+      return;
+    }
+    const suggested = link?.name || `komayomi-${new Date().toISOString().slice(0, 10)}`;
+    const target = await desktop.saveProjectFile(t('file.saveAsTitle'), suggested);
+    if (!target) return;
+    setFileBusy('saveAs');
+    setNotice(null);
+    try {
+      const name = (target.split(/[\\/]/).pop() ?? '').replace(/\.mnproj$/i, '') || undefined;
+      const res = await api.saveProjectAs({ path: target, mode: 'packaged', name });
+      setNotice({ kind: 'info', text: t('file.saveAsDone', { path: res.path, size: formatBytes(res.size) }) });
+    } catch (err) {
+      setNotice({
+        kind: 'error',
+        text: `${t('file.saveAsFailed')}: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    } finally {
+      setFileBusy(null);
+    }
+  }, [link?.name, readOnly, t]);
+
   // Refresh the list every time the menu is opened so external tab changes show up.
   useEffect(() => {
-    if (open) setRecent(readRecent());
-    else setRecentMenu(false);
-  }, [open, setRecentMenu]);
+    if (open) {
+      setRecent(readRecent());
+      setNotice(null);
+      void refreshLink();
+    } else setRecentMenu(false);
+  }, [open, setRecentMenu, refreshLink]);
 
   useEffect(() => {
     if (!open) return;
@@ -108,13 +186,14 @@ export function FileMenu({
         e.preventDefault();
         if (readOnly) return;
         setOpen(false);
-        if (e.shiftKey) setProjectOpen(true);
+        // Ctrl+Shift+S writes the whole library back into the opened .mnproj.
+        if (e.shiftKey) void saveToProject();
         else if (hasDoc) onSave();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [hasDoc, onSave, readOnly]);
+  }, [hasDoc, onSave, readOnly, saveToProject]);
 
   const openLibrary = useCallback(async () => {
     setOpen(false);
@@ -240,27 +319,34 @@ export function FileMenu({
 
       {open && (
         <div className="file-pop" role="menu">
-          {!readOnly && (
-            <>
-              <div className="file-group">{t('file.groupNew')}</div>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setAddState({});
-                }}
-              >
-                {t('file.newLibrary')}
-              </button>
-              <button type="button" role="menuitem" className="file-item" onClick={() => void openLibrary()}>
-                {t('file.openLibrary')}
-              </button>
+          {/* Everything stays visible in read-only mode, disabled with a reason, so the
+              menu never looks like entries disappeared. */}
+          <div className="file-group">{t('file.groupNew')}</div>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              setAddState({});
+            }}
+          >
+            {t('file.newLibrary')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => void openLibrary()}
+          >
+            {t('file.openLibrary')}
+          </button>
 
-              <div className="file-sep" />
-            </>
-          )}
+          <div className="file-sep" />
           <div className="file-group">{t('file.groupOpen')}</div>
           <button
             type="button"
@@ -274,34 +360,34 @@ export function FileMenu({
             {t('file.openProject')}
             <kbd className="file-kbd">Ctrl+O</kbd>
           </button>
-          {!readOnly && (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setAddState({});
-                }}
-              >
-                {t('file.addManga')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setExchangeOpen(true);
-                }}
-              >
-                {t('file.openTemplates')}
-              </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              setAddState({});
+            }}
+          >
+            {t('file.addManga')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              setExchangeOpen(true);
+            }}
+          >
+            {t('file.openTemplates')}
+          </button>
 
-              <div className="file-sep" />
-            </>
-          )}
+          <div className="file-sep" />
           <div className="file-sub-wrap" ref={recentWrapRef} onPointerEnter={() => !recentOpen && openSub()}>
             <button
               ref={recentBtnRef}
@@ -400,74 +486,86 @@ export function FileMenu({
           </div>
 
           <div className="file-sep" />
-          {!readOnly && (
-            <>
-              <div className="file-group">{t('file.groupSave')}</div>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                disabled={!hasDoc}
-                onClick={() => {
-                  setOpen(false);
-                  onSave();
-                }}
-              >
-                {t('file.savePage')}
-                <kbd className="file-kbd">Ctrl+S</kbd>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setProjectOpen(true);
-                }}
-              >
-                {t('file.saveAsProject')}
-                <kbd className="file-kbd">Ctrl+Shift+S</kbd>
-              </button>
+          <div className="file-group">{t('file.groupSave')}</div>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly || !hasDoc}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              onSave();
+            }}
+          >
+            {t('file.savePage')}
+            <kbd className="file-kbd">Ctrl+S</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly || !link?.linked || fileBusy !== null}
+            title={readOnly ? t('file.readOnlyDisabled') : link?.linked ? undefined : t('file.saveProjectNoLink')}
+            onClick={() => void saveToProject()}
+          >
+            {t('file.saveProject')}
+            <kbd className="file-kbd">Ctrl+Shift+S</kbd>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly || !library || fileBusy !== null}
+            title={readOnly ? t('file.readOnlyDisabled') : window.mangaDesktop ? undefined : t('file.saveAsBrowser')}
+            onClick={() => void saveAsCopy()}
+          >
+            {t('file.saveAs')}
+          </button>
 
-              <div className="file-sep" />
-              <div className="file-group">{t('file.groupImport')}</div>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setProjectOpen(true);
-                }}
-              >
-                {t('file.importProject')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setExchangeOpen(true);
-                }}
-              >
-                {t('file.importExchange')}
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="file-item"
-                onClick={() => {
-                  setOpen(false);
-                  setBackupOpen(true);
-                }}
-              >
-                {t('file.restoreBackup')}
-              </button>
+          <div className="file-sep" />
+          <div className="file-group">{t('file.groupImport')}</div>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              setProjectOpen(true);
+            }}
+          >
+            {t('file.importProject')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              setExchangeOpen(true);
+            }}
+          >
+            {t('file.importExchange')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="file-item"
+            disabled={readOnly}
+            title={readOnly ? t('file.readOnlyDisabled') : undefined}
+            onClick={() => {
+              setOpen(false);
+              setBackupOpen(true);
+            }}
+          >
+            {t('file.restoreBackup')}
+          </button>
 
-              <div className="file-sep" />
-            </>
-          )}
+          <div className="file-sep" />
           <button
             type="button"
             role="menuitem"
@@ -481,6 +579,17 @@ export function FileMenu({
             {t('file.export')}
             <kbd className="file-kbd">E</kbd>
           </button>
+
+          {readOnly && <div className="file-empty">{t('file.readOnlyDisabled')}</div>}
+          {(fileBusy || notice) && (
+            <div className={`banner ${notice?.kind === 'error' ? 'error' : 'info'}`} role="status">
+              {fileBusy === 'save'
+                ? t('file.saveProjectBusy')
+                : fileBusy === 'saveAs'
+                  ? t('file.saveAsBusy')
+                  : notice?.text}
+            </div>
+          )}
         </div>
       )}
 

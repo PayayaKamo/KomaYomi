@@ -5,5 +5,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('mangaDesktop', {
   pickFolder: (title) => ipcRenderer.invoke('pick-folder', title),
   pickProjectFile: (title) => ipcRenderer.invoke('pick-project-file', title),
+  saveProjectFile: (title, defaultName) => ipcRenderer.invoke('save-project-file', title, defaultName),
   platform: process.platform,
 });

@@ -8,7 +8,9 @@ import {
   createProjectSync,
   linkProject,
   readProjectLink,
+  resolveProjectSavePath,
   writeBackProject,
+  writeProjectCopy,
 } from '../../server/projectWriteBack.ts';
 import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
 import { readZip } from '../../server/zip.ts';
@@ -182,5 +184,29 @@ describe('project write-back', () => {
     const names = readZip(fs.readFileSync(target)).map((entry) => entry.name);
     expect(names).toContain('pages/Vol1/172/0.json');
     expect(names).toContain('pages/Vol2/01/0.json');
+  });
+
+  it('saves a copy elsewhere without touching or relinking the opened file', () => {
+    const { root, target } = seedWithProjectFile();
+    const dataRoot = path.join(root, 'data');
+    const before = fs.statSync(target).mtimeMs;
+
+    const dest = path.join(tempDir('writeback-copy'), 'copy.mnproj');
+    const packed = createProjectBuffer({ rootDir: root, storageMode: 'packaged', name: 'copy' });
+    const result = writeProjectCopy(dest, packed.buffer);
+
+    expect(result.path).toBe(dest);
+    expect(fs.existsSync(dest)).toBe(true);
+    expect(fs.statSync(target).mtimeMs).toBe(before);
+    expect(readProjectLink(dataRoot)?.path).toBe(target);
+  });
+
+  it('refuses to save as over the opened project file', () => {
+    const { root, target } = seedWithProjectFile();
+    const dataRoot = path.join(root, 'data');
+    expect(errorCode(() => resolveProjectSavePath(target, dataRoot))).toBe('ERR_PROJECT_SAVE_AS_LINKED');
+
+    const dest = path.join(tempDir('writeback-copy2'), 'copy.mnproj');
+    expect(resolveProjectSavePath(dest, dataRoot)).toBe(dest);
   });
 });

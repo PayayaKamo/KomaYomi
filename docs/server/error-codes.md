@@ -173,6 +173,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_PROJECT_PATH_INVALID`        | 400  | Path is not absolute or not `.mnproj`/`.zip`   | Wrong file chosen in the picker       | Pick the project file itself.                    |
 | `ERR_PROJECT_FILE_MISSING`        | 404  | The linked project file is gone                | Moved, renamed or deleted             | Put the file back, or stop writing back and open it again. |
 | `ERR_PROJECT_WRITE_FAILED`        | 500  | Write-back failed, previous file kept         | Locked, read-only or full disk        | Fix the cause, then use “Save to project file”.  |
+| `ERR_PROJECT_SAVE_AS_LINKED`      | 409  | “Save as” target is the opened project file    | Picked the same file                  | Use “Save” to write back, or pick another name.   |
 | `ERR_MANIFEST_INVALID_JSON`       | 400  | `manifest.json` is not JSON                    | Not a `.mnproj`, or corrupted         | Check the archive contents.                      |
 | `ERR_MANIFEST_NOT_OBJECT`         | 400  | `manifest.json` is not an object               | Corrupted manifest                    | Re-export the project.                           |
 | `ERR_MANIFEST_NO_INVENTORY`       | 400  | Manifest has no `inventory`                    | Too old or corrupted export           | Re-export with the current version.              |
