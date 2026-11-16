@@ -104,7 +104,7 @@ The desktop window may be using a different data directory than the repository. 
 Press `E` and choose **PDF (print)** or **Word document** in the export dialog.
 
 - **PDF (print)** opens a print view and brings up the browser print dialog; choose **Save as PDF** there.
-- **Word document** downloads a `.docx` containing the page images and the page/panel notes as editable text. Annotations are not embedded in the `.docx` yet.
+- **Word document** downloads a `.docx` containing the page images and the page/panel notes as editable text. Annotations are baked into the page images by default; if a page could not be composited, it falls back to the original image with a `WARN_EXPORT_ANNOTATIONS_UNBAKED` warning.
 
 Vocabulary-list export is still <Badge type="warning" text="Planned" />.
 

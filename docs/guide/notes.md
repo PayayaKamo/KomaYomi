@@ -108,6 +108,13 @@ The scratchpad is for thoughts that arrive before you know where they belong —
 
 Each saved note has **Edit**, **Copy context**, **Filter by tag** and delete actions. The **Rendered / Source** toggle on a note switches between the rendered Markdown and its raw text. Deleting a panel deletes its panel-scoped notes, so use page notes for anything you want to keep independent of the layout.
 
+Editing reuses the single composer at the top of the notes panel; no second Markdown box opens inside the note card:
+
+- A **Editing an existing note** banner with **Cancel** appears above the editor. Cancel clears the composer and leaves the original note untouched.
+- The submit button changes from **Add note** to **Save changes**.
+- The **Whole page / Panel** scope toggle is locked while editing, so saving cannot move the note to another scope.
+- The note being edited is highlighted in the list; deleting it is the same as cancelling the edit.
+
 ## Common pitfalls
 
 - **The note went to the wrong scope.** Check the sentence above the editor: it names the panel number or says *whole page*. Deselect the panel to write a page note.

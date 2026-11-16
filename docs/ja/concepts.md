@@ -6,9 +6,11 @@
 
 ```text:no-line-numbers
 raw/<volume>/<language>/<chapter>/<page images>
+raw/<work>/<volume>/<language>/<chapter>/<page images>
 ```
 
-- **巻** はトップレベルのフォルダです。1冊の本、1号の雑誌、1つのコレクション。
+- **巻** はフォルダです。単層のライブラリでは `raw/` 直下、複数の作品が同じ `raw/` に並ぶ場合は作品フォルダの下になります。表示名はフォルダ名から作られ、`data/library.json` で書き換えられます。
+- **作品（シリーズ）** は巻の上にある任意の階層で、`raw/` に複数の作品が並ぶ場合に検出されます。表示のグループ化にだけ使われ（サイドバーでは「シリーズ · 巻」）、ページデータのパスには入りません。別作品の同名の巻は統合されず、作品名の接頭辞が付きます。
 - **話** は言語ディレクトリ内のフォルダです。話は言語をまたいで統合されます。
 - **ページ** は話内で自然順に並べた *n* 番目の画像です。ページはファイル名ではなく位置で言語間に対応付けられます。
 
@@ -105,8 +107,8 @@ raw/<volume>/<language>/<chapter>/<page images>
 
 ```text
 Library
-└── Volume (raw/<volume>)
-    └── Chapter (raw/<volume>/<lang>/<chapter>)
+└── Volume (raw/<volume> または raw/<work>/<volume>)
+    └── Chapter (raw/.../<lang>/<chapter>)
         └── Page (paired by index)
             ├── Panel[]  ──────────┐
             ├── Note[] (page|panel)│

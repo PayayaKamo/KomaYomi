@@ -17,10 +17,18 @@ Shortcuts are scattered across the library, the workbench, the compare reader an
 | `S` | Show or hide the library sidebar. |
 | `N` | Show or hide the notes column. |
 | `E` | Open the export dialog (when a page is open). |
+| `R` | Enter or leave focus mode. |
+| `Esc` | Leave focus mode (when no dialog is open). |
 | `?` | Open the keyboard and actions help. |
 | `Ctrl+Z` | Undo the last panel change. |
 | `Ctrl+Shift+Z` | Redo. |
 | `Ctrl+Y` | Redo (alternative). |
+
+In read mode the editing shortcuts (`Ctrl+Z`, `Ctrl+Y`, save, panel and annotation keys) do nothing; page turning and the view switches still work.
+
+## Focus mode
+
+Press `R` or click `⛶` in the top bar to enter: the top bar, stage toolbar, panel section rail and status bar fold away so the page fills the window. It does not change the edit/read mode. Leave with `Esc` (when no dialog is open), `R` again, or by double-clicking empty space on touch devices. The state is remembered across sessions. A short tip names the exit gesture on entry, then fades out and never covers the artwork.
 
 ## File
 

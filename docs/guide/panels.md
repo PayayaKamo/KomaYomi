@@ -28,6 +28,8 @@ Every later feature stands on panels: compare reading, panel-scoped notes, PNG p
 | **Auto split** | Runs detection on the base image and replaces the current panels. | Disabled while detection is running or when the page has no image. Re-running detection discards hand edits. |
 | **Add panel** | Adds a default panel near the centre of the page. | Faster alternative: double-click empty space. |
 | **Merge (n)** | Merges the selected panels into one box with `source: "merged"`. | Enabled with two or more selected panels. |
+| **Split…** | Cuts the selected panel into 2–12 pieces. | Enabled once the base image is loaded; also in the panel context menu. |
+| **Order…** | Opens the numbering dialog to change reading order by hand. | Enabled with two or more panels. |
 | **Group (n)** | Creates a group from the selected panels. | Enabled with at least one selected panel. See [Groups](#groups). |
 | **Delete** | Deletes the selected panels and their panel-scoped notes. | Same as `Delete` / `Backspace`. |
 
@@ -108,6 +110,7 @@ All coordinates are normalized to the page, so a panel stays in the same place a
 - **Numbers** toggles the index badges.
 - Reading direction is stored per page and is one of seven values: `rtl`, `ltr`, `ttb`, `horizontal-rl`, `horizontal-lr`, `vertical-rl` and `vertical-lr`. The first three are legacy names for the horizontal and vertical forms. Change it in the top bar.
 - A panel may carry an explicit `number` that overrides automatic reading order; otherwise numbering is derived from the rectangle and the direction.
+- Adding, splitting and manual ordering all renumber: with no panel selected the new panel is appended to the end; with a panel selected it is inserted right after it and the following numbers shift down.
 - The same order drives the compare reader, the notes overview and HTML export.
 
 ::: tip Reading order first
@@ -169,6 +172,26 @@ Creating a group removes its panels from any earlier group, so groups never over
 **Sort by group** in the groups header renumbers the page so that each group follows its first panel in reading order. This changes panel numbering, so use it deliberately; export and compare reading follow the same order.
 
 Groups are stored in the page JSON as `groups: [{ id, name, panelIds, number, color }]` and travel with page exchange files, project packages and backups.
+
+## Splitting a panel
+
+Splitting cuts a large box that contains several drawings (a spread, two scenes in one outline) into independent panels. Select a panel and click **Split…**, or pick the same item from the panel context menu:
+
+1. Choose the **pieces** count (2–12) and the cut direction: **vertical** or **horizontal**.
+2. Cuts are evenly spaced by default; drag a cut line in the preview to refine it, or nudge the focused line with the arrow keys (lines stay at least 4% apart). **Even split** resets them.
+3. Click **Split** to apply.
+
+The new pieces take the original panel's place in reading order, and later panels shift down. Annotations and panel notes follow the first piece; the other pieces start empty. Like any manual move or resize, the change can be undone.
+
+## Reordering by hand
+
+Numbering is normally derived from rectangles and the reading direction, but you can override it. Select a panel and click **Order…** (or right-click → **Set panel number**; two panels minimum):
+
+- The list follows the current reading order and shows the number, coordinates and ↑ / ↓ buttons for each row.
+- Drag the ⠿ handle, click ↑ / ↓, or type a position under **Move the selected panel to position n** and press **Move**.
+- Only **Save** writes back: the array order is rewritten and renumbered 1..n. **Cancel** changes nothing.
+
+Auto-detection and templates rebuild the whole panel list, so manual numbers are lost with it; the app asks for confirmation before re-detecting.
 
 ## Page history
 

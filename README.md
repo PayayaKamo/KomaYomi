@@ -44,7 +44,7 @@ Sample manga is used for demonstration only; all rights belong to the original a
 
 **Reading**
 
-- Scans `raw/` as the library: `raw/<volume>/<language>/<chapter>/<pages>`, with one or more languages per volume.
+- Scans `raw/` as the library: `raw/<volume>/<language>/<chapter>/<pages>`, or `raw/<work>/<volume>/<language>/<chapter>/<pages>` when several works share one root, with one or more languages per volume.
 - Pairs pages across languages by sorted position and reports pages that are missing a language.
 - Compare reader: side-by-side or overlay, per-language mask, wheel zoom and pan, full page or one panel at a time.
 - Alignment in four ways — whole-page offset, per-panel offset, two-anchor point-to-point, and grid/percentage snapping — savable as presets for a page or a chapter.
@@ -193,7 +193,7 @@ exports/            Generated HTML, PNG, backups, projects (gitignored)
 
 The directory tree is the configuration; there is no import step and no database.
 
-- A **volume** is any top-level folder under `raw/`.
+- A **volume** is a top-level folder under `raw/`, or the folder inside a work folder when several works sit side by side (`raw/<work>/<volume>/<language>/<chapter>/<pages>`). The work name is shown as a series in the sidebar; same-named volumes in different works stay separate.
 - A **chapter** is any folder inside a language directory. Chapters are unioned across languages, so one language may be missing a chapter.
 - Pages are **paired by sorted position**, not by filename, using a natural sort (`2.jpg` before `10.jpg`).
 - Recognized language directories: `ja`, `jp`, `jpn`, `japanese`, `ja-jp`, `日`, `日本語`, `日文`; `zh`, `zh-cn`, `zh-hans`, `zh-sg`, `cn`, `chs`, `zh-tw`, `zh-hk`, `zh-hant`, `cht`, `tw`, `hk`, `中`, `中文`, `繁中`, `简中`; `en`, `en-us`, `en-gb`, `us`, `uk`, `eng`, `english`, `英`, `英文`.

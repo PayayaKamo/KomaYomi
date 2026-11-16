@@ -6,9 +6,11 @@ Five objects explain almost everything in KomaYomi. They are also the five thing
 
 ```text:no-line-numbers
 raw/<volume>/<language>/<chapter>/<page images>
+raw/<work>/<volume>/<language>/<chapter>/<page images>
 ```
 
-- A **volume** is a top-level folder: one book, one magazine issue, one collection.
+- A **volume** is a folder: a top-level one in a flat library, or the folder inside a work folder when several works share one `raw/`. Its display name comes from the folder name and can be rewritten in `data/library.json`.
+- A **work (series)** is the optional level above the volume, detected when several works sit side by side under `raw/`. It is used for grouping only (the sidebar writes "series · volume") and never appears in page-data paths; same-named volumes in different works get a work prefix instead of merging.
 - A **chapter** is a folder inside a language directory. Chapters are unioned across languages.
 - A **page** is the *n*-th image after natural sorting within a chapter. Pages are paired across languages by position, not by filename.
 
@@ -105,8 +107,8 @@ A **`.mnproj` project** is a zip containing the page documents, templates, prese
 
 ```text
 Library
-└── Volume (raw/<volume>)
-    └── Chapter (raw/<volume>/<lang>/<chapter>)
+└── Volume (raw/<volume> or raw/<work>/<volume>)
+    └── Chapter (raw/.../<lang>/<chapter>)
         └── Page (paired by index)
             ├── Panel[]  ──────────┐
             ├── Note[] (page|panel)│

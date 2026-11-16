@@ -33,13 +33,38 @@ KomaYomi adds the missing middle layer:
 
 The window has five regions that never move, so muscle memory can take over:
 
-- **Top bar** — brand (back to the library), volume / chapter / page, `‹` `›` page arrows, the save indicator, the **Panels / Compare** switch, the reading-direction selector, the UI theme, the interface language, **Notes** and **Export**.
+- **Top bar** — brand (back to the library), volume / chapter / page, `‹` `›` page arrows, the save indicator, the **Edit / Read** usage mode, the **Panels / Compare** switch, the reading-direction selector, focus mode (`⛶`), the UI theme, the interface language, **Notes** and **Export**.
 - **Library sidebar** (`S`) — volumes → chapters → pages, with per-page warnings and the entry points for adding a manga, folder rules, project files, exchange files and backup.
 - **Stage** — the panel workbench or the compare reader, depending on the view switch.
 - **Notes column** (`N`) — page notes, panel notes, overview search and the scratchpad.
 - **Pane splitters** — drag the vertical handle between library and stage, or between stage and notes, to resize; double-click to reset.
 
 A page can carry any number of languages. The language chips in the compare reader are enabled only for languages that exist on the current page.
+
+When the window gets narrow, the top bar and the panel-workbench toolbar do not squeeze: secondary actions fold into a `≡` overflow menu, and at phone widths only essentials such as page turning and the view switch stay visible. The menu contains exactly the same entries as the wide layout, so nothing disappears.
+
+## Edit mode and read mode
+
+The **Edit / Read** switch in the middle of the top bar decides whether the workspace is an authoring tool or a viewer. The choice is kept in the browser and survives reloads.
+
+- **Edit mode** — split panels, draw annotations, write notes and change the reading direction; edits are saved to `data/` according to the save mode, and the first visit to a page auto-detects its panels.
+- **Read mode** — switching saves anything still pending on the current page, then clears the panel selection and closes the history and settings dialogs. A **Read-only** badge appears in the top bar. Useful for showing finished work to someone, or for review without accidental edits.
+
+What read mode turns off:
+
+| Area | Behaviour in read mode |
+| --- | --- |
+| Panel workbench | The split and edit toolbars, save / history, grid and templates, annotation drawing tools and keyboard nudging are hidden or inert; only zoom and pan remain. |
+| Compare reader | Annotation drawing tools are hidden while existing annotations stay visible; alignment presets, anchor inputs and other controls that write data are hidden. Dragging and the wheel still pan/zoom temporarily, but nothing is written back. |
+| Notes column | Viewing and searching only, with a "read mode: notes are view-only" notice; creating, editing, deleting and the scratchpad are unavailable. |
+| Library sidebar | Adding manga, the volume settings gear, preprocessing, plugins, folder rules and backup are hidden; project files, recent pages and refresh stay. |
+| Top bar and file menu | The reading-direction selector is disabled; the file menu keeps only open project, recent pages and export; `Ctrl+S` does not save. |
+
+These limits are not just hidden buttons: while read mode is on, write requests are rejected by the server (`ERR_READ_ONLY`). Export, preview and project inspection keep working.
+
+## Focus mode
+
+Focus mode (the `⛶` button in the top bar, or `R`) is a different thing: it only hides the top bar, the stage toolbar, the panel section rail and the status bar so the page fills the window. It does not change the edit/read mode. Press `Esc` or `R` again to leave, or double-click empty space on touch devices. A brief tip names the exit gesture when you enter; it fades away and never sits over the artwork.
 
 ## The first ten minutes
 
@@ -59,6 +84,7 @@ A page can carry any number of languages. The language chips in the compare read
   <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order.</div>
   <div><strong>Notes</strong> — page/panel notes, Markdown with a toolbar and live preview, tags, sources, attached images, overview search, copy-for-LLM, scratchpad.</div>
   <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), PDF via the browser print dialog, Word (`.docx`) with page images and notes, panel-border overlay, print styles, export templates.</div>
+  <div><strong>Modes</strong> — edit and read modes; switching to read saves first and then disables every write, and focus mode (`R`) clears the interface for immersive reading.</div>
   <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching and a bounded LRU cache.</div>
   <div><strong>Portability</strong> — `.mnproj` project packages, `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas.</div>
 </div>
@@ -68,8 +94,7 @@ A page can carry any number of languages. The language chips in the compare read
 These items are marked <Badge type="warning" text="Planned" /> wherever they appear:
 
 - Vocabulary-list export. PDF and Word are available as **PDF (print)** and **Word document** in the export dialog.
-- Scheduled automatic backups.
-- An in-app image converter or batch renamer. Prepare files before importing (see [Preparing & Renaming Images](/guide/preprocess)).
+- An in-app image format converter. Renaming and splitting images are part of [preprocessing](/guide/preprocess); converting between formats still has to happen outside the app.
 - A native mobile app. The web UI does work in a narrow browser window (see below).
 
 <figure class="shot">

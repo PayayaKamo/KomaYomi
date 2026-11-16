@@ -88,6 +88,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_THUMB_SOURCE_MISSING`    | 404  | サムネイルの元画像が見つかりません：{src}              | ライブラリ表示後にページ画像が消えた | ライブラリを再読み込みする。         |
 | `ERR_THUMB_FETCH_FAILED`      | 502  | サムネイルの取得に失敗しました：{detail}               | リモート元がオフライン、URL の誤り | 「設定 → ストレージ」でリモート元を確認する。 |
 | `ERR_THUMB_UNSUPPORTED`       | 415  | この画像形式のサムネイルはまだ作成できません           | AVIF/HEIC など特殊な形式         | JPEG/PNG/WEBP に変換する。               |
+| `ERR_CACHE_TARGET_INVALID`    | 400  | 不明なキャッシュ種別です                               | 消去する target が `thumbs`、`remote`、`staging` 以外 | `/api/cache/clear` が対応する target を使う。 |
 | `ERR_UNSUPPORTED_IMAGE_FORMAT`| 415  | 未対応の画像形式です（{format} / {ext}）               | 画像でないファイル、未対応コーデック | 対応形式の画像に差し替える。         |
 | `ERR_REMOTE_UNAVAILABLE`      | 503  | リモート素材が一時的に利用できません（{detail}）。キャッシュ済みのページは閲覧できます | ネットワーク共有がオフライン、WebDAV 停止 | キャッシュ済みページは読める。オンラインに戻って再試行する。 |
 | `ERR_ANNOTATION_IMAGE_INVALID`| 400  | 注釈合成画像のアップロードが無効です：{reason} | Word 書き出し前の合成画像の項目や形式が不正 | 再試行する。続く場合は `reason` を添えて報告する。 |
@@ -118,15 +119,16 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_PAGE_TARGET_MISSING`     | 400  | ページ JSON に巻 / 話がなく、読み込み先も指定されていません | 対象を選ばずに取り込み           | 先に巻 / 話を選んでから取り込む。                   |
 | `ERR_PAGE_INDEX_INVALID`      | 400  | ページ JSON に有効な pageIndex（0 始まり）がありません     | 手で編集したファイル               | 0 始まりの `pageIndex` を追加する。                 |
 | `ERR_PAGE_NOT_SAVED`          | 400  | このページには保存された注釈がまだありません。先に保存してから書き出してください | 保存せずに書き出した | 先にページを保存する。                              |
+| `ERR_PAGE_OFFSET_INVALID`     | 400  | {lang} のページオフセットが不正です（開始ページは 1 以上、対応先は開始ページ以上） | 開始ページが 0、対応先が開始より前 | 巻の設定で `from >= 1` かつ `to >= from` にする。    |
 | `ERR_UNSAFE_SEGMENT`          | 400  | 巻名または話番号に安全でない文字が含まれています           | `/`、`..`、制御文字                | フォルダ名に使える普通の名前にする。                |
 | `ERR_DIR_UNSAFE`              | 400  | ディレクトリ名に .. は使用できません                       | ルール入力の不備                   | `..` を含まない相対パスにする。                     |
 | `ERR_DIR_NAME_EMPTY`          | 400  | ディレクトリ名を入力してください                           | 空のまま送信                       | 名前を入力する。                                    |
 | `ERR_DIR_NAME_INVALID`        | 400  | ディレクトリ名「{name}」に使用できない文字が含まれています（\\ / : * ? " < > \| は不可） | Windows のパスを貼り付けた | 使用できない文字を削る。               |
 | `ERR_DIR_NOT_FOUND`           | 400  | ディレクトリが見つかりません：{path}                       | 選択後にフォルダが移動した         | フォルダを選び直す。                                |
 | `ERR_DIR_NOT_IN_VOLUME`       | 400  | 「{dir}」は {volume} のサブディレクトリではありません      | ディレクトリ一覧が古い             | 巻の設定を再読み込みする。                          |
+| `ERR_VOLUME_LAYOUT_UNRECOGNIZED` | 400 | 言語ディレクトリが見つかりません。シリーズ／複数巻の構造に見えます | シリーズを選んでしまったのに対象は特定の巻 | 特定の巻を指定するか、「巻設定」で言語ディレクトリを指定する。 |
 | `ERR_VOLUME_EXISTS`           | 409  | raw/ に同名のディレクトリ「{name}」が既にあります。別の名前を指定するか、先に削除してください | 同じ元を二重に追加 | 古い項目を消すか、別名にする。                      |
 | `ERR_LINK_CREATE_FAILED`      | 500  | ディレクトリリンクの作成に失敗しました：{detail}           | 権限不足、リンク非対応のファイルシステム | リンク対応のファイルシステムを使うか、ファイルをコピーする。 |
-| `ERR_REAL_DIRECTORY`          | 409  | これは実ディレクトリです。画像を誤って消さないよう raw/ で手動削除してください | 巻フォルダがリンクではない | 本当に消すなら `raw/` で手動削除する。              |
 | `ERR_HISTORY_VERSION_NOT_FOUND`| 404 | そのページ版は存在しません（保持件数により削除された可能性があります） | 履歴が整理された、リンクが古い | ページ履歴を更新する。残したいならもう一度保存する。 |
 
 ### テンプレートとプリセット
@@ -171,6 +173,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSAFE_PATH`              | 400  | 不正なパスです：{path}                 | 細工されたリクエスト、設定の誤り | きれいな相対パスだけを使う。                |
 | `ERR_PATH_ESCAPE`              | 400  | パスがストレージのルート外を指しています：{path} | シンボリックリンクの脱出、細工 | 設定した保存先の中に収める。         |
 | `ERR_STORAGE_READONLY`         | 403  | このストレージは読み取り専用です：{name} | 読み取り専用のバックアップ先へ書き込み | 書き込める保存先にするか、読み取り専用を解除する。 |
+| `ERR_READ_ONLY`                | 403  | 閲覧モードのため書き込みを拒否 | 閲覧モード中             | 編集モードに切り替えてから変更する。               |
 | `ERR_NOT_A_DIRECTORY`          | 400  | ディレクトリではありません：{path}     | フォルダの場所にファイルがある | ファイルを移動する。                          |
 | `ERR_STORAGE_CONFIG_MISSING`   | 400  | ストレージ設定が不足しています         | 設定フォームが空               | 設定オブジェクトを送る。                      |
 | `ERR_REMOTE_SOURCE_MISSING`    | 400  | リモート素材ディレクトリがまだ設定されていません | 未設定のまま同期を要求 | 「設定 → ストレージ」で元を設定する。         |
@@ -249,6 +252,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `WARN_NO_LANGUAGE_DIR_DETECTED`   | 言語ディレクトリを認識できなかったため単一巻として追加しました。「巻の設定」で指定できます | フラットな構成 |
 | `WARN_VOLUME_ALREADY_IN_LIBRARY`  | 「{name}」は既にライブラリにあるため自動的に認識しました              | 重複追加                       |
 | `WARN_VOLUME_DIR_REMOVED`         | ディレクトリが存在しないため、ライブラリ設定から削除しました         | アプリ外でフォルダを削除       |
+| `WARN_REAL_DIRECTORY_KEPT`        | ライブラリから削除しましたが、`raw/` の実ディレクトリは残しています：{path} | 削除した巻がリンクではなく実ディレクトリ |
 | `WARN_IMAGE_PATH_INVALID`         | 画像パスを解決できません：{path}                                     | manifest の URL が壊れている   |
 | `WARN_IMAGE_MISSING`              | 画像が存在しないためスキップしました：{path}                         | `.mnproj` が不完全             |
 | `WARN_PAGE_JSON_INVALID`          | ページ JSON を解析できません：{path}                                 | ページファイルの破損           |
@@ -299,3 +303,5 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 2. ユーザー向けのテキストは `t('CODE', { param })`、失敗は `throw new AppError('CODE', { param }, status)` を使います。翻訳済みの断片を連結せず、値は必ずパラメーターで渡します。
 3. 上記の該当する表に 1 行追加します（`WARN_*` は警告表へ）。
 4. `npm run typecheck`、`npm run lint`、`npm run format:check` を実行します。カタログのキー型は `MESSAGES` から導出されるため、打ち間違いはそのままコンパイルエラーになります。
+
+このページの表は手動で保守しており、`server/messages/catalog.ts` と同源に保つ必要があります。カタログにあるコードは3言語すべてのここに載せ、逆も同様にします。

@@ -50,7 +50,7 @@ Masks are a **reading preference only**. HTML and PNG exports never include mask
 - **Drag** a pane to pan it.
 - **Drag/zoom** scope has two modes: **Whole page** and **This panel**.
 - Hold `Alt` while dragging or scrolling to adjust only the current panel, whatever the default scope is.
-- **Previous panel / Next panel** move the focused panel without leaving the view.
+- **Previous panel / Next panel** move the focused panel in reading order. Past the first or last panel of the page, they turn to the neighbouring page and focus its last or first panel instead. Pages excluded by preprocessing are skipped, chapter boundaries are crossed, and at the very start or end of the volume nothing moves. Unsaved edits still go through the usual save-mode check first.
 - **Reset all** clears offsets in the current scope.
 
 Each language has `{ x, y, scale }`. `x` and `y` are fractions of the panel width and height; `scale` zooms the crop between 0.5× and 3×.
@@ -94,6 +94,9 @@ The annotation toolbar works here too, and compare view is the fastest place to 
 - In compare view the layer is shown by default, so marks are visible while you compare. Use the **Annotations** switch to hide them.
 - Marks are shared across views: a mark added in the compare reader appears in the panel workbench and in exports.
 - `Esc` leaves the current tool; `Delete` removes the selected mark.
+- With a mark selected, **Anchor** in the toolbar turns the canvas into locator mode: click to drop a point, or drag a small box around an area. **Clear anchor** removes it.
+- **Leader** is on by default and draws the line from the mark to its locator. Text and badge callouts without an anchor fall back to the owning panel, so older annotations still get a sensible line. Turn the switch off to keep the mark alone.
+- Anchors are stored in page coordinates, so they stay glued to the artwork while you pan, zoom or switch languages. All three export paths — PNG, HTML and Word (baked annotations) — draw the locator marker and leader exactly as the editor shows them.
 
 ## A practical comparison loop
 

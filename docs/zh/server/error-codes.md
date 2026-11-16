@@ -88,6 +88,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_THUMB_SOURCE_MISSING`    | 404  | 缩略图源不存在：{src}                            | 图库加载后页面图片被删       | 刷新图库。                               |
 | `ERR_THUMB_FETCH_FAILED`      | 502  | 缩略图获取失败：{detail}                         | 远端来源离线、URL 有误       | 到「设置 → 存储」核对远端来源。          |
 | `ERR_THUMB_UNSUPPORTED`       | 415  | 缩略图暂不支持该格式                             | AVIF/HEIC 或冷门格式         | 转成 JPEG/PNG/WEBP。                     |
+| `ERR_CACHE_TARGET_INVALID`    | 400  | 未知的缓存类型                                   | 清理的 target 不是 `thumbs`、`remote` 或 `staging` | 使用 `/api/cache/clear` 支持的 target。 |
 | `ERR_UNSUPPORTED_IMAGE_FORMAT`| 415  | 暂不支持该图片格式（{format} / {ext}）           | 不是图片文件，或编码不受支持 | 换成受支持的图片。                       |
 | `ERR_REMOTE_UNAVAILABLE`      | 503  | 远端素材暂不可用（{detail}），已缓存的页仍可阅读 | 网络共享离线、WebDAV 挂了    | 缓存页还能看；恢复在线后重试。           |
 | `ERR_ANNOTATION_IMAGE_INVALID`| 400  | 标注合成图上传无效：{reason}                     | Word 导出前上传的合成图缺字段或格式不对 | 重试导出；仍失败请反馈 `reason`。        |
@@ -118,15 +119,16 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_PAGE_TARGET_MISSING`     | 400  | 页面 JSON 缺少卷 / 话，或未指定导入目标                    | 没选目标就往视图里导入             | 先选好卷 / 话再导入。                                 |
 | `ERR_PAGE_INDEX_INVALID`      | 400  | 页面 JSON 缺少有效的 pageIndex                             | 手工改过文件                       | 补上从 0 起的 `pageIndex`。                           |
 | `ERR_PAGE_NOT_SAVED`          | 400  | 这一页还没有保存的批注数据，请先按保存再导出               | 没保存就导出                       | 先保存页面。                                          |
+| `ERR_PAGE_OFFSET_INVALID`     | 400  | {lang} 的页偏移无效：「从第 N 页」至少为 1，且「对齐到第 M 页」不能小于 N | 起始页填 0、或对齐页比起始页小     | 在卷设置里填 `from >= 1` 且 `to >= from`。             |
 | `ERR_UNSAFE_SEGMENT`          | 400  | 卷名或话号包含不安全字符                                   | `/`、`..`、控制字符                | 用普通的、能作文件夹名的名字。                        |
 | `ERR_DIR_UNSAFE`              | 400  | 目录不能包含 ..                                            | 规则输入有问题                     | 用不含 `..` 的相对路径。                              |
 | `ERR_DIR_NAME_EMPTY`          | 400  | 目录名不能为空                                             | 表单空着就提交                     | 填一个名字。                                          |
 | `ERR_DIR_NAME_INVALID`        | 400  | 目录名「{name}」包含非法字符（不能有 \ / : * ? " < > \|）  | 粘贴了 Windows 路径                | 去掉非法字符。                                        |
 | `ERR_DIR_NOT_FOUND`           | 400  | 目录不存在：{path}                                         | 选完后文件夹被移动                 | 重新选目录。                                          |
 | `ERR_DIR_NOT_IN_VOLUME`       | 400  | 「{dir}」不是 {volume} 下的子目录                          | 目录列表过期                       | 刷新卷设置。                                          |
+| `ERR_VOLUME_LAYOUT_UNRECOGNIZED` | 400 | 这里没有识别到语言目录，看起来是系列/多卷结构              | 选到了系列目录而不是具体某一卷     | 指向具体某一卷，或在「卷设置」里手动指定语言目录。     |
 | `ERR_VOLUME_EXISTS`           | 409  | raw 下已存在同名目录「{name}」，请换个名字或先移除         | 同一个来源加了两次                 | 删掉旧条目或换个名字。                                |
 | `ERR_LINK_CREATE_FAILED`      | 500  | 创建目录链接失败：{detail}                                 | 没有权限、文件系统不支持链接       | 换支持链接的文件系统，或直接复制文件。                |
-| `ERR_REAL_DIRECTORY`          | 409  | 这是一个真实目录，为避免误删图片，请手动在 raw 下删除     | 卷目录不是链接                     | 确实要删就在 `raw/` 下手动删除。                      |
 | `ERR_HISTORY_VERSION_NOT_FOUND`| 404 | 该页面版本已不存在（可能已按保留条数淘汰）                 | 历史版本被清理、链接过期           | 刷新页面历史；需要留存就重新保存一版。                |
 
 ### 模板与预设
@@ -171,6 +173,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSAFE_PATH`              | 400  | 非法路径：{path}             | 构造的请求、配置有误     | 只用干净的相对路径。                        |
 | `ERR_PATH_ESCAPE`              | 400  | 路径越界：{path}             | 符号链接逃逸、构造请求   | 让路径留在配置的目标目录里。                |
 | `ERR_STORAGE_READONLY`         | 403  | 该存储为只读：{name}         | 往只读备份目标写入       | 换可写目标，或去掉只读标记。                |
+| `ERR_READ_ONLY`                | 403  | 阅读模式下拒绝写入           | 当前处于阅读模式         | 切换到编辑模式后再修改项目。                |
 | `ERR_NOT_A_DIRECTORY`          | 400  | 不是目录：{path}             | 本该是文件夹的位置放了文件 | 把文件移走。                              |
 | `ERR_STORAGE_CONFIG_MISSING`   | 400  | 缺少存储配置                 | 设置表单是空的           | 传存储配置对象。                            |
 | `ERR_REMOTE_SOURCE_MISSING`    | 400  | 尚未配置远端素材目录         | 没配置就请求同步         | 到「设置 → 存储」配置来源。                 |
@@ -249,6 +252,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `WARN_NO_LANGUAGE_DIR_DETECTED`   | 没有识别到语言目录，已按单卷添加，可在「卷设置」里指定语言目录       | 目录是平铺结构               |
 | `WARN_VOLUME_ALREADY_IN_LIBRARY`  | 「{name}」已在图库中，已自动识别                                     | 重复添加                     |
 | `WARN_VOLUME_DIR_REMOVED`         | 目录不存在，已从图库配置中移除                                       | 在应用外删了文件夹           |
+| `WARN_REAL_DIRECTORY_KEPT`        | 已从图库移除，但 `raw/` 下的真实目录已保留：{path}                   | 移除的卷是真实目录而不是链接 |
 | `WARN_IMAGE_PATH_INVALID`         | 图片路径无法解析：{path}                                             | manifest 里的 URL 写坏了     |
 | `WARN_IMAGE_MISSING`              | 图片不存在，已跳过：{path}                                           | `.mnproj` 不完整             |
 | `WARN_PAGE_JSON_INVALID`          | 页面 JSON 无法解析：{path}                                           | 页面文件损坏                 |
@@ -299,3 +303,5 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 2. 面向用户的文本用 `t('CODE', { param })`，失败用 `throw new AppError('CODE', { param }, status)`。不要把翻译好的片段拼起来——值一律走参数。
 3. 在上面对应的表里加一行（`WARN_*` 加到警告表）。
 4. 跑 `npm run typecheck`、`npm run lint` 和 `npm run format:check`——消息表的键类型由 `MESSAGES` 推导，拼错会直接编译报错。
+
+本页表格为手工维护，必须与 `server/messages/catalog.ts` 保持同源：catalog 里有的错误码/警告码，这里三语版都要有；反之亦然。

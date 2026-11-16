@@ -137,11 +137,21 @@ data/.backup-meta.json
 
 Excluded: `data/cache/` (thumbnails and remote cache), `.tmp` files and logs. Restoring overwrites same-named files, keeps pages that are absent from the backup, and writes a snapshot first.
 
+## Scheduled backups
+
+Open **Backup / restore** at the bottom of the library sidebar (or **Restore from backup…** in the File menu) and use the **Scheduled backups** section:
+
+- **Enable scheduled backups** — off by default.
+- **Interval (hours)** — 1 to 168, default 24.
+- **Keep** — 1 to 50 automatic archives, default 7.
+- **Save** stores the settings in `data/library.json`; **Run now** produces one archive immediately.
+
+The server checks once a minute (and five seconds after start) whether the interval has elapsed since the last run. A run writes `exports/auto-backup-<timestamp>_000.zip` — the same archive as the manual backup — then deletes the oldest automatic archives beyond **Keep**. Manual `backup-*.zip` files are never touched. The dialog shows the last run, its file and size, and any failure; a failed run also surfaces as `ERR_AUTO_BACKUP_FAILED` with the underlying reason. Run state is kept in `data/cache/backup-schedule.json`, so it is not bundled into the next archive. Scheduled runs write to the local `exports/` folder only; uploading to a remote backup target is still manual.
+
 ## What is not implemented
 
 - **Vocabulary-list export.** PDF and Word are handled by the **PDF (print)** and **Word document** formats in the export dialog.
-- **Scheduled backups.** Backups and uploads to a backup target are started manually.
-- **An in-app image converter or batch renamer.** Prepare files before importing; see [Preparing & Renaming Images](/guide/preprocess).
+- **An in-app image format converter.** Renaming and splitting images are part of [preprocessing](/guide/preprocess); converting between formats still has to happen outside the app.
 
 ## Common pitfalls
 

@@ -109,10 +109,10 @@ See [Remote Storage & Backup (reference)](/remote-backup) for the file-level con
 
 ## Current limitations
 
-The following are **not implemented** and remain <Badge type="warning" text="Planned" />:
+The following remain <Badge type="warning" text="Planned" />:
 
-- Scheduled or automatic backups: backups are started manually.
 - Cloud providers other than WebDAV (no Dropbox / Google Drive / S3 integration).
+- Automatic upload of scheduled backups to a remote target: **Scheduled backups** write local `exports/auto-backup-*.zip` archives, and moving them to a remote target is still manual.
 
 <figure class="shot">
   <img src="/assets/screenshots/remote-storage.png" alt="Remote storage section of the Backup / restore dialog: WebDAV source, cache usage and a backup target">

@@ -35,7 +35,7 @@ docs/
     logo.svg
     robots.txt
     social-card.png     # branded 1200x630 share image
-    shots/*.svg         # screenshot placeholders
+    assets/screenshots/*.png  # real captures, referenced as /assets/screenshots/<name>.png
   404.md
   guide/                # English guide
   index.md              # English home

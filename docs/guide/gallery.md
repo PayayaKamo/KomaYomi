@@ -19,7 +19,18 @@ raw/
         002.jpg
 ```
 
-- A **volume** is any top-level folder under `raw/`.
+One `raw/` can also hold several works side by side, each with its own volumes:
+
+```text
+raw/
+  <work>/
+    <volume>/
+      <language-dir>/
+        <chapter>/
+          001.jpg
+```
+
+- A **volume** is a top-level folder under `raw/` by default. When several works sit side by side, the volume is the folder inside a work folder, and the work name is shown as the series (the sidebar writes "series · volume"). Both layouts can coexist: the scanner tries the flat volume rule first and falls back to the series rule. See [directory rules](/guide/folder-rules#a-root-holding-several-works).
 - A **chapter** is any folder inside a language directory. Chapters are unioned across languages, so one edition may skip a chapter folder entirely.
 - **Pages pair by sorted position, not by filename.** Each language sorts naturally (digit runs compared as numbers), then pairs by index. `1.jpg`, `2.jpg`, `10.jpg` come out in the right order.
 
@@ -83,6 +94,8 @@ Panels and notes are stored per volume and chapter. If the mapping changes later
 
 Optional: give the volume a different display name. The hint under the field shows the expected layout: `language/chapter/page.jpg`.
 
+If the folder you pick is itself a work or a series (volumes laid out as `work/volume/language/chapter/images`), the tool links every volume under the `raw/` root and records the work name in the `series` field of `data/library.json`. The sidebar then shows "series · volume", and volumes that share a name across works stay separate (their ids get the work name as a prefix).
+
 **Remove from library** (in volume settings) deletes only the link under `raw/`; images in the original folder are untouched, and annotations already saved under `data/pages/` are kept.
 
 In a plain browser there is no folder picker. Type the absolute path instead, or use the desktop build and click **Choose a folder…**.
@@ -113,7 +126,7 @@ Library warnings are gossip, not errors: the page still opens.
 
 ## Folder rules for unusual layouts
 
-The default shape covers most libraries. If your folders put the series first, the language last, or have no language folder at all, open **Folder rules…** and describe the path with placeholders. Rules are tried in order and the first match wins; they only affect detection and never rename or move files.
+The default shape covers most libraries: the flat `volume/language/chapter` layout and a root holding several works as `work/volume/language/chapter/images` are both recognised out of the box. If your folders put the language last, have no language folder at all, or skip the chapter level, open **Folder rules…** and describe the path with placeholders. Rules are tried in order and the first match wins; they only affect detection and never rename or move files.
 
 The full syntax, rule fields and preview workflow are on [Folder Detection Rules](/guide/folder-rules).
 
@@ -146,7 +159,14 @@ Restore a **backup** when you want your annotations back on the same machine. Im
 | Open export dialog | `E` |
 | Help | `?` |
 
-The URL hash is deep-linkable: `#/<volume>/<chapter>/<page>/<panels|compare>`.
+The URL hash is deep-linkable: `#/<volume>/<chapter>/<page>/<panels|compare|original>`. Double-click a panel in the compare reader to open its detail view; the URL then gains a `/panel/<panelId>` segment (for example `#/vol-01/01/3/compare/panel/p-2`), so refreshing or sharing the link restores the same page and panel.
+
+In the detail view:
+
+- Every enabled language is shown side by side (stacked vertically on phones and tablets), followed by this panel's notes and annotations.
+- Zoom runs from 100% to 600% with the toolbar buttons, the wheel or a pinch; zooming and panning affect the enlarged images only.
+- The middle arrows switch to the previous / next panel, and the outer arrows turn pages. Arrow keys switch panels instead of pages while the view is open.
+- `Esc`, the close button or the browser Back button leaves the view and returns to the same page and panel position. A link opened from someone else rewrites the URL instead of adding a history entry.
 
 Thumbnails are generated on demand and cached in `data/cache/thumbs/`. Deleting that folder is safe; thumbnails are rebuilt on the next visit. The image format is sniffed from the file header, so a `.png` that is really a JPEG still renders correctly.
 

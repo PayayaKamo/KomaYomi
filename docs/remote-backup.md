@@ -54,12 +54,14 @@ See [Data Formats](/data-format) for the manifest fields and folder layout.
 
 You can put `raw/`, `data/` and `exports/` on a network drive or in a synced folder. The app does not lock files, but writes are atomic (`.tmp` + rename), so a sync client is unlikely to observe a partially written JSON. Avoid editing the same page from two machines at once; last write wins.
 
-## Planned: still missing
+## Scheduling and remaining gaps
 
-The following are **not implemented** and are listed here so expectations are clear:
+**Scheduled backups** are available in the Backup / restore dialog: enable them, set an interval (1–168 hours) and how many automatic archives to keep (1–50), then save. The scheduler writes `exports/auto-backup-*.zip` locally, prunes old automatic archives and never touches manual `backup-*.zip` files; see [Project Files & Formats](/guide/project-files#scheduled-backups) for the details. Failures are reported as `ERR_AUTO_BACKUP_FAILED`.
 
-- <Badge type="warning" text="Planned" /> **Scheduled backups** — automatic periodic snapshots, locally or to a configured target.
+Still missing:
+
 - <Badge type="warning" text="Planned" /> **Remote sync of `data/` with version history** — the WebDAV target currently serves images and receives backup ZIPs; it does not version the annotation database itself.
+- <Badge type="warning" text="Planned" /> **Automatic upload of scheduled backups** — scheduled runs only write the local `exports/` folder.
 
 Until then, treat the Backup ZIP, remote backup upload and `.mnproj` as the supported transfer mechanisms.
 

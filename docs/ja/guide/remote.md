@@ -109,10 +109,10 @@ KomaYomi はこの2つを分けます。**画像は必要に応じてリモー�
 
 ## 現在の制限
 
-以下は**未実装**で、<Badge type="warning" text="予定" /> のままです。
+以下は <Badge type="warning" text="予定" /> のままです。
 
-- 定期的または自動のバックアップ：バックアップは手動で開始します。
 - WebDAV 以外のクラウドプロバイダー（Dropbox / Google Drive / S3 との連携はありません）。
+- 定期バックアップのリモート先への自動アップロード：**定期バックアップ** はローカルの `exports/` に `auto-backup-*.zip` を書き出すだけで、リモート先への移動は手動です。
 
 <figure class="shot">
   <img src="/assets/screenshots/remote-storage.png" alt="バックアップ / 復元のリモートストレージ。WebDAV の取得元、キャッシュ使用量、バックアップ先">

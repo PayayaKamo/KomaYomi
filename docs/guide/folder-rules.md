@@ -81,6 +81,34 @@ A rule must contain `{page}`. It must also contain `{language}`, unless it decla
 - A file that matches no enabled rule appears in the **unrecognized** list and is not added to the library.
 - Rules only affect detection. They never rename, move, copy or convert a file.
 
+## A root holding several works
+
+The default rules cover two layouts and are tried in this order:
+
+1. `{volume}/{language}/{chapter}/{page}` — volumes sit directly under `raw/`;
+2. `{series}/{volume}/{language}/{chapter}/{page}` — there is a work folder above the volume.
+
+So this root needs no configuration at all:
+
+```text
+raw/
+  vol-01/ja/172/001.jpg          # flat volume, matched by rule 1
+  alpha/vol-01/ja/172/001.jpg    # vol-01 of the work alpha
+  beta/vol-01/ja/172/001.jpg     # the same volume name in another work
+```
+
+- The work name may sit deeper: in `raw/collection/alpha/vol-01/ja/172/001.jpg`, `collection/alpha` becomes the series name, because `{series}` absorbs consecutive directories until the rest of the pattern fits.
+- The sidebar shows "series · volume". The volume id is still a single directory name, and page data lives under `data/pages/<volume id>/<chapter>/...`. When two works both have `vol-01`, they become `alpha-vol-01` and `beta-vol-01`; a flat `vol-01` at the `raw/` root keeps its plain id, and only the series volumes get a prefix.
+- Volume settings and preprocessing resolve `raw/<volume id>`. Volumes nested directly in `raw/` have no such top-level folder, so those two tools do not apply to them. To fix a language mapping or run preprocessing, use **Add manga** on the work or series folder: the tool links each volume under `raw/`, records the series name in `data/library.json`, and the linked volumes support every volume-level tool.
+
+**Multi-work roots without a chapter level.** Both default rules require `{chapter}`. A four-level `raw/alpha/vol-01/ja/001.jpg` ("work / volume / language / image") lands in the unrecognized list because the chapter level is missing. Add one rule:
+
+```json
+{ "id": "series-volume-language-page", "pattern": "{series}/{volume}/{language}/{page}" }
+```
+
+or make the chapter level optional: `{series}/{volume}/{language}/{chapter}?/{page}`.
+
 ## When rules can break existing work
 
 Page data is stored under `data/pages/<volume>/<chapter>/<index>.json`. Changing a rule can change the detected volume id or chapter id, and existing panels and notes will not follow automatically. Apply rules **before** annotating a new collection; if you must change them later, create a backup first and check a few pages afterwards.

@@ -98,6 +98,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_THUMB_SOURCE_MISSING`   | 404  | Thumbnail source is missing              | Page image deleted after the gallery loaded | Refresh the gallery.                                  |
 | `ERR_THUMB_FETCH_FAILED`     | 502  | Remote image could not be fetched        | Remote source offline, bad URL              | Verify the remote source in Settings → Storage.       |
 | `ERR_THUMB_UNSUPPORTED`      | 415  | Thumbnailing is not implemented for format | AVIF/HEIC or exotic formats               | Convert to JPEG/PNG/WEBP.                             |
+| `ERR_CACHE_TARGET_INVALID`   | 400  | Unknown cache target                       | Clearing something other than `thumbs`, `remote` or `staging` | Use one of `/api/cache/clear`'s targets. |
 | `ERR_UNSUPPORTED_IMAGE_FORMAT` | 415 | Detector cannot read the image           | Non-image file or unsupported codec         | Replace the file with a supported image.              |
 | `ERR_REMOTE_UNAVAILABLE`     | 503  | Remote source is temporarily unusable    | Network share offline, WebDAV down          | Cached pages remain readable; retry when online.      |
 | `ERR_ANNOTATION_IMAGE_INVALID` | 400 | Composited annotation image is invalid ({reason}) | Word export staged image has bad fields or format | Retry the export; report `reason` if it persists. |
@@ -128,15 +129,16 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_PAGE_TARGET_MISSING`     | 400  | Page JSON has no volume/chapter and no target | Import into a view without selecting a target | Select a volume/chapter before importing.            |
 | `ERR_PAGE_INDEX_INVALID`      | 400  | Page JSON has no valid `pageIndex`        | Hand-edited file                                 | Add a zero-based `pageIndex`.                          |
 | `ERR_PAGE_NOT_SAVED`          | 400  | Page has no saved data yet                | Export before saving annotations                 | Save the page first.                                   |
+| `ERR_PAGE_OFFSET_INVALID`     | 400  | Page offset is invalid for that language  | `from` below 1, or `to` before `from`             | Use `from >= 1` and `to >= from` in Volume settings.    |
 | `ERR_UNSAFE_SEGMENT`          | 400  | Volume/chapter name has unsafe characters  | `/`, `..`, control characters                   | Use a plain folder-safe name.                          |
 | `ERR_DIR_UNSAFE`              | 400  | Directory contains `..`                   | Malicious or malformed rule input                | Use a relative path without `..`.                      |
 | `ERR_DIR_NAME_EMPTY`          | 400  | Directory name is empty                   | Form submitted empty                             | Provide a name.                                        |
 | `ERR_DIR_NAME_INVALID`        | 400  | Directory name has `\ / : * ? " < > \|`  | Copy-pasted Windows path                         | Strip illegal characters.                              |
 | `ERR_DIR_NOT_FOUND`           | 400  | Source directory does not exist           | Folder moved after selection                     | Re-select the folder.                                  |
 | `ERR_DIR_NOT_IN_VOLUME`       | 400  | Directory is not under that volume        | Stale directory list                             | Refresh the volume settings.                           |
+| `ERR_VOLUME_LAYOUT_UNRECOGNIZED` | 400 | No language directory found for the selection | Series/multi-volume folder selected instead of one volume | Point at a concrete volume, or map languages in Volume settings. |
 | `ERR_VOLUME_EXISTS`           | 409  | A same-named directory already exists     | Adding the same source twice                     | Remove the old entry or pick another name.             |
 | `ERR_LINK_CREATE_FAILED`      | 500  | Cannot create the directory link          | No permission, filesystem without symlink support | Run on a filesystem that supports links, or copy files.|
-| `ERR_REAL_DIRECTORY`          | 409  | Refusing to delete a real directory       | Volume folder is not a link                      | Delete it manually under `raw/` if intended.           |
 | `ERR_HISTORY_VERSION_NOT_FOUND`| 404 | Page version no longer exists             | History trimmed to the retention limit, stale link | Refresh the page history; save a new version if needed. |
 
 ### Templates and presets
@@ -181,6 +183,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSAFE_PATH`              | 400  | Path contains `.` / `..` / empty part | Crafted request, bad config           | Only use clean relative paths.                     |
 | `ERR_PATH_ESCAPE`              | 400  | Path resolves outside the storage root | Symlink escape, crafted request      | Keep paths inside the configured target.           |
 | `ERR_STORAGE_READONLY`         | 403  | Target is read-only                  | Writing to a read-only backup target  | Pick a writable target or clear the read-only flag.|
+| `ERR_READ_ONLY`                | 403  | Read mode blocks the write           | The viewer is in read mode            | Switch to edit mode to change the project.         |
 | `ERR_NOT_A_DIRECTORY`          | 400  | Path is not a directory              | A file sits where a folder is expected| Move the file away.                                |
 | `ERR_STORAGE_CONFIG_MISSING`   | 400  | No storage config sent               | Empty settings form                   | Send the storage config object.                    |
 | `ERR_REMOTE_SOURCE_MISSING`    | 400  | No remote image source configured     | Sync requested before setup           | Configure a source in Settings → Storage.          |
@@ -261,6 +264,7 @@ the server generated them itself.
 | `WARN_NO_LANGUAGE_DIR_DETECTED`   | Added as a single volume, no language folders         | Flat folder layout                            |
 | `WARN_VOLUME_ALREADY_IN_LIBRARY`  | Volume already present                               | Duplicate add                                 |
 | `WARN_VOLUME_DIR_REMOVED`         | Missing directory removed from config                | Folder deleted outside the app                |
+| `WARN_REAL_DIRECTORY_KEPT`        | Removed from the library, but the real folder under `raw/` was kept | Removing a volume that is a real directory, not a link |
 | `WARN_IMAGE_PATH_INVALID`         | Image path cannot be resolved                        | Malformed manifest URL                        |
 | `WARN_IMAGE_MISSING`              | Image missing, skipped                               | Incomplete `.mnproj`                          |
 | `WARN_PAGE_JSON_INVALID`          | Page JSON cannot be parsed                           | Corrupt page file                             |
@@ -329,3 +333,6 @@ These are also localized but are data rather than diagnostics:
 3. Add a row to the matching table above (and to the warning table for `WARN_*`).
 4. Run `npm run typecheck`, `npm run lint` and `npm run format:check` — the catalog key
    type is derived from `MESSAGES`, so a typo becomes a compile error.
+
+These tables are maintained by hand and must stay in sync with `server/messages/catalog.ts`;
+every code listed there should appear here in all three languages, and vice versa.

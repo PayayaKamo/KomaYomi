@@ -6,9 +6,11 @@
 
 ```text:no-line-numbers
 raw/<volume>/<language>/<chapter>/<page images>
+raw/<work>/<volume>/<language>/<chapter>/<page images>
 ```
 
-- **卷**是一个顶层文件夹：一本书、一期杂志、一个合集。
+- **卷**是一个文件夹：单层布局里它在 `raw/` 下，多作品布局里它在某部作品文件夹下。卷的显示名来自目录名，可以在 `data/library.json` 里改写。
+- **作品（系列）** 是可选的上一层，`raw/` 里并列放多部作品时由扫描器识别。它只用于分组显示（侧栏写作「系列 · 卷」），不会进入页面数据的路径；两个作品里的同名卷会各自加上作品前缀，互不合并。
 - **话**是语言目录内的一个文件夹。各语言的话会取并集。
 - **页**是话内自然排序后的第 *n* 张图片。页面在不同语言之间按位置配对，而不是按文件名配对。
 
@@ -105,8 +107,8 @@ raw/<volume>/<language>/<chapter>/<page images>
 
 ```text
 Library
-└── Volume (raw/<volume>)
-    └── Chapter (raw/<volume>/<lang>/<chapter>)
+└── Volume (raw/<volume> 或 raw/<work>/<volume>)
+    └── Chapter (raw/.../<lang>/<chapter>)
         └── Page (paired by index)
             ├── Panel[]  ──────────┐
             ├── Note[] (page|panel)│

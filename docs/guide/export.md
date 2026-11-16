@@ -109,7 +109,7 @@ The export dialog has three output formats: **HTML**, **Word document** and **PD
 2. Set the scope, languages and note tag filter as usual.
 3. Click **Generate Word**, then **Download .docx**.
 
-The document keeps the page images and turns page and panel notes into editable Word text. Annotations are **not** embedded in the `.docx` yet — use a PNG or the HTML export when you need the marks.
+The document keeps the page images and turns page and panel notes into editable Word text. Annotations are **baked into the page images by default**: the browser composites the vector layer onto each page PNG before generating, so the `.docx` shows the marked artwork. If a composited image does not arrive (the export was interrupted, or the page has no image in the selected languages), that page falls back to the original image and the result carries a `WARN_EXPORT_ANNOTATIONS_UNBAKED` warning. Clear **Include annotations** to always export the untouched pages.
 
 ### PDF (print)
 
@@ -135,7 +135,7 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
 - **Panel borders are not in the PNG.** PNG export uses the annotation toggle; enable **Include annotations**, and remember that panel borders are drawn from the panel rectangles, not from annotations.
 - **Print output is cropped.** Set the browser print scale to “Fit to page” and enable background graphics only if you need the shading.
 - **Word ignored the layout.** Paste the rendered HTML rather than the Markdown source; Word keeps HTML tables and images but not the two-column drag width.
-- **The `.docx` or PDF button is missing.** Both are in the export dialog: choose **Word document** or **PDF (print)** at the top. Annotations are not embedded in Word yet.
+- **The `.docx` or PDF button is missing.** Both are in the export dialog: choose **Word document** or **PDF (print)** at the top. Word bakes annotations into the images by default; a `WARN_EXPORT_ANNOTATIONS_UNBAKED` warning means a page did not receive its composited image — generate again.
 - **The output folder is not writable.** In a packaged desktop build, `exports/` lives inside the chosen library folder.
 
 <figure class="shot">

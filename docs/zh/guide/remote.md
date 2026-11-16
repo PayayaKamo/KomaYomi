@@ -109,10 +109,10 @@ KomaYomi 把两者分开：**图片按需从远端读取，标注写入本地。
 
 ## 当前限制
 
-以下功能**尚未实现**，仍标记为 <Badge type="warning" text="计划中" />：
+以下功能仍标记为 <Badge type="warning" text="计划中" />：
 
-- 定时或自动备份：备份需手动启动。
 - WebDAV 以外的云服务（不支持 Dropbox / Google Drive / S3）。
+- 定时备份的自动上传：**定时备份**只在本机 `exports/` 里生成 `auto-backup-*.zip`，把它们送到远端目标仍需手动操作。
 
 <figure class="shot">
   <img src="/assets/screenshots/remote-storage.png" alt="备份 / 恢复对话框中的远端存储：WebDAV 来源、缓存用量与一个备份目标">
