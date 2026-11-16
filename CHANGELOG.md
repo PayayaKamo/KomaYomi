@@ -5,6 +5,61 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-11-16
+
+### Added
+
+- Note categories: three built-in types (Background, Vocabulary, Reaction) at page or panel
+  scope, one generated category per enabled reading language (`lang:<code>`), and custom types
+  with a name and colour stored in `data/library.json`. Notes can be filtered, grouped and added
+  by type, and the category colour drives the type chips and compare-view markers.
+- Panel detail view renders the page's Markdown notes and annotations inline and adds per-language
+  alignment controls that move or reset one language or all of them for the session.
+- Double-clicking anywhere on a compare row, including its margins, opens that panel's detail view.
+- Start screen with six first-run steps and direct buttons for importing images, creating a
+  library, opening a project and reading the guide.
+- PNG export can target platform sizes (Xiaohongshu, Instagram, Pinterest, Webtoon and B5/A4/A5
+  print); the artwork is fitted into the canvas with white margins instead of being cropped.
+- Sidebar page list offers two-column thumbnails, single-column thumbnails and a list with
+  languages and note counts, remembered per browser.
+- Quick panel reordering: `1`–`10` move the selected panel to that position, and the custom
+  right-click menu adds "Move to…" next to the full panel actions (text inputs keep the native
+  menu).
+- Page write protection: atomic replace (temp file, flush, rename), schema validation before
+  every save (`ERR_PAGE_SAVE_INVALID`), `.bak` rotation (`KOMAYOMI_PAGE_BACKUPS`, default 3),
+  a per-page write lock (`ERR_PAGE_BUSY`, reclaimed after 10 s) and automatic archiving of
+  damaged files as `.corrupt-<timestamp>.bak`.
+- Page and manifest schema v2: v1 notes are migrated to the default category and the original
+  file is kept as `.v1.bak`.
+- The CLI accepts an explicit project root and can be invoked in-process; new unit tests cover
+  the CLI, page storage safety and PNG share sizes.
+
+### Changed
+
+- Editing an existing note reuses the single editor, whose button switches between adding a new
+  note and saving changes.
+- The original reading view can link or unlink pan and zoom across languages; entering it folds
+  both side columns and leaving it restores the desktop layout.
+- Edit and read-only modes remain available from the top bar, and the server rejects writes in
+  read-only mode with `ERR_READ_ONLY`.
+- Export is reached from the File menu instead of a separate top-bar button.
+- Volume settings keep supporting chapter unlinking/restore and per-language page offsets.
+- Runtime data under `data/` is no longer tracked: only `data/templates/` stays in the
+  repository, so caches, pages, history and backups no longer dirty the working tree.
+
+### Removed
+
+- The bundled sample project and its artwork; the app, READMEs and documentation now point to a
+  sample project that will be provided later.
+
+### Documentation
+
+- English, Chinese and Japanese documentation updated for note categories, the single editor,
+  panel detail notes and alignment, the original view's linked mode, page write protection,
+  schema v2, sidebar layouts, the start screen and export entry.
+- READMEs aligned with the current feature set: screenshots use original demo artwork and the
+  sample-project references now say it will be provided later.
+
 ## [0.2.0] - 2026-11-16
 
 ### Added
