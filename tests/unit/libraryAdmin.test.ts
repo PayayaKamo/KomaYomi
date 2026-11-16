@@ -166,10 +166,10 @@ describe('removeVolume', () => {
     expect(fs.existsSync(path.join(rawRoot, 'KeepMe'))).toBe(false);
     expect(fs.readFileSync(path.join(source, 'ja', '1', '01.jpg'), 'utf8')).toBe('image');
 
-    // writeLibraryConfig merges with the previous file through preserveUnknown, which
-    // restores the deleted nested key, so the override survives the cleanup attempt.
+    // Volume overrides are deletion-sensitive: removing the volume must not be undone
+    // by the config merge.
     const cfg = readLibraryConfig(dataRoot);
-    expect(cfg.volumes?.KeepMe?.title).toBe('Kept');
+    expect(cfg.volumes?.KeepMe).toBeUndefined();
   });
 
   it('refuses to remove a real directory', () => {
@@ -188,7 +188,7 @@ describe('removeVolume', () => {
 
     expect(res.removed).toBe(true);
     expect(res.warnings).toEqual([inEn(() => t('WARN_VOLUME_DIR_REMOVED'))]);
-    expect(readLibraryConfig(dataRoot).volumes?.Gone?.title).toBe('Gone');
+    expect(readLibraryConfig(dataRoot).volumes?.Gone).toBeUndefined();
   });
 
   it('keeps the other volume overrides intact', () => {
@@ -204,7 +204,7 @@ describe('removeVolume', () => {
 
     const cfg = readLibraryConfig(dataRoot);
     expect(cfg.volumes?.Stay?.title).toBe('Stay');
-    expect(cfg.volumes?.Drop?.title).toBe('Drop');
+    expect(cfg.volumes?.Drop).toBeUndefined();
   });
 });
 
@@ -218,19 +218,18 @@ describe('setVolumeDirs', () => {
     expect(readLibraryConfig(dataRoot).volumes?.Vol1?.dirs).toEqual({ ja: 'ja', zh: 'zh' });
   });
 
-  it('does not persist a null reset: the previous mapping comes back', () => {
+  it('persists a null reset by clearing the previous mapping', () => {
     const { rawRoot, dataRoot } = tempRoot();
     for (const dir of ['ja', 'zh']) fs.mkdirSync(path.join(rawRoot, 'Vol1', dir), { recursive: true });
     inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Vol1', { ja: 'ja', zh: 'zh' }));
 
     inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Vol1', { ja: null }));
 
-    // The deleted `dirs` key is restored by preserveUnknown in writeLibraryConfig.
     const cfg = readLibraryConfig(dataRoot);
-    expect(cfg.volumes?.Vol1?.dirs).toEqual({ ja: 'ja', zh: 'zh' });
+    expect(cfg.volumes?.Vol1?.dirs).toBeUndefined();
   });
 
-  it('keeps the direction while the clear attempt does not remove the mapping', () => {
+  it('keeps the direction while the clear removes the mapping', () => {
     const { rawRoot, dataRoot } = tempRoot();
     fs.mkdirSync(path.join(rawRoot, 'Vol1', 'ja'), { recursive: true });
     inEn(() => setVolumeDefaultDirection(rawRoot, dataRoot, 'Vol1', 'ltr'));
@@ -239,7 +238,7 @@ describe('setVolumeDirs', () => {
     inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Vol1', { ja: null }));
 
     const entry = readLibraryConfig(dataRoot).volumes?.Vol1;
-    expect(entry?.dirs).toEqual({ ja: 'ja' });
+    expect(entry?.dirs).toBeUndefined();
     expect(entry?.defaultDirection).toBe('ltr');
   });
 

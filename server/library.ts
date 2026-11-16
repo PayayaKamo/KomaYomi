@@ -99,7 +99,11 @@ export function writeLibraryConfig(dataRoot: string, cfg: LibraryConfig): void {
   backupUnreadableFile(file);
   assertWritableFile(file, 'mnconfig');
   // Unknown keys from a newer build survive this save.
-  writeStoredFile(file, 'mnconfig', preserveUnknown(readRawRecord(file), cfg));
+  const merged = preserveUnknown(readRawRecord(file), cfg);
+  // Volume entries are deletion-sensitive, like page offsets in storage.ts: merging
+  // would resurrect a volume removed from raw/ or a cleared language-dir mapping.
+  if (cfg.volumes !== undefined) merged.volumes = cfg.volumes;
+  writeStoredFile(file, 'mnconfig', merged);
 }
 
 /** Guess which language a directory name refers to. */
