@@ -191,6 +191,8 @@ Numbering is normally derived from rectangles and the reading direction, but you
 
 - The list follows the current reading order and shows the number, coordinates and ↑ / ↓ buttons for each row.
 - Drag the ⠿ handle, click ↑ / ↓, or type a position under **Move the selected panel to position n** and press **Move**.
+- The numbered buttons below that field jump the selected panel straight to position 1–10 in one click; the panel's current position is disabled. Pages longer than ten panels keep the number field for the rest.
+- Right-click a panel on the page and open **Move to…** for the same first ten positions. When the page has more than ten panels, **More positions…** at the bottom opens this dialog with that panel already selected.
 - Only **Save** writes back: the array order is rewritten and renumbered 1..n. **Cancel** changes nothing.
 
 Auto-detection and templates rebuild the whole panel list, so manual numbers are lost with it; the app asks for confirmation before re-detecting.

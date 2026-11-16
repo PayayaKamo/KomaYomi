@@ -89,6 +89,7 @@ The **Export PNG** section produces images directly, without a document:
 Options:
 
 - **Include annotations (n)** — draws the annotation layer into the PNG. The count shows how many marks will be included.
+- **Output size** — keeps the source pixels by default; it can also fit Xiaohongshu 3:4 (1080×1440), 1:1, 4:3 and long notes (1080 wide), Instagram 4:5 and 9:16, Pinterest 2:3, 800-wide webtoon strips, and B5 / A4 / A5 at 300 dpi for print. Artwork is scaled with white margins and never cropped, and the choice is remembered.
 - Whole-page and current-panel PNG use the **primary (base) language**; the collage uses the selected compare languages.
 - **Current panel** is disabled until a panel is selected in the workbench.
 

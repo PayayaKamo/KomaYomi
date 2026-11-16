@@ -100,7 +100,9 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_VOLUME_NOT_FOUND`        | 404  | 找不到卷：{volume}                                         | 文件夹改名、URL 过期               | 刷新图库，核对卷 id。                                 |
 | `ERR_CHAPTER_NOT_FOUND`       | 404  | 找不到章节：{volume} / {chapter}                           | 话号写错、卷是空的                 | 查看 `/api/library` 里的 `chapters`。                 |
 | `ERR_PAGE_NOT_FOUND`          | 404  | 页面不存在：{volume} / {chapter} 第 {page} 页              | 序号从 0 起；页面列表过期          | 改用图库返回的 `page.index`。                         |
-| `ERR_PAGE_CORRUPT`            | 422  | 页面保存数据已损坏                                         | 写入中断、手改 JSON                | 页面变为只读；请从备份恢复或删除该文件。下次写入前会保留 `.corrupt.bak` 副本。 |
+| `ERR_PAGE_CORRUPT`            | 422  | 页面保存数据已损坏                                         | 写入中断、手改 JSON、外部编辑器写入 BOM | 错误会指明失败的校验点、文件与最新备份；损坏文件会自动改名为 `.corrupt-<时间戳>.bak` 留档，页面可直接重建。 |
+| `ERR_PAGE_SAVE_INVALID`       | 422  | 页面未通过 schema 校验                                     | 客户端或迁移产生了非法的分格/标注值 | 不会落盘，上一份文件保持不变；修正报错字段后重试。 |
+| `ERR_PAGE_BUSY`               | 409  | 页面数据正被另一个进程写入                                 | 桌面端与开发服务器共用同一数据目录 | 稍后重试；本次写入被拒绝，文件未改变。            |
 | `ERR_HISTORY_CORRUPT`         | 422  | 版本历史已损坏                                             | 写入中断、手改 JSON                | 从备份恢复历史；页面本身仍可打开。下次保存前会保留 `.corrupt.bak` 副本。 |
 | `ERR_LIBRARY_CONFIG_CORRUPT`  | 500  | `library.json` 无法解析                                    | 写入中断、手改 JSON                | 先从备份恢复该文件再改设置；不会被自动重置。           |
 | `ERR_MISSING_VOLUME_CHAPTER`  | 400  | 缺少卷/话信息                                              | 客户端漏传字段                     | `volume` 和 `chapter` 都要传。                        |

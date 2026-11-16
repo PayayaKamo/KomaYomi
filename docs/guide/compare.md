@@ -121,6 +121,23 @@ The annotation toolbar works here too, and compare view is the fastest place to 
   <figcaption>The compare toolbar: language chips, mask mode, side-by-side / overlay, alignment scope and the drag switch for the current panel.</figcaption>
 </figure>
 
+## Panel detail view
+
+Double-click a panel row to open it full-size. The whole row is the target — the language panes, the head with the panel number, and the blank margins around a crop all open the same panel. Clicks inside editors, drag handles, buttons and links are excluded, and on touch layouts a double-tap on the row does the same thing.
+
+- **Per-language alignment** — the alignment drawer gives every language its own `Δx` / `Δy` readout, arrow nudges in 1% steps, zoom − / +, and a reset for that column.
+- **All languages** — the same arrow pad moves every column together, and **Reset all** clears them in one go.
+- These detail-view adjustments last for the current session only; they do not write back to the page or the saved alignment.
+- The notes column below the panes writes directly to this panel; changing panels, paging or going back flushes the draft first.
+
+## Original view
+
+The **Original** view (`O`) shows the uncropped page for each active language side by side, with wheel zoom from 0.5× to 6×, drag to pan, and the same per-language masks. It is the place to check what sits outside the detected panels.
+
+- **Linked / independent** — the toggle in the original-view toolbar decides whether pan and zoom are shared. In **Linked** mode, dragging or zooming one column applies the same relative position and scale to every column; each column resolves those fractions against its own displayed size, so pages of different dimensions stay aligned. **Independent** mode keeps a separate view per column.
+- Turning linking on adopts the first visible column's current view and applies it to the others.
+- The setting is remembered per browser in `localStorage` (`manga-memo.original-linked`), is on by default, and only matters when two or more languages are displayed.
+
 ## Common pitfalls
 
 - **“This page has no panels yet.”** Go to **Panels** (`P`) and run **Auto split**, then come back.

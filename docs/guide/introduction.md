@@ -43,6 +43,12 @@ A page can carry any number of languages. The language chips in the compare read
 
 When the window gets narrow, the top bar and the panel-workbench toolbar do not squeeze: secondary actions fold into a `≡` overflow menu, and at phone widths only essentials such as page turning and the view switch stay visible. The menu contains exactly the same entries as the wide layout, so nothing disappears.
 
+## The start screen
+
+Before a library is open, the app shows a start screen. It offers four entries — **Import images / Scan a folder**, **New library**, **Open a `.mnproj`**, and **Guide** — and lays the six first-run steps out as cards: import the scans, create a library or open a project, pick a page, split panels, compare languages, then annotate and export.
+
+The cards use three columns on wide windows, two at medium widths and a single column on narrow screens. In read-only mode the import and new-library entries are hidden, leaving the project and guide entries.
+
 ## Edit mode and read mode
 
 The **Edit / Read** switch in the middle of the top bar decides whether the workspace is an authoring tool or a viewer. The choice is kept in the browser and survives reloads.
@@ -78,15 +84,15 @@ Focus mode (the `⛶` button in the top bar, or `R`) is a different thing: it on
 ## What is implemented
 
 <div class="status-list">
-  <div><strong>Library</strong> — scans volumes, including several works side by side under one root, recognizes language folder aliases, pairs pages by sorted position, warns about missing pages and naming mismatches.</div>
-  <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / group / split / delete, manual reordering of the numbering, percentage inputs, grid generator, panel templates, declarative layouts, plugins, cross-session page history.</div>
+  <div><strong>Library</strong> — scans volumes, including several works side by side under one root, recognizes language folder aliases, pairs pages by sorted position, warns about missing pages and naming mismatches; the sidebar lists pages as two-column thumbnails, single-column thumbnails or a list with languages and note counts, remembered per browser.</div>
+  <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / group / split / delete, manual reordering of the numbering with quick 1–10 positions and right-click move-to, percentage inputs, grid generator, panel templates, declarative layouts, plugins, cross-session page history.</div>
   <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, optional anchor points with leader lines, page-level visibility switch, PNG export support.</div>
-  <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order, a third original-page view, previous/next panel across page and chapter boundaries, and panel detail views with per-panel deep links.</div>
-  <div><strong>Notes</strong> — page/panel notes, Markdown with a toolbar and live preview, editing an existing note in the same single editor, tags, sources, attached images, overview search, copy-for-LLM, scratchpad.</div>
+  <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order, a third original-page view with a linked/independent switch for zoom and pan, previous/next panel across page and chapter boundaries, and panel detail views with per-panel deep links. Double-click any compare row — language panes, the head or its blank margins — to open that panel; the detail view adds per-language alignment that lasts only for the session.</div>
+  <div><strong>Notes</strong> — page/panel notes, any number per page or panel, Markdown with a toolbar and live preview, editing an existing note in the same single editor, tags, sources, attached images, overview search, copy-for-LLM, scratchpad, and note types: Background / Vocabulary / Reaction, one type per enabled language, and custom types kept in `data/library.json`. The notes column runs filter → list → editor with grouping and add-by-type, and the panel detail view embeds the same editor.</div>
   <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), PDF via the browser print dialog, Word (`.docx`) with page images and notes and annotations baked by default, panel-border overlay, print styles, export templates.</div>
   <div><strong>Modes</strong> — edit and read modes; switching to read saves first and then disables every write, and focus mode (`R`) clears the interface for immersive reading.</div>
-  <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching, a bounded LRU cache, scheduled automatic backups and cache management.</div>
-  <div><strong>Portability</strong> — `.mnproj` project packages, `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas.</div>
+  <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching, a bounded LRU cache, scheduled automatic backups and cache management. Page writes are atomic and schema-checked, rotate `.bak` copies and take a per-page lock.</div>
+  <div><strong>Portability</strong> — `.mnproj` project packages, `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas (page and project documents at 2).</div>
 </div>
 
 ## What is not implemented

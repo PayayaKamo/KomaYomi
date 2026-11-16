@@ -26,9 +26,9 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "0.1.0"
+  "appVersion": "1.0.1"
 }
 ```
 
@@ -48,9 +48,9 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "0.1.0",
+  "appVersion": "1.0.1",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -67,6 +67,7 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
       "id": "n1712345678901",
       "scope": "panel",
       "panelId": "p1",
+      "type": "background",
       "text": "**原文**：……\n\n翻訳はより硬い表現。",
       "tags": ["语气", "待确认"],
       "source": { "title": "参照ページ", "url": "https://example.com" },
@@ -120,7 +121,7 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 | `volume`, `chapter` | string | フォルダ名と一致する必要があります。 |
 | `pageIndex` | number | 0 始まり。 |
 | `panels` | `Panel[]` | 後述。座標は `0..1` にクランプされ、幅／高さは最小 `0.005` です。 |
-| `notes` | `Note[]` | `scope` は `page` または `panel` で、コマのノートには `panelId` が必要です。文字列の `text` を持たない行は破棄されます。 |
+| `notes` | `Note[]` | `scope` は `page` または `panel` で、コマのノートには `panelId` が必要です。`type` はノートの種類です。文字列の `text` を持たない行は破棄されます。 |
 | `offsets` | `Record<Lang, AlignOffset>` | ページ単位の位置合わせ。`scale` は `0.2..4` にクランプされます。 |
 | `alignMode` | `page \| panel \| anchors \| grid` | 無効な値は `page` になります。 |
 | `panelOffsets` | `Record<panelId, Record<Lang, AlignOffset>>` | コマ単位の位置合わせ。 |
@@ -159,6 +160,7 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 | `id` | string | ページ内で一意。 |
 | `scope` | `page \| panel` | |
 | `panelId` | string \| null | コマスコープでは必須。 |
+| `type` | string \| undefined | 種類の id: 組み込み（`background`、`vocab`、`rant`）、言語別（`lang:<code>`、例 `lang:ja`）、または `noteTypes` のカスタム id。schema 2 より前のファイルにはなく、移行時に `background` が入ります。 |
 | `text` | string | Markdown。生の HTML はエスケープされます。 |
 | `tags` | string[] | |
 | `source` | `{ title?, url?, text? }` | `text` は自由形式の出典ラベルです。 |
@@ -177,17 +179,28 @@ KomaYomi が保存するものはすべてプレーンな JSON またはプレ�
 
 ### ページドキュメント
 
-- `schemaVersion` は現在 **1** です。キーがないファイルは v0 として扱われ、読み込み時に移行されます。エンベロープが追加され、旧 `version` キーは削除されます。
+- `schemaVersion` は現在 **2** です。キーがないファイルは v0 として扱われ、読み込み時に移行されます。エンベロープが追加され、旧 `version` キーは削除されます。
+- **v1 → v2** でノートの種類が加わります。`type` を持たないノートはすべて `background` になり、本文・タグ・画像は変わりません。アップグレード後のドキュメントを書き込む前に、バージョン 1 の元ファイルが `<file>.v1.bak`（例: `3.json.v1.bak`）として隣に残ります。
 - **より高い**スキーマバージョンは書き込み時に `ERR_SCHEMA_TOO_NEW` で拒否され、古いビルドが新しいファイルを黙ってダウングレードすることはありません。
 - 読み込み時には値が**正規化**されます。無効な数値は既定値になり、矩形はクランプされ、ぶら下がったグループ参照は削除され、欠けた id は生成されます。
 - **トップレベル**の未知フィールドは `preserveUnknown` により読み込み → 書き込みで保持されます。`id` を持つオブジェクト配列は id でマージされ、それ以外の配列は新しい値で置き換わります。
 - `panels`、`notes`、`groups`、`annotations` といった既知の子オブジェクトは書き込み時にフィールド単位で再構築されるため、その**内部**の未知フィールドは保持される保証がありません。
-- 解析できないページ JSON は存在しないものとして扱われ、アプリが自動検出して再作成します。
-- 移行はバージョンごとに連鎖します（`0 → 1 → …`）。各ステップはフィールドの追加や名前変更のみで、ユーザーの内容を削除しません。
+- 解析できないページ JSON は存在しないものとしては扱われません。サーバーは `ERR_PAGE_CORRUPT` を返し、元のバイト列を `<file>.corrupt-<timestamp>.bak` として保存し、復元に使えるバックアップを一覧します。
+- 移行はバージョンごとに連鎖します（`0 → 1 → 2`）。各ステップはフィールドの追加や名前変更のみで、ユーザーの内容を削除しません。
+
+### ページ書き込みの保護
+
+- **アトミックな置き換え** — 新しい JSON は同じディレクトリの一時ファイルに書き込まれ、フラッシュしてからページにリネームされます。クラッシュしても古いファイルは無傷です。
+- **置き換え前の検証** — 保存のたびにページスキーマで検証します。失敗したドキュメントは `ERR_PAGE_SAVE_INVALID` で拒否され、何も書き込まれません。
+- **バックアップのローテーション** — 置き換えの前に直前のページを `.bak` にコピーします。`KOMAYOMI_PAGE_BACKUPS` で保持する世代数を指定できます（既定 3、1〜20 にクランプ）。
+- **同時書き込み** — ページごとに書き込みロックがあります。2 人目の書き込みは `ERR_PAGE_BUSY` を受け取り、10 秒を超えたロックは古いものとして回収されます。
+- **破損ファイル** — 解析できないページは `ERR_PAGE_CORRUPT` を返し（上記）、その場で上書きされません。
+- **バージョン移行** — v1 ページをアップグレードするときは元ファイルを `<file>.v1.bak` として残すため、移行前の状態は失われません。
 
 ### プロジェクトパッケージ
 
-- `schemaVersion` は現在 **1** です。
+- `schemaVersion` は現在 **2** です。
+- **v1 → v2** はマニフェストのエンベロープだけを更新します。ノートの種類は `config/library.json`（または `data/library.json`）にあり、マニフェストには入りません。
 - **より高い**バージョンを宣言するパッケージは、明確なエラーで拒否されます。まずアプリをアップグレードしてください。
 - バージョン **0** のパッケージ（初期の実験）はインポート時に移行されます。トップレベルの `images`、`file` フィールド、フラットな `langDirs` マップが現在のマニフェスト形状に変換されます。
 - 欠けている任意のフィールドは既定値で埋められ、無効な画像はインポートを中断するのではなく破棄されます。
@@ -210,8 +223,8 @@ assets/<sha1>.<ext>          (packaged mode only)
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
-  "schemaVersion": 1,
-  "appVersion": "0.1.0",
+  "schemaVersion": 2,
+  "appVersion": "1.0.1",
   "createdAt": "2026-05-12T10:00:00.000Z",
   "updatedAt": "2026-05-12T10:00:00.000Z",
   "storageMode": "reference",
@@ -396,7 +409,10 @@ data/.backup-meta.json
   "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
   "schemaVersion": 1,
   "kind": "mnconfig",
-  "appVersion": "0.1.0",
+  "appVersion": "1.0.1",
+  "noteTypes": [
+    { "id": "proofread", "name": "校正", "color": "#3f9e7a" }
+  ],
   "volumes": {
     "点兔第14卷": {
       "title": "ご注文はうさぎですか？ 第14巻",
@@ -417,3 +433,5 @@ data/.backup-meta.json
 ```
 
 ここに入るのは手動の上書きだけです。エントリのない巻でも自動の言語検出は実行されます。`title` は表示名、`series` はサイドバーのシリーズ名、`dirs` は言語とフォルダーの対応、`defaultDirection` はその巻の新しいページが継承する閲覧方向です。`chapters` は話 ID（フォルダー名）をキーにし、`hidden: true` はファイルを残したままライブラリから外し、`pageOffsets` はある言語の `from` ページ目を参照版の `to` ページ目に合わせます。`appVersion` は書き込んだアプリのバージョン記録で、読み込み時の検証には使われません。
+
+`noteTypes` はカスタムのノート種類を保持します。各項目は `id`、`name`、`#rrggbb` 形式の `color` を持ちます。組み込みの種類（`background`、`vocab`、`rant`）と言語ごとの種類（`lang:<code>`）は暗黙で、ここには書き込まれません。ノートパネルで追加した種類だけが並びます。一覧から種類を削除してもノートは残り、背景知識にフォールバックします。このファイル自体は `schemaVersion: 1` のままです。

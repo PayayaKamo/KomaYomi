@@ -39,6 +39,16 @@ raw/
   <figcaption>The sidebar lists volume → chapter → pages. Language badges show which editions exist for a volume; warnings appear inline.</figcaption>
 </figure>
 
+## Page list layouts
+
+The three buttons at the top of the sidebar choose how pages are listed inside a chapter:
+
+- **Two-column thumbnails** (default) — a grid of cover-sized thumbnails.
+- **Single-column thumbnails** — one larger thumbnail per row.
+- **List** — one compact row per page, showing the page number, the languages present (missing ones are dimmed with a tooltip), a `!` when the page has warnings, and `✎ n` for the page's note count.
+
+The choice applies to every volume and chapter, survives reloads, and is stored per browser in `localStorage` under `manga-memo.page-list-layout`; it is not written to `data/`, so another browser or machine keeps its own setting. Switching layouts keeps the current scroll position.
+
 ## Language directory names
 
 The scanner normalizes a folder name (lowercase, spaces and underscores to hyphens) and matches it against aliases:

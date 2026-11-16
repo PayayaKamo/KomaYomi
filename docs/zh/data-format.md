@@ -26,9 +26,9 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "0.1.0"
+  "appVersion": "1.0.1"
 }
 ```
 
@@ -48,9 +48,9 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "0.1.0",
+  "appVersion": "1.0.1",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -67,6 +67,7 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
       "id": "n1712345678901",
       "scope": "panel",
       "panelId": "p1",
+      "type": "background",
       "text": "**原文**：……\n\n翻译更正式。",
       "tags": ["语气", "待确认"],
       "source": { "title": "参考页面", "url": "https://example.com" },
@@ -120,7 +121,7 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 | `volume`、`chapter` | string | 必须与文件夹名一致。 |
 | `pageIndex` | number | 从 0 开始。 |
 | `panels` | `Panel[]` | 见下文。坐标会被限制在 `0..1`；宽高至少为 `0.005`。 |
-| `notes` | `Note[]` | `scope` 为 `page` 或 `panel`；分格笔记必须带 `panelId`。没有字符串 `text` 的记录会被丢弃。 |
+| `notes` | `Note[]` | `scope` 为 `page` 或 `panel`；分格笔记必须带 `panelId`。`type` 是笔记类型。没有字符串 `text` 的记录会被丢弃。 |
 | `offsets` | `Record<Lang, AlignOffset>` | 页面级对齐。`scale` 被限制在 `0.2..4`。 |
 | `alignMode` | `page \| panel \| anchors \| grid` | 无效值会变成 `page`。 |
 | `panelOffsets` | `Record<panelId, Record<Lang, AlignOffset>>` | 分格级对齐。 |
@@ -159,6 +160,7 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 | `id` | string | 在页面内唯一。 |
 | `scope` | `page \| panel` | |
 | `panelId` | string \| null | 分格范围时必填。 |
+| `type` | string \| undefined | 类型 id：内置类型（`background`、`vocab`、`rant`）、语言类型（`lang:<code>`，例如 `lang:ja`），或 `noteTypes` 里的自定义 id。schema 2 之前的文件没有这个字段，迁移时会补成 `background`。 |
 | `text` | string | Markdown。原始 HTML 会被转义。 |
 | `tags` | string[] | |
 | `source` | `{ title?, url?, text? }` | `text` 是自由形式的来源标签。 |
@@ -177,17 +179,28 @@ KomaYomi 存储的一切都是纯 JSON 或纯图片文件。本页记录磁盘�
 
 ### 页面文档
 
-- `schemaVersion` 目前为 **1**。没有这个键的文件按 v0 处理，读取时迁移：补上信封并删除旧的 `version` 键。
+- `schemaVersion` 目前为 **2**。没有这个键的文件按 v0 处理，读取时迁移：补上信封并删除旧的 `version` 键。
+- **v1 → v2** 增加笔记类型：所有缺少 `type` 的笔记都补成 `background`，笔记正文、标签和图片不变。写入升级后的文档前，版本 1 的原文件会保留在旁边，名为 `<file>.v1.bak`（例如 `3.json.v1.bak`）。
 - **更高**的 schema 版本在写入时会被拒绝，报 `ERR_SCHEMA_TOO_NEW`，避免旧版本悄悄降级新文件。
 - 读取时会**规范化**取值：无效数字变为默认值，矩形被限制范围，悬空的分组引用被移除，缺失的 id 会被生成。
 - **顶层**未知字段会经 `preserveUnknown` 在读取 → 写入之间保留。带 `id` 的对象数组按 id 合并，其他数组用新值覆盖。
 - `panels`、`notes`、`groups`、`annotations` 这些已知子对象在写入时逐字段重建，因此它们**内部**的未知字段不保证保留。
-- 无法解析的页面 JSON 会被视为不存在；应用随后会自动检测并重新创建它。
-- 迁移按版本串联（`0 → 1 → …`）；每一步只新增或重命名字段，不会删除用户内容。
+- 无法解析的页面 JSON 不会再被当作不存在：服务器报 `ERR_PAGE_CORRUPT`，把原始字节归档为 `<file>.corrupt-<timestamp>.bak`，并列出可用来恢复的备份。
+- 迁移按版本串联（`0 → 1 → 2`）；每一步只新增或重命名字段，不会删除用户内容。
+
+### 页面写入保护
+
+- **原子替换** —— 新的 JSON 先写入同目录的临时文件，刷盘后再重命名覆盖页面。即使崩溃，旧文件也保持完整。
+- **写入前校验** —— 每次保存都先按页面 schema 校验。校验不通过的文档返回 `ERR_PAGE_SAVE_INVALID`，且不会有任何内容落盘。
+- **备份轮转** —— 每次替换前把上一版页面复制为 `.bak` 文件。`KOMAYOMI_PAGE_BACKUPS` 控制保留几代（默认 3，限制在 1–20）。
+- **并发写入** —— 每页有一把写锁。第二个写入者会收到 `ERR_PAGE_BUSY`；超过 10 秒的锁视为陈旧锁并被回收。
+- **损坏文件** —— 无法解析的页面报 `ERR_PAGE_CORRUPT`（见上），不会被原地覆盖。
+- **版本迁移** —— 升级 v1 页面时保留原文件为 `<file>.v1.bak`，迁移前的状态不会丢失。
 
 ### 项目包
 
-- `schemaVersion` 目前为 **1**。
+- `schemaVersion` 目前为 **2**。
+- **v1 → v2** 只更新清单信封；笔记类型存放在 `config/library.json`（或 `data/library.json`），不在清单里。
 - 声明了**更高**版本的项目包会被拒绝，并给出明确错误：请先升级应用。
 - 版本 **0** 的项目包（早期实验）会在导入时迁移：顶层的 `images`、`file` 字段和扁平的 `langDirs` 映射会被转换为当前的 manifest 结构。
 - 缺失的可选字段会用默认值填充；无效的图片会被丢弃，而不是中止导入。
@@ -210,8 +223,8 @@ assets/<sha1>.<ext>          (packaged mode only)
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
-  "schemaVersion": 1,
-  "appVersion": "0.1.0",
+  "schemaVersion": 2,
+  "appVersion": "1.0.1",
   "createdAt": "2026-05-12T10:00:00.000Z",
   "updatedAt": "2026-05-12T10:00:00.000Z",
   "storageMode": "reference",
@@ -396,7 +409,10 @@ data/.backup-meta.json
   "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
   "schemaVersion": 1,
   "kind": "mnconfig",
-  "appVersion": "0.1.0",
+  "appVersion": "1.0.1",
+  "noteTypes": [
+    { "id": "proofread", "name": "校对", "color": "#3f9e7a" }
+  ],
   "volumes": {
     "点兔第14卷": {
       "title": "点兔 第14卷",
@@ -417,3 +433,5 @@ data/.backup-meta.json
 ```
 
 这里只存放手动覆盖项。没有条目的卷仍会进行自动语言识别。`title` 改显示名，`series` 是侧栏里的系列名，`dirs` 把语言映射到目录，`defaultDirection` 是该卷新页面的默认阅读方向。`chapters` 以话 ID（文件夹名）为键：`hidden: true` 表示从图库移除但保留磁盘内容，`pageOffsets` 让某语言从第 `from` 页起对齐到参考版的第 `to` 页。`appVersion` 只是记录写入时的应用版本，读取时不做校验。
+
+`noteTypes` 存放自定义笔记类型：每项有 `id`、`name` 和 `#rrggbb` 格式的 `color`。内置类型（`background`、`vocab`、`rant`）和按语言生成的类型（`lang:<code>`）都是隐式的，不会写进这里；只有笔记面板里新增的类型才会出现。从列表里删掉某个类型不会动它的笔记——这些笔记会回落到背景知识。这个文件本身仍是 `schemaVersion: 1`。

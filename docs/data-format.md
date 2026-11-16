@@ -26,9 +26,9 @@ Every persisted or exchanged JSON file except the project manifest starts with t
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "0.1.0"
+  "appVersion": "1.0.1"
 }
 ```
 
@@ -48,9 +48,9 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "0.1.0",
+  "appVersion": "1.0.1",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -67,6 +67,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
       "id": "n1712345678901",
       "scope": "panel",
       "panelId": "p1",
+      "type": "background",
       "text": "**原文**：……\n\n翻译更正式。",
       "tags": ["语气", "待确认"],
       "source": { "title": "参考页面", "url": "https://example.com" },
@@ -120,7 +121,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 | `volume`, `chapter` | string | Must match the folder names. |
 | `pageIndex` | number | 0-based. |
 | `panels` | `Panel[]` | See below. Coordinates are clamped to `0..1`; width/height are at least `0.005`. |
-| `notes` | `Note[]` | `scope` is `page` or `panel`; panel notes require a `panelId`. Rows without a string `text` are dropped. |
+| `notes` | `Note[]` | `scope` is `page` or `panel`; panel notes require a `panelId`. `type` is the note category. Rows without a string `text` are dropped. |
 | `offsets` | `Record<Lang, AlignOffset>` | Page-level alignment. `scale` is clamped to `0.2..4`. |
 | `alignMode` | `page \| panel \| anchors \| grid` | Invalid values become `page`. |
 | `panelOffsets` | `Record<panelId, Record<Lang, AlignOffset>>` | Panel-level alignment. |
@@ -159,6 +160,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
 | `id` | string | Unique within the page. |
 | `scope` | `page \| panel` | |
 | `panelId` | string \| null | Required for panel scope. |
+| `type` | string \| undefined | Category id: a built-in (`background`, `vocab`, `rant`), a language type (`lang:<code>`, e.g. `lang:ja`), or a custom id from `noteTypes`. Missing on files older than schema 2; those notes are migrated to `background`. |
 | `text` | string | Markdown. Raw HTML is escaped. |
 | `tags` | string[] | |
 | `source` | `{ title?, url?, text? }` | `text` is a free-form source label. |
@@ -177,17 +179,28 @@ An optional `anchor` is a locator in page coordinates: `{ "x": 0.5, "y": 0.4 }`,
 
 ### Page documents
 
-- `schemaVersion` is currently **1**. A file without the key is treated as v0 and migrated on read: the envelope is added and the legacy `version` key is removed.
+- `schemaVersion` is currently **2**. A file without the key is treated as v0 and migrated on read: the envelope is added and the legacy `version` key is removed.
+- **v1 → v2** adds note categories: every note that lacks a `type` is set to `background`; no note text, tags or images change. The version-1 file is kept next to the page as `<file>.v1.bak` (for example `3.json.v1.bak`) before the upgraded document is written.
 - A **higher** schema version is refused on write with `ERR_SCHEMA_TOO_NEW`, so an older build cannot silently downgrade a newer file.
 - On read, the server **normalizes** values: invalid numbers become defaults, rectangles are clamped, dangling group references are removed, and missing ids are generated.
 - Unknown **top-level** fields survive a read → write cycle through `preserveUnknown`. Arrays of objects that carry an `id` merge by id; other arrays are replaced by the incoming value.
 - The known sub-objects (`panels`, `notes`, `groups`, `annotations`) are rebuilt field by field on write, so unknown fields *inside* them are not guaranteed to survive.
-- A page JSON that cannot be parsed is treated as absent; the app then auto-detects and re-creates it.
-- Migrations are chained by version (`0 → 1 → …`); each step only adds or renames fields and never deletes user content.
+- A page JSON that cannot be parsed is not treated as absent: the server reports `ERR_PAGE_CORRUPT`, archives the bytes as `<file>.corrupt-<timestamp>.bak`, and lists the backups that can be restored.
+- Migrations are chained by version (`0 → 1 → 2`); each step only adds or renames fields and never deletes user content.
+
+### Page write protection
+
+- **Atomic replace** — the new JSON is written to a temporary file in the same directory, flushed, then renamed over the page. A crash leaves the old file intact.
+- **Validation before replace** — every save is checked against the page schema first. A document that fails is rejected with `ERR_PAGE_SAVE_INVALID` and nothing is written.
+- **Backup rotation** — before each replace the previous page is copied to a `.bak` file. `KOMAYOMI_PAGE_BACKUPS` sets how many generations are kept (default 3, clamped to 1–20).
+- **Concurrent writes** — each page has a write lock. A second writer gets `ERR_PAGE_BUSY`; a lock older than 10 seconds is treated as stale and reclaimed.
+- **Damaged files** — an unparsable page reports `ERR_PAGE_CORRUPT` (see above) instead of being overwritten in place.
+- **Version migration** — upgrading a v1 page keeps its original as `<file>.v1.bak`, so the pre-migration state is never lost.
 
 ### Project packages
 
-- `schemaVersion` is currently **1**.
+- `schemaVersion` is currently **2**.
+- **v1 → v2** only bumps the manifest envelope; note categories live in `config/library.json` (or `data/library.json`), not in the manifest.
 - A package declaring a **higher** version is rejected with a clear error: upgrade the app first.
 - Version **0** packages (early experiments) are migrated on import: top-level `images`, a `file` field and a flat `langDirs` map are converted into the current manifest shape.
 - Missing optional fields are filled with defaults; invalid images are dropped rather than aborting the import.
@@ -210,8 +223,8 @@ assets/<sha1>.<ext>          (packaged mode only)
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
-  "schemaVersion": 1,
-  "appVersion": "0.1.0",
+  "schemaVersion": 2,
+  "appVersion": "1.0.1",
   "createdAt": "2026-05-12T10:00:00.000Z",
   "updatedAt": "2026-05-12T10:00:00.000Z",
   "storageMode": "reference",
@@ -396,7 +409,10 @@ The thumbnail cache (`data/cache/`) and `.tmp` / `.log` files are excluded. Rest
   "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
   "schemaVersion": 1,
   "kind": "mnconfig",
-  "appVersion": "0.1.0",
+  "appVersion": "1.0.1",
+  "noteTypes": [
+    { "id": "proofread", "name": "Proofreading", "color": "#3f9e7a" }
+  ],
   "volumes": {
     "点兔第14卷": {
       "title": "Gochiusa Vol. 14",
@@ -417,3 +433,5 @@ The thumbnail cache (`data/cache/`) and `.tmp` / `.log` files are excluded. Rest
 ```
 
 Only manual overrides live here. Automatic language detection still runs for volumes without an entry. `title` overrides the display name, `series` is the series label in the sidebar, `dirs` maps languages to folders, and `defaultDirection` is the inherited reading direction for new pages in the volume. `chapters` is keyed by chapter id (the folder name): `hidden: true` removes a chapter from the library while keeping its files, and `pageOffsets` aligns one language from page `from` to page `to` of the reference edition. `appVersion` just records the app version that wrote the file and is not validated on read.
+
+`noteTypes` holds the custom note categories: each entry has an `id`, a `name` and a `color` in `#rrggbb`. Built-in types (`background`, `vocab`, `rant`) and the per-language types (`lang:<code>`) are implicit and are never written here; only categories added in the notes panel appear. Removing a type from this list leaves its notes in place — they fall back to Background. The file itself stays at `schemaVersion: 1`.

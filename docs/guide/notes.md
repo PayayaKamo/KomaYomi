@@ -20,6 +20,18 @@ A remark like “this translation drops the honorific” stops meaning anything 
 
 Selecting a panel in the workbench or in the compare reader scopes the next note to that panel. With nothing selected, the note is page-scoped. The editor placeholder tells you which scope is active: *Capture this panel's original text…* versus *Capture observations… for the whole page*.
 
+## Note types
+
+A page or a panel can hold any number of notes, and every note has a type. The built-in types are **Background**, **Vocabulary** and **Reaction**. When a project enables several languages, each enabled language also gets its own type (for example **Japanese** or **Chinese**); disabled languages do not appear.
+
+The notes column is ordered as filter → list → editor. Notes are grouped by type, and the **All** filter shows every group. Choosing a type chip, or **Add note**, starts a note of that type and moves focus into the editor below the list; clicking a type while a draft is open only retags that draft.
+
+Custom types can be added, renamed, recolored and deleted from the type row. They are stored in `noteTypes` in `data/library.json`, so they travel with the library rather than a browser profile. Notes that still reference a deleted type fall back to Background.
+
+Notes saved before types existed are migrated to Background. Page documents move to `schemaVersion: 2`, and the original version-1 file is kept next to it as `<file>.v1.bak` (for example `3.json.v1.bak`).
+
+The panel detail view embeds the same editor, so a panel note can be written without leaving the page. Switching panels, paging or going back flushes the draft first.
+
 ## Writing a note
 
 <figure class="shot">
@@ -27,7 +39,7 @@ Selecting a panel in the workbench or in the compare reader scopes the next note
   <figcaption>The note editor: Markdown toolbar, Edit / Split / Preview, the source and tag fields, and the scratchpad underneath. The scope chip above the editor says whether the next note belongs to the page or a panel.</figcaption>
 </figure>
 
-1. Click the editor in the **This page** tab.
+1. Choose a type chip above the list, or click **Add note**. The editor below the list receives focus; if a draft already has content, clicking a type only changes that draft's type.
 2. Type Markdown. The toolbar inserts the common syntax:
 
 | Button | Inserts |
