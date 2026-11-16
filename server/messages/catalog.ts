@@ -445,9 +445,49 @@ export const MESSAGES = {
     ja: '保存された認証情報を復号できませんでした。ファイルは変更していません。対応する .secret.key を復元するか、認証情報ファイルを削除してパスワードを再入力してください。',
   },
   ERR_PAGE_CORRUPT: {
-    en: 'The saved data for page {page} of {volume}/{chapter} is damaged and was left untouched. Restore it from a backup, or delete the damaged file to start a new page.',
-    zh: '第 {page} 页（{volume}/{chapter}）的保存数据已损坏，文件保持原样。请从备份恢复，或删除损坏文件后重新开始该页。',
-    ja: '{volume}/{chapter} の {page} ページの保存データが破損しています。ファイルは変更していません。バックアップから復元するか、破損ファイルを削除してやり直してください。',
+    en: 'The saved data for page {page} of {volume}/{chapter} is damaged. Failed check: {detail}. File: {file}. Damaged file archived as: {archived}. Available backup: {backup}.',
+    zh: '第 {page} 页（{volume}/{chapter}）的保存数据已损坏。校验失败：{detail}。文件：{file}。损坏文件已自动留档：{archived}。可用备份：{backup}。',
+    ja: '{volume}/{chapter} の {page} ページの保存データが破損しています。失敗した検証：{detail}。ファイル：{file}。破損ファイルの退避先：{archived}。利用可能なバックアップ：{backup}。',
+  },
+  PAGE_CORRUPT_SYNTAX: {
+    en: 'JSON parse failed ({detail})',
+    zh: 'JSON 解析失败（{detail}）',
+    ja: 'JSON 解析に失敗しました（{detail}）',
+  },
+  PAGE_CORRUPT_SHAPE: {
+    en: 'top-level JSON is not an object',
+    zh: '顶层 JSON 不是对象',
+    ja: '最上位の JSON がオブジェクトではありません',
+  },
+  PAGE_CORRUPT_IO: {
+    en: 'the file could not be read ({detail})',
+    zh: '文件无法读取（{detail}）',
+    ja: 'ファイルを読み込めません（{detail}）',
+  },
+  PAGE_CORRUPT_MISSING: {
+    en: 'the file disappeared while being read',
+    zh: '读取时文件已不存在',
+    ja: '読み込み中にファイルが消えました',
+  },
+  PAGE_BACKUP_NONE: {
+    en: 'none found',
+    zh: '未找到可用备份',
+    ja: '利用可能なバックアップはありません',
+  },
+  PAGE_ARCHIVE_FAILED: {
+    en: 'could not archive (file may be locked)',
+    zh: '无法自动留档（文件可能被占用）',
+    ja: '自動退避できませんでした（ファイルが使用中の可能性）',
+  },
+  ERR_PAGE_SAVE_INVALID: {
+    en: 'Page {page} failed schema validation and was not saved; the previous file is unchanged. Details: {detail}',
+    zh: '第 {page} 页未通过 schema 校验，已放弃保存，上一份文件保持不变。详情：{detail}',
+    ja: '{page} ページがスキーマ検証に通らず、保存を中止しました。既存ファイルは変更していません。詳細：{detail}',
+  },
+  ERR_PAGE_BUSY: {
+    en: 'Page data file {file} is being written by another process. Nothing was changed; retry in a moment.',
+    zh: '页面数据文件 {file} 正在被另一个进程写入，本次未做任何修改，请稍后重试。',
+    ja: 'ページデータファイル {file} は別のプロセスが書き込み中です。今回は何も変更していません。しばらくしてから再試行してください。',
   },
   ERR_HISTORY_CORRUPT: {
     en: 'The version history for page {page} of {volume}/{chapter} is damaged and was left untouched. The page itself can still be opened; restore history from a backup.',

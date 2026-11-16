@@ -10,16 +10,22 @@ import type {
   Panel,
   ReadingDirection,
 } from '../shared/types.ts';
-import { DEFAULT_OFFSET } from '../shared/types.ts';
-import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
+import { DEFAULT_NOTE_TYPE, DEFAULT_OFFSET } from '../shared/types.ts';
+import { preserveUnknown, prepareExchange, readReadingDirection, validateExchange } from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
 import {
+  archiveUnreadableFile,
   assertWritableFile,
   backupUnreadableFile,
+  inspectStoredFile,
+  listBackupCandidates,
   readRawRecord,
   readStoredFile,
+  rotatePageBackup,
+  withFileLock,
   writeStoredFile,
 } from './schemaStore.ts';
+import type { StoredInspection } from './schemaStore.ts';
 import { recordVersion } from './pageHistory.ts';
 import { assertSafeSegment, resolveWithin } from './pathSafety.ts';
 import { AppError } from './errors.ts';
@@ -36,7 +42,7 @@ export function pageFilePath(dataRoot: string, volume: string, chapter: string, 
 
 export function createEmptyDoc(volume: string, chapter: string, pageIndex: number): PageDoc {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     volume,
     chapter,
     pageIndex,
@@ -98,6 +104,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
       id: typeof n.id === 'string' && n.id ? n.id : `n${Date.now()}${i}`,
       scope: n.scope === 'panel' ? 'panel' : 'page',
       panelId: n.scope === 'panel' && typeof n.panelId === 'string' ? n.panelId : null,
+      type: typeof n.type === 'string' && n.type.trim() ? n.type.trim() : DEFAULT_NOTE_TYPE,
       text: n.text,
       tags: Array.isArray(n.tags) ? n.tags.filter((t): t is string => typeof t === 'string') : [],
       source:
@@ -199,7 +206,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
     .filter((a) => a.points.length > 0);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     volume: String(input.volume ?? ''),
     chapter: String(input.chapter ?? ''),
     pageIndex: Number(input.pageIndex) || 0,
@@ -230,14 +237,48 @@ function parsePageDoc(file: string): PageDoc | null {
   return preserveUnknown(stored.data, normalizeDoc(stored.data));
 }
 
+/** Human-readable reason for a failed page read; shown in the corrupt-file error. */
+function describeReadFailure(inspection: StoredInspection): string {
+  if (inspection.ok) return t('PAGE_CORRUPT_SHAPE');
+  switch (inspection.reason) {
+    case 'missing':
+      return t('PAGE_CORRUPT_MISSING');
+    case 'io':
+      return t('PAGE_CORRUPT_IO', { detail: inspection.detail });
+    case 'shape':
+      return t('PAGE_CORRUPT_SHAPE');
+    default:
+      // JSON.parse messages name the byte position, which is how a truncated write shows up.
+      return t('PAGE_CORRUPT_SYNTAX', { detail: inspection.detail });
+  }
+}
+
 export function readPageDoc(dataRoot: string, volume: string, chapter: string, pageIndex: number): PageDoc | null {
   const file = pageFilePath(dataRoot, volume, chapter, pageIndex);
   if (!fs.existsSync(file)) return null;
   const doc = parsePageDoc(file);
+  if (doc) return doc;
+
   // A damaged file is not "no data": returning an empty document would let the next
-  // autosave replace it. Fail loudly so the UI can point at a backup instead.
-  if (!doc) throw new AppError('ERR_PAGE_CORRUPT', { volume, chapter, page: pageIndex + 1 }, 422);
-  return doc;
+  // autosave replace it. Archive it (so the page can be rebuilt) and report exactly
+  // which check failed plus every recovery copy we know about.
+  const inspection = inspectStoredFile(file);
+  const archived = archiveUnreadableFile(file);
+  const backups = listBackupCandidates(file);
+  const relative = (target: string) => path.relative(dataRoot, target) || target;
+  throw new AppError(
+    'ERR_PAGE_CORRUPT',
+    {
+      volume,
+      chapter,
+      page: pageIndex + 1,
+      file: relative(file),
+      detail: describeReadFailure(inspection),
+      backup: backups.length ? relative(backups[0]) : t('PAGE_BACKUP_NONE'),
+      archived: archived ? relative(archived) : t('PAGE_ARCHIVE_FAILED'),
+    },
+    422,
+  );
 }
 
 export type WriteMeta = {
@@ -304,8 +345,31 @@ function reconcileAnnotationExtras(merged: PageDoc, normalized: PageDoc): void {
   });
 }
 
+/**
+ * Refuse to publish a page document that fails the schema. The previous file is left
+ * untouched; the caller gets a 422 naming the failed fields instead of a half-valid page.
+ */
+function assertSavesSchema(merged: PageDoc, pageIndex: number): void {
+  let errors: string[];
+  try {
+    const candidate = prepareExchange('page', merged, { strict: false }).value;
+    errors = validateExchange('page', candidate).errors;
+  } catch (err) {
+    errors = [err instanceof Error ? err.message : String(err)];
+  }
+  if (errors.length) {
+    throw new AppError('ERR_PAGE_SAVE_INVALID', { page: pageIndex + 1, detail: errors.slice(0, 3).join('; ') }, 422);
+  }
+}
+
 export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
   const file = pageFilePath(dataRoot, doc.volume, doc.chapter, doc.pageIndex);
+  // Concurrent writers (desktop + dev server, two app windows) are refused rather than
+  // interleaved; every in-process write is synchronous, so queuing is implicit.
+  return withFileLock(file, () => writePageDocLocked(file, dataRoot, doc, meta));
+}
+
+function writePageDocLocked(file: string, dataRoot: string, doc: PageDoc, meta?: WriteMeta): PageDoc {
   // Preserve a damaged predecessor before this write replaces it.
   backupUnreadableFile(file);
   // A page written by a newer build stays untouched instead of being downgraded.
@@ -343,6 +407,10 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
   merged.offsets = normalized.offsets;
   merged.panelOffsets = normalized.panelOffsets;
   reconcileAnnotationExtras(merged, normalized);
+  assertSavesSchema(merged, doc.pageIndex);
+  // Keep the last good revision (rotating up to KOMAYOMI_PAGE_BACKUPS copies) so a bad
+  // save or a later rebuild never destroys the only readable copy.
+  rotatePageBackup(file);
   writeStoredFile(file, 'page', merged);
   if (!meta?.skipHistory) {
     // Version history is an audit trail: a write failure there must never block the save.

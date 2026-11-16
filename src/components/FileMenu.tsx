@@ -16,6 +16,9 @@ type Props = {
   selection: Selection | null;
   dirty: boolean;
   hasDoc: boolean;
+  /** Request from the welcome screen: open one of the file dialogs without opening the menu. */
+  intent?: 'library' | 'add' | 'project' | null;
+  onIntentHandled?: () => void;
   onOpenSelection: (selection: Selection) => void;
   onReloadLibrary: () => void;
   onExport: () => void;
@@ -37,6 +40,8 @@ export function FileMenu({
   selection,
   dirty,
   hasDoc,
+  intent = null,
+  onIntentHandled,
   onOpenSelection,
   onReloadLibrary,
   onExport,
@@ -120,6 +125,16 @@ export function FileMenu({
     }
     setAddState({});
   }, [t]);
+
+  // The welcome screen can ask for a dialog directly; open it and clear the request.
+  useEffect(() => {
+    if (!intent) return;
+    setOpen(false);
+    if (intent === 'project') setProjectOpen(true);
+    else if (intent === 'add') setAddState({});
+    else void openLibrary();
+    onIntentHandled?.();
+  }, [intent, onIntentHandled, openLibrary]);
 
   const resolve = (entry: RecentPage) => {
     const volume = library?.volumes.find((v) => v.id === entry.volume);

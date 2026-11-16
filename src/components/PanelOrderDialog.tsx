@@ -44,12 +44,17 @@ export function PanelOrderDialog({ panels, selectedId, onClose, onApply }: Props
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const commitPosition = () => {
+  const jumpTo = (position: number) => {
     if (selectedIndex < 0) return;
-    const target = Math.min(Math.max(1, pos), draft.length) - 1;
+    const target = Math.min(Math.max(1, position), draft.length) - 1;
     setDraft((list) => moveTo(list, selectedIndex, target));
     setPos(target + 1);
   };
+
+  const commitPosition = () => jumpTo(pos);
+
+  // Up to ten one-click slots; longer pages keep the number input for the rest.
+  const quickPositions = Math.min(10, draft.length);
 
   const row = (panel: Panel, index: number) => (
     <li
@@ -152,6 +157,24 @@ export function PanelOrderDialog({ panels, selectedId, onClose, onApply }: Props
               {t('order.move')}
             </button>
           </div>
+          {quickPositions > 0 && (
+            <div className="order-quick" role="group" aria-label={t('order.quickPositions')}>
+              {Array.from({ length: quickPositions }, (_, index) => index + 1).map((position) => (
+                <button
+                  key={position}
+                  type="button"
+                  className="btn"
+                  aria-label={t('order.moveToPosition', { n: fmt(position) })}
+                  title={t('order.moveToPosition', { n: fmt(position) })}
+                  aria-current={position === selectedIndex + 1 ? 'true' : undefined}
+                  disabled={selectedIndex < 0 || position === selectedIndex + 1}
+                  onClick={() => jumpTo(position)}
+                >
+                  {fmt(position)}
+                </button>
+              ))}
+            </div>
+          )}
           <p className="field-hint">{t('order.hint')}</p>
           <ol className="order-list">{draft.map(row)}</ol>
         </div>

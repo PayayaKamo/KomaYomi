@@ -6,8 +6,13 @@ import { createLibrary, readLibraryConfig } from './library.ts';
 import { createBackupBuffer } from './backup.ts';
 import { createZip, readZip } from './zip.ts';
 import type { ZipEntryInput } from './zip.ts';
-import { CURRENT_SCHEMA_VERSION, SCHEMA_URLS, checkSchemaVersion, validateExchange } from '../shared/format.ts';
-import { migrateManifestV0 } from '../shared/migrations.ts';
+import {
+  CURRENT_SCHEMA_VERSION,
+  SCHEMA_URLS,
+  checkSchemaVersion,
+  prepareExchange,
+  validateExchange,
+} from '../shared/format.ts';
 import { AppError } from './errors.ts';
 import { t } from './messages/index.ts';
 
@@ -278,7 +283,8 @@ function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedF
   if (!isRecord(raw)) throw new AppError('ERR_MANIFEST_NOT_OBJECT', {}, 400);
   const version = checkSchemaVersion('mnproj', raw.schemaVersion);
   const migrated = version < PROJECT_SCHEMA_VERSION;
-  const base = migrated ? migrateManifestV0(raw) : { ...raw };
+  // Run the shared migration chain, so v1 note categories and future steps stay in one place.
+  const base = migrated ? prepareExchange('mnproj', raw, { strict: false }).value : { ...raw };
   const manifest = base as unknown as ProjectManifest;
 
   if (manifest.storageMode !== 'reference' && manifest.storageMode !== 'packaged') {
@@ -504,12 +510,29 @@ function parseProject(buffer: Buffer): ParsedProject {
       continue;
     }
     if (cls.kind === 'page' || cls.kind === 'config') {
+      let parsed: unknown;
       try {
-        const parsed = JSON.parse(entry.data.toString('utf8'));
+        parsed = JSON.parse(entry.data.toString('utf8'));
         if (!isRecord(parsed)) throw new Error('not an object');
       } catch {
         warnings.push(t('WARN_ENTRY_JSON_INVALID', { name: entry.name }));
         continue;
+      }
+      if (cls.kind === 'page') {
+        // Pages travel inside the project file: migrate old note categories right away,
+        // so an imported project never writes v1 pages back to disk.
+        try {
+          const prepared = prepareExchange('page', parsed, { strict: false });
+          files.push({
+            ...cls,
+            name: entry.name,
+            data: Buffer.from(JSON.stringify(prepared.value, null, 2), 'utf8'),
+          });
+          continue;
+        } catch {
+          // A page from a newer build: keep its bytes untouched instead of refusing the import.
+          warnings.push(t('WARN_ENTRY_JSON_INVALID', { name: entry.name }));
+        }
       }
     }
     files.push({ ...cls, name: entry.name, data: entry.data });

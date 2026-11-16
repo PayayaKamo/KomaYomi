@@ -30,6 +30,7 @@ import { toggleToolbarFold, useToolbarFolds } from '../lib/panelToolbarFolds';
 import { PanelOrderDialog } from './PanelOrderDialog';
 import { PanelSplitDialog } from './PanelSplitDialog';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
+import type { ContextMenuItem } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
 import { enqueueOutbox } from '../lib/outbox';
 
@@ -616,6 +617,20 @@ export function PanelsTab({
     });
   };
 
+  /** Jump straight to a 1-based reading position; the page editor's dialog uses the same order. */
+  const movePanelToPosition = (panelId: string, position: number) => {
+    reorderReadingOrder((sequence) => {
+      const from = sequence.indexOf(panelId);
+      if (from < 0) return null;
+      const to = Math.min(Math.max(1, position), sequence.length) - 1;
+      if (from === to) return null;
+      const next = [...sequence];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
   /** Re-detecting rebuilds the array, so a hand-saved order needs an explicit yes. */
   const requestDetect = () => {
     if (doc.panels.some((p) => typeof p.number === 'number') && !window.confirm(t('panels.redetectLosesOrder'))) return;
@@ -694,6 +709,31 @@ export function PanelsTab({
     const at = ordered.findIndex((p) => p.id === panel.id);
     const prev = at > 0 ? ordered[at - 1] : null;
     const next = at >= 0 && at < ordered.length - 1 ? ordered[at + 1] : null;
+    // Mirror the dialog's quick slots: one entry per real position up to ten; longer
+    // pages send the overflow to the full dialog instead of growing the flyout forever.
+    const moveToEntries: (ContextMenuItem | { type: 'separator'; id: string })[] = Array.from(
+      { length: Math.min(10, ordered.length) },
+      (_, index) => {
+        const position = index + 1;
+        return {
+          id: `move-to-${position}`,
+          label: t('order.moveToPosition', { n: formatNumber(position) }),
+          disabled: position === at + 1,
+          onSelect: () => movePanelToPosition(panel.id, position),
+        };
+      },
+    );
+    if (ordered.length > 10) {
+      moveToEntries.push({ type: 'separator', id: 'sep-more-positions' });
+      moveToEntries.push({
+        id: 'move-more',
+        label: t('order.morePositions'),
+        onSelect: () => {
+          setSelected([panel.id]);
+          setOrderOpen(true);
+        },
+      });
+    }
     openMenu(e, [
       { id: 'add', label: t('panels.addPanel'), onSelect: () => addPanel() },
       { type: 'separator', id: 'sep-edit' },
@@ -731,6 +771,13 @@ export function PanelsTab({
         label: t('order.moveLast'),
         disabled: !next,
         onSelect: () => movePanelToEdge(panel.id, 'last'),
+      },
+      {
+        type: 'submenu',
+        id: 'move-to',
+        label: t('order.moveToMenu'),
+        disabled: at < 0,
+        items: moveToEntries,
       },
       {
         id: 'swap-selected',

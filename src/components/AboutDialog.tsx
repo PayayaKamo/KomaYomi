@@ -8,9 +8,9 @@ type Meta = { version: string; author: string; license: string };
 /** Credits are dependency names only; versions stay in package.json. */
 const CREDITS = ['React', 'Vite', 'TypeScript', 'Electron', 'pngjs', 'jpeg-js'];
 const REPO_URL = 'https://github.com/PayayaKamo/KomaYomi';
-const DOCS_BASE = 'https://payayakamo.github.io/KomaYomi-docs/';
+export const DOCS_BASE = 'https://payayakamo.github.io/KomaYomi-docs/';
 /** The docs site mirrors the app locale: English at the root, Chinese and Japanese below it. */
-const DOCS_PATHS: Record<Locale, string> = { en: '', zh: 'zh/', ja: 'ja/' };
+export const DOCS_PATHS: Record<Locale, string> = { en: '', zh: 'zh/', ja: 'ja/' };
 
 export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t, locale } = useI18n();

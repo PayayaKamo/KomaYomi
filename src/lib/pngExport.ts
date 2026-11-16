@@ -2,6 +2,8 @@ import type { Annotation, Lang, PageEntry, Panel, PanelRect } from '../types';
 import { langLabel, t } from '../i18n';
 import { annotationLeader } from '../../shared/annotations';
 import { mosaicBlockSize } from '../../shared/mosaic';
+import { DEFAULT_SHARE_SIZE, findShareSize, fitWithin, isResized, resolveShareSize } from './shareSizes';
+import type { ShareSizeId } from './shareSizes';
 
 export type PngMode = 'page' | 'panel' | 'collage';
 
@@ -21,6 +23,8 @@ export type PngExportOptions = {
   /** Whether to bake annotations into the PNG (off = original image). */
   includeAnnotations?: boolean;
   panels?: Panel[];
+  /** Output canvas size preset; `auto` keeps the original pixels. */
+  size?: ShareSizeId;
 };
 
 /** Collage layout constants (logical pixels before scaling). */
@@ -385,6 +389,22 @@ async function renderCollage(
   return canvas;
 }
 
+/** Fit the composed canvas into a platform-sized canvas, keeping artwork uncropped. */
+function resizeForShare(canvas: HTMLCanvasElement, id: ShareSizeId): HTMLCanvasElement {
+  const preset = findShareSize(id);
+  if (!preset || !isResized(preset)) return canvas;
+  const target = resolveShareSize(preset, canvas.width, canvas.height);
+  const out = createCanvas(target.width, target.height);
+  const ctx = get2d(out);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, target.width, target.height);
+  const rect = fitWithin(canvas.width, canvas.height, target.width, target.height);
+  ctx.drawImage(canvas, rect.x, rect.y, rect.w, rect.h);
+  return out;
+}
+
 /** Export and trigger a browser download; rejects with Error on failure. */
 export async function exportPng(opts: PngExportOptions): Promise<void> {
   const { page, lang, langs, rect, mode, filenameBase } = opts;
@@ -410,11 +430,19 @@ export async function exportPng(opts: PngExportOptions): Promise<void> {
     }
   }
 
+  const size = opts.size ?? DEFAULT_SHARE_SIZE;
+  const output = resizeForShare(canvas, size);
+
   try {
-    const blob = await canvasToBlob(canvas);
-    downloadBlob(blob, `${filenameBase}-${mode}.png`);
+    const blob = await canvasToBlob(output);
+    const suffix = size === DEFAULT_SHARE_SIZE ? '' : `-${size}`;
+    downloadBlob(blob, `${filenameBase}-${mode}${suffix}.png`);
   } finally {
     canvas.width = 0;
     canvas.height = 0;
+    if (output !== canvas) {
+      output.width = 0;
+      output.height = 0;
+    }
   }
 }

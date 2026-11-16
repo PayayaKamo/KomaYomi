@@ -38,6 +38,17 @@ const DEFAULT_MASK_PREFS: MaskPrefs = {
   style: 'blur',
 };
 
+/* Linked pan/zoom is a per-user reading preference; it is on unless the user turned it off. */
+const LINKED_KEY = 'manga-memo.original-linked';
+
+function loadLinked(): boolean {
+  try {
+    return localStorage.getItem(LINKED_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
 function loadMaskPrefs(): MaskPrefs {
   try {
     const raw = localStorage.getItem(MASK_KEY);
@@ -66,6 +77,7 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
   const [views, setViews] = useState<Record<string, PaneView>>({});
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [maskPrefs, setMaskPrefs] = useState<MaskPrefs>(loadMaskPrefs);
+  const [linked, setLinked] = useState<boolean>(loadLinked);
   const [draggingLang, setDraggingLang] = useState<Lang | null>(null);
   const dragRef = useRef<{ lang: Lang; sx: number; sy: number; rect: DOMRect; start: PaneView } | null>(null);
   const movedRef = useRef(false);
@@ -82,6 +94,11 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
     if (kept.length) return kept;
     return availableLangs.length ? availableLangs : langs;
   }, [langs, availableLangs]);
+
+  const linkedRef = useRef(linked);
+  linkedRef.current = linked;
+  const activeLangsRef = useRef(activeLangs);
+  activeLangsRef.current = activeLangs;
 
   // Touch layouts show one lane on phones and a rotating pair on tablets, like the compare view.
   const [focusLang, setFocusLang] = useState<Lang>(activeLangs[0] ?? 'ja');
@@ -111,14 +128,48 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
     }
   }, [maskPrefs]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(LINKED_KEY, linked ? '1' : '0');
+    } catch {
+      /* Ignored in private mode */
+    }
+  }, [linked]);
+
   const maskWanted = (lang: Lang) => maskPrefs.masked[lang] ?? lang !== activeLangs[0];
   const maskOn = (lang: Lang) => maskPrefs.master && maskWanted(lang) && Boolean(page.files[lang]);
 
   const viewOf = (lang: Lang) => views[lang] ?? DEFAULT_VIEW;
-  const setView = (lang: Lang, next: PaneView) => setViews((v) => ({ ...v, [lang]: next }));
+
+  /* Linked mode writes the same relative offset and zoom to every column; each column
+     resolves the fractions against its own box, so pages stay aligned while resizing. */
+  const applyView = (lang: Lang, next: PaneView) => {
+    setViews((prev) => {
+      if (!linked || activeLangs.length < 2) return { ...prev, [lang]: next };
+      const out: Record<string, PaneView> = {};
+      for (const l of activeLangs) out[l] = next;
+      return out;
+    });
+  };
+
+  const setView = (lang: Lang, next: PaneView) => applyView(lang, next);
   const zoomBy = (lang: Lang, factor: number) => {
     const current = viewOf(lang);
-    setView(lang, { ...current, scale: +clamp(current.scale * factor, 0.5, 6).toFixed(3) });
+    applyView(lang, { ...current, scale: +clamp(current.scale * factor, 0.5, 6).toFixed(3) });
+  };
+
+  const toggleLinked = () => {
+    const next = !linked;
+    setLinked(next);
+    // Turning linking on adopts the first visible column's view, then keeps every column in sync.
+    if (next && paneLangs.length) {
+      const source = viewOf(paneLangs[0]);
+      setViews(() => {
+        const out: Record<string, PaneView> = {};
+        for (const l of activeLangs) out[l] = source;
+        return out;
+      });
+    }
   };
 
   // Wheel zoom: capture at the window level so the pane keeps the gesture even over masks/badges.
@@ -142,14 +193,17 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
       const d = dragRef.current;
       if (!d) return;
       if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 4) movedRef.current = true;
-      setViews((prev) => ({
-        ...prev,
-        [d.lang]: {
-          ...d.start,
-          x: clamp(d.start.x + (e.clientX - d.sx) / d.rect.width, -4, 4),
-          y: clamp(d.start.y + (e.clientY - d.sy) / d.rect.height, -4, 4),
-        },
-      }));
+      const next = {
+        ...d.start,
+        x: clamp(d.start.x + (e.clientX - d.sx) / d.rect.width, -4, 4),
+        y: clamp(d.start.y + (e.clientY - d.sy) / d.rect.height, -4, 4),
+      };
+      setViews((prev) => {
+        if (!linkedRef.current) return { ...prev, [d.lang]: next };
+        const out: Record<string, PaneView> = {};
+        for (const l of activeLangsRef.current) out[l] = next;
+        return out;
+      });
     };
     const up = () => {
       const d = dragRef.current;
@@ -289,6 +343,15 @@ export function OriginalTab({ doc, page, langs, allLangs, onStepPage, hasPrevPag
       <div className="stage-toolbar">
         <div className="tb-group">
           <span className="muted tiny">{t('original.hint')}</span>
+          <button
+            type="button"
+            className={`btn tiny ${linked ? 'on' : ''}`}
+            aria-pressed={linked}
+            onClick={toggleLinked}
+            title={t('original.linkTitle')}
+          >
+            {linked ? t('original.linkOn') : t('original.linkOff')}
+          </button>
         </div>
 
         <div className="tb-group mask-group">

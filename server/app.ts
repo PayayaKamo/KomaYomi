@@ -3,7 +3,14 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
+import {
+  createLibrary,
+  normalizeLangOrder,
+  normalizeNoteTypes,
+  previewDirs,
+  readLibraryConfig,
+  writeLibraryConfig,
+} from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
 import {
   addVolume,
@@ -445,6 +452,18 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         }
         writeLibraryConfig(dataRoot, cfg);
         sendJson(res, 200, { langOrder: createLibrary(rawRoot, dataRoot).langOrder });
+        return true;
+      }
+
+      /* ---------------- Custom note categories (shared with the project file) ---------------- */
+      if (pathname === '/api/note-types' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { noteTypes?: unknown };
+        const cfg = readLibraryConfig(dataRoot);
+        const noteTypes = normalizeNoteTypes(body.noteTypes);
+        if (noteTypes.length) cfg.noteTypes = noteTypes;
+        else delete cfg.noteTypes;
+        writeLibraryConfig(dataRoot, cfg);
+        sendJson(res, 200, { noteTypes: createLibrary(rawRoot, dataRoot).noteTypes ?? [] });
         return true;
       }
 

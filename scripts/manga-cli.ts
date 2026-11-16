@@ -13,6 +13,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createLibrary } from '../server/library.ts';
 import { detectPanels, imageSize, sortReadingOrder } from '../server/detect.ts';
 import { createEmptyDoc, readPageDoc, writePageDoc } from '../server/storage.ts';
@@ -26,12 +27,21 @@ import type { PageDoc, Panel, PanelRect, ReadingDirection } from '../shared/type
 
 type Flags = Record<string, string | boolean>;
 
-const root = process.cwd();
-const rawRoot = path.join(root, 'raw');
-const dataRoot = path.join(root, 'data');
+function rootsFor(root: string): { root: string; rawRoot: string; dataRoot: string } {
+  return { root, rawRoot: path.join(root, 'raw'), dataRoot: path.join(root, 'data') };
+}
 
-function args(): { cmd: string; flags: Flags } {
-  const [cmd = 'help', ...rest] = process.argv.slice(2);
+// Resolved once for the direct CLI run; tests point this at a throwaway project root.
+let { root, rawRoot, dataRoot } = rootsFor(process.cwd());
+
+/** Point the CLI at another project root (unit tests use temporary directories). */
+export function setCliRoot(nextRoot: string): void {
+  ({ root, rawRoot, dataRoot } = rootsFor(nextRoot));
+  baselineFile = path.join(root, 'scripts', 'detect-baseline.json');
+}
+
+export function parseArgs(argv: string[]): { cmd: string; flags: Flags } {
+  const [cmd = 'help', ...rest] = argv;
   const flags: Flags = {};
   for (let i = 0; i < rest.length; i++) {
     const token = rest[i];
@@ -148,7 +158,7 @@ function cmdReport(flags: Flags) {
   }
 }
 
-const baselineFile = path.join(root, 'scripts', 'detect-baseline.json');
+let baselineFile = path.join(root, 'scripts', 'detect-baseline.json');
 
 function cmdRegress(flags: Flags) {
   const library = createLibrary(rawRoot, dataRoot);
@@ -437,19 +447,36 @@ async function main(cmd: string, flags: Flags) {
   else console.log(t('CLI_USAGE'));
 }
 
-const { cmd, flags } = args();
-const lang = resolveCliLang(flags);
-try {
-  await runWithLang(lang, () => main(cmd, flags));
-} catch (err) {
-  const detail =
-    err instanceof AppError
-      ? t(err.code, err.params, lang)
-      : err instanceof SyntaxError
-        ? t('ERR_INVALID_JSON', { detail: err.message }, lang)
-        : err instanceof Error
-          ? err.message
-          : String(err);
-  console.error(t('CLI_ERROR', { detail }, lang));
-  process.exitCode = 1;
+function isDirectRun(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  const invoked = path.resolve(entry);
+  const current = path.resolve(fileURLToPath(import.meta.url));
+  return process.platform === 'win32' ? invoked.toLowerCase() === current.toLowerCase() : invoked === current;
+}
+
+/** Run one CLI invocation and return the exit code (0 success, 1 failure). */
+export async function runCli(argv: string[], options: { root?: string } = {}): Promise<number> {
+  setCliRoot(options.root ?? process.cwd());
+  const { cmd, flags } = parseArgs(argv);
+  const lang = resolveCliLang(flags);
+  try {
+    await runWithLang(lang, () => main(cmd, flags));
+    return 0;
+  } catch (err) {
+    const detail =
+      err instanceof AppError
+        ? t(err.code, err.params, lang)
+        : err instanceof SyntaxError
+          ? t('ERR_INVALID_JSON', { detail: err.message }, lang)
+          : err instanceof Error
+            ? err.message
+            : String(err);
+    console.error(t('CLI_ERROR', { detail }, lang));
+    return 1;
+  }
+}
+
+if (isDirectRun()) {
+  process.exitCode = await runCli(process.argv.slice(2));
 }

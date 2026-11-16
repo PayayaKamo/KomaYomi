@@ -4,6 +4,8 @@ import { DEFAULT_EXPORT_CONFIG, langShort } from '../types';
 import { api } from '../api';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { composeAnnotatedPage, exportPng } from '../lib/pngExport';
+import { DEFAULT_SHARE_SIZE, SHARE_SIZE_GROUPS, SHARE_SIZE_PRESETS, findShareSize } from '../lib/shareSizes';
+import type { ShareSizeId } from '../lib/shareSizes';
 import { formatNumber, langLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
 import type { Selection } from '../hooks/usePage';
@@ -41,6 +43,16 @@ const TEMPLATE_IDS: { id: ExportConfig['template']; name: MessageKey; desc: Mess
 ];
 
 const LAYOUT_KEY = 'manga-memo.export-layout';
+const PNG_SIZE_KEY = 'komayomi.png-size';
+
+/** Restore the last PNG output size; unknown values fall back to the original pixels. */
+function readPngSize(): ShareSizeId {
+  try {
+    return findShareSize(localStorage.getItem(PNG_SIZE_KEY))?.id ?? DEFAULT_SHARE_SIZE;
+  } catch {
+    return DEFAULT_SHARE_SIZE;
+  }
+}
 
 /** Keep only layout-related fields for template saving and local memory. */
 function layoutOf(c: ExportConfig): Partial<ExportConfig> {
@@ -104,6 +116,7 @@ export function ExportDialog({
   const [pngBusy, setPngBusy] = useState<string | null>(null);
   const [pngMsg, setPngMsg] = useState<string | null>(null);
   const [pngIncludeAnn, setPngIncludeAnn] = useState(true);
+  const [pngSize, setPngSize] = useState<ShareSizeId>(readPngSize);
 
   useEffect(() => {
     if (!open || !sel) return;
@@ -253,6 +266,7 @@ export function ExportDialog({
         annotations: doc?.annotations ?? [],
         includeAnnotations: pngIncludeAnn,
         panels: doc?.panels ?? [],
+        size: pngSize,
       });
       setPngMsg(t('export.pngDone', { label }));
     } catch (err) {
@@ -531,6 +545,36 @@ export function ExportDialog({
 
             <section>
               <h3>{t('export.pngSection')}</h3>
+              <div className="png-size-row">
+                <span>{t('export.shareSizeLabel')}</span>
+                <select
+                  className="input"
+                  value={pngSize}
+                  onChange={(e) => {
+                    const next = e.target.value as ShareSizeId;
+                    setPngSize(next);
+                    try {
+                      localStorage.setItem(PNG_SIZE_KEY, next);
+                    } catch {
+                      /* ignored in private mode */
+                    }
+                  }}
+                >
+                  <option value={DEFAULT_SHARE_SIZE}>{t('size.auto')}</option>
+                  {SHARE_SIZE_GROUPS.map((group) => (
+                    <optgroup key={group.id} label={t(group.label)}>
+                      {SHARE_SIZE_PRESETS.filter((p) => p.group === group.id && p.id !== DEFAULT_SHARE_SIZE).map(
+                        (preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {t(preset.label)}
+                          </option>
+                        ),
+                      )}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+              <p className="hint">{t('export.shareSizeHint')}</p>
               <div className="png-row">
                 <button type="button" className="btn tiny" onClick={() => runPng('page')} disabled={!page || !!pngBusy}>
                   {pngBusy === 'page' ? t('export.generating') : t('export.pngPageLabel')}

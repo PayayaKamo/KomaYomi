@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import type { Annotation, AlignOffset, Lang, PageDoc, PageEntry, Panel } from '../types';
-import { langShort } from '../types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Annotation, AlignOffset, Lang, NoteTypeDef, PageDoc, PageEntry, Panel } from '../types';
+import { langShort, DEFAULT_OFFSET } from '../types';
 import { langLabel, useI18n } from '../i18n';
-import { renderMarkdown } from '../../shared/markdown';
 import { ANNOTATION_TOOLS } from './AnnotationLayer';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import { CropLayer } from './CropLayer';
+import { NotesPanel } from './NotesPanel';
+import type { NotesPanelHandle } from './NotesPanel';
 import { useCompareLayout } from '../hooks/useCompareLayout';
 
 type MaskStyle = 'blur' | 'solid';
@@ -34,6 +35,16 @@ type Props = {
   /** Page turns that keep the detail open; undefined at the first/last page. */
   onPrevPage?: () => void;
   onNextPage?: () => void;
+  /** Note authoring uses the same document mutation path as the sidebar panel. */
+  mutate: (fn: (doc: PageDoc) => PageDoc) => void;
+  /** Save the page immediately after the composer flushes, before panel/page navigation. */
+  onFlush?: () => void | Promise<void>;
+  noteTypes?: NoteTypeDef[];
+  onNoteTypesChange?: (types: NoteTypeDef[]) => void;
+  /** Category preselected by a compare-view marker. */
+  focusNoteType?: string | null;
+  /** Read-only viewer: notes are visible but authoring stays disabled. */
+  readOnly?: boolean;
 };
 
 const MIN_ZOOM = 1;
@@ -69,6 +80,12 @@ export function PanelDetail({
   onNext,
   onPrevPage,
   onNextPage,
+  mutate,
+  onFlush,
+  noteTypes,
+  onNoteTypesChange,
+  focusNoteType = null,
+  readOnly = false,
 }: Props) {
   const { t, formatDate, formatNumber } = useI18n();
   const layout = useCompareLayout();
@@ -79,9 +96,66 @@ export function PanelDetail({
   const dialogRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const panesRef = useRef<HTMLDivElement>(null);
+  const notesRef = useRef<NotesPanelHandle>(null);
+  /**
+   * Session-only alignment overrides, one per language. Empty means "show whatever the
+   * compare view has saved"; nothing here is written back to the project.
+   */
+  const [sessionAlign, setSessionAlign] = useState<Partial<Record<Lang, AlignOffset>>>({});
+  const [alignOpen, setAlignOpen] = useState(false);
 
   const notes = doc.notes.filter((n) => n.scope === 'panel' && n.panelId === panel.id);
   const panelAnnotations = annotations.filter((a) => a.scope === 'panel' && a.panelId === panel.id);
+
+  const alignOf = (lang: Lang): AlignOffset => sessionAlign[lang] ?? offsetOf(lang);
+  const nudgeLang = (lang: Lang, dx: number, dy: number) =>
+    setSessionAlign((prev) => {
+      const base = prev[lang] ?? offsetOf(lang);
+      return {
+        ...prev,
+        [lang]: { ...base, x: Math.min(1, Math.max(-1, base.x + dx)), y: Math.min(1, Math.max(-1, base.y + dy)) },
+      };
+    });
+  const scaleLang = (lang: Lang, factor: number) =>
+    setSessionAlign((prev) => {
+      const base = prev[lang] ?? offsetOf(lang);
+      const scale = Math.min(3, Math.max(0.2, Number((base.scale * factor).toFixed(3))));
+      return { ...prev, [lang]: { ...base, scale } };
+    });
+  const resetLang = (lang: Lang) => setSessionAlign((prev) => ({ ...prev, [lang]: { ...DEFAULT_OFFSET } }));
+  /** Move every language by the same delta so their relative alignment is preserved. */
+  const nudgeAll = (dx: number, dy: number) =>
+    setSessionAlign((prev) => {
+      const next: Partial<Record<Lang, AlignOffset>> = { ...prev };
+      for (const lang of langs) {
+        const base = prev[lang] ?? offsetOf(lang);
+        next[lang] = {
+          ...base,
+          x: Math.min(1, Math.max(-1, base.x + dx)),
+          y: Math.min(1, Math.max(-1, base.y + dy)),
+        };
+      }
+      return next;
+    });
+  const resetAll = () =>
+    setSessionAlign(
+      Object.fromEntries(langs.map((lang) => [lang, { ...DEFAULT_OFFSET }])) as Record<Lang, AlignOffset>,
+    );
+
+  const formatAlign = (offset: AlignOffset) =>
+    `Δ${Math.round(offset.x * 100)},${Math.round(offset.y * 100)} ×${offset.scale.toFixed(2)}`;
+
+  /** Persist whatever the embedded composer holds before leaving this panel or page. */
+  const flushThen = useCallback(
+    (action?: () => void) => {
+      notesRef.current?.flush();
+      // The mutation above is synchronous; writing now keeps the note even if the user
+      // turns the page before the autosave debounce fires.
+      void onFlush?.();
+      action?.();
+    },
+    [onFlush],
+  );
 
   // Focus moves into the view and returns to whatever had it before, so the reading
   // shortcuts below cannot act while focus is still on a toolbar underneath.
@@ -91,9 +165,10 @@ export function PanelDetail({
     return () => previous?.focus?.();
   }, []);
 
-  // A new panel starts at fit-to-width and at the top of its notes.
+  // A new panel starts at fit-to-width, with session alignment reset, and at the top of its notes.
   useEffect(() => {
     setZoom(1);
+    setSessionAlign({});
     scrollRef.current?.scrollTo({ top: 0 });
   }, [panel.id]);
 
@@ -104,7 +179,7 @@ export function PanelDetail({
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        flushThen(onClose);
         return;
       }
       if (e.key === 'Tab') {
@@ -129,15 +204,15 @@ export function PanelDetail({
       const next = e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ']';
       if (prev && onPrev) {
         e.preventDefault();
-        onPrev();
+        flushThen(onPrev);
       } else if (next && onNext) {
         e.preventDefault();
-        onNext();
+        flushThen(onNext);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, onPrev, onNext]);
+  }, [flushThen, onClose, onPrev, onNext]);
 
   // Wheel and pinch zoom the enlarged images only, so the surrounding page keeps scrolling.
   useEffect(() => {
@@ -193,7 +268,7 @@ export function PanelDetail({
       tabIndex={-1}
     >
       <header className="pd-head">
-        <button type="button" className="btn pd-back" onClick={onClose} title={t('detail.backTitle')}>
+        <button type="button" className="btn pd-back" onClick={() => flushThen(onClose)} title={t('detail.backTitle')}>
           ← <span>{t('detail.back')}</span>
         </button>
         <div className="pd-title">
@@ -203,6 +278,15 @@ export function PanelDetail({
           </span>
         </div>
         <div className="pd-nav">
+          <button
+            type="button"
+            className={`btn tiny ${alignOpen ? 'on' : ''}`}
+            onClick={() => setAlignOpen((v) => !v)}
+            aria-expanded={alignOpen}
+            title={t('detail.alignTitle')}
+          >
+            ⇔ <span className="pd-foot-label">{t('detail.align')}</span>
+          </button>
           <div className="seg pd-zoom" role="group" aria-label={t('detail.zoomHint')}>
             <button
               type="button"
@@ -233,7 +317,7 @@ export function PanelDetail({
           <button
             type="button"
             className="btn icon"
-            onClick={onClose}
+            onClick={() => flushThen(onClose)}
             title={t('detail.close')}
             aria-label={t('detail.close')}
           >
@@ -242,11 +326,124 @@ export function PanelDetail({
         </div>
       </header>
 
+      {alignOpen && (
+        <div className="pd-align" role="group" aria-label={t('detail.alignTitle')}>
+          <div className="pd-align-block">
+            <b>{t('detail.alignAll')}</b>
+            <div className="pd-align-arrows">
+              <button
+                type="button"
+                onClick={() => nudgeAll(-0.01, 0)}
+                title={t('detail.alignLeft')}
+                aria-label={t('detail.alignLeft')}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => nudgeAll(0.01, 0)}
+                title={t('detail.alignRight')}
+                aria-label={t('detail.alignRight')}
+              >
+                →
+              </button>
+              <button
+                type="button"
+                onClick={() => nudgeAll(0, -0.01)}
+                title={t('detail.alignUp')}
+                aria-label={t('detail.alignUp')}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                onClick={() => nudgeAll(0, 0.01)}
+                title={t('detail.alignDown')}
+                aria-label={t('detail.alignDown')}
+              >
+                ↓
+              </button>
+            </div>
+            <button type="button" className="btn tiny" onClick={resetAll} title={t('detail.alignResetAll')}>
+              ⟲ {t('detail.alignResetAll')}
+            </button>
+          </div>
+          <div className="pd-align-list">
+            {langs.map((lang) => {
+              const a = alignOf(lang);
+              return (
+                <div className="pd-align-row" key={lang} data-lang={lang}>
+                  <span className="pd-align-lang">{langShort(lang)}</span>
+                  <span className="pd-align-readout">{formatAlign(a)}</span>
+                  <button
+                    type="button"
+                    onClick={() => nudgeLang(lang, -0.01, 0)}
+                    title={t('detail.alignLeft')}
+                    aria-label={`${langShort(lang)} ${t('detail.alignLeft')}`}
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => nudgeLang(lang, 0.01, 0)}
+                    title={t('detail.alignRight')}
+                    aria-label={`${langShort(lang)} ${t('detail.alignRight')}`}
+                  >
+                    →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => nudgeLang(lang, 0, -0.01)}
+                    title={t('detail.alignUp')}
+                    aria-label={`${langShort(lang)} ${t('detail.alignUp')}`}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => nudgeLang(lang, 0, 0.01)}
+                    title={t('detail.alignDown')}
+                    aria-label={`${langShort(lang)} ${t('detail.alignDown')}`}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scaleLang(lang, 0.94)}
+                    title={t('detail.zoomOut')}
+                    aria-label={`${langShort(lang)} ${t('detail.zoomOut')}`}
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scaleLang(lang, 1.06)}
+                    title={t('detail.zoomIn')}
+                    aria-label={`${langShort(lang)} ${t('detail.zoomIn')}`}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="pd-align-reset"
+                    onClick={() => resetLang(lang)}
+                    title={t('detail.alignReset')}
+                    aria-label={`${langShort(lang)} ${t('detail.alignReset')}`}
+                  >
+                    ⟲
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="pd-scroll" ref={scrollRef}>
         <div className={`pd-panes ${stacked ? 'column' : 'row'}`} ref={panesRef}>
           {langs.map((lang) => {
             const url = page.files[lang];
-            const offset = offsetOf(lang);
+            const offset = alignOf(lang);
             const masked = Boolean(url) && isMasked(panel.id, lang);
             return (
               <div key={lang} className={`detail-pane ${url ? '' : 'empty'}`} style={{ aspectRatio: aspectOf(lang) }}>
@@ -294,36 +491,22 @@ export function PanelDetail({
             {t('detail.notes')}
             <span className="muted tiny">{t('detail.notesCount', { count: formatNumber(notes.length) })}</span>
           </h3>
-          {notes.length ? (
-            notes.map((note) => (
-              <article className="pd-note" key={note.id}>
-                {(note.tags.length > 0 || note.createdAt) && (
-                  <div className="pd-note-meta">
-                    {note.tags.map((tag) => (
-                      <span className="tag" key={tag}>
-                        {tag}
-                      </span>
-                    ))}
-                    <span className="note-time">{formatDate(note.createdAt)}</span>
-                  </div>
-                )}
-                <div className="md-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.text) }} />
-                {note.images?.length ? (
-                  <div className="note-images">
-                    {note.images.map((img) => (
-                      <figure key={img.id}>
-                        <a href={img.dataUrl} target="_blank" rel="noreferrer noopener" title={img.name}>
-                          <img src={img.dataUrl} alt={img.name} loading="lazy" />
-                        </a>
-                      </figure>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            ))
-          ) : (
-            <p className="pd-empty">{t('detail.notesEmpty')}</p>
-          )}
+          <NotesPanel
+            ref={notesRef}
+            embedded
+            doc={doc}
+            panel={panel}
+            panelLabel={t('format.panel', { number: formatNumber(index + 1) })}
+            mutate={mutate}
+            tagStats={[]}
+            library={null}
+            onJump={() => undefined}
+            readOnly={readOnly}
+            langs={langs}
+            noteTypes={noteTypes}
+            onNoteTypesChange={onNoteTypesChange}
+            focusType={focusNoteType}
+          />
 
           <h3 className="pd-section">
             {t('detail.annotations')}
@@ -353,7 +536,7 @@ export function PanelDetail({
           <button
             type="button"
             className="btn tiny pd-page"
-            onClick={onPrevPage}
+            onClick={() => flushThen(onPrevPage)}
             disabled={!onPrevPage}
             title={t('app.prevPage')}
             aria-label={t('app.prevPage')}
@@ -363,7 +546,7 @@ export function PanelDetail({
           <button
             type="button"
             className="btn tiny"
-            onClick={onPrev}
+            onClick={() => flushThen(onPrev)}
             disabled={!onPrev}
             title={t('detail.prev')}
             aria-label={t('detail.prev')}
@@ -375,7 +558,7 @@ export function PanelDetail({
           <button
             type="button"
             className="btn tiny"
-            onClick={onNext}
+            onClick={() => flushThen(onNext)}
             disabled={!onNext}
             title={t('detail.next')}
             aria-label={t('detail.next')}
@@ -385,7 +568,7 @@ export function PanelDetail({
           <button
             type="button"
             className="btn tiny pd-page"
-            onClick={onNextPage}
+            onClick={() => flushThen(onNextPage)}
             disabled={!onNextPage}
             title={t('app.nextPage')}
             aria-label={t('app.nextPage')}

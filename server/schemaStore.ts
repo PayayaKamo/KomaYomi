@@ -24,19 +24,47 @@ export type StoredRead<T> = {
   newer: boolean;
 };
 
-function parseRecord(file: string): Record<string, unknown> | null {
+/** Editors such as Notepad prefix a UTF-8 BOM; JSON.parse rejects it. */
+const stripBom = (text: string) => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+
+/**
+ * Outcome of reading a JSON data file. `parseRecord` collapses all failures to null,
+ * which is useful for callers that just need "is this readable"; the HTTP layer uses
+ * this type to tell the user *why* a page refused to load.
+ */
+export type StoredInspection =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; reason: 'missing' | 'io' | 'syntax' | 'shape'; detail: string };
+
+export function inspectStoredFile(file: string): StoredInspection {
   let text: string;
   try {
-    text = fs.readFileSync(file, 'utf8');
-  } catch {
-    return null;
+    text = stripBom(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return { ok: false, reason: 'missing', detail: 'file not found' };
+    return { ok: false, reason: 'io', detail: err instanceof Error ? err.message : String(err) };
   }
+  if (!text.trim()) {
+    // A zero-byte file is the classic signature of an interrupted write.
+    return { ok: false, reason: 'syntax', detail: 'file is empty' };
+  }
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(text) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    return null;
+    parsed = JSON.parse(text) as unknown;
+  } catch (err) {
+    return { ok: false, reason: 'syntax', detail: err instanceof Error ? err.message : String(err) };
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const kind = Array.isArray(parsed) ? 'an array' : parsed === null ? 'null' : typeof parsed;
+    return { ok: false, reason: 'shape', detail: `top level is ${kind}` };
+  }
+  return { ok: true, data: parsed as Record<string, unknown> };
+}
+
+function parseRecord(file: string): Record<string, unknown> | null {
+  const inspection = inspectStoredFile(file);
+  return inspection.ok ? inspection.data : null;
 }
 
 /** Read + migrate a data file. Returns null when the file is absent or not an object. */
@@ -91,13 +119,161 @@ export function assertWritableFile(file: string, kind: ExchangeKind): void {
   }
 }
 
-/** Write a data file with the current envelope, atomically. */
+/**
+ * Write a data file atomically: serialize to a sibling temp file, flush it, then rename
+ * over the target. A crash or a full disk leaves only the temp file behind, never a
+ * half-written document at the real path. The temp file is removed on failure.
+ */
 export function writeStoredFile(file: string, kind: ExchangeKind, value: unknown): void {
   const prepared = prepareExchange(kind, value, { strict: false });
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(prepared.value, null, 2), 'utf8');
-  fs.renameSync(tmp, file);
+  try {
+    const fd = fs.openSync(tmp, 'w');
+    try {
+      fs.writeFileSync(fd, JSON.stringify(prepared.value, null, 2), 'utf8');
+      // Flush before rename so a power cut cannot publish an empty/partial document.
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    try {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      /* best effort: never mask the original failure */
+    }
+    throw err;
+  }
+}
+
+/** A writer holding the lock for longer than this is assumed to have died. */
+const LOCK_STALE_MS = 10_000;
+
+/**
+ * Serialize writes to one data file across processes.
+ *
+ * Synchronous fs calls already cannot interleave inside one Node process, so this lock
+ * targets a second server instance (desktop + dev server, two app windows) sharing the
+ * same data directory. A write that finds the lock held is rejected with 409 instead of
+ * being merged into the other writer's output.
+ */
+export function withFileLock<T>(file: string, fn: () => T): T {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const lock = `${file}.lock`;
+  const busy = () => new AppError('ERR_PAGE_BUSY', { file: path.basename(file) }, 409);
+  const acquire = () => fs.writeFileSync(lock, String(process.pid), { flag: 'wx' });
+  try {
+    acquire();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    let stale = false;
+    try {
+      stale = Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS;
+    } catch {
+      stale = true;
+    }
+    if (!stale) throw busy();
+    try {
+      fs.rmSync(lock, { force: true });
+      acquire();
+    } catch {
+      throw busy();
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    try {
+      fs.rmSync(lock, { force: true });
+    } catch {
+      /* a stale lock is reclaimed after LOCK_STALE_MS */
+    }
+  }
+}
+
+/**
+ * How many page revisions to keep next to the document (canonical `.bak` included).
+ * Set `KOMAYOMI_PAGE_BACKUPS` to change it; 1 keeps only `.bak`.
+ */
+export function pageBackupLimit(): number {
+  const raw = Number(process.env.KOMAYOMI_PAGE_BACKUPS);
+  if (!Number.isFinite(raw) || raw < 1) return 3;
+  return Math.min(20, Math.trunc(raw));
+}
+
+const backupPath = (file: string, n: number) => (n <= 0 ? `${file}.bak` : `${file}.bak.${n}`);
+
+/**
+ * Keep the previous valid revision before an overwrite: copy to `<file>.bak`, shifting
+ * older copies to `.bak.1`, `.bak.2`, … and dropping anything past the limit.
+ * Damaged files are never rotated into a good backup slot.
+ */
+export function rotatePageBackup(file: string, limit = pageBackupLimit()): boolean {
+  if (limit < 1 || !fs.existsSync(file) || !parseRecord(file)) return false;
+  try {
+    if (limit > 1) {
+      fs.rmSync(backupPath(file, limit - 1), { force: true });
+      for (let n = limit - 2; n >= 1; n--) {
+        if (fs.existsSync(backupPath(file, n))) fs.renameSync(backupPath(file, n), backupPath(file, n + 1));
+      }
+      if (fs.existsSync(backupPath(file, 0))) fs.renameSync(backupPath(file, 0), backupPath(file, 1));
+    }
+    fs.copyFileSync(file, backupPath(file, 0));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Existing usable backups for a page, newest first (schema and rotation backups). */
+export function listBackupCandidates(file: string): string[] {
+  const dir = path.dirname(file);
+  const base = path.basename(file);
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => name.startsWith(`${base}.`) && /\.bak(\.\d+)?$/.test(name) && !name.includes('.corrupt'))
+    .map((name) => path.join(dir, name))
+    .map((candidate) => {
+      try {
+        return { candidate, mtime: fs.statSync(candidate).mtimeMs };
+      } catch {
+        return { candidate, mtime: 0 };
+      }
+    })
+    .filter((entry) => entry.mtime > 0)
+    .sort((a, b) => b.mtime - a.mtime)
+    .map((entry) => entry.candidate);
+}
+
+/**
+ * Move a damaged document out of the way so the page can be rebuilt, keeping the bytes
+ * for inspection as `<file>.corrupt-<timestamp>.bak`. Returns the archive path, or null
+ * when the file is merely unreadable (locked/permission) rather than damaged.
+ */
+export function archiveUnreadableFile(file: string): string | null {
+  const inspection = inspectStoredFile(file);
+  if (inspection.ok || inspection.reason === 'missing' || inspection.reason === 'io') return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const target = `${file}.corrupt-${stamp}.bak`;
+  try {
+    fs.renameSync(file, target);
+    return target;
+  } catch {
+    try {
+      fs.copyFileSync(file, target);
+      fs.rmSync(file, { force: true });
+      return target;
+    } catch {
+      return null;
+    }
+  }
 }
 
 /** Read a file purely to keep unknown fields during a rewrite (null when absent). */
@@ -108,7 +284,7 @@ export function readRawRecord(file: string): Record<string, unknown> | null {
 /** Raw JSON value (arrays included) for multi-item files such as export templates. */
 export function readRawValue(file: string): unknown | null {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
+    return JSON.parse(stripBom(fs.readFileSync(file, 'utf8'))) as unknown;
   } catch {
     return null;
   }

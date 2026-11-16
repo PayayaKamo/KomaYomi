@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { AlignMode, AlignOffset, AlignPreset, Lang, PageDoc, PageEntry, Panel } from '../types';
-import { DEFAULT_OFFSET, DEFAULT_LANGUAGES, langShort } from '../types';
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { AlignMode, AlignOffset, AlignPreset, Lang, Note, NoteTypeDef, PageDoc, PageEntry, Panel } from '../types';
+import {
+  BUILTIN_NOTE_TYPES,
+  DEFAULT_NOTE_TYPE,
+  DEFAULT_OFFSET,
+  DEFAULT_LANGUAGES,
+  NOTE_TYPE_COLORS,
+  NOTE_TYPE_PALETTE,
+  langShort,
+  languageNoteTypeId,
+} from '../types';
 import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { renderMarkdown } from '../../shared/markdown';
 import { api } from '../api';
@@ -48,6 +57,11 @@ type Props = {
   onDetailNextPanel?: () => void;
   onDetailPrevPage?: () => void;
   onDetailNextPage?: () => void;
+  /** Write pending page edits immediately, so detail-view navigation never drops a note. */
+  onFlush?: () => void | Promise<void>;
+  /** Note categories shared with the notes panel, used for the per-cell markers. */
+  noteTypes?: NoteTypeDef[];
+  onNoteTypesChange?: (types: NoteTypeDef[]) => void;
   /** Read-only viewer: no authoring tools; alignment stays available for this session only. */
   readOnly?: boolean;
 };
@@ -211,10 +225,15 @@ export function CompareTab({
   onDetailNextPanel,
   onDetailPrevPage,
   onDetailNextPage,
+  onFlush,
+  noteTypes,
+  onNoteTypesChange,
   readOnly = false,
 }: Props) {
   const { t, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
+  /** Category the detail view should focus; set by a marker, cleared when it closes. */
+  const [detailNoteType, setDetailNoteType] = useState<string | null>(null);
   const ordered = useMemo(
     () => applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups),
     [doc.panels, doc.readingDirection, doc.groups],
@@ -354,6 +373,42 @@ export function CompareTab({
     if (kept.length) return kept;
     return availableLangs.length ? availableLangs : langs;
   }, [langs, availableLangs]);
+
+  /** Category id → label/colour, matching the notes panel; used by the per-cell markers. */
+  const noteTypeInfo = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    for (const id of BUILTIN_NOTE_TYPES) {
+      map.set(id, { name: t(`notes.type.${id}`), color: NOTE_TYPE_COLORS[id] });
+    }
+    activeLangs.forEach((lang, i) => {
+      map.set(languageNoteTypeId(lang), {
+        name: t('notes.typeLanguage', { lang: langLabel(lang) }),
+        color: NOTE_TYPE_PALETTE[(i + 3) % NOTE_TYPE_PALETTE.length],
+      });
+    });
+    for (const def of noteTypes ?? []) map.set(def.id, { name: def.name, color: def.color });
+    return map;
+  }, [activeLangs, noteTypes, t]);
+
+  /** Legacy/deleted categories fall back to the default so nothing disappears. */
+  const noteTypeOf = (note: Note): string => (note.type && noteTypeInfo.has(note.type) ? note.type : DEFAULT_NOTE_TYPE);
+  const noteTypeColor = (id: string): string => noteTypeInfo.get(id)?.color ?? NOTE_TYPE_COLORS[DEFAULT_NOTE_TYPE];
+
+  /** Category id → {count, colour} for one panel, in registry order. */
+  const panelTypeCounts = (panelId: string) => {
+    const counts = new Map<string, number>();
+    for (const note of doc.notes) {
+      if (note.scope !== 'panel' || note.panelId !== panelId) continue;
+      const id = noteTypeOf(note);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([id, count]) => ({
+      id,
+      count,
+      name: noteTypeInfo.get(id)?.name ?? id,
+      color: noteTypeColor(id),
+    }));
+  };
 
   /*
    * Touch layouts (phone / tablet) show a subset of the enabled languages:
@@ -827,9 +882,15 @@ export function CompareTab({
   };
 
   /** Open the enlarged detail view; selection keeps the reading position behind it. */
-  const openDetailFor = (panel: Panel) => {
+  const openDetailFor = (panel: Panel, type: string | null = null) => {
     setSelected([panel.id]);
+    setDetailNoteType(type);
     onOpenDetail(panel.id);
+  };
+  /** Leaving the detail always clears the category focus, so the next open starts fresh. */
+  const closeDetail = () => {
+    setDetailNoteType(null);
+    onCloseDetail();
   };
   /** Double-tap fallback for touch screens, where dblclick is not reliable over masks. */
   const lastTapRef = useRef<{ id: string; at: number } | null>(null);
@@ -838,6 +899,14 @@ export function CompareTab({
     const last = lastTapRef.current;
     lastTapRef.current = last && last.id === panelId && now - last.at < 350 ? null : { id: panelId, at: now };
     return !lastTapRef.current;
+  };
+  /** Double-clicking a row must not steal clicks from editor fields or drag handles. */
+  const isInteractiveTarget = (target: EventTarget | null) =>
+    target instanceof HTMLElement &&
+    Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"], .ann-editor, .crop-handle'));
+  const openDetailFromRow = (panel: Panel, target: EventTarget | null) => {
+    if (isInteractiveTarget(target)) return;
+    openDetailFor(panel);
   };
 
   const changeMode = (next: AlignMode) => {
@@ -967,12 +1036,8 @@ export function CompareTab({
         }}
         onClick={() => {
           // Touch panning is disabled in compact layouts, so taps still toggle masking;
-          // a double tap opens the enlarged detail view instead.
+          // the row-level handler opens the detail on a double tap.
           if (layout.mode === 'desktop') return;
-          if (isDoubleTap(panel.id)) {
-            openDetailFor(panel);
-            return;
-          }
           setRevealed((r) => {
             const key = `${panel.id}:${lang}`;
             return r[key] ? { ...r, [key]: false } : r;
@@ -1807,7 +1872,13 @@ export function CompareTab({
               className={`panel-card ${isSel ? 'sel' : ''} ${
                 activeDrag?.panelId === panel.id && activeDrag.scope === 'page' ? 'scope-page' : ''
               }`}
-              onClick={() => setSelected([panel.id])}
+              onClick={(e) => {
+                setSelected([panel.id]);
+                if (layout.mode !== 'desktop' && !isInteractiveTarget(e.target) && isDoubleTap(panel.id)) {
+                  openDetailFor(panel);
+                }
+              }}
+              onDoubleClick={(e) => openDetailFromRow(panel, e.target)}
               title={t('detail.openHint')}
             >
               <div className="panel-card-head">
@@ -1820,17 +1891,35 @@ export function CompareTab({
                 {notes.length > 0 && (
                   <span className="chip">{t('compare.noteCount', { count: formatNumber(notes.length) })}</span>
                 )}
+                {panelTypeCounts(panel.id).length > 0 && (
+                  <span className="panel-type-markers" role="group" aria-label={t('notes.typeLabel')}>
+                    {panelTypeCounts(panel.id).map((tp) => (
+                      <button
+                        type="button"
+                        key={tp.id}
+                        className="panel-type-marker"
+                        style={{ '--type-color': tp.color } as CSSProperties}
+                        title={`${tp.name} · ${formatNumber(tp.count)}`}
+                        aria-label={`${tp.name} · ${formatNumber(tp.count)}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetailFor(panel, tp.id);
+                        }}
+                      >
+                        <i aria-hidden="true" />
+                        {formatNumber(tp.count)}
+                      </button>
+                    ))}
+                  </span>
+                )}
               </div>
 
               {overlay ? (
-                <div className="lang-grid overlay" onDoubleClick={() => openDetailFor(panel)}>
-                  {renderOverlayPane(panel)}
-                </div>
+                <div className="lang-grid overlay">{renderOverlayPane(panel)}</div>
               ) : (
                 <div
                   className={`lang-grid cols-${paneLangs.length}`}
                   style={{ ['--cols' as string]: paneLangs.length }}
-                  onDoubleClick={() => openDetailFor(panel)}
                 >
                   {paneLangs.map((l) => renderLangPane(l, panel))}
                 </div>
@@ -1875,11 +1964,17 @@ export function CompareTab({
           annotationsVisible={annotationsVisible}
           aspectOf={(l) => paneAspect(l, detailTarget)}
           offsetOf={(l) => offsetsOf(l, detailTarget)}
-          onClose={onCloseDetail}
+          onClose={closeDetail}
           onPrev={onDetailPrevPanel}
           onNext={onDetailNextPanel}
           onPrevPage={onDetailPrevPage}
           onNextPage={onDetailNextPage}
+          onFlush={onFlush}
+          mutate={mutate}
+          noteTypes={noteTypes}
+          onNoteTypesChange={onNoteTypesChange}
+          focusNoteType={detailNoteType}
+          readOnly={readOnly}
         />
       )}
     </div>

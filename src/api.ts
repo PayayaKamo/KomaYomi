@@ -14,6 +14,7 @@ import type {
   PageResponse,
   PanelTemplate,
   PanelRect,
+  NoteTypeDef,
   ReadingDirection,
   CacheStats,
   CacheOverview,
@@ -217,6 +218,10 @@ export const api = {
 
   /** Persist the compare/export language order; null restores the default. */
   saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
+
+  /** Persist user-defined note categories (built-in and language categories are derived in the UI). */
+  saveNoteTypes: (noteTypes: NoteTypeDef[]) =>
+    request<{ noteTypes: NoteTypeDef[] }>('/api/note-types', json({ noteTypes })),
 
   /* ---- Preprocessing wizard ---- */
 

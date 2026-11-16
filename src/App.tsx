@@ -7,7 +7,7 @@ import { OriginalTab } from './components/OriginalTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
-import { AboutDialog } from './components/AboutDialog';
+import { AboutDialog, DOCS_BASE, DOCS_PATHS } from './components/AboutDialog';
 import { SettingsDialog } from './components/SettingsDialog';
 import { PageHistoryDialog } from './components/PageHistoryDialog';
 import { PaneSplitter, clampPaneWidth, loadPaneWidth, savePaneWidth } from './components/PaneSplitter';
@@ -18,7 +18,7 @@ import { usePwaStatus } from './hooks/usePwaStatus';
 import { api } from './api';
 import { pushRecent } from './lib/recent';
 import { DEFAULT_LANGUAGES, READING_DIRECTIONS, isRightToLeft, isVerticalReading } from './types';
-import type { Lang, Library, ReadingDirection } from './types';
+import type { Lang, Library, NoteTypeDef, ReadingDirection } from './types';
 import { langLabel, readingLabel, useI18n } from './i18n';
 import type { Locale } from './i18n';
 import type { CSSProperties } from 'react';
@@ -60,6 +60,8 @@ function readReadingMode(): boolean {
 export default function App() {
   const { t, locale, setLocale, formatNumber } = useI18n();
   const [library, setLibrary] = useState<Library | null>(null);
+  /** User-defined note categories; built-in and language categories are derived in the UI. */
+  const [noteTypes, setNoteTypes] = useState<NoteTypeDef[]>([]);
   const [rootPath, setRootPath] = useState('');
   const [rawPath, setRawPath] = useState('');
   const [libError, setLibError] = useState<string | null>(null);
@@ -91,6 +93,8 @@ export default function App() {
     loadPaneWidth(NOTES_PANE.key, NOTES_PANE.min, NOTES_PANE.max),
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  /** Welcome-screen shortcuts handled by the File menu's dialogs. */
+  const [fileIntent, setFileIntent] = useState<'library' | 'add' | 'project' | null>(null);
   const [topMoreOpen, setTopMoreOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -101,6 +105,30 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
   /** Latest page state, read by the navigation guards declared below. */
   const pageRef = useRef<ReturnType<typeof usePage> | null>(null);
+
+  /**
+   * The original reader shows whole pages side by side, so entering it folds both
+   * side columns to give the stage more width; leaving it restores the docked
+   * desktop layout. This only runs on view transitions: re-opening a column by
+   * hand inside the original view survives later renders and page changes, and is
+   * only overridden the next time the view is entered again. On narrow screens the
+   * columns are drawers, so leaving the view must not force them open over the page.
+   */
+  const prevViewRef = useRef<AppView | null>(null);
+  useEffect(() => {
+    const previous = prevViewRef.current;
+    prevViewRef.current = view;
+    if (previous === view) return;
+    if (view === 'original') {
+      setSidebarOpen(false);
+      setNotesOpen(false);
+      return;
+    }
+    if (previous !== null) {
+      setSidebarOpen(window.innerWidth > 1024);
+      setNotesOpen(window.innerWidth > 1180);
+    }
+  }, [view]);
 
   /**
    * Confirm mode promises that nothing is written until ✓ is pressed, so leaving a page
@@ -280,6 +308,7 @@ export default function App() {
       .library()
       .then((res) => {
         setLibrary(res.library);
+        setNoteTypes(res.library.noteTypes ?? []);
         setRootPath(res.root);
         setRawPath(res.raw ?? res.root);
         if (res.library.langOrder?.length) setLangsState(res.library.langOrder);
@@ -287,6 +316,18 @@ export default function App() {
       })
       .catch((err: unknown) => setLibError(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  /** Custom note categories are project-level data, shared by the panel and the compare view. */
+  const saveNoteTypes = useCallback(
+    (next: NoteTypeDef[]) => {
+      setNoteTypes(next);
+      void api
+        .saveNoteTypes(next)
+        .then((res) => setNoteTypes(res.noteTypes))
+        .catch(() => loadLibrary());
+    },
+    [loadLibrary],
+  );
 
   // After a series/chapter is removed from the library, drop a selection that no longer
   // exists instead of leaving a ghost page on screen.
@@ -729,6 +770,8 @@ export default function App() {
             selection={sel}
             dirty={pageState.dirty}
             hasDoc={Boolean(doc)}
+            intent={fileIntent}
+            onIntentHandled={() => setFileIntent(null)}
             onOpenSelection={openSelection}
             onReloadLibrary={() => {
               loadLibrary();
@@ -977,7 +1020,15 @@ export default function App() {
           {pageState.error && <div className="banner error">{pageState.error}</div>}
 
           {!sel ? (
-            <Welcome library={library} onOpen={openSelection} />
+            <Welcome
+              library={library}
+              onOpen={openSelection}
+              readOnly={readOnly}
+              onImportImages={() => setFileIntent('library')}
+              onNewLibrary={() => setFileIntent('add')}
+              onOpenProject={() => setFileIntent('project')}
+              onOpenHelp={() => setHelpOpen(true)}
+            />
           ) : pageState.loading ? (
             <div className="stage-loading">{t('app.loadingPage', { page: formatNumber(sel.pageIndex + 1) })}</div>
           ) : doc && page ? (
@@ -1030,6 +1081,9 @@ export default function App() {
                 onDetailNextPanel={detailNextPanel}
                 onDetailPrevPage={detailPrevPage}
                 onDetailNextPage={detailNextPage}
+                onFlush={pageState.flush}
+                noteTypes={noteTypes}
+                onNoteTypesChange={saveNoteTypes}
                 readOnly={readOnly}
               />
             ) : (
@@ -1056,6 +1110,9 @@ export default function App() {
           tagStats={tagStats}
           library={library}
           onJump={jumpTo}
+          langs={langs}
+          noteTypes={noteTypes}
+          onNoteTypesChange={saveNoteTypes}
           onClose={() => setNotesOpen(false)}
           readOnly={readOnly}
         />
@@ -1277,26 +1334,61 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function Welcome({ library, onOpen }: { library: Library | null; onOpen: (sel: Selection) => void }) {
-  const { t } = useI18n();
+function Welcome({
+  library,
+  onOpen,
+  readOnly,
+  onImportImages,
+  onNewLibrary,
+  onOpenProject,
+  onOpenHelp,
+}: {
+  library: Library | null;
+  onOpen: (sel: Selection) => void;
+  readOnly: boolean;
+  onImportImages: () => void;
+  onNewLibrary: () => void;
+  onOpenProject: () => void;
+  onOpenHelp: () => void;
+}) {
+  const { t, locale } = useI18n();
   const first = library?.volumes[0]?.chapters[0];
+  const docsUrl = `${DOCS_BASE}${DOCS_PATHS[locale]}`;
   return (
     <div className="welcome">
       <div className="welcome-hero">
         <h1>{t('app.welcome.title')}</h1>
         <p>{t('app.welcome.desc')}</p>
-        {first && (
-          <button
-            type="button"
-            className="btn primary large"
-            onClick={() => onOpen({ volume: first.volume, chapter: first.chapter, pageIndex: 0 })}
-          >
-            {t('app.welcome.start', {
-              volume: first.volume,
-              chapter: t('format.chapter', { chapter: first.chapter }),
-            })}
+        <div className="welcome-actions">
+          {first && (
+            <button
+              type="button"
+              className="btn primary large"
+              onClick={() => onOpen({ volume: first.volume, chapter: first.chapter, pageIndex: 0 })}
+            >
+              {t('app.welcome.start', {
+                volume: first.volume,
+                chapter: t('format.chapter', { chapter: first.chapter }),
+              })}
+            </button>
+          )}
+          {!readOnly && (
+            <>
+              <button type="button" className={`btn large${first ? '' : ' primary'}`} onClick={onImportImages}>
+                {t('app.welcome.import')}
+              </button>
+              <button type="button" className="btn large" onClick={onNewLibrary}>
+                {t('app.welcome.newLibrary')}
+              </button>
+            </>
+          )}
+          <button type="button" className="btn large" onClick={onOpenProject}>
+            {t('app.welcome.openProject')}
           </button>
-        )}
+          <button type="button" className="btn large" onClick={onOpenHelp}>
+            {t('app.welcome.guide')}
+          </button>
+        </div>
       </div>
       <div className="welcome-steps">
         <div>
@@ -1319,7 +1411,23 @@ function Welcome({ library, onOpen }: { library: Library | null; onOpen: (sel: S
           <h3>{t('app.welcome.step4Title')}</h3>
           <p>{t('app.welcome.step4Desc')}</p>
         </div>
+        <div>
+          <b>5</b>
+          <h3>{t('app.welcome.step5Title')}</h3>
+          <p>{t('app.welcome.step5Desc')}</p>
+        </div>
+        <div>
+          <b>6</b>
+          <h3>{t('app.welcome.step6Title')}</h3>
+          <p>{t('app.welcome.step6Desc')}</p>
+        </div>
       </div>
+      <p className="welcome-foot muted tiny">
+        {t('app.welcome.docsHint')}{' '}
+        <a href={docsUrl} target="_blank" rel="noreferrer">
+          {t('app.welcome.docsLink')}
+        </a>
+      </p>
     </div>
   );
 }

@@ -1,6 +1,13 @@
 ﻿import type { ExportTemplate, LayoutTemplate, PageDoc, ReadingDirection } from './types.ts';
 import { READING_DIRECTIONS } from './types.ts';
-import { migrateExportTemplateV0, migrateLayoutTemplateV0, migrateManifestV0, migratePageV0 } from './migrations.ts';
+import {
+  migrateExportTemplateV0,
+  migrateLayoutTemplateV0,
+  migrateManifestV0,
+  migrateManifestV1,
+  migratePageV0,
+  migratePageV1,
+} from './migrations.ts';
 
 /**
  * Unified exchange format: a `$schema` + `schemaVersion` envelope, see shared/schemas/*.json.
@@ -40,10 +47,10 @@ export const FORMAT_LABEL: Record<ExchangeKind, string> = {
 };
 
 export const CURRENT_SCHEMA_VERSION: Record<ExchangeKind, number> = {
-  mnproj: 1,
+  mnproj: 2,
   mntpl: 1,
   mnexp: 1,
-  page: 1,
+  page: 2,
   mntp: 1,
   mnalign: 1,
   mnlayout: 1,
@@ -252,6 +259,7 @@ const noteSpec = object(
     id: str({ minLength: 1 }),
     scope: str({ enum: ['page', 'panel'] }),
     panelId: nullable(str()),
+    type: str(),
     text: str(),
     tags: array(str()),
     source: noteSourceSpec,
@@ -629,10 +637,10 @@ export function checkSchemaVersion(kind: ExchangeKind, declared: unknown): numbe
 }
 
 const MIGRATIONS: Record<ExchangeKind, Record<number, (value: Record<string, unknown>) => Record<string, unknown>>> = {
-  mnproj: { 0: migrateManifestV0 },
+  mnproj: { 0: migrateManifestV0, 1: migrateManifestV1 },
   mntpl: { 0: migrateLayoutTemplateV0 },
   mnexp: { 0: migrateExportTemplateV0 },
-  page: { 0: migratePageV0 },
+  page: { 0: migratePageV0, 1: migratePageV1 },
   /* Stored formats had no envelope before v1, so v0 only needs the fields added. */
   mntp: { 0: (value) => ({ ...value }) },
   mnalign: { 0: (value) => ({ ...value }) },

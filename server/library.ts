@@ -1,6 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { LANGUAGES, LANG_LABEL, PAGE_KINDS, SINGLE_CHAPTER } from '../shared/types.ts';
+import {
+  BUILTIN_NOTE_TYPES,
+  LANGUAGES,
+  LANG_LABEL,
+  LANGUAGE_NOTE_TYPE_PREFIX,
+  PAGE_KINDS,
+  SINGLE_CHAPTER,
+} from '../shared/types.ts';
 import { preserveUnknown, readReadingDirection } from '../shared/format.ts';
 import {
   assertWritableFile,
@@ -9,7 +16,16 @@ import {
   readStoredFile,
   writeStoredFile,
 } from './schemaStore.ts';
-import type { Lang, Library, PageEntry, PageKind, ChapterEntry, VolumeEntry, VolumeOverride } from '../shared/types.ts';
+import type {
+  Lang,
+  Library,
+  NoteTypeDef,
+  PageEntry,
+  PageKind,
+  ChapterEntry,
+  VolumeEntry,
+  VolumeOverride,
+} from '../shared/types.ts';
 import { DEFAULT_RULES, resolveFiles, validateRules } from './dirRules.ts';
 import type { DirRule, UnmatchedFile } from './dirRules.ts';
 import { AppError } from './errors.ts';
@@ -60,6 +76,8 @@ export type LibraryConfig = {
   rules?: DirRule[];
   /** Preferred language order for the compare view and exports. */
   langOrder?: Lang[];
+  /** User-defined note categories (built-in and language categories are derived in the UI). */
+  noteTypes?: NoteTypeDef[];
   /** How many page-history snapshots to keep per page (default 50, clamped 5..200). */
   historyLimit?: number;
   /** Automatic local backups into exports/ (see server/autoBackup.ts). */
@@ -78,6 +96,29 @@ export function normalizeLangOrder(value: Lang[] | undefined, discovered: readon
   }
   for (const lang of discovered) {
     if (!out.includes(lang)) out.push(lang);
+  }
+  return out;
+}
+
+const NOTE_TYPE_ID = /^[a-zA-Z0-9_-]{1,40}$/;
+const NOTE_TYPE_COLOR = /^#[0-9a-f]{6}$/i;
+const RESERVED_NOTE_TYPE = new Set<string>([...BUILTIN_NOTE_TYPES]);
+
+/** Keep custom categories safe and stable: unique ids, valid colours, no built-in collisions. */
+export function normalizeNoteTypes(value: unknown): NoteTypeDef[] {
+  if (!Array.isArray(value)) return [];
+  const out: NoteTypeDef[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    const color = typeof raw.color === 'string' ? raw.color.trim().toLowerCase() : '';
+    if (!NOTE_TYPE_ID.test(id) || !name || name.length > 40 || !NOTE_TYPE_COLOR.test(color)) continue;
+    if (RESERVED_NOTE_TYPE.has(id) || id.startsWith(LANGUAGE_NOTE_TYPE_PREFIX) || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name, color });
   }
   return out;
 }
@@ -103,6 +144,9 @@ export function writeLibraryConfig(dataRoot: string, cfg: LibraryConfig): void {
   // Volume entries are deletion-sensitive, like page offsets in storage.ts: merging
   // would resurrect a volume removed from raw/ or a cleared language-dir mapping.
   if (cfg.volumes !== undefined) merged.volumes = cfg.volumes;
+  // Same for custom note categories: deleting the last one must survive the save.
+  if (cfg.noteTypes !== undefined) merged.noteTypes = cfg.noteTypes;
+  else delete merged.noteTypes;
   writeStoredFile(file, 'mnconfig', merged);
 }
 
@@ -619,6 +663,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
     root: rawRoot,
     languages: langOrder,
     langOrder,
+    noteTypes: normalizeNoteTypes(config.noteTypes),
     volumes,
     scan: {
       rules,

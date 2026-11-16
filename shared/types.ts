@@ -49,11 +49,48 @@ export type NoteSource = {
   text?: string;
 };
 
+/**
+ * Note categories.
+ *
+ * Three built-in categories are always available, one category is generated for every
+ * enabled reading language (`lang:<code>`), and users can add custom ones with an id,
+ * name and colour. The id is stored on each note; legacy notes without one are migrated
+ * to `background`.
+ */
+export type NoteTypeDef = {
+  id: string;
+  name: string;
+  /** `#rrggbb`; used by the type chips and the compare-view markers. */
+  color: string;
+};
+
+export const BUILTIN_NOTE_TYPES = ['background', 'vocab', 'rant'] as const;
+export type BuiltinNoteType = (typeof BUILTIN_NOTE_TYPES)[number];
+/** Legacy notes (schemaVersion 1) are migrated to this category. */
+export const DEFAULT_NOTE_TYPE: BuiltinNoteType = 'background';
+export const NOTE_TYPE_COLORS: Record<BuiltinNoteType, string> = {
+  background: '#4c7dd8',
+  vocab: '#d9942c',
+  rant: '#d2574a',
+};
+/** Language categories follow the enabled languages and are never persisted as custom types. */
+export const LANGUAGE_NOTE_TYPE_PREFIX = 'lang:';
+export function languageNoteTypeId(lang: Lang): string {
+  return `${LANGUAGE_NOTE_TYPE_PREFIX}${lang}`;
+}
+export function isLanguageNoteType(id: string | undefined): boolean {
+  return Boolean(id && id.startsWith(LANGUAGE_NOTE_TYPE_PREFIX));
+}
+/** Palette offered when creating a custom category. */
+export const NOTE_TYPE_PALETTE = ['#4c7dd8', '#d9942c', '#d2574a', '#3f9e7a', '#8a63c9', '#c05a9a', '#6b7a8f'];
+
 export type Note = {
   id: string;
   /** page = note on the whole page; panel = note on a single panel. */
   scope: 'page' | 'panel';
   panelId: string | null;
+  /** Category id: a built-in id, `lang:<code>`, or a custom type id. Missing means legacy. */
+  type?: string;
   text: string;
   tags: string[];
   /** Where the material came from: link, title or free-form text. */
@@ -236,7 +273,8 @@ export type NoteImage = {
 };
 
 export type PageDoc = {
-  schemaVersion: 1;
+  /** 2 adds note categories (`Note.type`); v1 files are migrated on read. */
+  schemaVersion: number;
   volume: string;
   chapter: string;
   pageIndex: number;
@@ -351,6 +389,8 @@ export type Library = {
   languages: Lang[];
   /** User-defined language order, shared by the compare view and exports. */
   langOrder?: Lang[];
+  /** User-defined note categories; built-in and language categories are derived in the UI. */
+  noteTypes?: NoteTypeDef[];
   volumes: VolumeEntry[];
 };
 

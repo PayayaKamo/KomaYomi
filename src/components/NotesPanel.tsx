@@ -1,13 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, DragEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import type { Note, NoteImage, NoteSource, PageDoc, Panel } from '../types';
+import type { Lang, Note, NoteImage, NoteSource, NoteTypeDef, PageDoc, Panel } from '../types';
 import type { Library } from '../types';
+import {
+  BUILTIN_NOTE_TYPES,
+  DEFAULT_NOTE_TYPE,
+  NOTE_TYPE_COLORS,
+  NOTE_TYPE_PALETTE,
+  languageNoteTypeId,
+} from '../types';
 import { newNote, sourceDomain, uid } from '../lib/geometry';
 import { renderMarkdown } from '../../shared/markdown';
 import { api } from '../api';
 import type { NotesIndex } from '../api';
 import type { Selection } from '../hooks/usePage';
-import { useI18n } from '../i18n';
+import { langLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 
@@ -23,7 +31,26 @@ type Props = {
   onClose?: () => void;
   /** Read-only viewer: notes stay visible, the composer and edit/delete actions are hidden. */
   readOnly?: boolean;
+  /** Enabled reading languages; each gets a note category that follows the language setting. */
+  langs?: Lang[];
+  /** User-defined categories, persisted with the project. */
+  noteTypes?: NoteTypeDef[];
+  onNoteTypesChange?: (types: NoteTypeDef[]) => void;
+  /**
+   * Detail view mode: only the current panel's composer and notes, no tabs, page notes,
+   * scratchpad or overview. The parent flushes pending input before switching panels/pages.
+   */
+  embedded?: boolean;
+  /** Category preselected when the compare view opens a panel from a type marker. */
+  focusType?: string | null;
 };
+
+export type NotesPanelHandle = {
+  /** Save whatever is in the composer right now (no-op when empty). */
+  flush: () => void;
+};
+
+type ResolvedNoteType = { id: string; name: string; color: string; group: 'builtin' | 'language' | 'custom' };
 
 /* ---------------- Note images: pasted/dropped screenshots ---------------- */
 
@@ -649,17 +676,25 @@ type FlatHeader =
 
 type FlatRow = FlatHeader | { kind: 'note'; note: NotesIndex['notes'][number] };
 
-export function NotesPanel({
-  doc,
-  panel,
-  panelLabel,
-  mutate,
-  tagStats,
-  library,
-  onJump,
-  onClose,
-  readOnly = false,
-}: Props) {
+export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPanel(
+  {
+    doc,
+    panel,
+    panelLabel,
+    mutate,
+    tagStats,
+    library,
+    onJump,
+    onClose,
+    readOnly = false,
+    langs,
+    noteTypes,
+    onNoteTypesChange,
+    embedded = false,
+    focusType = null,
+  },
+  ref,
+) {
   const { t, formatDate, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
   const editorApi = useRef<EditorApi | null>(null);
@@ -671,10 +706,39 @@ export function NotesPanel({
   const [tagInput, setTagInput] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [filterSource, setFilterSource] = useState<string | null>(null);
+  /** Category filter for the current page's notes; null shows every category. */
+  const [filterType, setFilterType] = useState<string | null>(null);
+  /** Group the page's notes by category instead of panel/page sections. */
+  const [groupByType, setGroupByType] = useState(true);
+  /** Category applied to the composer. New notes start from the clicked category. */
+  const [noteType, setNoteType] = useState<string>(DEFAULT_NOTE_TYPE);
   /** Id of the note loaded into the composer; editing reuses the one editor instead of nesting another. */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
   const composeRef = useRef<HTMLDivElement>(null);
+
+  // Custom category manager
+  const [typeManageOpen, setTypeManageOpen] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [newTypeColor, setNewTypeColor] = useState(NOTE_TYPE_PALETTE[3]);
+
+  // A compare-view marker opens the detail already filtered to that category.
+  useEffect(() => {
+    setFilterType(focusType ?? null);
+  }, [focusType]);
+
+  /** The list comes first; choosing a category or starting a note brings the editor into view. */
+  const focusComposer = () => {
+    requestAnimationFrame(() => {
+      composeRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      composeRef.current?.querySelector('textarea')?.focus();
+    });
+  };
+
+  // Editing a card highlights it and pulls the editor into view below the list.
+  useEffect(() => {
+    if (editingId) focusComposer();
+  }, [editingId]);
 
   // Source
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -712,6 +776,7 @@ export function NotesPanel({
   useEffect(() => {
     setScope(panel ? 'panel' : 'page');
     setEditingId(null);
+    setNoteType(DEFAULT_NOTE_TYPE);
     setText('');
     setImages([]);
     setTags([]);
@@ -798,9 +863,55 @@ export function NotesPanel({
   const notes = doc?.notes ?? [];
   const panelNotes = panel ? notes.filter((n) => n.scope === 'panel' && n.panelId === panel.id) : [];
   const pageNotes = notes.filter((n) => n.scope === 'page');
+
+  /**
+   * Category registry: three fixed built-ins, one per enabled language (so disabling a
+   * language hides its category), then the project's custom categories.
+   */
+  const typeList = useMemo<ResolvedNoteType[]>(() => {
+    const builtin = BUILTIN_NOTE_TYPES.map((id) => ({
+      id,
+      name: t(`notes.type.${id}` as MessageKey),
+      color: NOTE_TYPE_COLORS[id],
+      group: 'builtin' as const,
+    }));
+    const languages = [...new Set(langs ?? [])].map((lang, i) => ({
+      id: languageNoteTypeId(lang),
+      name: t('notes.typeLanguage', { lang: langLabel(lang) }),
+      color: NOTE_TYPE_PALETTE[(i + 3) % NOTE_TYPE_PALETTE.length],
+      group: 'language' as const,
+    }));
+    const custom = (noteTypes ?? []).map((def) => ({
+      id: def.id,
+      name: def.name,
+      color: def.color,
+      group: 'custom' as const,
+    }));
+    return [...builtin, ...languages, ...custom];
+  }, [langs, noteTypes, t]);
+
+  const typeById = useMemo(() => new Map(typeList.map((ty) => [ty.id, ty])), [typeList]);
+  /** Legacy notes may still miss a category (or reference a deleted one): show them as the default. */
+  const typeKey = (note: Note): string => {
+    const id = note.type ?? DEFAULT_NOTE_TYPE;
+    return typeById.has(id) ? id : DEFAULT_NOTE_TYPE;
+  };
+  const typeName = (id: string): string => typeById.get(id)?.name ?? id;
+  const typeColor = (id: string): string => typeById.get(id)?.color ?? NOTE_TYPE_COLORS[DEFAULT_NOTE_TYPE];
+
+  const typeCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const note of notes) m.set(typeKey(note), (m.get(typeKey(note)) ?? 0) + 1);
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes, typeById]);
+
   const shown = (list: Note[]) =>
     list.filter(
-      (n) => (!filterTag || n.tags.includes(filterTag)) && (!filterSource || sourceDomain(n.source) === filterSource),
+      (n) =>
+        (!filterTag || n.tags.includes(filterTag)) &&
+        (!filterSource || sourceDomain(n.source) === filterSource) &&
+        (!filterType || typeKey(n) === filterType),
     );
 
   const addTag = (tag: string) => {
@@ -842,6 +953,7 @@ export function NotesPanel({
 
   const resetComposer = () => {
     setEditingId(null);
+    setNoteType(DEFAULT_NOTE_TYPE);
     setText('');
     setImages([]);
     setTags([]);
@@ -856,6 +968,7 @@ export function NotesPanel({
   const startEdit = (note: Note) => {
     setEditingId(note.id);
     setScope(note.scope);
+    setNoteType(typeKey(note));
     setText(note.text);
     setImages(note.images ?? []);
     setTags(note.tags);
@@ -864,7 +977,37 @@ export function NotesPanel({
     setSrcTitle(note.source?.title ?? '');
     setSrcText(note.source?.text ?? '');
     setSourceOpen(Boolean(note.source && (note.source.url || note.source.title || note.source.text)));
-    requestAnimationFrame(() => composeRef.current?.scrollIntoView({ block: 'nearest' }));
+    focusComposer();
+  };
+
+  /** Clicking a category starts a blank note of that category in the shared composer. */
+  const startNew = (typeId: string) => {
+    setEditingId(null);
+    setNoteType(typeId);
+    setText('');
+    setImages([]);
+    setTags([]);
+    setTagInput('');
+    setSourceOpen(false);
+    setSrcUrl('');
+    setSrcTitle('');
+    setSrcText('');
+    focusComposer();
+  };
+
+  /** Category chip: start a fresh note when idle, otherwise only retag what is being written. */
+  const chooseType = (typeId: string) => {
+    if (!editingId && !text.trim() && !images.length) startNew(typeId);
+    else {
+      setNoteType(typeId);
+      focusComposer();
+    }
+  };
+
+  /** "Add note" entry in the list header: reuse the draft if there is one, otherwise start fresh. */
+  const beginNote = () => {
+    if (!editingId && !text.trim() && !images.length) startNew(filterType ?? DEFAULT_NOTE_TYPE);
+    else focusComposer();
   };
 
   const submit = () => {
@@ -880,6 +1023,7 @@ export function NotesPanel({
           n.id === id
             ? {
                 ...n,
+                type: noteType,
                 text: text.trim(),
                 images: images.length ? images : undefined,
                 tags,
@@ -890,17 +1034,39 @@ export function NotesPanel({
         ),
       }));
     } else {
-      const note = newNote(
-        scope,
-        scope === 'panel' && panel ? panel.id : null,
-        text.trim(),
-        tags,
-        currentSource(),
-        images,
-      );
+      const note: Note = {
+        ...newNote(scope, scope === 'panel' && panel ? panel.id : null, text.trim(), tags, currentSource(), images),
+        type: noteType,
+      };
       mutate((d) => ({ ...d, notes: [...d.notes, note] }));
     }
     resetComposer();
+  };
+
+  // Detail view navigation flushes through this handle before changing panel/page.
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  useImperativeHandle(ref, () => ({ flush: () => submitRef.current() }), []);
+
+  const addCustomType = () => {
+    const name = newTypeName.trim();
+    if (!name || !onNoteTypesChange) return;
+    const id = `t${Date.now().toString(36)}`;
+    onNoteTypesChange([...(noteTypes ?? []), { id, name, color: newTypeColor }]);
+    setNewTypeName('');
+    setNoteType(id);
+  };
+
+  const updateCustomType = (id: string, patch: Partial<NoteTypeDef>) => {
+    if (!onNoteTypesChange) return;
+    onNoteTypesChange((noteTypes ?? []).map((def) => (def.id === id ? { ...def, ...patch } : def)));
+  };
+
+  const removeCustomType = (id: string) => {
+    if (!onNoteTypesChange) return;
+    onNoteTypesChange((noteTypes ?? []).filter((def) => def.id !== id));
+    if (noteType === id) setNoteType(DEFAULT_NOTE_TYPE);
+    if (filterType === id) setFilterType(null);
   };
 
   const removeNote = (id: string) => {
@@ -1018,6 +1184,16 @@ export function NotesPanel({
     <div className={`note ${editingId === note.id ? 'editing' : ''}`} key={note.id}>
       <div className="note-top">
         <div className="note-tags">
+          <button
+            type="button"
+            className={`note-type-chip ${filterType === typeKey(note) ? 'on' : ''}`}
+            style={{ '--type-color': typeColor(typeKey(note)) } as CSSProperties}
+            onClick={() => setFilterType(filterType === typeKey(note) ? null : typeKey(note))}
+            title={t('notes.filterByType')}
+          >
+            <i aria-hidden="true" />
+            {typeName(typeKey(note))}
+          </button>
           {note.tags.map((tag) => (
             <button
               type="button"
@@ -1206,33 +1382,35 @@ export function NotesPanel({
   }
 
   return (
-    <aside className="notes-col">
-      <div className="notes-head">
-        <div>
-          <div className="notes-title">{t('notes.title')}</div>
-          <div className="notes-sub">
-            {t('notes.pageSummary', {
-              page: formatNumber(doc.pageIndex + 1),
-              count: formatNumber(notes.length),
-            })}
+    <aside className={embedded ? 'notes-col notes-embedded' : 'notes-col'}>
+      {!embedded && (
+        <div className="notes-head">
+          <div>
+            <div className="notes-title">{t('notes.title')}</div>
+            <div className="notes-sub">
+              {t('notes.pageSummary', {
+                page: formatNumber(doc.pageIndex + 1),
+                count: formatNumber(notes.length),
+              })}
+            </div>
           </div>
+          <div className="notes-tabs">
+            <button type="button" className={tab === 'page' ? 'on' : ''} onClick={() => setTab('page')}>
+              {t('notes.tabPage')}
+            </button>
+            <button type="button" className={tab === 'all' ? 'on' : ''} onClick={() => setTab('all')}>
+              {t('notes.tabAll')}
+            </button>
+          </div>
+          {onClose && (
+            <button type="button" className="btn tiny notes-close" onClick={onClose} title={t('notes.closeTitle')}>
+              ✕
+            </button>
+          )}
         </div>
-        <div className="notes-tabs">
-          <button type="button" className={tab === 'page' ? 'on' : ''} onClick={() => setTab('page')}>
-            {t('notes.tabPage')}
-          </button>
-          <button type="button" className={tab === 'all' ? 'on' : ''} onClick={() => setTab('all')}>
-            {t('notes.tabAll')}
-          </button>
-        </div>
-        {onClose && (
-          <button type="button" className="btn tiny notes-close" onClick={onClose} title={t('notes.closeTitle')}>
-            ✕
-          </button>
-        )}
-      </div>
+      )}
 
-      {tab === 'all' ? (
+      {tab === 'all' && !embedded ? (
         <>
           <div className="notes-search">
             <input
@@ -1405,15 +1583,89 @@ export function NotesPanel({
                   </button>
                 </div>
               )}
+              <div className="note-type-row" role="group" aria-label={t('notes.typeLabel')}>
+                {typeList.map((ty) => (
+                  <button
+                    type="button"
+                    key={ty.id}
+                    className={`note-type-chip ${noteType === ty.id ? 'on' : ''}`}
+                    style={{ '--type-color': ty.color } as CSSProperties}
+                    onClick={() => chooseType(ty.id)}
+                    aria-pressed={noteType === ty.id}
+                  >
+                    <i aria-hidden="true" />
+                    {ty.name}
+                  </button>
+                ))}
+                {!readOnly && onNoteTypesChange && (
+                  <button
+                    type="button"
+                    className={`btn tiny note-type-manage ${typeManageOpen ? 'on' : ''}`}
+                    onClick={() => setTypeManageOpen((v) => !v)}
+                    aria-expanded={typeManageOpen}
+                  >
+                    {t('notes.manageTypes')}
+                  </button>
+                )}
+              </div>
+              {typeManageOpen && !readOnly && (
+                <div className="note-type-manager">
+                  {(noteTypes ?? []).map((def) => (
+                    <div className="note-type-manager-row" key={def.id}>
+                      <input
+                        type="color"
+                        value={def.color}
+                        title={t('notes.typeColor')}
+                        onChange={(e) => updateCustomType(def.id, { color: e.target.value })}
+                      />
+                      <input
+                        value={def.name}
+                        maxLength={40}
+                        aria-label={t('notes.typeName')}
+                        onChange={(e) => updateCustomType(def.id, { name: e.target.value })}
+                      />
+                      <button type="button" className="btn tiny" onClick={() => removeCustomType(def.id)}>
+                        {t('common.delete')}
+                      </button>
+                    </div>
+                  ))}
+                  <div className="note-type-manager-row">
+                    <input
+                      type="color"
+                      value={newTypeColor}
+                      title={t('notes.typeColor')}
+                      onChange={(e) => setNewTypeColor(e.target.value)}
+                    />
+                    <input
+                      value={newTypeName}
+                      maxLength={40}
+                      placeholder={t('notes.typeNamePlaceholder')}
+                      aria-label={t('notes.typeName')}
+                      onChange={(e) => setNewTypeName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addCustomType();
+                        }
+                      }}
+                    />
+                    <button type="button" className="btn tiny" onClick={addCustomType} disabled={!newTypeName.trim()}>
+                      {t('notes.typeAdd')}
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="scope-toggle">
-                <button
-                  type="button"
-                  className={scope === 'page' ? 'on' : ''}
-                  onClick={() => setScope('page')}
-                  disabled={editingId !== null}
-                >
-                  {t('notes.wholePage')}
-                </button>
+                {!embedded && (
+                  <button
+                    type="button"
+                    className={scope === 'page' ? 'on' : ''}
+                    onClick={() => setScope('page')}
+                    disabled={editingId !== null}
+                  >
+                    {t('notes.wholePage')}
+                  </button>
+                )}
                 <button
                   type="button"
                   className={scope === 'panel' ? 'on' : ''}
@@ -1545,11 +1797,55 @@ export function NotesPanel({
               >
                 {editingId ? t('notes.saveNote') : t('notes.addNote')}
               </button>
-              {scratchPanel}
+              {!embedded && scratchPanel}
             </div>
           )}
 
           <div className="notes-scroll">
+            <div className="note-type-filter" role="group" aria-label={t('notes.typeLabel')}>
+              <button
+                type="button"
+                className={`note-type-chip ${filterType === null ? 'on' : ''}`}
+                onClick={() => setFilterType(null)}
+                aria-pressed={filterType === null}
+              >
+                {t('notes.typeAll')}
+                <em>{formatNumber(notes.length)}</em>
+              </button>
+              {typeList.map((ty) => (
+                <button
+                  type="button"
+                  key={ty.id}
+                  className={`note-type-chip ${filterType === ty.id ? 'on' : ''}`}
+                  style={{ '--type-color': ty.color } as CSSProperties}
+                  onClick={() => {
+                    const next = filterType === ty.id ? null : ty.id;
+                    setFilterType(next);
+                    if (next) chooseType(next);
+                  }}
+                  aria-pressed={filterType === ty.id}
+                >
+                  <i aria-hidden="true" />
+                  {ty.name}
+                  <em>{formatNumber(typeCounts.get(ty.id) ?? 0)}</em>
+                </button>
+              ))}
+              {!readOnly && (
+                <button type="button" className="btn tiny notes-add-entry" onClick={beginNote}>
+                  ＋ {t('notes.addNote')}
+                </button>
+              )}
+              {!embedded && (
+                <button
+                  type="button"
+                  className={`btn tiny ${groupByType ? 'on' : ''}`}
+                  onClick={() => setGroupByType((v) => !v)}
+                  aria-pressed={groupByType}
+                >
+                  {t('notes.groupByType')}
+                </button>
+              )}
+            </div>
             {(filterTag || filterSource) && (
               <div className="banner info">
                 {t('notes.filterLabel')}
@@ -1567,30 +1863,53 @@ export function NotesPanel({
                 </button>
               </div>
             )}
-            {panel && (
-              <section className="notes-section">
-                <h4>
-                  {panelLabel}
-                  <span>{formatNumber(panelNotes.length)}</span>
-                </h4>
-                {shown(panelNotes).length ? (
-                  shown(panelNotes).map(renderNote)
-                ) : (
-                  <div className="notes-hint">{t('notes.noPanelNotes')}</div>
+            {groupByType && !embedded ? (
+              <>
+                {typeList
+                  .map((ty) => ({ ty, list: shown(notes).filter((n) => typeKey(n) === ty.id) }))
+                  .filter((g) => g.list.length)
+                  .map(({ ty, list }) => (
+                    <section className="notes-section" key={ty.id}>
+                      <h4>
+                        <span className="note-type-dot" style={{ background: ty.color }} aria-hidden="true" />
+                        {ty.name}
+                        <span>{formatNumber(list.length)}</span>
+                      </h4>
+                      {list.map(renderNote)}
+                    </section>
+                  ))}
+                {shown(notes).length === 0 && <div className="notes-hint notes-empty">{t('notes.noNotesYet')}</div>}
+              </>
+            ) : (
+              <>
+                {panel && (
+                  <section className="notes-section">
+                    <h4>
+                      {panelLabel}
+                      <span>{formatNumber(panelNotes.length)}</span>
+                    </h4>
+                    {shown(panelNotes).length ? (
+                      shown(panelNotes).map(renderNote)
+                    ) : (
+                      <div className="notes-hint notes-empty">{t('notes.noPanelNotes')}</div>
+                    )}
+                  </section>
                 )}
-              </section>
+                {!embedded && (
+                  <section className="notes-section">
+                    <h4>
+                      {t('notes.pageNotes')}
+                      <span>{formatNumber(pageNotes.length)}</span>
+                    </h4>
+                    {shown(pageNotes).length ? (
+                      shown(pageNotes).map(renderNote)
+                    ) : (
+                      <div className="notes-hint notes-empty">{t('notes.noPageNotes')}</div>
+                    )}
+                  </section>
+                )}
+              </>
             )}
-            <section className="notes-section">
-              <h4>
-                {t('notes.pageNotes')}
-                <span>{formatNumber(pageNotes.length)}</span>
-              </h4>
-              {shown(pageNotes).length ? (
-                shown(pageNotes).map(renderNote)
-              ) : (
-                <div className="notes-hint">{t('notes.noPageNotes')}</div>
-              )}
-            </section>
           </div>
         </>
       )}
@@ -1608,7 +1927,7 @@ export function NotesPanel({
       )}
     </aside>
   );
-}
+});
 
 /** Merge all notes on this page into one "context" request; for a single note the caller passes it directly. */
 function panelNoteSource(_panelNotes: Note[], pageNotes: Note[]): Note {
