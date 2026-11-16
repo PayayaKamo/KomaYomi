@@ -111,6 +111,19 @@ function normalizeDoc(input: PageDoc): PageDoc {
       scope: n.scope === 'panel' ? 'panel' : 'page',
       panelId: n.scope === 'panel' && typeof n.panelId === 'string' ? n.panelId : null,
       type: typeof n.type === 'string' && n.type.trim() ? n.type.trim() : DEFAULT_NOTE_TYPE,
+      anchor:
+        n.anchor &&
+        typeof n.anchor === 'object' &&
+        Number.isFinite(Number(n.anchor.x)) &&
+        Number.isFinite(Number(n.anchor.y)) &&
+        typeof n.anchor.lang === 'string' &&
+        n.anchor.lang
+          ? {
+              x: Math.min(1, Math.max(0, Number(n.anchor.x))),
+              y: Math.min(1, Math.max(0, Number(n.anchor.y))),
+              lang: n.anchor.lang as Lang,
+            }
+          : undefined,
       text: n.text,
       tags: Array.isArray(n.tags) ? n.tags.filter((t): t is string => typeof t === 'string') : [],
       source:
@@ -355,6 +368,22 @@ function reconcileAnnotationExtras(merged: PageDoc, normalized: PageDoc): void {
 }
 
 /**
+ * Note pins are deletion-sensitive too: `preserveUnknown` merges notes by id and would put
+ * back a pin the user just cleared. Pins always follow the normalized note.
+ */
+function reconcileNoteAnchors(merged: PageDoc, normalized: PageDoc): void {
+  if (!merged.notes?.length) return;
+  const nextById = new Map(normalized.notes.map((n) => [n.id, n]));
+  merged.notes = merged.notes.map((n) => {
+    const next = nextById.get(n.id);
+    if (!next) return n;
+    if (next.anchor) n.anchor = next.anchor;
+    else delete n.anchor;
+    return n;
+  });
+}
+
+/**
  * Refuse to publish a page document that fails the schema. The previous file is left
  * untouched; the caller gets a 422 naming the failed fields instead of a half-valid page.
  */
@@ -416,6 +445,7 @@ function writePageDocLocked(file: string, dataRoot: string, doc: PageDoc, meta?:
   merged.offsets = normalized.offsets;
   merged.panelOffsets = normalized.panelOffsets;
   reconcileAnnotationExtras(merged, normalized);
+  reconcileNoteAnchors(merged, normalized);
   assertSavesSchema(merged, doc.pageIndex);
   // Keep the last good revision (rotating up to KOMAYOMI_PAGE_BACKUPS copies) so a bad
   // save or a later rebuild never destroys the only readable copy.

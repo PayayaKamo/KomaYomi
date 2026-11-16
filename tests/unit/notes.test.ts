@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { collectNotes } from '../../server/notes.ts';
-import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
+import { createEmptyDoc, readPageDoc, writePageDoc } from '../../server/storage.ts';
 import type { Note, Panel } from '../../shared/types.ts';
 import { runWithLang, t } from '../../server/messages/index.ts';
 import { makeTempDir, removeDir, writeFile } from '../helpers/tmp.ts';
@@ -220,6 +220,27 @@ describe('collectNotes', () => {
     expect(zero.notes).toHaveLength(1);
 
     expect(collectNotes(dataRoot, { limit: 50_000 }).notes).toHaveLength(7);
+  });
+
+  it('keeps note anchors across saves and drops a cleared one', () => {
+    const dataRoot = tempDataRoot();
+    const anchored = makeNote({
+      id: 'n-pin',
+      scope: 'panel',
+      panelId: 'right',
+      text: 'Pinned',
+      anchor: { x: 0.7, y: 0.2, lang: 'ja' },
+    });
+    writePage(dataRoot, 'Vol1', '1', 0, [RIGHT], [anchored]);
+
+    const saved = readPageDoc(dataRoot, 'Vol1', '1', 0)!;
+    expect(saved.notes[0].anchor).toEqual({ x: 0.7, y: 0.2, lang: 'ja' });
+
+    // Clearing the pin must not let preserveUnknown resurrect it from the previous file.
+    const cleared = { ...saved, notes: [{ ...saved.notes[0] }] };
+    delete cleared.notes[0].anchor;
+    writePageDoc(dataRoot, cleared, { skipHistory: true });
+    expect(readPageDoc(dataRoot, 'Vol1', '1', 0)!.notes[0].anchor).toBeUndefined();
   });
 
   it('returns an empty index when the pages directory does not exist', () => {
