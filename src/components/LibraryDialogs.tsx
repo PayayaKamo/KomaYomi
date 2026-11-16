@@ -113,11 +113,14 @@ export function AddVolumeDialog({ onClose, onDone, initialPath = '' }: AddProps)
 type SettingsProps = {
   volume: VolumeEntry;
   onClose: () => void;
+  /** Refresh the library and close the dialog (used after the series itself is removed). */
   onDone: (library: Library) => void;
+  /** Refresh the library without closing the dialog (used for chapter unlinking). */
+  onLibrary?: (library: Library) => void;
 };
 
 /** Volume settings: map actual directories under the volume to languages; 1–2 languages is fine. */
-export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps) {
+export function VolumeSettingsDialog({ volume, onClose, onDone, onLibrary }: SettingsProps) {
   const { t } = useI18n();
   // Detected languages first, then the built-in defaults for folders that have no mapping yet.
   const langs = useMemo(() => {
@@ -133,6 +136,13 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
     return init;
   });
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [deleteFiles, setDeleteFiles] = useState(false);
+  const [pendingChapter, setPendingChapter] = useState<string | null>(null);
+  const [chapterBusy, setChapterBusy] = useState<string | null>(null);
+  const [offsetChapter, setOffsetChapter] = useState<string | null>(null);
+  const [offsetDraft, setOffsetDraft] = useState<Record<Lang, { from: string; to: string }>>({});
+  const [offsetBusy, setOffsetBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const used = useMemo(() => new Set(Object.values(choice).filter(Boolean)), [choice]);
@@ -157,16 +167,82 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
   };
 
   const remove = async () => {
-    if (!window.confirm(t('volumeSettings.removeConfirm', { title: volume.title }))) return;
     setBusy(true);
+    setError(null);
     try {
-      const res = await api.removeVolume(volume.id);
+      const res = await api.removeVolume(volume.id, { deleteFiles });
       onDone(res.library);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Languages present in a chapter, in the configured order, with their page counts. */
+  const chapterLangs = (chapter: (typeof volume.chapters)[number]) => {
+    const counts = new Map<Lang, number>();
+    for (const page of chapter.pages) {
+      for (const lang of Object.keys(page.filenames) as Lang[]) counts.set(lang, (counts.get(lang) ?? 0) + 1);
+    }
+    const ordered = langs.filter((lang) => counts.has(lang));
+    for (const lang of counts.keys()) if (!ordered.includes(lang)) ordered.push(lang);
+    return ordered.map((lang) => ({ lang, count: counts.get(lang) ?? 0 }));
+  };
+
+  const openPageOffsets = (chapter: (typeof volume.chapters)[number]) => {
+    if (offsetChapter === chapter.chapter) {
+      setOffsetChapter(null);
+      return;
+    }
+    const draft: Record<Lang, { from: string; to: string }> = {};
+    for (const { lang } of chapterLangs(chapter)) {
+      const offset = chapter.pageOffsets?.[lang];
+      draft[lang] = { from: offset ? String(offset.from) : '', to: offset ? String(offset.to) : '' };
+    }
+    setOffsetDraft(draft);
+    setOffsetChapter(chapter.chapter);
+    setError(null);
+  };
+
+  const savePageOffsets = async () => {
+    const chapter = volume.chapters.find((c) => c.chapter === offsetChapter);
+    if (!chapter) return;
+    const payload: Partial<Record<Lang, { from: number; to: number } | null>> = {};
+    for (const { lang } of chapterLangs(chapter)) {
+      const from = offsetDraft[lang]?.from.trim() ?? '';
+      const to = offsetDraft[lang]?.to.trim() ?? '';
+      if (!from && !to) {
+        payload[lang] = null;
+        continue;
+      }
+      payload[lang] = { from: Number(from), to: Number(to) };
+    }
+    setOffsetBusy(true);
+    setError(null);
+    try {
+      const res = await api.saveChapterPageOffsets(volume.id, chapter.chapter, payload);
+      (onLibrary ?? onDone)(res.library);
+      setOffsetChapter(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setOffsetBusy(false);
+    }
+  };
+
+  const toggleChapter = async (chapter: string, hidden: boolean) => {
+    setChapterBusy(chapter);
+    setError(null);
+    try {
+      const res = await api.removeChapter(volume.id, chapter, hidden);
+      (onLibrary ?? onDone)(res.library);
+      setPendingChapter(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setChapterBusy(null);
     }
   };
 
@@ -205,10 +281,172 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
               {w}
             </div>
           ))}
+
+          <div className="volume-chapters">
+            <strong>{t('volumeSettings.chapters')}</strong>
+            <p className="muted tiny">{t('volumeSettings.chaptersHint')}</p>
+            <ul className="volume-chapter-list">
+              {volume.chapters.map((chapter) => {
+                const label = chapter.title || chapter.chapter;
+                return (
+                  <li key={chapter.id}>
+                    <span className="volume-chapter-name" title={label}>
+                      {label}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      disabled={chapterBusy !== null}
+                      onClick={() => openPageOffsets(chapter)}
+                    >
+                      {t('volumeSettings.pageOffset')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn tiny"
+                      disabled={chapterBusy !== null}
+                      onClick={() => setPendingChapter(chapter.chapter)}
+                    >
+                      {t('volumeSettings.removeChapter')}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {offsetChapter &&
+              (() => {
+                const chapter = volume.chapters.find((c) => c.chapter === offsetChapter);
+                if (!chapter) return null;
+                return (
+                  <div className="page-offset-editor">
+                    <strong>
+                      {t('volumeSettings.pageOffsetTitle', { chapter: chapter.title || chapter.chapter })}
+                    </strong>
+                    <p className="muted tiny">{t('volumeSettings.pageOffsetHint')}</p>
+                    {chapterLangs(chapter).map(({ lang, count }) => (
+                      <div className="page-offset-row" key={lang}>
+                        <span className="page-offset-lang">
+                          {langLabel(lang)}{' '}
+                          <span className="muted tiny">{t('volumeSettings.pageOffsetCount', { count })}</span>
+                        </span>
+                        <input
+                          inputMode="numeric"
+                          value={offsetDraft[lang]?.from ?? ''}
+                          placeholder={t('volumeSettings.pageOffsetFrom')}
+                          onChange={(e) =>
+                            setOffsetDraft((d) => ({
+                              ...d,
+                              [lang]: { from: e.target.value, to: d[lang]?.to ?? '' },
+                            }))
+                          }
+                        />
+                        <span className="page-offset-arrow">→</span>
+                        <input
+                          inputMode="numeric"
+                          value={offsetDraft[lang]?.to ?? ''}
+                          placeholder={t('volumeSettings.pageOffsetTo')}
+                          onChange={(e) =>
+                            setOffsetDraft((d) => ({
+                              ...d,
+                              [lang]: { from: d[lang]?.from ?? '', to: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                    ))}
+                    <div className="volume-confirm-actions">
+                      <button
+                        type="button"
+                        className="btn tiny"
+                        disabled={offsetBusy}
+                        onClick={() => setOffsetChapter(null)}
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn tiny primary"
+                        disabled={offsetBusy}
+                        onClick={() => void savePageOffsets()}
+                      >
+                        {offsetBusy ? t('volumeSettings.saving') : t('common.save')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            {!!volume.hiddenChapters?.length && (
+              <>
+                <strong>{t('volumeSettings.hiddenChapters')}</strong>
+                <p className="muted tiny">{t('volumeSettings.hiddenChaptersHint')}</p>
+                <ul className="volume-chapter-list">
+                  {volume.hiddenChapters.map((chapter) => (
+                    <li key={chapter}>
+                      <span className="volume-chapter-name" title={chapter}>
+                        {chapter}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn tiny"
+                        disabled={chapterBusy !== null}
+                        onClick={() => void toggleChapter(chapter, false)}
+                      >
+                        {chapterBusy === chapter ? t('volumeSettings.restoring') : t('volumeSettings.restoreChapter')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+
+          {pendingChapter && (
+            <div className="banner warn volume-confirm">
+              <p>{t('volumeSettings.chapterRemoveConfirm', { chapter: pendingChapter })}</p>
+              <div className="volume-confirm-actions">
+                <button
+                  type="button"
+                  className="btn tiny"
+                  disabled={chapterBusy !== null}
+                  onClick={() => setPendingChapter(null)}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  className="btn tiny danger"
+                  disabled={chapterBusy !== null}
+                  onClick={() => void toggleChapter(pendingChapter, true)}
+                >
+                  {chapterBusy === pendingChapter ? t('volumeSettings.removing') : t('volumeSettings.removeChapter')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {removing && (
+            <div className="banner warn volume-confirm">
+              <p>{t('volumeSettings.removeConfirm', { title: volume.title })}</p>
+              <label className="volume-delete-files">
+                <input type="checkbox" checked={deleteFiles} onChange={(e) => setDeleteFiles(e.target.checked)} />
+                <span>{t('volumeSettings.removeDeleteFiles')}</span>
+              </label>
+              <p className="muted tiny">{t('volumeSettings.removeDeleteFilesHint')}</p>
+              <div className="volume-confirm-actions">
+                <button type="button" className="btn tiny" disabled={busy} onClick={() => setRemoving(false)}>
+                  {t('common.cancel')}
+                </button>
+                <button type="button" className="btn tiny danger" disabled={busy} onClick={() => void remove()}>
+                  {busy ? t('volumeSettings.removing') : t('volumeSettings.remove')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && <div className="banner error">{error}</div>}
         </div>
         <footer className="modal-foot">
-          <button type="button" className="btn danger" disabled={busy} onClick={() => void remove()}>
+          <button type="button" className="btn danger" disabled={busy} onClick={() => setRemoving(true)}>
             {t('volumeSettings.remove')}
           </button>
           <span className="spacer" />
@@ -216,7 +454,7 @@ export function VolumeSettingsDialog({ volume, onClose, onDone }: SettingsProps)
             {t('common.cancel')}
           </button>
           <button type="button" className="btn primary" disabled={busy} onClick={() => void save()}>
-            {busy ? t('volumeSettings.saving') : t('common.save')}
+            {busy && !removing ? t('volumeSettings.saving') : t('common.save')}
           </button>
         </footer>
       </div>

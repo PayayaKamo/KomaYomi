@@ -1,8 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { addVolume, removeVolume, setVolumeDefaultDirection, setVolumeDirs } from '../../server/libraryAdmin.ts';
-import { readLibraryConfig, writeLibraryConfig } from '../../server/library.ts';
+import {
+  addVolume,
+  removeVolume,
+  setChapterHidden,
+  setChapterPageOffsets,
+  setVolumeDefaultDirection,
+  setVolumeDirs,
+} from '../../server/libraryAdmin.ts';
+import { createLibrary, readLibraryConfig, writeLibraryConfig } from '../../server/library.ts';
 import { AppError } from '../../server/errors.ts';
 import { runWithLang, t } from '../../server/messages/index.ts';
 import { makeTempDir, removeDir, writeFile } from '../helpers/tmp.ts';
@@ -91,7 +98,7 @@ describe('addVolume', () => {
     expect(fs.existsSync(path.join(rawRoot, 'Display Name', 'en', '1', '01.jpg'))).toBe(true);
   });
 
-  it('links a parent directory as one volume (multi-volume branch is unreachable)', () => {
+  it('links each volume when the selection is a parent of several volumes', () => {
     const { rawRoot, external } = tempRoot();
     const parent = path.join(external, 'Parent');
     writeFile(path.join(parent, 'VolA', 'ja', '1', '01.jpg'), 'a');
@@ -99,10 +106,34 @@ describe('addVolume', () => {
 
     const res = inEn(() => addVolume(rawRoot, parent));
 
-    // Every subdirectory is treated as a language folder, so the parent itself is linked once.
-    expect(res.added).toEqual(['Parent']);
-    expect(fs.existsSync(path.join(rawRoot, 'Parent', 'VolA', 'ja', '1', '01.jpg'))).toBe(true);
-    expect(fs.existsSync(path.join(rawRoot, 'VolA'))).toBe(false);
+    expect(res.added.sort()).toEqual(['VolA', 'VolB']);
+    expect(res.warnings).toEqual([]);
+    expect(fs.readFileSync(path.join(rawRoot, 'VolA', 'ja', '1', '01.jpg'), 'utf8')).toBe('a');
+    expect(fs.readFileSync(path.join(rawRoot, 'VolB', 'en', '1', '01.jpg'), 'utf8')).toBe('b');
+    expect(fs.existsSync(path.join(rawRoot, 'Parent'))).toBe(false);
+  });
+
+  it('links volumes nested in a series and stores the series name', () => {
+    const { rawRoot, external, dataRoot } = tempRoot();
+    const series = path.join(external, 'Series');
+    writeFile(path.join(series, 'Vol1', 'ja', '1', '01.jpg'), 'v1');
+    writeFile(path.join(series, 'Vol2', 'zh-hk', '1', '01.webp'), 'v2');
+
+    const res = inEn(() => addVolume(rawRoot, series, undefined, dataRoot));
+
+    expect(res.added.sort()).toEqual(['Vol1', 'Vol2']);
+    const config = JSON.parse(fs.readFileSync(path.join(dataRoot, 'library.json'), 'utf8'));
+    expect(config.volumes.Vol1.series).toBe('Series');
+    expect(config.volumes.Vol2.series).toBe('Series');
+  });
+
+  it('suggests pointing at one volume when the layout has no language level', () => {
+    const { rawRoot, external } = tempRoot();
+    const parent = path.join(external, 'Series');
+    writeFile(path.join(parent, 'VolA', '1', '01.jpg'), 'a');
+    writeFile(path.join(parent, 'VolB', '1', '01.jpg'), 'b');
+
+    expectAppError(() => inEn(() => addVolume(rawRoot, parent)), 'ERR_VOLUME_LAYOUT_UNRECOGNIZED', 400);
   });
 
   it('adds an empty external directory as a single volume without the fallback warning', () => {
@@ -162,7 +193,9 @@ describe('removeVolume', () => {
 
     const res = inEn(() => removeVolume(rawRoot, dataRoot, 'KeepMe'));
 
-    expect(res).toEqual({ removed: true, warnings: [] });
+    expect(res.removed).toBe(true);
+    expect(res.warnings).toEqual([]);
+    expect(res.deletedPath).toBe(path.join(rawRoot, 'KeepMe'));
     expect(fs.existsSync(path.join(rawRoot, 'KeepMe'))).toBe(false);
     expect(fs.readFileSync(path.join(source, 'ja', '1', '01.jpg'), 'utf8')).toBe('image');
 
@@ -172,12 +205,17 @@ describe('removeVolume', () => {
     expect(cfg.volumes?.KeepMe).toBeUndefined();
   });
 
-  it('refuses to remove a real directory', () => {
+  it('removes a real directory from the library without deleting it', () => {
     const { rawRoot, dataRoot } = tempRoot();
     fs.mkdirSync(path.join(rawRoot, 'RealVol'));
+    writeLibraryConfig(dataRoot, { volumes: { RealVol: { title: 'Real' } } });
 
-    expectAppError(() => inEn(() => removeVolume(rawRoot, dataRoot, 'RealVol')), 'ERR_REAL_DIRECTORY', 409);
+    const res = inEn(() => removeVolume(rawRoot, dataRoot, 'RealVol'));
+
+    expect(res.removed).toBe(true);
+    expect(res.warnings).toEqual([]);
     expect(fs.statSync(path.join(rawRoot, 'RealVol')).isDirectory()).toBe(true);
+    expect(readLibraryConfig(dataRoot).volumes?.RealVol).toBeUndefined();
   });
 
   it('warns and cleans the config when the directory already disappeared', () => {
@@ -205,6 +243,79 @@ describe('removeVolume', () => {
     const cfg = readLibraryConfig(dataRoot);
     expect(cfg.volumes?.Stay?.title).toBe('Stay');
     expect(cfg.volumes?.Drop).toBeUndefined();
+  });
+
+  it('keeps the linked originals unless deleteFiles is explicitly set', () => {
+    const { rawRoot, dataRoot, external } = tempRoot();
+    const source = path.join(external, 'Drop');
+    writeFile(path.join(source, 'ja', '1', '01.jpg'), 'x');
+    inEn(() => addVolume(rawRoot, source));
+
+    inEn(() => removeVolume(rawRoot, dataRoot, 'Drop'));
+
+    expect(fs.existsSync(path.join(source, 'ja', '1', '01.jpg'))).toBe(true);
+    expect(fs.existsSync(path.join(rawRoot, 'Drop'))).toBe(false);
+  });
+
+  it('never deletes the originals behind a link, even with deleteFiles', () => {
+    const { rawRoot, dataRoot, external } = tempRoot();
+    const source = path.join(external, 'Drop');
+    writeFile(path.join(source, 'ja', '1', '01.jpg'), 'x');
+    inEn(() => addVolume(rawRoot, source));
+
+    const res = inEn(() => removeVolume(rawRoot, dataRoot, 'Drop', { deleteFiles: true }));
+
+    expect(res.deletedPath).toBe(path.join(rawRoot, 'Drop'));
+    expect(fs.existsSync(source)).toBe(true);
+    expect(fs.existsSync(path.join(rawRoot, 'Drop'))).toBe(false);
+  });
+
+  it('keeps a real directory with a warning when deleteFiles is set', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    inEn(() => addVolume(rawRoot, undefined, 'Real'));
+
+    const res = inEn(() => removeVolume(rawRoot, dataRoot, 'Real', { deleteFiles: true }));
+
+    expect(res.removed).toBe(true);
+    expect(res.warnings).toEqual([inEn(() => t('WARN_REAL_DIRECTORY_KEPT', { path: path.join(rawRoot, 'Real') }))]);
+    expect(fs.existsSync(path.join(rawRoot, 'Real'))).toBe(true);
+  });
+
+  it('rejects volume ids that could escape the raw root', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    expectAppError(() => inEn(() => removeVolume(rawRoot, dataRoot, '../outside')), 'ERR_UNSAFE_SEGMENT', 400);
+    expectAppError(() => inEn(() => removeVolume(rawRoot, dataRoot, '..')), 'ERR_UNSAFE_SEGMENT', 400);
+  });
+});
+
+describe('setChapterHidden', () => {
+  it('hides a chapter from the library without touching its files and restores it', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(path.join(rawRoot, 'Vol1', 'ja', 'ch1', '01.jpg'), 'x');
+    writeFile(path.join(rawRoot, 'Vol1', 'ja', 'ch2', '01.jpg'), 'x');
+
+    inEn(() => setChapterHidden(rawRoot, dataRoot, 'Vol1', 'ch1', true));
+
+    let volume = createLibrary(rawRoot, dataRoot).volumes.find((v) => v.id === 'Vol1');
+    expect(volume?.chapters.map((c) => c.chapter)).toEqual(['ch2']);
+    expect(volume?.hiddenChapters).toEqual(['ch1']);
+    expect(fs.existsSync(path.join(rawRoot, 'Vol1', 'ja', 'ch1', '01.jpg'))).toBe(true);
+
+    inEn(() => setChapterHidden(rawRoot, dataRoot, 'Vol1', 'ch1', false));
+
+    volume = createLibrary(rawRoot, dataRoot).volumes.find((v) => v.id === 'Vol1');
+    expect(volume?.chapters.map((c) => c.chapter)).toEqual(['ch1', 'ch2']);
+    expect(volume?.hiddenChapters).toEqual([]);
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.chapters).toBeUndefined();
+  });
+
+  it('rejects an unknown volume', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    expectAppError(
+      () => inEn(() => setChapterHidden(rawRoot, dataRoot, 'Missing', 'ch1', true)),
+      'ERR_VOLUME_NOT_FOUND',
+      404,
+    );
   });
 });
 
@@ -269,6 +380,112 @@ describe('setVolumeDirs', () => {
     inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Vol1', { '   ': 'ja', ja: null }));
 
     expect(readLibraryConfig(dataRoot).volumes?.Vol1).toBeUndefined();
+  });
+});
+
+describe('setChapterPageOffsets', () => {
+  it('persists offsets per language and exposes them on the chapter', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(path.join(rawRoot, 'Vol1', 'ja', '199', '01.jpg'), 'x');
+    writeFile(path.join(rawRoot, 'Vol1', 'en', '199', '01.jpg'), 'x');
+
+    inEn(() => setChapterPageOffsets(rawRoot, dataRoot, 'Vol1', '199', { en: { from: 11, to: 13 } }));
+
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.chapters?.['199']?.pageOffsets).toEqual({
+      en: { from: 11, to: 13 },
+    });
+    const chapter = createLibrary(rawRoot, dataRoot).volumes[0].chapters[0];
+    expect(chapter.pageOffsets).toEqual({ en: { from: 11, to: 13 } });
+  });
+
+  it('clears the offsets when an empty object is saved', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(path.join(rawRoot, 'Vol1', 'ja', '199', '01.jpg'), 'x');
+    inEn(() => setChapterPageOffsets(rawRoot, dataRoot, 'Vol1', '199', { en: { from: 2, to: 3 } }));
+
+    inEn(() => setChapterPageOffsets(rawRoot, dataRoot, 'Vol1', '199', {}));
+
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1).toBeUndefined();
+  });
+
+  it('rejects a start page below 1 or a target before the start', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    fs.mkdirSync(path.join(rawRoot, 'Vol1'), { recursive: true });
+
+    expectAppError(
+      () => inEn(() => setChapterPageOffsets(rawRoot, dataRoot, 'Vol1', '199', { en: { from: 0, to: 2 } })),
+      'ERR_PAGE_OFFSET_INVALID',
+      400,
+    );
+    expectAppError(
+      () => inEn(() => setChapterPageOffsets(rawRoot, dataRoot, 'Vol1', '199', { en: { from: 5, to: 3 } })),
+      'ERR_PAGE_OFFSET_INVALID',
+      400,
+    );
+  });
+});
+
+describe('volume operations on a volume nested under a series', () => {
+  const nested = (rawRoot: string, ...parts: string[]) => path.join(rawRoot, 'Series', 'Vol1', ...parts);
+
+  it('saves the language mapping and applies it to the scanned volume', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(nested(rawRoot, 'ja', '199', '01.jpg'), 'x');
+    writeFile(nested(rawRoot, 'zh-hk', '199', '01.webp'), 'x');
+
+    inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Vol1', { ja: 'ja', zh: 'zh-hk' }));
+
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.dirs).toEqual({ ja: 'ja', zh: 'zh-hk' });
+    const volume = createLibrary(rawRoot, dataRoot).volumes.find((v) => v.id === 'Vol1');
+    expect(volume?.langDirs).toEqual({ ja: 'ja', zh: 'zh-hk' });
+    expect(volume?.series).toBe('Series');
+  });
+
+  it('saves the default direction and hidden chapters', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(nested(rawRoot, 'ja', 'ch1', '01.jpg'), 'x');
+    writeFile(nested(rawRoot, 'ja', 'ch2', '01.jpg'), 'x');
+
+    inEn(() => setVolumeDefaultDirection(rawRoot, dataRoot, 'Vol1', 'ltr'));
+    inEn(() => setChapterHidden(rawRoot, dataRoot, 'Vol1', 'ch1', true));
+
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.defaultDirection).toBe('ltr');
+    const volume = createLibrary(rawRoot, dataRoot).volumes.find((v) => v.id === 'Vol1');
+    expect(volume?.defaultDirection).toBe('ltr');
+    expect(volume?.chapters.map((c) => c.chapter)).toEqual(['ch2']);
+    expect(volume?.hiddenChapters).toEqual(['ch1']);
+  });
+
+  it('saves page offsets', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(nested(rawRoot, 'ja', '199', '01.jpg'), 'x');
+    writeFile(nested(rawRoot, 'en', '199', '01.png'), 'x');
+
+    inEn(() => setChapterPageOffsets(rawRoot, dataRoot, 'Vol1', '199', { en: { from: 11, to: 13 } }));
+
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.chapters?.['199']?.pageOffsets).toEqual({
+      en: { from: 11, to: 13 },
+    });
+  });
+
+  it('still validates directory names against the nested volume', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    writeFile(nested(rawRoot, 'ja', '199', '01.jpg'), 'x');
+
+    expectAppError(
+      () => inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Vol1', { ja: 'nope' })),
+      'ERR_DIR_NOT_IN_VOLUME',
+      400,
+    );
+  });
+
+  it('still rejects an unknown volume', () => {
+    const { rawRoot, dataRoot } = tempRoot();
+    expectAppError(
+      () => inEn(() => setVolumeDirs(rawRoot, dataRoot, 'Missing', { ja: 'ja' })),
+      'ERR_VOLUME_NOT_FOUND',
+      404,
+    );
   });
 });
 

@@ -41,14 +41,24 @@ export type DirRule = {
 export const DEFAULT_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.bmp'];
 
 /**
- * Default rule reproduces the historical layout `raw/<volume>/<language>/<chapter>/<page>`.
- * Keeping it first means existing libraries (including 点兔第14卷) need no configuration.
+ * Default rules cover the two layouts libraries actually use:
+ * - `raw/<volume>/<language>/<chapter>/<page>` (historical layout, tried first)
+ * - `raw/<series>/<volume>/<language>/<chapter>/<page>` (a folder holding several works)
+ *
+ * `{series}` may span more than one directory, so a collection folder above the works
+ * (`raw/collection/<series>/<volume>/...`) is folded into the series name instead of
+ * leaving every image unmatched.
  */
 export const DEFAULT_RULES: DirRule[] = [
   {
     id: 'volume-language-chapter-page',
     name: '{volume}/{language}/{chapter}/{page}',
     pattern: '{volume}/{language}/{chapter}/{page}',
+  },
+  {
+    id: 'series-volume-language-chapter-page',
+    name: '{series}/{volume}/{language}/{chapter}/{page}',
+    pattern: '{series}/{volume}/{language}/{chapter}/{page}',
   },
 ];
 
@@ -174,6 +184,19 @@ function matchPattern(segments: string[], pattern: PatternSegment[], pi: number,
   if (seg.kind === 'wildcard') {
     return matchPattern(segments, pattern, pi + 1, si + 1, acc);
   }
+  if (seg.kind === 'placeholder' && seg.name === 'series') {
+    // A series may be nested: `collection/work/volume/...`. Try the shortest series
+    // first so a single-directory series keeps behaving exactly as before, then let it
+    // absorb one more directory at a time until the rest of the pattern fits.
+    for (let take = 1; si + take <= segments.length; take++) {
+      const matched = matchPattern(segments, pattern, pi + 1, si + take, {
+        values: { ...acc.values, series: segments.slice(si, si + take).join('/') },
+        positions: { ...acc.positions, series: si },
+      });
+      if (matched) return matched;
+    }
+    return null;
+  }
   if (seg.kind === 'literal') {
     // Windows paths are case-insensitive; compare lowercased for both platforms so
     // a rule copied from another machine still matches.
@@ -191,6 +214,11 @@ export type ResolvedFile = {
   /** Path relative to the raw root, using "/" separators. */
   file: string;
   volumeId: string;
+  /**
+   * Series path above the volume, using "/" separators. Absent for the flat
+   * `volume/language/...` layout, where the volume is the top level.
+   */
+  series?: string;
   /** Directory of the volume relative to the raw root; '' when the volume is the root. */
   volumeRoot: string;
   chapter: string;
@@ -325,11 +353,16 @@ export function resolveFiles(
 
     const { rule, match } = matched;
     const { values, positions } = match;
-    const volumeId = [values.series, values.volume].filter(Boolean).join(' / ') || ROOT_VOLUME;
+    // The volume id stays a single directory name because page data lives under
+    // data/pages/<volume>/... and request paths forbid separators. The series is
+    // carried separately for display ("series · volume").
+    const series = values.series;
+    const volumeId = values.volume ?? values.series ?? ROOT_VOLUME;
     const chapter = values.chapter ?? SINGLE_CHAPTER;
     const langSegment = values.language ?? rule.language ?? '';
     const langPos = positions.language ?? -1;
-    const volumePos = positions.volume ?? positions.series ?? -1;
+    const seriesEnd = series ? (positions.series ?? 0) + series.split('/').length - 1 : -1;
+    const volumePos = positions.volume ?? seriesEnd;
 
     let lang = normalizeLang(langSegment);
     const override = pinned[volumeId];
@@ -351,6 +384,7 @@ export function resolveFiles(
     files.push({
       file,
       volumeId,
+      series: series || undefined,
       volumeRoot,
       chapter,
       lang,
@@ -361,5 +395,45 @@ export function resolveFiles(
     hits[rule.id] = (hits[rule.id] ?? 0) + 1;
   }
 
+  disambiguateVolumeIds(files);
+
   return { files, unmatched, hits, truncated };
+}
+
+/**
+ * Two different series may both ship `vol-01`. Their files must not merge into one
+ * volume, so colliding ids are renamed with the series folder as a prefix
+ * (`alpha-vol-01`), mirroring how "add manga" links volumes from a series.
+ */
+function disambiguateVolumeIds(files: ResolvedFile[]): void {
+  const rootsById = new Map<string, Set<string>>();
+  for (const file of files) {
+    const roots = rootsById.get(file.volumeId) ?? new Set<string>();
+    roots.add(file.volumeRoot);
+    rootsById.set(file.volumeId, roots);
+  }
+
+  const used = new Set(files.map((file) => file.volumeId));
+  for (const [id, roots] of rootsById) {
+    if (roots.size < 2) continue;
+    const seriesOf = (root: string) =>
+      files.find((file) => file.volumeId === id && file.volumeRoot === root)?.series ?? '';
+    const ordered = [...roots].sort((a, b) => {
+      // A flat `volume/...` directory keeps the plain id; only the extra series
+      // folders need prefixing.
+      const flat = (seriesOf(a) ? 1 : 0) - (seriesOf(b) ? 1 : 0);
+      return flat || a.localeCompare(b);
+    });
+    ordered.forEach((root, index) => {
+      const series = seriesOf(root);
+      if (index === 0 && !series) return;
+      const tail = series.split('/').filter(Boolean).pop() ?? root.split('/').filter(Boolean).pop() ?? id;
+      let next = `${tail}-${id}`;
+      for (let n = 2; used.has(next); n++) next = `${tail}-${id}-${n}`;
+      used.add(next);
+      for (const file of files) {
+        if (file.volumeId === id && file.volumeRoot === root) file.volumeId = next;
+      }
+    });
+  }
 }

@@ -188,3 +188,60 @@ describe('resolveFiles', () => {
     expect(result.files.every((f) => f.langDir === 'ja')).toBe(true);
   });
 });
+
+describe('resolveFiles with several works in one root', () => {
+  it('recognises series/volume/language/chapter with the default rules', () => {
+    const root = tempRoot([
+      'gochiusa/gochiusa-14/en/172/01.png',
+      'gochiusa/gochiusa-14/ja/172/01.jpg',
+      'oomuroke/oomuroke-08/zh-hk/106/01.webp',
+    ]);
+    const result = resolveFiles(root, DEFAULT_RULES);
+
+    expect(result.unmatched).toHaveLength(0);
+    const en = result.files.find((f) => f.file === 'gochiusa/gochiusa-14/en/172/01.png');
+    expect(en).toMatchObject({
+      volumeId: 'gochiusa-14',
+      series: 'gochiusa',
+      volumeRoot: 'gochiusa/gochiusa-14',
+      chapter: '172',
+      lang: 'en',
+      langDir: 'en',
+      rule: 'series-volume-language-chapter-page',
+    });
+    const zhHk = result.files.find((f) => f.file.endsWith('01.webp'));
+    expect(zhHk).toMatchObject({ volumeId: 'oomuroke-08', series: 'oomuroke', lang: 'zh', langDir: 'zh-hk' });
+  });
+
+  it('folds an extra collection folder into the series path', () => {
+    const root = tempRoot(['test-manga-raw/yuruyuri/yuruyuri-24/ja/199/01.jpg']);
+    const result = resolveFiles(root, DEFAULT_RULES);
+
+    expect(result.unmatched).toHaveLength(0);
+    expect(result.files[0]).toMatchObject({
+      volumeId: 'yuruyuri-24',
+      series: 'test-manga-raw/yuruyuri',
+      volumeRoot: 'test-manga-raw/yuruyuri/yuruyuri-24',
+      langDir: 'ja',
+    });
+  });
+
+  it('keeps volumes from different series apart when their folders share a name', () => {
+    const root = tempRoot(['alpha/vol-01/ja/1/01.png', 'beta/vol-01/ja/1/01.png']);
+    const result = resolveFiles(root, DEFAULT_RULES);
+
+    expect(result.files.map((f) => f.volumeId).sort()).toEqual(['alpha-vol-01', 'beta-vol-01']);
+    expect(result.files.every((f) => f.volumeRoot.endsWith('/vol-01'))).toBe(true);
+  });
+
+  it('still prefers the flat volume/language/chapter layout', () => {
+    const root = tempRoot(['Vol1/ja/172/01.png']);
+    const result = resolveFiles(root, DEFAULT_RULES);
+    expect(result.files[0]).toMatchObject({
+      volumeId: 'Vol1',
+      volumeRoot: 'Vol1',
+      rule: 'volume-language-chapter-page',
+    });
+    expect(result.files[0].series).toBeUndefined();
+  });
+});

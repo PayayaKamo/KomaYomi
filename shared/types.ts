@@ -298,6 +298,8 @@ export type PageEntry = {
   index: number;
   files: Partial<Record<Lang, string>>;
   filenames: Partial<Record<Lang, string>>;
+  /** Languages that exist in the volume but have no file for this page slot. */
+  missing?: Lang[];
   warnings: string[];
   annotated: boolean;
   /** Hidden from the reading body and exports by the preprocessing wizard. */
@@ -314,11 +316,22 @@ export type ChapterEntry = {
   title?: string;
   pages: PageEntry[];
   warnings: string[];
+  /** Per-language page-number alignment applied when the chapter has no matching page numbers. */
+  pageOffsets?: Partial<Record<Lang, PageOffset>>;
+};
+
+export type PageOffset = {
+  /** First page (1-based, in the language's own filenames) that needs shifting. */
+  from: number;
+  /** Page number in the reference edition that `from` should align to. */
+  to: number;
 };
 
 export type VolumeEntry = {
   id: string;
   title: string;
+  /** Series name when the volume was imported from a series/volume/language layout. */
+  series?: string;
   chapters: ChapterEntry[];
   warnings: string[];
   /** Language -> actual directory name under raw/ (a manga may ship only 1-3 languages). */
@@ -329,6 +342,8 @@ export type VolumeEntry = {
   dirs: string[];
   /** Default direction for pages in this volume that have no explicit direction yet. */
   defaultDirection?: ReadingDirection;
+  /** Chapters removed from the library (their folders and page data stay on disk). */
+  hiddenChapters?: string[];
 };
 
 export type Library = {
@@ -348,11 +363,17 @@ export type ChapterOverride = {
   excluded?: number[];
   /** Page document index -> role, for covers, ads and similar front/back matter. */
   kinds?: Record<string, PageKind>;
+  /** Hidden from the library without touching the chapter folder under raw/. */
+  hidden?: boolean;
+  /** Shift page numbers for one language when extra pages are inserted mid-chapter. */
+  pageOffsets?: Partial<Record<Lang, PageOffset>>;
 };
 
 /** Per-volume overrides stored in data/library.json; folder names stay untouched on disk. */
 export type VolumeOverride = {
   title?: string;
+  /** Series name shown in the sidebar as "series · volume". */
+  series?: string;
   dirs?: Partial<Record<Lang, string>>;
   chapters?: Record<string, ChapterOverride>;
   /** Reading direction inherited by pages in this volume before they are edited. */

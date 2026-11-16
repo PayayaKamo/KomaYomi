@@ -4,6 +4,7 @@ import type { Library, ReadingDirection } from '../types';
 import { SINGLE_CHAPTER, isRightToLeft, isVerticalReading } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { useI18n } from '../i18n';
+import { volumeLabel as volumeLabelOf } from '../lib/volumeLabel';
 
 type Props = {
   library: Library | null;
@@ -237,7 +238,7 @@ export function CrumbNav({ library, selection, direction = 'rtl', onOpen, onStep
 
   if (!library) return null;
 
-  const volumeLabel = volume?.title ?? selection.volume;
+  const volumeLabel = volume ? volumeLabelOf(volume) : selection.volume;
   const currentChapter = volume?.chapters.find((c) => c.chapter === selection.chapter);
   const chapterLabel =
     currentChapter?.title?.trim() ||

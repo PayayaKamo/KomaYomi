@@ -201,8 +201,17 @@ export function listDirs(dir: string): string[] {
   return out.sort(naturalCompare);
 }
 
+/** Extract the page number from a filename: the last numeric run in the basename. */
+function pageNumber(filename: string): number | null {
+  const base = filename.replace(/\.[^.]+$/, '');
+  const matches = base.match(/\d+/g);
+  if (!matches?.length) return null;
+  const number = Number.parseInt(matches[matches.length - 1], 10);
+  return Number.isFinite(number) ? number : null;
+}
+
 /** Whether a directory contains images (recursively), so empty dirs aren't treated as volumes to configure. */
-function hasImages(dir: string, depth = 0): boolean {
+export function hasImages(dir: string, depth = 0): boolean {
   if (depth > 8) return false;
   let entries: fs.Dirent[];
   try {
@@ -241,6 +250,23 @@ function activeRules(cfg: LibraryConfig): { rules: DirRule[]; warning?: string }
       }),
     };
   }
+}
+
+/**
+ * On-disk folder of a volume id. Flat layouts live directly under raw, while volumes
+ * scanned from a multi-work root sit under their series folders; fall back to the same
+ * rule-based scan instead of assuming a top-level directory name.
+ */
+export function resolveVolumeDir(rawRoot: string, dataRoot: string, volume: string): string | null {
+  const direct = path.join(rawRoot, volume);
+  try {
+    if (fs.statSync(direct).isDirectory()) return direct;
+  } catch {
+    // No top-level folder with that name; look it up in the scan below.
+  }
+  const { rules } = activeRules(readLibraryConfig(dataRoot));
+  const row = resolveFiles(rawRoot, rules).files.find((entry) => entry.volumeId === volume);
+  return row ? path.join(rawRoot, row.volumeRoot) : null;
 }
 
 export type DirPreview = {
@@ -395,8 +421,15 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
 
     const chapterNames = [...new Set(rows.map((r) => r.chapter))].sort(naturalCompare);
     const chapters: ChapterEntry[] = [];
+    const hiddenChapters: string[] = [];
 
     for (const chapter of chapterNames) {
+      // A hidden chapter is unlinked from the library only: its folder and page data stay on disk.
+      const chapterCfg = config.volumes?.[volumeId]?.chapters?.[chapter];
+      if (chapterCfg?.hidden) {
+        hiddenChapters.push(chapter);
+        continue;
+      }
       const chapterRows = rows.filter((r) => r.chapter === chapter);
       const countByLang = new Map<Lang, number>();
       const filesByLang = new Map<Lang, { filename: string; file: string }[]>();
@@ -410,7 +443,6 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         countByLang.set(lang, list.length);
       }
 
-      const maxPages = Math.max(0, ...[...countByLang.values()]);
       const chapterWarnings: string[] = [];
       const nonEmpty = [...countByLang.entries()].filter(([, count]) => count > 0);
       if (nonEmpty.length > 1) {
@@ -432,16 +464,69 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         }
       }
 
+      const pageOffsets = chapterCfg?.pageOffsets ?? {};
+      // Align by the page number embedded in filenames when every language exposes a unique
+      // number (the normal case). Otherwise fall back to positional alignment.
+      let keyed = true;
+      const numbered = new Map<Lang, { number: number; entry: { filename: string; file: string } }[]>();
+      for (const lang of langsInVolume) {
+        const list = filesByLang.get(lang) ?? [];
+        const seen = new Set<number>();
+        const entries: { number: number; entry: { filename: string; file: string } }[] = [];
+        for (const entry of list) {
+          const number = pageNumber(entry.filename);
+          if (number == null || seen.has(number)) {
+            keyed = false;
+            break;
+          }
+          seen.add(number);
+          entries.push({ number, entry });
+        }
+        if (!keyed) break;
+        numbered.set(lang, entries);
+      }
+      if (!keyed) {
+        // Positional fallback: treat the sorted position within each language as its page number.
+        numbered.clear();
+        for (const lang of langsInVolume) {
+          numbered.set(
+            lang,
+            (filesByLang.get(lang) ?? []).map((entry, position) => ({ number: position + 1, entry })),
+          );
+        }
+      }
+
+      const slots = new Map<number, Partial<Record<Lang, { filename: string; file: string }>>>();
+      for (const lang of langsInVolume) {
+        const entries = numbered.get(lang) ?? [];
+        const offset = pageOffsets[lang];
+        entries.forEach((item) => {
+          const original = item.number;
+          let slot = original;
+          if (offset && original >= offset.from) slot = original - offset.from + offset.to;
+          slot = Math.max(1, Math.round(slot));
+          // Malformed legacy offsets may collide; push to the next free slot instead of dropping a page.
+          while (slots.get(slot)?.[lang]) slot++;
+          const bucket = slots.get(slot) ?? {};
+          bucket[lang] = item.entry;
+          slots.set(slot, bucket);
+        });
+      }
+
       const pages: PageEntry[] = [];
-      for (let i = 0; i < maxPages; i++) {
+      const orderedSlots = [...slots.keys()].sort((a, b) => a - b);
+      for (let i = 0; i < orderedSlots.length; i++) {
+        const slot = orderedSlots[i];
+        const bucket = slots.get(slot) ?? {};
         const warnings: string[] = [];
         const files: Partial<Record<Lang, string>> = {};
         const filenames: Partial<Record<Lang, string>> = {};
+        const missing: Lang[] = [];
 
         for (const lang of langsInVolume) {
-          const list = filesByLang.get(lang) ?? [];
-          const entry = list[i];
+          const entry = bucket[lang];
           if (!entry) {
+            missing.push(lang);
             warnings.push(t('WARN_MISSING_PAGE', { lang: langName(lang), page: i + 1 }));
             continue;
           }
@@ -451,13 +536,15 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
           files[lang] = encodePath('raw', ...entry.file.split('/'));
         }
 
-        // Naming warning: the page-number prefix disagrees with the sequence.
-        for (const lang of langsInVolume) {
-          const name = filenames[lang];
-          if (!name) continue;
-          const m = name.match(/^0*(\d+)/);
-          if (m && parseInt(m[1], 10) !== i + 1) {
-            warnings.push(t('WARN_FILENAME_MISMATCH', { lang: langName(lang), name, page: i + 1 }));
+        // Naming warning only applies to positional alignment: keyed pages are aligned by number.
+        if (!keyed) {
+          for (const lang of langsInVolume) {
+            const name = filenames[lang];
+            if (!name || pageOffsets[lang]) continue;
+            const m = name.match(/^0*(\d+)/);
+            if (m && parseInt(m[1], 10) !== slot) {
+              warnings.push(t('WARN_FILENAME_MISMATCH', { lang: langName(lang), name, page: i + 1 }));
+            }
           }
         }
 
@@ -465,13 +552,13 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
           index: i,
           files,
           filenames,
+          missing: missing.length ? missing : undefined,
           warnings,
           annotated: fs.existsSync(path.join(dataRoot, 'pages', volumeId, chapter, `${i}.json`)),
         });
       }
 
       // Display name, page order, exclusion and roles come from data/library.json, never from disk renames.
-      const chapterCfg = config.volumes?.[volumeId]?.chapters?.[chapter];
       const excluded = new Set(chapterCfg?.excluded ?? []);
       const kinds = chapterCfg?.kinds ?? {};
       const orderedPages = reorderPages(pages, chapterCfg?.order).map((page) => {
@@ -490,18 +577,23 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
         title: chapterCfg?.title?.trim() || undefined,
         pages: orderedPages,
         warnings: chapterWarnings,
+        pageOffsets: chapterCfg?.pageOffsets,
       });
     }
 
     volumes.push({
       id: volumeId,
       title: config.volumes?.[volumeId]?.title?.trim() || volumeId,
+      // A volume scanned from a multi-work root keeps its series so the sidebar can
+      // show "series · volume"; an explicit config value still wins.
+      series: config.volumes?.[volumeId]?.series?.trim() || rows[0].series || undefined,
       chapters,
       warnings: volumeWarnings,
       langDirs,
       languages: langsInVolume,
       dirs,
       defaultDirection: readReadingDirection(config.volumes?.[volumeId]?.defaultDirection),
+      hiddenChapters,
     });
   }
 
@@ -521,7 +613,7 @@ export function createLibrary(rawRoot: string, dataRoot: string): LibraryResult 
     }
   }
 
-  volumes.sort((a, b) => naturalCompare(a.id, b.id));
+  volumes.sort((a, b) => naturalCompare(a.series ?? a.id, b.series ?? b.id) || naturalCompare(a.id, b.id));
 
   return {
     root: rawRoot,

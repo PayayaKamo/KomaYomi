@@ -5,6 +5,7 @@ import { langShort, SINGLE_CHAPTER } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { api, thumbUrl } from '../api';
 import { copyText } from '../lib/clipboard';
+import { volumeLabel } from '../lib/volumeLabel';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import { useI18n } from '../i18n';
 import { AddVolumeDialog, VolumeSettingsDialog } from './LibraryDialogs';
@@ -25,6 +26,8 @@ type Props = {
   onReload: (library?: Library) => void;
   /** Whether the current page has unsaved edits; warned before project export/import. */
   dirty: boolean;
+  /** Read-only viewer: library management is hidden, browsing and opening stay available. */
+  readOnly?: boolean;
 };
 
 function pickFile(page: PageEntry, volume?: VolumeEntry): { url: string; lang: Lang } | null {
@@ -95,12 +98,12 @@ function FootIcon({ name }: { name: FootIconName }) {
   );
 }
 
-export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReload, dirty }: Props) {
+export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReload, dirty, readOnly = false }: Props) {
   const { t, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
   const [open, setOpen] = useState<Record<string, boolean>>(() => ({}));
   const [addOpen, setAddOpen] = useState(false);
-  const [settings, setSettings] = useState<VolumeEntry | null>(null);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
   const [dataOpen, setDataOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
@@ -110,12 +113,15 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
 
   const activeChapterKey = selection ? `${selection.volume}/${selection.chapter}` : '';
 
+  // Keep the dialog in sync with the refreshed library (chapter removal) instead of a stale snapshot.
+  const settings = settingsId ? (library?.volumes.find((v) => v.id === settingsId) ?? null) : null;
+
   /** Right-clicking the library offers the actions that otherwise hide in the footer icons. */
   const openSidebarMenu = (e: ReactMouseEvent) => {
     if (isNativeTextTarget(e.target)) return;
     e.preventDefault();
     openMenu(e, [
-      { id: 'add', label: t('sidebar.addManga'), onSelect: () => setAddOpen(true) },
+      ...(readOnly ? [] : [{ id: 'add', label: t('sidebar.addManga'), onSelect: () => setAddOpen(true) }]),
       { id: 'refresh', label: t('sidebar.refreshLibrary'), onSelect: () => onReload() },
       { type: 'separator', id: 'sep' },
       {
@@ -160,9 +166,11 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
           {t('sidebar.emptyHintBefore')}
           <code>{t('sidebar.emptyHintExample')}</code>
           {t('sidebar.emptyHintAfter')}
-          <button type="button" className="btn primary block" onClick={() => setAddOpen(true)}>
-            {t('sidebar.addManga')}
-          </button>
+          {!readOnly && (
+            <button type="button" className="btn primary block" onClick={() => setAddOpen(true)}>
+              {t('sidebar.addManga')}
+            </button>
+          )}
         </div>
         {addOpen && (
           <AddVolumeDialog
@@ -263,22 +271,24 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
             volumes: formatNumber(library.volumes.length),
             chapters: formatNumber(library.volumes.reduce((n, v) => n + v.chapters.length, 0)),
           })}
-          <button
-            type="button"
-            className="btn tiny add-volume-btn"
-            onClick={() => setAddOpen(true)}
-            title={t('sidebar.addMangaTitle')}
-          >
-            {t('sidebar.addMangaShort')}
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="btn tiny add-volume-btn"
+              onClick={() => setAddOpen(true)}
+              title={t('sidebar.addMangaTitle')}
+            >
+              {t('sidebar.addMangaShort')}
+            </button>
+          )}
         </div>
       </div>
       <div className="sidebar-scroll">
         {library.volumes.map((volume) => (
           <div className="volume" key={volume.id}>
             <div className="volume-title">
-              <span className="volume-name" title={volume.title}>
-                {volume.title}
+              <span className="volume-name" title={volumeLabel(volume)}>
+                {volumeLabel(volume)}
               </span>
               <span
                 className="volume-langs"
@@ -296,14 +306,16 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
                   t('sidebar.langsUnconfigured')
                 )}
               </span>
-              <button
-                type="button"
-                className="icon-btn volume-gear"
-                title={t('sidebar.volumeSettingsTitle')}
-                onClick={() => setSettings(volume)}
-              >
-                ⚙
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="icon-btn volume-gear"
+                  title={t('sidebar.volumeSettingsTitle')}
+                  onClick={() => setSettingsId(volume.id)}
+                >
+                  ⚙
+                </button>
+              )}
             </div>
             {volume.warnings.map((w) => (
               <em className="volume-warn" key={w}>
@@ -315,8 +327,8 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
         ))}
       </div>
       <div className="sidebar-foot">
-        <span className="sidebar-foot-status" title={t('sidebar.rawReadOnly')}>
-          {t('sidebar.rawReadOnly')}
+        <span className="sidebar-foot-status" title={readOnly ? t('mode.readOnlyHint') : t('sidebar.rawReadOnly')}>
+          {readOnly ? t('mode.readBadge') : t('sidebar.rawReadOnly')}
         </span>
         <span className="sidebar-foot-actions">
           <button
@@ -329,56 +341,60 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
             <FootIcon name="project" />
             <span className="foot-label">{t('sidebar.projectFile')}</span>
           </button>
-          <button
-            type="button"
-            className="btn tiny foot-btn"
-            onClick={() => setExchangeOpen(true)}
-            title={t('sidebar.exchangeTitle')}
-            aria-label={t('sidebar.exchangeTitle')}
-          >
-            <FootIcon name="exchange" />
-            <span className="foot-label">{t('sidebar.exchange')}</span>
-          </button>
-          <button
-            type="button"
-            className="btn tiny foot-btn"
-            onClick={() => setPreprocessOpen(true)}
-            title={t('sidebar.preprocessTitle')}
-            aria-label={t('sidebar.preprocessTitle')}
-          >
-            <FootIcon name="preprocess" />
-            <span className="foot-label">{t('sidebar.preprocess')}</span>
-          </button>
-          <button
-            type="button"
-            className="btn tiny foot-btn"
-            onClick={() => setPluginsOpen(true)}
-            title={t('sidebar.pluginsTitle')}
-            aria-label={t('sidebar.pluginsTitle')}
-          >
-            <FootIcon name="plugins" />
-            <span className="foot-label">{t('sidebar.plugins')}</span>
-          </button>
-          <button
-            type="button"
-            className="btn tiny foot-btn"
-            onClick={() => setDirRulesOpen(true)}
-            title={t('sidebar.dirRulesTitle')}
-            aria-label={t('sidebar.dirRulesTitle')}
-          >
-            <FootIcon name="rules" />
-            <span className="foot-label">{t('sidebar.dirRules')}</span>
-          </button>
-          <button
-            type="button"
-            className="btn tiny foot-btn"
-            onClick={() => setDataOpen(true)}
-            title={t('sidebar.backupTitle')}
-            aria-label={t('sidebar.backupTitle')}
-          >
-            <FootIcon name="backup" />
-            <span className="foot-label">{t('sidebar.backup')}</span>
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                className="btn tiny foot-btn"
+                onClick={() => setExchangeOpen(true)}
+                title={t('sidebar.exchangeTitle')}
+                aria-label={t('sidebar.exchangeTitle')}
+              >
+                <FootIcon name="exchange" />
+                <span className="foot-label">{t('sidebar.exchange')}</span>
+              </button>
+              <button
+                type="button"
+                className="btn tiny foot-btn"
+                onClick={() => setPreprocessOpen(true)}
+                title={t('sidebar.preprocessTitle')}
+                aria-label={t('sidebar.preprocessTitle')}
+              >
+                <FootIcon name="preprocess" />
+                <span className="foot-label">{t('sidebar.preprocess')}</span>
+              </button>
+              <button
+                type="button"
+                className="btn tiny foot-btn"
+                onClick={() => setPluginsOpen(true)}
+                title={t('sidebar.pluginsTitle')}
+                aria-label={t('sidebar.pluginsTitle')}
+              >
+                <FootIcon name="plugins" />
+                <span className="foot-label">{t('sidebar.plugins')}</span>
+              </button>
+              <button
+                type="button"
+                className="btn tiny foot-btn"
+                onClick={() => setDirRulesOpen(true)}
+                title={t('sidebar.dirRulesTitle')}
+                aria-label={t('sidebar.dirRulesTitle')}
+              >
+                <FootIcon name="rules" />
+                <span className="foot-label">{t('sidebar.dirRules')}</span>
+              </button>
+              <button
+                type="button"
+                className="btn tiny foot-btn"
+                onClick={() => setDataOpen(true)}
+                title={t('sidebar.backupTitle')}
+                aria-label={t('sidebar.backupTitle')}
+              >
+                <FootIcon name="backup" />
+                <span className="foot-label">{t('sidebar.backup')}</span>
+              </button>
+            </>
+          )}
         </span>
       </div>
 
@@ -394,11 +410,12 @@ export function Sidebar({ library, rootPath, rawPath, selection, onOpen, onReloa
       {settings && (
         <VolumeSettingsDialog
           volume={settings}
-          onClose={() => setSettings(null)}
+          onClose={() => setSettingsId(null)}
           onDone={(lib) => {
             onReload(lib);
-            setSettings(null);
+            setSettingsId(null);
           }}
+          onLibrary={(lib) => onReload(lib)}
         />
       )}
       {dataOpen && <DataToolsDialog onClose={() => setDataOpen(false)} onRestored={(lib) => onReload(lib)} />}

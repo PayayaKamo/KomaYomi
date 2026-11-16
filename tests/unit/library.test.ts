@@ -122,6 +122,116 @@ describe('createLibrary', () => {
     expect(chapter.warnings.join(' ')).toContain('Japanese');
   });
 
+  it('aligns languages by page number and keeps extra Japanese pages readable', () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const files: string[] = [];
+    for (let i = 1; i <= 14; i++) files.push(`raw/Vol1/ja/199/${pad(i)}.jpg`);
+    for (let i = 1; i <= 12; i++) files.push(`raw/Vol1/en/199/${pad(i)}.png`);
+    for (let i = 1; i <= 12; i++) files.push(`raw/Vol1/zh/199/${pad(i)}.webp`);
+
+    const root = tempRoot(files);
+    const library = runWithLang('en', () => createLibrary(path.join(root, 'raw'), path.join(root, 'data')));
+    const chapter = library.volumes[0].chapters[0];
+
+    // 14 slots, not max(14,12) flat pages: the two Japanese-only pages stay at the end.
+    expect(chapter.pages).toHaveLength(14);
+    expect(chapter.pages[12].files.ja).toContain('/ja/199/13.jpg');
+    expect(chapter.pages[12].files.en).toBeUndefined();
+    expect(chapter.pages[12].files.zh).toBeUndefined();
+    expect(chapter.pages[12].missing).toEqual(['zh', 'en']);
+    expect(chapter.pages[13].files.ja).toContain('/ja/199/14.jpg');
+    // The other languages keep their last page aligned to page 12.
+    expect(chapter.pages[11].files.zh).toContain('/zh/199/12.webp');
+    // Missing pages are reported, but never hide the page itself.
+    expect(chapter.pages[12].warnings).toHaveLength(2);
+  });
+
+  it('keeps later pages aligned when a middle page is missing', () => {
+    const root = tempRoot([
+      'raw/Vol1/ja/1/01.jpg',
+      'raw/Vol1/ja/1/02.jpg',
+      'raw/Vol1/ja/1/03.jpg',
+      'raw/Vol1/ja/1/04.jpg',
+      'raw/Vol1/ja/1/05.jpg',
+      'raw/Vol1/zh/1/01.jpg',
+      'raw/Vol1/zh/1/02.jpg',
+      'raw/Vol1/zh/1/04.jpg',
+      'raw/Vol1/zh/1/05.jpg',
+    ]);
+    const library = runWithLang('en', () => createLibrary(path.join(root, 'raw'), path.join(root, 'data')));
+    const chapter = library.volumes[0].chapters[0];
+
+    expect(chapter.pages).toHaveLength(5);
+    expect(chapter.pages[2].files.ja).toContain('/ja/1/03.jpg');
+    expect(chapter.pages[2].missing).toEqual(['zh']);
+    // Page 04 must not slide into slot 3.
+    expect(chapter.pages[3].files.zh).toContain('/zh/1/04.jpg');
+  });
+
+  it('applies a per-language page offset so inserted pages can be re-aligned', () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const files: string[] = [];
+    for (let i = 1; i <= 14; i++) files.push(`raw/Vol1/ja/199/${pad(i)}.jpg`);
+    for (let i = 1; i <= 12; i++) files.push(`raw/Vol1/en/199/${pad(i)}.png`);
+
+    const root = tempRoot(files);
+    const dataRoot = path.join(root, 'data');
+    // English pages 11 and 12 belong to Japanese pages 13 and 14: a Japanese-only spread
+    // was inserted after page 10.
+    writeLibraryConfig(dataRoot, {
+      volumes: { Vol1: { chapters: { 199: { pageOffsets: { en: { from: 11, to: 13 } } } } } },
+    });
+
+    const library = runWithLang('en', () => createLibrary(path.join(root, 'raw'), dataRoot));
+    const chapter = library.volumes[0].chapters[0];
+
+    expect(chapter.pages).toHaveLength(14);
+    expect(chapter.pages[10].missing).toEqual(['en']);
+    expect(chapter.pages[12].files.en).toContain('/en/199/11.png');
+    expect(chapter.pages[13].files.en).toContain('/en/199/12.png');
+    expect(chapter.pageOffsets).toEqual({ en: { from: 11, to: 13 } });
+  });
+
+  it('recognises several works under one raw root', () => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const files: string[] = [];
+    for (const lang of ['en', 'ja', 'zh']) {
+      for (let i = 1; i <= 8; i++) files.push(`raw/gochiusa/gochiusa-14/${lang}/172/${pad(i)}.png`);
+    }
+    for (const lang of ['en', 'ja']) {
+      for (let i = 1; i <= 8; i++) files.push(`raw/oomuroke/oomuroke-08/${lang}/106/${pad(i)}.png`);
+    }
+    for (let i = 1; i <= 8; i++) files.push(`raw/oomuroke/oomuroke-08/zh-hk/106/${pad(i)}.webp`);
+    for (let i = 1; i <= 12; i++) files.push(`raw/yuruyuri/yuruyuri-24/en/199/${pad(i)}.png`);
+    for (let i = 1; i <= 14; i++) files.push(`raw/yuruyuri/yuruyuri-24/ja/199/${pad(i)}.jpg`);
+    for (let i = 1; i <= 12; i++) files.push(`raw/yuruyuri/yuruyuri-24/zh/199/${pad(i)}.webp`);
+
+    const root = tempRoot(files);
+    const library = runWithLang('en', () => createLibrary(path.join(root, 'raw'), path.join(root, 'data')));
+
+    expect(library.scan.unmatchedCount).toBe(0);
+    expect(library.volumes.map((v) => v.id)).toEqual(['gochiusa-14', 'oomuroke-08', 'yuruyuri-24']);
+    expect(library.volumes.map((v) => v.series)).toEqual(['gochiusa', 'oomuroke', 'yuruyuri']);
+
+    const gochiusa = library.volumes[0];
+    expect(gochiusa.languages).toEqual(['ja', 'zh', 'en']);
+    expect(gochiusa.langDirs).toEqual({ ja: 'ja', zh: 'zh', en: 'en' });
+    expect(gochiusa.chapters[0].pages).toHaveLength(8);
+    expect(gochiusa.chapters[0].pages[0].files.ja).toBe('/raw/gochiusa/gochiusa-14/ja/172/01.png');
+
+    const oomuroke = library.volumes[1];
+    expect(oomuroke.langDirs).toEqual({ ja: 'ja', zh: 'zh-hk', en: 'en' });
+    // Mixed extensions and a zh-hk column still line up page by page.
+    expect(oomuroke.chapters[0].pages[0].files.zh).toBe('/raw/oomuroke/oomuroke-08/zh-hk/106/01.webp');
+
+    const yuruyuri = library.volumes[2];
+    expect(yuruyuri.langDirs).toEqual({ ja: 'ja', zh: 'zh', en: 'en' });
+    // Japanese has two extra pages; the other languages stay aligned and report the gap.
+    expect(yuruyuri.chapters[0].pages).toHaveLength(14);
+    expect(yuruyuri.chapters[0].pages[13].files.ja).toBe('/raw/yuruyuri/yuruyuri-24/ja/199/14.jpg');
+    expect(yuruyuri.chapters[0].pages[13].missing).toEqual(['zh', 'en']);
+  });
+
   it('keeps a configured language order', () => {
     const root = tempRoot(['raw/Vol1/ja/01.png', 'raw/Vol1/en/01.png']);
     const dataRoot = path.join(root, 'data');

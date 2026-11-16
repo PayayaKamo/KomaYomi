@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PAGE_KINDS, type ChapterOverride, type Lang, type PageKind, type VolumeOverride } from '../shared/types.ts';
 import { preserveUnknown } from '../shared/format.ts';
 import { assertWritableFile, readRawRecord, writeStoredFile } from './schemaStore.ts';
-import { listDirs, normalizeLang, readLibraryConfig, type LibraryConfig } from './library.ts';
+import { listDirs, normalizeLang, readLibraryConfig, resolveVolumeDir, type LibraryConfig } from './library.ts';
 import { AppError } from './errors.ts';
 
 /** data/preprocess-backup.json: one-shot snapshot of the volume config before the last apply. */
@@ -183,7 +183,8 @@ function readBackup(dataRoot: string): PreprocessBackup | null {
  */
 export function applyPreprocess(rawRoot: string, dataRoot: string, input: PreprocessInput): { backupAt: string } {
   if (!input.volume) throw new AppError('ERR_MISSING_VOLUME_DIRS', {}, 400);
-  if (!fs.existsSync(path.join(rawRoot, input.volume))) {
+  const volumePath = resolveVolumeDir(rawRoot, dataRoot, input.volume);
+  if (!volumePath) {
     throw new AppError('ERR_VOLUME_NOT_FOUND', { volume: input.volume }, 404);
   }
 
@@ -207,7 +208,7 @@ export function applyPreprocess(rawRoot: string, dataRoot: string, input: Prepro
   }
 
   if (input.dirs) {
-    const existing = new Set(listDirs(path.join(rawRoot, input.volume)));
+    const existing = new Set(listDirs(volumePath));
     const dirs: Partial<Record<Lang, string>> = {};
     for (const [rawLang, dir] of Object.entries(input.dirs)) {
       if (!dir) continue;
