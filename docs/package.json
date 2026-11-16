@@ -6,7 +6,8 @@
   "description": "Documentation site for KomaYomi",
   "scripts": {
     "docs:dev": "node scripts/dev.mjs",
-    "docs:build": "vitepress build",
+    "docs:check": "node scripts/check-frontmatter.mjs",
+    "docs:build": "node scripts/check-frontmatter.mjs && vitepress build",
     "docs:preview": "vitepress preview --port 5174"
   },
   "devDependencies": {

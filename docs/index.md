@@ -1,7 +1,7 @@
 ---
 layout: home
 titleTemplate: false
-description: KomaYomi (Koma = manga panel, Yomi = reading) documentation — a local-first manga panel reader for language study: compare Japanese, Chinese and English pages, detect panels, align artwork and take notes.
+description: "KomaYomi (Koma = manga panel, Yomi = reading) documentation — a local-first manga panel reader for language study: compare Japanese, Chinese and English pages, detect panels, align artwork and take notes."
 title: KomaYomi — a local-first manga panel reader
 
 hero:
