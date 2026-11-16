@@ -2,7 +2,7 @@
   "name": "koma-yomi",
   "productName": "KomaYomi",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "KomaYomi（格读）— local-first, panel-by-panel manga intensive reading. Compare Japanese, Chinese and English editions side by side, pin notes to the artwork, and export clean study pages.",
   "author": "PayayaKamo",

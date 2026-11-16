@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-16
+
+### Added
+
+- Built-in demo project. The desktop installer carries a real three-language demo volume
+  (`resources/demo-project.mnproj`, 65 MB), so the welcome screen can open it in one click
+  without a download or a file picker. The demo is copied into the user data folder and that
+  copy is linked for write-back, so the installed resource is never written; leaving the demo
+  removes the pages and images it added and restores the previous library, link and settings.
+  **The packaged installer grows by roughly 65 MB per platform because of this file.**
+- The notes overview is grouped by page, panel or date, each group header jumps straight to
+  that page/panel, search matches are highlighted, and every hit is a compact row with a
+  category badge that expands in place to the full note.
+
+### Changed
+
+- The documentation site and package metadata now use the KomaYomi（格读） name, the
+  "local-first, panel-by-panel manga intensive reading" tagline, and link the author's X and
+  note homepages from the nav and footer.
+
+### Fixed
+
+- Annotation strokes and text no longer drift towards the top-left when a per-language
+  alignment scale is active: the annotation layer measures its layout box instead of the
+  painted rect, so the alignment scale is applied once instead of twice.
+- "Save as…" in a plain browser now packs the library and downloads the copy instead of
+  reporting that the feature needs the desktop app.
+- Note rows, group headers and the demo banner no longer overlap or wrap awkwardly on narrow
+  windows.
+
 ## [1.1.0] - 2026-11-16
 
 ### Added

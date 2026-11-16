@@ -105,7 +105,7 @@ Every exchange format carries a schema envelope:
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
   "schemaVersion": 4,
-  "appVersion": "1.1.0",
+  "appVersion": "1.2.0",
   "kind": "page"
 }
 ```

@@ -48,7 +48,7 @@ Full install options, first-run folder layout and panel correction are in [Insta
 
 ## Status at a glance
 
-KomaYomi（格读） is at **1.1.0**. This site separates what works today from what is planned.
+KomaYomi（格读） is at **1.2.0**. This site separates what works today from what is planned.
 
 <div class="status-list">
   <div><strong>Reading</strong> — library scanning including multi-work roots; three sidebar page-list layouts; panel detection and manual editing; splitting and renumbering; layout templates; compare reader with per-language masks; an original-page view; the enlarged 1:1 image viewer; previous/next panel across page and chapter boundaries with auto-centring; focus mode and read-only mode.</div>
