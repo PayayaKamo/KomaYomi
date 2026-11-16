@@ -126,3 +126,21 @@ export type StorageStatus = {
 };
 
 export type CacheStats = { bytes: number; files: number; limitMb: number };
+
+export type CacheSize = { bytes: number; files: number };
+
+/** One overview call for the settings dialog: each cache is cleared separately. */
+export type CacheOverview = {
+  thumbs: CacheSize;
+  remote: CacheSize & { limitMb: number };
+  staging: CacheSize;
+  detect: { pages: number; panels: number; notes: number; annotations: number };
+};
+
+export type DetectResetResult = {
+  pages: number;
+  panels: number;
+  notes: number;
+  annotations: number;
+  skipped: number;
+};

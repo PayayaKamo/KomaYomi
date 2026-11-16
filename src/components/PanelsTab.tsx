@@ -57,6 +57,8 @@ type Props = {
   onHistory: () => void;
   /** Library language order; the page's own files decide which columns exist. */
   allLangs: Lang[];
+  /** Read-only viewer: every authoring control is hidden and every handler is inert. */
+  readOnly?: boolean;
 };
 
 const HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -163,6 +165,7 @@ export function PanelsTab({
   onRedo,
   onHistory,
   allLangs,
+  readOnly = false,
 }: Props) {
   const { t, locale } = useI18n();
   const { openMenu } = useContextMenu();
@@ -559,6 +562,60 @@ export function PanelsTab({
     setOrderOpen(false);
   };
 
+  /**
+   * Reorder along the reading order, not the screen axes: "previous" is the panel read
+   * before the current one even when the page reads right to left or top to bottom.
+   * `build` returns null when nothing changes, which keeps an empty undo step out of history.
+   */
+  const reorderReadingOrder = (build: (sequence: string[]) => string[] | null) => {
+    mutate((d) => {
+      const byId = new Map(d.panels.map((p) => [p.id, p]));
+      const sequence = applyGroupOrder(sortPanels(d.panels, d.readingDirection), d.groups).map((p) => p.id);
+      const next = build(sequence);
+      if (!next) return d;
+      const rank = new Map(next.map((id, index) => [id, index]));
+      return {
+        ...d,
+        panels: renumberPanels(next.map((id) => byId.get(id)).filter((p): p is Panel => Boolean(p))),
+        // Group rows keep their members together; their internal order follows the new sequence.
+        groups: d.groups?.length
+          ? d.groups.map((g) => ({
+              ...g,
+              panelIds: [...g.panelIds].sort(
+                (a, b) => (rank.get(a) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b) ?? Number.MAX_SAFE_INTEGER),
+              ),
+            }))
+          : d.groups,
+      };
+    });
+  };
+
+  /** One undo step swaps both positions and their displayed numbers. */
+  const swapPanels = (firstId: string, secondId: string) => {
+    if (firstId === secondId) return;
+    reorderReadingOrder((sequence) => {
+      const first = sequence.indexOf(firstId);
+      const second = sequence.indexOf(secondId);
+      if (first < 0 || second < 0 || first === second) return null;
+      const next = [...sequence];
+      [next[first], next[second]] = [next[second], next[first]];
+      return next;
+    });
+  };
+
+  const movePanelToEdge = (panelId: string, edge: 'first' | 'last') => {
+    reorderReadingOrder((sequence) => {
+      const from = sequence.indexOf(panelId);
+      if (from < 0) return null;
+      const to = edge === 'first' ? 0 : sequence.length - 1;
+      if (from === to) return null;
+      const next = [...sequence];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
   /** Re-detecting rebuilds the array, so a hand-saved order needs an explicit yes. */
   const requestDetect = () => {
     if (doc.panels.some((p) => typeof p.number === 'number') && !window.confirm(t('panels.redetectLosesOrder'))) return;
@@ -632,6 +689,11 @@ export function PanelsTab({
     e.stopPropagation();
     const ids = selected.includes(panel.id) ? selected : [panel.id];
     if (!selected.includes(panel.id)) setSelected([panel.id]);
+    // Neighbours come from the reading order, so right-to-left and vertical pages keep
+    // "previous" meaning the panel the reader actually saw before this one.
+    const at = ordered.findIndex((p) => p.id === panel.id);
+    const prev = at > 0 ? ordered[at - 1] : null;
+    const next = at >= 0 && at < ordered.length - 1 ? ordered[at + 1] : null;
     openMenu(e, [
       { id: 'add', label: t('panels.addPanel'), onSelect: () => addPanel() },
       { type: 'separator', id: 'sep-edit' },
@@ -645,6 +707,38 @@ export function PanelsTab({
           setOrderOpen(true);
         },
       },
+      { type: 'separator', id: 'sep-order' },
+      {
+        id: 'swap-prev',
+        label: t('order.swapPrev'),
+        disabled: !prev,
+        onSelect: () => prev && swapPanels(panel.id, prev.id),
+      },
+      {
+        id: 'swap-next',
+        label: t('order.swapNext'),
+        disabled: !next,
+        onSelect: () => next && swapPanels(panel.id, next.id),
+      },
+      {
+        id: 'move-first',
+        label: t('order.moveFirst'),
+        disabled: !prev,
+        onSelect: () => movePanelToEdge(panel.id, 'first'),
+      },
+      {
+        id: 'move-last',
+        label: t('order.moveLast'),
+        disabled: !next,
+        onSelect: () => movePanelToEdge(panel.id, 'last'),
+      },
+      {
+        id: 'swap-selected',
+        label: t('order.swapSelected'),
+        disabled: ids.length !== 2,
+        onSelect: () => ids.length === 2 && swapPanels(ids[0], ids[1]),
+      },
+      { type: 'separator', id: 'sep-delete' },
       {
         id: 'delete',
         label: t('common.delete'),
@@ -941,6 +1035,7 @@ export function PanelsTab({
   };
 
   const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (readOnly) return;
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     // Annotation focus is more specific than page-level actions: Esc only leaves the
@@ -1026,7 +1121,7 @@ export function PanelsTab({
           </select>
         </div>
 
-        <div className="tb-group tb-split">
+        <div className="tb-group tb-split" hidden={readOnly} style={readOnly ? { display: 'none' } : undefined}>
           <button
             type="button"
             className="tb-fold"
@@ -1079,7 +1174,11 @@ export function PanelsTab({
           )}
         </div>
 
-        <div className="tb-group save-group tb-edit">
+        <div
+          className="tb-group save-group tb-edit"
+          hidden={readOnly}
+          style={readOnly ? { display: 'none' } : undefined}
+        >
           <button
             type="button"
             className="tb-fold"
@@ -1188,11 +1287,13 @@ export function PanelsTab({
                 )}
               </dl>
               <div className="more-sep" />
-              <button type="button" role="menuitem" className="more-item" onClick={() => runFromMenu(onHistory)}>
-                {t('app.historyButton')}
-              </button>
+              {!readOnly && (
+                <button type="button" role="menuitem" className="more-item" onClick={() => runFromMenu(onHistory)}>
+                  {t('app.historyButton')}
+                </button>
+              )}
 
-              {(splitHidden || splitExtrasHidden) && (
+              {!readOnly && (splitHidden || splitExtrasHidden) && (
                 <>
                   <div className="more-sep" />
                   <div className="more-head">{t('panels.grpSplit')}</div>
@@ -1268,7 +1369,7 @@ export function PanelsTab({
                 </>
               )}
 
-              {editHidden && (
+              {!readOnly && editHidden && (
                 <>
                   <div className="more-sep" />
                   <div className="more-head">{t('panels.grpEdit')}</div>
@@ -1394,7 +1495,7 @@ export function PanelsTab({
         </div>
       </div>
 
-      {singleSelected && (
+      {singleSelected && !readOnly && (
         <div className="stage-toolbar sub">
           <div className="tb-group rect-inputs">
             <span className="tb-label">{t('panels.panelRect')}</span>
@@ -1445,25 +1546,29 @@ export function PanelsTab({
       {/* One rail keeps every collapsed section visible in a single row; a folded
           section renders no body at all, so it costs no height. */}
       <div className="sec-rail">
-        <button
-          type="button"
-          className="sec-tab"
-          aria-expanded={sections.grid}
-          title={t('panels.grid')}
-          onClick={() => togglePanelSection('grid')}
-        >
-          {sections.grid ? '▾' : '▸'} {t('panels.grid')}
-        </button>
-        <button
-          type="button"
-          className="sec-tab"
-          aria-expanded={sections.template}
-          title={t('panels.templates')}
-          onClick={() => togglePanelSection('template')}
-        >
-          {sections.template ? '▾' : '▸'} {t('panels.templates')}
-          {templates.length ? ` (${formatNumber(templates.length)})` : ''}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="sec-tab"
+            aria-expanded={sections.grid}
+            title={t('panels.grid')}
+            onClick={() => togglePanelSection('grid')}
+          >
+            {sections.grid ? '▾' : '▸'} {t('panels.grid')}
+          </button>
+        )}
+        {!readOnly && (
+          <button
+            type="button"
+            className="sec-tab"
+            aria-expanded={sections.template}
+            title={t('panels.templates')}
+            onClick={() => togglePanelSection('template')}
+          >
+            {sections.template ? '▾' : '▸'} {t('panels.templates')}
+            {templates.length ? ` (${formatNumber(templates.length)})` : ''}
+          </button>
+        )}
         <button
           type="button"
           className="sec-tab"
@@ -1487,7 +1592,7 @@ export function PanelsTab({
           {secMenuOpen && (
             <div className="sec-pop" role="group" aria-label={t('panels.display')}>
               <div className="sec-pop-head">{t('panels.displayHint')}</div>
-              {PANEL_SECTIONS.filter((id) => id !== 'ann' || annAllowed).map((id) => (
+              {PANEL_SECTIONS.filter((id) => (id !== 'ann' || annAllowed) && (!readOnly || id === 'path')).map((id) => (
                 <label key={id} className="sec-pop-item">
                   <input
                     type="checkbox"
@@ -1502,7 +1607,7 @@ export function PanelsTab({
         </div>
       </div>
 
-      {sections.grid && (
+      {!readOnly && sections.grid && (
         <div className="sec-body">
           <span className="tb-label">{t('panels.grid')}</span>
           <label className="num">
@@ -1557,7 +1662,7 @@ export function PanelsTab({
         </div>
       )}
 
-      {sections.template && (
+      {!readOnly && sections.template && (
         <div className="sec-body tpl-box">
           <div className="tpl-row">
             <input
@@ -1620,7 +1725,7 @@ export function PanelsTab({
         </div>
       )}
 
-      {annAllowed && (
+      {!readOnly && annAllowed && (
         <div className="ann-toolbar">
           <button
             type="button"
@@ -1756,110 +1861,112 @@ export function PanelsTab({
         </div>
       )}
 
-      <div className="groups-panel">
-        <div className="groups-head">
-          <button
-            type="button"
-            className="btn tiny"
-            aria-expanded={sections.groups}
-            title={t('groups.toggle')}
-            onClick={() => togglePanelSection('groups')}
-          >
-            {sections.groups ? '▾' : '▸'} {t('groups.title', { n: formatNumber((doc.groups ?? []).length) })}
-          </button>
-          <button
-            type="button"
-            className="btn tiny"
-            onClick={sortByGroup}
-            disabled={(doc.groups ?? []).length < 1}
-            title={t('groups.sortHint')}
-          >
-            {t('groups.sort')}
-          </button>
-        </div>
-        {sections.groups &&
-          ((doc.groups ?? []).length ? (
-            <div className="group-list">
-              {(doc.groups ?? []).map((group, index) => (
-                <div className="group-row" key={group.id}>
-                  <input
-                    type="color"
-                    className="group-color"
-                    value={group.color ?? groupColors[index % groupColors.length]}
-                    title={t('groups.color')}
-                    aria-label={t('groups.color')}
-                    onChange={(e) => patchGroup(group.id, { color: e.target.value })}
-                  />
-                  <input
-                    className="group-name"
-                    value={group.name ?? ''}
-                    placeholder={t('groups.namePlaceholder')}
-                    aria-label={t('groups.name')}
-                    onChange={(e) => patchGroup(group.id, { name: e.target.value })}
-                  />
-                  <div className="group-chips">
-                    {group.panelIds.map((pid, chipIndex) => (
-                      <div
-                        key={pid}
-                        className="group-chip"
-                        draggable
-                        title={t('groups.chipHint')}
-                        onDragStart={() => {
-                          dragChip.current = { gid: group.id, index: chipIndex };
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => dropChip(group.id, chipIndex)}
-                      >
-                        <span className="group-chip-num">{formatNumber(numberMap.get(pid) ?? 0)}</span>
-                        <button
-                          type="button"
-                          className="group-chip-x"
-                          title={t('groups.removePanel')}
-                          aria-label={t('groups.removePanel')}
-                          onClick={() => removeFromGroup(group.id, pid)}
+      {!readOnly && (
+        <div className="groups-panel">
+          <div className="groups-head">
+            <button
+              type="button"
+              className="btn tiny"
+              aria-expanded={sections.groups}
+              title={t('groups.toggle')}
+              onClick={() => togglePanelSection('groups')}
+            >
+              {sections.groups ? '▾' : '▸'} {t('groups.title', { n: formatNumber((doc.groups ?? []).length) })}
+            </button>
+            <button
+              type="button"
+              className="btn tiny"
+              onClick={sortByGroup}
+              disabled={(doc.groups ?? []).length < 1}
+              title={t('groups.sortHint')}
+            >
+              {t('groups.sort')}
+            </button>
+          </div>
+          {sections.groups &&
+            ((doc.groups ?? []).length ? (
+              <div className="group-list">
+                {(doc.groups ?? []).map((group, index) => (
+                  <div className="group-row" key={group.id}>
+                    <input
+                      type="color"
+                      className="group-color"
+                      value={group.color ?? groupColors[index % groupColors.length]}
+                      title={t('groups.color')}
+                      aria-label={t('groups.color')}
+                      onChange={(e) => patchGroup(group.id, { color: e.target.value })}
+                    />
+                    <input
+                      className="group-name"
+                      value={group.name ?? ''}
+                      placeholder={t('groups.namePlaceholder')}
+                      aria-label={t('groups.name')}
+                      onChange={(e) => patchGroup(group.id, { name: e.target.value })}
+                    />
+                    <div className="group-chips">
+                      {group.panelIds.map((pid, chipIndex) => (
+                        <div
+                          key={pid}
+                          className="group-chip"
+                          draggable
+                          title={t('groups.chipHint')}
+                          onDragStart={() => {
+                            dragChip.current = { gid: group.id, index: chipIndex };
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => dropChip(group.id, chipIndex)}
                         >
-                          ×
-                        </button>
-                      </div>
-                    ))}
+                          <span className="group-chip-num">{formatNumber(numberMap.get(pid) ?? 0)}</span>
+                          <button
+                            type="button"
+                            className="group-chip-x"
+                            title={t('groups.removePanel')}
+                            aria-label={t('groups.removePanel')}
+                            onClick={() => removeFromGroup(group.id, pid)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="group-actions">
+                      <button
+                        type="button"
+                        className="btn tiny"
+                        title={t('groups.merge')}
+                        onClick={() => mergeGroupUp(index)}
+                        disabled={index === 0}
+                      >
+                        {t('groups.merge')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn tiny"
+                        title={t('groups.split')}
+                        onClick={() => splitGroup(group.id)}
+                        disabled={group.panelIds.length < 2}
+                      >
+                        {t('groups.split')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn tiny danger"
+                        title={t('groups.deleteHint')}
+                        onClick={() => deleteGroup(group.id)}
+                      >
+                        {t('groups.delete')}
+                      </button>
+                    </div>
                   </div>
-                  <div className="group-actions">
-                    <button
-                      type="button"
-                      className="btn tiny"
-                      title={t('groups.merge')}
-                      onClick={() => mergeGroupUp(index)}
-                      disabled={index === 0}
-                    >
-                      {t('groups.merge')}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn tiny"
-                      title={t('groups.split')}
-                      onClick={() => splitGroup(group.id)}
-                      disabled={group.panelIds.length < 2}
-                    >
-                      {t('groups.split')}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn tiny danger"
-                      title={t('groups.deleteHint')}
-                      onClick={() => deleteGroup(group.id)}
-                    >
-                      {t('groups.delete')}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="muted tiny groups-empty">{t('groups.empty')}</div>
-          ))}
-      </div>
+                ))}
+              </div>
+            ) : (
+              <div className="muted tiny groups-empty">{t('groups.empty')}</div>
+            ))}
+        </div>
+      )}
 
-      <div className="stage-scroll" onContextMenu={openBlankMenu}>
+      <div className="stage-scroll" onContextMenu={readOnly ? undefined : openBlankMenu}>
         {!url ? (
           <div className="stage-empty">{t('panels.emptyPage')}</div>
         ) : (
@@ -1867,13 +1974,17 @@ export function PanelsTab({
             <div
               className={`shot ${annTool !== 'select' ? 'ann-drawing' : ''}`}
               ref={shotRef}
-              onPointerDown={startMarquee}
-              onDoubleClick={(e) => {
-                if (annTool !== 'select') return;
-                if ((e.target as HTMLElement).closest('.pbox')) return;
-                const r = e.currentTarget.getBoundingClientRect();
-                addPanel({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
-              }}
+              onPointerDown={readOnly ? undefined : startMarquee}
+              onDoubleClick={
+                readOnly
+                  ? undefined
+                  : (e) => {
+                      if (annTool !== 'select') return;
+                      if ((e.target as HTMLElement).closest('.pbox')) return;
+                      const r = e.currentTarget.getBoundingClientRect();
+                      addPanel({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
+                    }
+              }
             >
               <img
                 src={url}
@@ -1896,6 +2007,7 @@ export function PanelsTab({
                   imageUrl={url}
                   anchorTarget={annAnchorMode ? annSelected : null}
                   onAnchorChange={setAnnotationAnchor}
+                  readOnly={readOnly}
                 />
               )}
               {imgLoaded &&
@@ -1912,12 +2024,13 @@ export function PanelsTab({
                         height: `${panel.rect.h * 100}%`,
                         borderColor: groupColorMap.get(panel.id),
                       }}
-                      onPointerDown={(e) => startDrag(e, panel, 'move')}
-                      onContextMenu={(e) => openPanelMenu(e, panel)}
+                      onPointerDown={readOnly ? undefined : (e) => startDrag(e, panel, 'move')}
+                      onContextMenu={readOnly ? undefined : (e) => openPanelMenu(e, panel)}
                       onDoubleClick={(e) => e.stopPropagation()}
                     >
                       {showNumbers && <em className="pnum">{numberMap.get(panel.id)}</em>}
                       {isSel &&
+                        !readOnly &&
                         HANDLES.map((h) => (
                           <span key={h} className={`handle h-${h}`} onPointerDown={(e) => startDrag(e, panel, h)} />
                         ))}
@@ -1943,7 +2056,7 @@ export function PanelsTab({
                 </div>
               )}
             </div>
-            {doc.panels.length === 0 && <div className="stage-hint">{t('panels.stageHint')}</div>}
+            {doc.panels.length === 0 && !readOnly && <div className="stage-hint">{t('panels.stageHint')}</div>}
           </div>
         )}
       </div>
@@ -1955,8 +2068,8 @@ export function PanelsTab({
           {t('panels.statusTotalAfter')}
           {selected.length > 0 && t('panels.statusSelected', { count: formatNumber(selected.length) })}
         </span>
-        <span className="muted">{t('panels.statusMarquee')}</span>
-        <span className="muted">{t('panels.statusEdit')}</span>
+        {!readOnly && <span className="muted">{t('panels.statusMarquee')}</span>}
+        <span className="muted">{readOnly ? t('mode.panelsReadOnly') : t('panels.statusEdit')}</span>
       </div>
       {orderOpen && (
         <PanelOrderDialog

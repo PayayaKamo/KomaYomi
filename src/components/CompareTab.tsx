@@ -41,6 +41,15 @@ type Props = {
   detailPanel: string | null;
   onOpenDetail: (panelId: string) => void;
   onCloseDetail: () => void;
+  /** Panel navigation that ran past a page edge: load the neighbouring page (−1 / +1). */
+  onStepPage: (dir: -1 | 1) => void;
+  /** Detail-view navigation provided by the shell, so it can cross page boundaries. */
+  onDetailPrevPanel?: () => void;
+  onDetailNextPanel?: () => void;
+  onDetailPrevPage?: () => void;
+  onDetailNextPage?: () => void;
+  /** Read-only viewer: no authoring tools; alignment stays available for this session only. */
+  readOnly?: boolean;
 };
 
 const sizeCache = new Map<string, { w: number; h: number }>();
@@ -197,6 +206,12 @@ export function CompareTab({
   detailPanel,
   onOpenDetail,
   onCloseDetail,
+  onStepPage,
+  onDetailPrevPanel,
+  onDetailNextPanel,
+  onDetailPrevPage,
+  onDetailNextPage,
+  readOnly = false,
 }: Props) {
   const { t, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
@@ -322,14 +337,17 @@ export function CompareTab({
   }, [doc.volume, doc.chapter, doc.pageIndex]);
 
   const availableLangs = useMemo(() => {
-    const pageLangs = Object.keys(page.files);
+    // `missing` holds languages that exist in the volume but have no file for this page
+    // (e.g. bonus pages added to one edition). Keep a placeholder column instead of
+    // silently dropping the column, so the remaining languages never shift.
+    const pageLangs = [...new Set([...Object.keys(page.files), ...(page.missing ?? [])])];
     const ordered = allLangs.filter((l) => pageLangs.includes(l));
     return [...ordered, ...pageLangs.filter((l) => !ordered.includes(l))];
   }, [page, allLangs]);
   /**
-   * Columns shown for this page. A language missing from the current page is hidden for
-   * this page only: the persisted order is user-owned and must never be rewritten by
-   * simply browsing to a page that lacks one language.
+   * Columns shown for this page. Languages absent from both this page's files and the
+   * volume's languages are hidden for this page only: the persisted order is user-owned
+   * and must never be rewritten by simply browsing to a page that lacks one language.
    */
   const activeLangs = useMemo(() => {
     const kept = langs.filter((l) => availableLangs.includes(l));
@@ -796,7 +814,13 @@ export function CompareTab({
     if (!ordered.length) return;
     const currentIdx = ordered.findIndex((p) => selected.includes(p.id));
     const base = currentIdx < 0 ? (dir > 0 ? -1 : ordered.length) : currentIdx;
-    const nextIdx = Math.min(ordered.length - 1, Math.max(0, base + dir));
+    const nextIdx = base + dir;
+    // Past either end of the page: continue onto the neighbouring page (last/first panel)
+    // instead of stopping at the boundary. Chapter edges are handled by the shell.
+    if (nextIdx < 0 || nextIdx >= ordered.length) {
+      onStepPage(dir);
+      return;
+    }
     const target = ordered[nextIdx];
     setSelected([target.id]);
     document.getElementById(`panel-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -975,6 +999,7 @@ export function CompareTab({
               onChange={applyAnnotations}
               viewport={panel.rect}
               imageUrl={url}
+              readOnly={readOnly}
             />
           ) : (
             <AnnotationOverlay
@@ -1096,6 +1121,7 @@ export function CompareTab({
               onChange={applyAnnotations}
               viewport={panel.rect}
               imageUrl={page.files[dragLang]}
+              readOnly={readOnly}
             />
           ) : (
             <AnnotationOverlay
@@ -1408,7 +1434,7 @@ export function CompareTab({
             >
               {t('ann.layer')}
             </button>
-            {annOn && (
+            {annOn && !readOnly && (
               <div className="ann-tools-wrap">
                 <div className="ann-tools">
                   {ANNOTATION_TOOL_ORDER.map((item) => (
@@ -1521,21 +1547,21 @@ export function CompareTab({
           <span className="muted tiny">{readingLabel(doc.readingDirection)}</span>
           <button
             type="button"
-            className="btn icon tiny"
+            className="btn tiny"
             onClick={() => goTo(-1)}
             title={t('compare.prevPanel')}
             aria-label={t('compare.prevPanel')}
           >
-            ‹
+            {t('compare.prevPanel')}
           </button>
           <button
             type="button"
-            className="btn icon tiny"
+            className="btn tiny tb-nav-btn"
             onClick={() => goTo(1)}
             title={t('compare.nextPanel')}
             aria-label={t('compare.nextPanel')}
           >
-            ›
+            {t('compare.nextPanel')}
           </button>
           <button
             type="button"
@@ -1650,65 +1676,69 @@ export function CompareTab({
             </button>
           </div>
 
-          <div className="align-row">
-            <input
-              className="preset-name"
-              placeholder={t('compare.presetNamePlaceholder')}
-              value={presetName}
-              onChange={(e) => setPresetName(e.target.value)}
-            />
-            <button
-              type="button"
-              className="btn tiny"
-              disabled={!presetName.trim() || presetBusy}
-              onClick={() => savePreset('page')}
-            >
-              {t('compare.savePresetPage')}
-            </button>
-            <button
-              type="button"
-              className="btn tiny"
-              disabled={!presetName.trim() || presetBusy}
-              onClick={() => savePreset('chapter')}
-            >
-              {t('compare.savePresetChapter')}
-            </button>
-            <span className="align-sep" />
-            <select className="tb-select" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
-              <option value="">{t('compare.selectPreset')}</option>
-              {presets.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} · {alignModeLabel(p.mode)} ·{' '}
-                  {p.scope === 'chapter' ? t('compare.presetScopeChapter') : t('compare.presetScopePage')}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn tiny"
-              disabled={!presetId || presetBusy}
-              onClick={() => applyPreset('page')}
-            >
-              {t('compare.applyPresetPage')}
-            </button>
-            <button
-              type="button"
-              className="btn tiny"
-              disabled={!presetId || presetBusy}
-              onClick={() => applyPreset('chapter')}
-            >
-              {t('compare.applyPresetChapter')}
-            </button>
-            <button
-              type="button"
-              className="btn tiny danger"
-              disabled={!presetId || presetBusy}
-              onClick={() => void deletePreset()}
-            >
-              {t('common.delete')}
-            </button>
-          </div>
-          {presetMsg && <div className="muted tiny preset-msg">{presetMsg}</div>}
+          {!readOnly && (
+            <>
+              <div className="align-row">
+                <input
+                  className="preset-name"
+                  placeholder={t('compare.presetNamePlaceholder')}
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn tiny"
+                  disabled={!presetName.trim() || presetBusy}
+                  onClick={() => savePreset('page')}
+                >
+                  {t('compare.savePresetPage')}
+                </button>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  disabled={!presetName.trim() || presetBusy}
+                  onClick={() => savePreset('chapter')}
+                >
+                  {t('compare.savePresetChapter')}
+                </button>
+                <span className="align-sep" />
+                <select className="tb-select" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
+                  <option value="">{t('compare.selectPreset')}</option>
+                  {presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {alignModeLabel(p.mode)} ·{' '}
+                      {p.scope === 'chapter' ? t('compare.presetScopeChapter') : t('compare.presetScopePage')}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  disabled={!presetId || presetBusy}
+                  onClick={() => applyPreset('page')}
+                >
+                  {t('compare.applyPresetPage')}
+                </button>
+                <button
+                  type="button"
+                  className="btn tiny"
+                  disabled={!presetId || presetBusy}
+                  onClick={() => applyPreset('chapter')}
+                >
+                  {t('compare.applyPresetChapter')}
+                </button>
+                <button
+                  type="button"
+                  className="btn tiny danger"
+                  disabled={!presetId || presetBusy}
+                  onClick={() => void deletePreset()}
+                >
+                  {t('common.delete')}
+                </button>
+              </div>
+              {presetMsg && <div className="muted tiny preset-msg">{presetMsg}</div>}
+            </>
+          )}
         </div>
       )}
 
@@ -1846,8 +1876,10 @@ export function CompareTab({
           aspectOf={(l) => paneAspect(l, detailTarget)}
           offsetOf={(l) => offsetsOf(l, detailTarget)}
           onClose={onCloseDetail}
-          onPrev={detailIndex > 0 ? () => onOpenDetail(ordered[detailIndex - 1].id) : undefined}
-          onNext={detailIndex < ordered.length - 1 ? () => onOpenDetail(ordered[detailIndex + 1].id) : undefined}
+          onPrev={onDetailPrevPanel}
+          onNext={onDetailNextPanel}
+          onPrevPage={onDetailPrevPage}
+          onNextPage={onDetailNextPage}
         />
       )}
     </div>

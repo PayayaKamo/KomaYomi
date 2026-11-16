@@ -194,6 +194,7 @@ code {
 .tb-center {
   display: flex;
   justify-content: center;
+  gap: 8px;
 }
 
 /* Wider screens show the extra actions inline; narrower ones fold them into a menu. */
@@ -284,6 +285,74 @@ code {
 .app.reading-mode .groups-panel,
 .app.reading-mode .stage-status {
   display: none;
+}
+
+/* Minimal reading-mode dock: low opacity until hovered/focused so it stays out of the
+   way, but near-solid on touch where there is no hover. */
+.reading-nav {
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 53;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(18, 24, 33, 0.72);
+  backdrop-filter: blur(8px);
+  opacity: 0.5;
+  transition: opacity 0.18s ease;
+}
+
+.reading-nav:hover,
+.reading-nav:focus-within {
+  opacity: 1;
+}
+
+.reading-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reading-nav button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.reading-nav button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.reading-nav-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+@media (pointer: coarse) {
+  .reading-nav {
+    opacity: 0.95;
+  }
+
+  .reading-nav button {
+    width: 42px;
+    height: 42px;
+    font-size: 19px;
+  }
 }
 
 /* Brief, non-blocking tip when reading mode starts; nothing stays on screen. */
@@ -945,6 +1014,24 @@ code {
   border: 1px solid rgba(224, 168, 60, 0.4);
   border-radius: 99px;
   padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* Read-only viewer: a persistent badge next to the save state. */
+.ro-chip {
+  font-size: 11px;
+  color: var(--accent, #6b8fd4);
+  border: 1px solid currentColor;
+  border-radius: 99px;
+  padding: 1px 8px;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+/* Usage-mode switch sits before the view tabs and stays visible at every width. */
+.mode-seg button {
+  padding: 3px 10px;
+  font-size: 11.5px;
   white-space: nowrap;
 }
 
@@ -2267,6 +2354,36 @@ body.pane-resizing * {
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* Read-only viewer keeps the notes list but replaces the composer with a notice. */
+.notes-readonly {
+  margin: 10px 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-2, rgba(127, 127, 127, 0.08));
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+}
+
+/* Editing an existing note reuses the composer, so mark it instead of showing two editors. */
+.notes-editing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(90, 169, 255, 0.25);
+  border-radius: 7px;
+}
+
+.notes-editing .btn {
+  margin-left: auto;
+}
+
+.note.editing {
+  border-color: rgba(240, 122, 77, 0.45);
+  background: var(--accent-soft);
+}
+
 .scope-toggle {
   display: flex;
   gap: 4px;
@@ -2294,8 +2411,7 @@ body.pane-resizing * {
   cursor: not-allowed;
 }
 
-.notes-compose textarea,
-.note-edit textarea {
+.notes-compose textarea {
   width: 100%;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -2306,8 +2422,7 @@ body.pane-resizing * {
   outline: none;
 }
 
-.notes-compose textarea:focus,
-.note-edit textarea:focus {
+.notes-compose textarea:focus {
   border-color: rgba(240, 122, 77, 0.55);
 }
 
@@ -3970,10 +4085,6 @@ body.pane-resizing * {
     font-size: 13px;
   }
 
-  .tb-export-extra {
-    display: none;
-  }
-
   .tb-group {
     flex-wrap: wrap;
     min-width: 0;
@@ -4122,6 +4233,156 @@ body.pane-resizing * {
 
 .settings-row select {
   flex: 0 0 auto;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-section-head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.settings-section > p {
+  margin: -4px 0 0;
+}
+
+.settings-cache-usage {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.settings-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: var(--danger-soft);
+}
+
+.settings-confirm p {
+  margin: 0;
+}
+
+.settings-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.volume-chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.volume-chapters > p {
+  margin: 0;
+}
+
+.volume-chapter-list {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.volume-chapter-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.volume-chapter-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volume-confirm p {
+  margin: 0;
+}
+
+.volume-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.volume-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-offset-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.page-offset-editor p {
+  margin: 0;
+}
+
+.page-offset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-offset-lang {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 96px;
+  font-size: 12px;
+}
+
+.page-offset-row input {
+  width: 84px;
+}
+
+.page-offset-arrow {
+  color: var(--muted);
+}
+
+.volume-delete-files {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
 }
 
 .help-body {
@@ -6106,6 +6367,49 @@ kbd {
   cursor: default;
 }
 
+/* ================= Original (full-page) reading view ================= */
+
+/*
+ * The whole page as one image per language: no panel crops, only pan/zoom.
+ * The viewport fills the stage so long pages stay inside a predictable box,
+ * and object-fit keeps every page fully visible before the user zooms in.
+ */
+.original-tab {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.original-viewport {
+  flex: 1;
+  min-height: 0;
+  padding: 10px;
+  gap: 8px;
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.original-pane {
+  min-height: 0;
+  height: 100%;
+}
+
+.original-pane .crop-inner img {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .original-viewport {
+    padding: 6px;
+    gap: 6px;
+  }
+}
+
 /* ================= Panel detail view ================= */
 
 /*
@@ -6172,6 +6476,44 @@ kbd {
   font-size: 11px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* Page + panel navigation bar, outside the scroll area so it never covers content. */
+.pd-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.pd-foot-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pd-foot-group.pd-foot-right {
+  justify-content: flex-end;
+}
+
+.pd-foot .pd-page {
+  color: var(--muted);
+}
+
+/* Phones keep the arrows and drop the words so all four buttons stay on one line. */
+@media (max-width: 720px) {
+  .pd-foot .pd-foot-label {
+    display: none;
+  }
+
+  .pd-foot .btn {
+    min-width: 44px;
+  }
 }
 
 .pd-scroll {
@@ -6339,6 +6681,15 @@ kbd {
 
   .pd-scroll {
     padding: 10px;
+  }
+
+  .pd-foot {
+    gap: 4px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .pd-foot-group {
+    gap: 4px;
   }
 
   .pd-panes {

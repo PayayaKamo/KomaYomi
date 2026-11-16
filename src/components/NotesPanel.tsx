@@ -21,6 +21,8 @@ type Props = {
   /** Jump to a panel on some page (used by overview/search hits). */
   onJump: (sel: Selection, panelId: string | null) => void;
   onClose?: () => void;
+  /** Read-only viewer: notes stay visible, the composer and edit/delete actions are hidden. */
+  readOnly?: boolean;
 };
 
 /* ---------------- Note images: pasted/dropped screenshots ---------------- */
@@ -647,7 +649,17 @@ type FlatHeader =
 
 type FlatRow = FlatHeader | { kind: 'note'; note: NotesIndex['notes'][number] };
 
-export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, onJump, onClose }: Props) {
+export function NotesPanel({
+  doc,
+  panel,
+  panelLabel,
+  mutate,
+  tagStats,
+  library,
+  onJump,
+  onClose,
+  readOnly = false,
+}: Props) {
   const { t, formatDate, formatNumber } = useI18n();
   const { openMenu } = useContextMenu();
   const editorApi = useRef<EditorApi | null>(null);
@@ -659,8 +671,10 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const [tagInput, setTagInput] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [filterSource, setFilterSource] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{ id: string; text: string; images: NoteImage[] } | null>(null);
+  /** Id of the note loaded into the composer; editing reuses the one editor instead of nesting another. */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
+  const composeRef = useRef<HTMLDivElement>(null);
 
   // Source
   const [sourceOpen, setSourceOpen] = useState(false);
@@ -697,6 +711,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   const currentPageKey = `${doc?.chapter ?? ''}|${doc?.pageIndex ?? -1}`;
   useEffect(() => {
     setScope(panel ? 'panel' : 'page');
+    setEditingId(null);
     setText('');
     setImages([]);
     setTags([]);
@@ -810,12 +825,6 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     if (usable.length) setImages((prev) => [...prev, ...usable]);
   };
 
-  const appendEditingImages = async (files: File[]) => {
-    const converted = await Promise.all(files.map(fileToNoteImage));
-    const usable = converted.filter((img): img is NoteImage => img !== null);
-    if (usable.length) setEditing((prev) => (prev ? { ...prev, images: [...prev.images, ...usable] } : prev));
-  };
-
   const handlePasteImages = (e: ClipboardEvent, append: (files: File[]) => Promise<void>) => {
     const files = clipboardImageFiles(e.clipboardData);
     if (!files.length) return;
@@ -831,19 +840,8 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     void append(files);
   };
 
-  const submit = () => {
-    if (!doc) return;
-    if (!text.trim() && !images.length) return;
-    if (scope === 'panel' && !panel) return;
-    const note = newNote(
-      scope,
-      scope === 'panel' && panel ? panel.id : null,
-      text.trim(),
-      tags,
-      currentSource(),
-      images,
-    );
-    mutate((d) => ({ ...d, notes: [...d.notes, note] }));
+  const resetComposer = () => {
+    setEditingId(null);
     setText('');
     setImages([]);
     setTags([]);
@@ -854,7 +852,59 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
     setSourceOpen(false);
   };
 
+  /** Load an existing note into the composer, so editing never spawns a second editor. */
+  const startEdit = (note: Note) => {
+    setEditingId(note.id);
+    setScope(note.scope);
+    setText(note.text);
+    setImages(note.images ?? []);
+    setTags(note.tags);
+    setTagInput('');
+    setSrcUrl(note.source?.url ?? '');
+    setSrcTitle(note.source?.title ?? '');
+    setSrcText(note.source?.text ?? '');
+    setSourceOpen(Boolean(note.source && (note.source.url || note.source.title || note.source.text)));
+    requestAnimationFrame(() => composeRef.current?.scrollIntoView({ block: 'nearest' }));
+  };
+
+  const submit = () => {
+    if (!doc) return;
+    if (!text.trim() && !images.length) return;
+    if (scope === 'panel' && !panel) return;
+    if (editingId) {
+      const id = editingId;
+      const updatedAt = new Date().toISOString();
+      mutate((d) => ({
+        ...d,
+        notes: d.notes.map((n) =>
+          n.id === id
+            ? {
+                ...n,
+                text: text.trim(),
+                images: images.length ? images : undefined,
+                tags,
+                source: currentSource(),
+                updatedAt,
+              }
+            : n,
+        ),
+      }));
+    } else {
+      const note = newNote(
+        scope,
+        scope === 'panel' && panel ? panel.id : null,
+        text.trim(),
+        tags,
+        currentSource(),
+        images,
+      );
+      mutate((d) => ({ ...d, notes: [...d.notes, note] }));
+    }
+    resetComposer();
+  };
+
   const removeNote = (id: string) => {
+    if (id === editingId) resetComposer();
     mutate((d) => ({ ...d, notes: d.notes.filter((n) => n.id !== id) }));
   };
 
@@ -876,24 +926,6 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         onSelect: () => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] }),
       },
     ]);
-  };
-
-  const saveEdit = () => {
-    if (!editing) return;
-    mutate((d) => ({
-      ...d,
-      notes: d.notes.map((n) =>
-        n.id === editing.id
-          ? {
-              ...n,
-              text: editing.text,
-              images: editing.images.length ? editing.images : undefined,
-              updatedAt: new Date().toISOString(),
-            }
-          : n,
-      ),
-    }));
-    setEditing(null);
   };
 
   const grabTitle = async () => {
@@ -983,7 +1015,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
   );
 
   const renderNote = (note: Note) => (
-    <div className="note" key={note.id}>
+    <div className={`note ${editingId === note.id ? 'editing' : ''}`} key={note.id}>
       <div className="note-top">
         <div className="note-tags">
           {note.tags.map((tag) => (
@@ -1000,39 +1032,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         </div>
         <span className="note-time">{formatDate(note.createdAt)}</span>
       </div>
-      {editing?.id === note.id ? (
-        <div
-          className="note-edit"
-          onPaste={(e) => handlePasteImages(e, appendEditingImages)}
-          onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
-          }}
-          onDrop={(e) => handleDropImages(e, appendEditingImages)}
-        >
-          <MarkdownEditor
-            value={editing.text}
-            onChange={(v) => setEditing({ ...editing, text: v })}
-            onSubmit={saveEdit}
-            placeholder={t('notes.markdownPlaceholder')}
-          />
-          {editing.images.length > 0 &&
-            imageStrip(editing.images, (id) =>
-              setEditing((prev) => (prev ? { ...prev, images: prev.images.filter((i) => i.id !== id) } : prev)),
-            )}
-          <div className="row-actions">
-            <button type="button" className="btn tiny primary" onClick={saveEdit}>
-              {t('common.save')}
-            </button>
-            <button type="button" className="btn tiny" onClick={() => setEditing(null)}>
-              {t('common.cancel')}
-            </button>
-          </div>
-        </div>
-      ) : sourceIds[note.id] ? (
-        <pre className="note-source">{note.text}</pre>
-      ) : (
-        <NoteBody text={note.text} />
-      )}
+      {sourceIds[note.id] ? <pre className="note-source">{note.text}</pre> : <NoteBody text={note.text} />}
       {note.images?.length ? imageStrip(note.images) : null}
       {note.source && (note.source.url || note.source.title || note.source.text) && (
         <div className="note-src-line" title={note.source.url}>
@@ -1047,11 +1047,13 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
           {note.source.text && <em>{note.source.text}</em>}
         </div>
       )}
-      {editing?.id !== note.id && (
+      {editingId !== note.id && (
         <div className="note-actions">
-          <button type="button" onClick={() => setEditing({ id: note.id, text: note.text, images: note.images ?? [] })}>
-            {t('common.edit')}
-          </button>
+          {!readOnly && (
+            <button type="button" onClick={() => startEdit(note)}>
+              {t('common.edit')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setSourceIds((s) => ({ ...s, [note.id]: !s[note.id] }))}
@@ -1066,9 +1068,11 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
           >
             {t('notes.copyContext')}
           </button>
-          <button type="button" onClick={() => removeNote(note.id)}>
-            {t('common.delete')}
-          </button>
+          {!readOnly && (
+            <button type="button" onClick={() => removeNote(note.id)}>
+              {t('common.delete')}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1185,7 +1189,7 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
           <div className="notes-title">{t('notes.title')}</div>
         </div>
         <div className="notes-empty">{t('notes.emptyNoDoc')}</div>
-        {scratchPanel}
+        {!readOnly && scratchPanel}
         {contextNotes && (
           <ContextDialog
             notes={contextNotes}
@@ -1380,152 +1384,170 @@ export function NotesPanel({ doc, panel, panelLabel, mutate, tagStats, library, 
         </>
       ) : (
         <>
-          <div
-            className="notes-compose"
-            onContextMenu={openComposeMenu}
-            onPaste={(e) => handlePasteImages(e, appendComposerImages)}
-            onDragOver={(e) => {
-              if (e.dataTransfer.types.includes('Files')) e.preventDefault();
-            }}
-            onDrop={(e) => handleDropImages(e, appendComposerImages)}
-          >
-            <div className="scope-toggle">
-              <button type="button" className={scope === 'page' ? 'on' : ''} onClick={() => setScope('page')}>
-                {t('notes.wholePage')}
-              </button>
-              <button
-                type="button"
-                className={scope === 'panel' ? 'on' : ''}
-                onClick={() => setScope('panel')}
-                disabled={!panel}
-                title={panel ? '' : t('notes.selectPanelHint')}
-              >
-                {panel ? panelLabel : t('notes.thisPanel')}
-              </button>
-              <span className="spacer" />
-              <button
-                type="button"
-                className="btn tiny"
-                onClick={() => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] })}
-                disabled={!notes.length}
-              >
-                {t('notes.copyPageContext')}
-              </button>
-            </div>
-            <MarkdownEditor
-              value={text}
-              onChange={setText}
-              onSubmit={submit}
-              placeholder={scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')}
-            />
-            {images.length > 0 && imageStrip(images, (id) => setImages((prev) => prev.filter((i) => i.id !== id)))}
-            <div className="note-image-row">
-              <span className="muted tiny note-image-hint">{t('notes.imageHint')}</span>
-              <label className="btn tiny note-image-pick">
-                {t('notes.addImages')}
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  onChange={(e) => {
-                    const files = [...(e.target.files ?? [])];
-                    e.target.value = '';
-                    void appendComposerImages(files);
-                  }}
-                />
-              </label>
-            </div>
-            <div className="source-editor">
-              <button
-                type="button"
-                className={`link-btn ${sourceOpen ? 'on' : ''}`}
-                onClick={() => setSourceOpen((v) => !v)}
-              >
-                {sourceOpen
-                  ? t('notes.hideSource')
-                  : currentSource()
-                    ? t('notes.sourceWith', { domain: sourceDomain(currentSource()) })
-                    : t('notes.addSource')}
-              </button>
-              {sourceOpen && (
-                <>
-                  <div className="row-inline">
-                    <input
-                      value={srcUrl}
-                      placeholder={t('notes.urlPlaceholder')}
-                      onChange={(e) => setSrcUrl(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="btn tiny"
-                      disabled={!srcUrl.trim() || titleBusy}
-                      onClick={() => void grabTitle()}
-                    >
-                      {titleBusy ? t('notes.grabbingTitle') : t('notes.grabTitle')}
-                    </button>
-                  </div>
-                  <input
-                    value={srcTitle}
-                    placeholder={t('notes.titlePlaceholder')}
-                    onChange={(e) => setSrcTitle(e.target.value)}
-                  />
-                  <input
-                    value={srcText}
-                    placeholder={t('notes.sourceTextPlaceholder')}
-                    onChange={(e) => setSrcText(e.target.value)}
-                  />
-                  {titleMsg && <span className="muted tiny">{titleMsg}</span>}
-                </>
-              )}
-            </div>
-            <div className="tag-editor">
-              {tags.map((tag) => (
-                <span className="tag on" key={tag}>
-                  {tag}
-                  <button type="button" onClick={() => setTags(tags.filter((x) => x !== tag))}>
-                    ×
-                  </button>
-                </span>
-              ))}
-              <input
-                value={tagInput}
-                placeholder={t('notes.tagPlaceholder')}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag(tagInput);
-                  }
-                  if (e.key === 'Backspace' && !tagInput && tags.length) setTags(tags.slice(0, -1));
-                }}
-                list="tag-suggestions"
-              />
-              <datalist id="tag-suggestions">
-                {allTags.map((tag) => (
-                  <option value={tag.tag} key={tag.tag} />
-                ))}
-              </datalist>
-            </div>
-            {suggestions.length > 0 && (
-              <div className="tag-suggest">
-                {suggestions.map((tag) => (
-                  <button type="button" key={tag.tag} className="tag ghost" onClick={() => addTag(tag.tag)}>
-                    {tag.tag}
-                  </button>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              className="btn primary block"
-              onClick={submit}
-              disabled={!text.trim() && !images.length}
+          {readOnly ? (
+            <div className="notes-readonly">{t('mode.notesReadOnly')}</div>
+          ) : (
+            <div
+              className="notes-compose"
+              ref={composeRef}
+              onContextMenu={openComposeMenu}
+              onPaste={(e) => handlePasteImages(e, appendComposerImages)}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+              }}
+              onDrop={(e) => handleDropImages(e, appendComposerImages)}
             >
-              {t('notes.addNote')}
-            </button>
-            {scratchPanel}
-          </div>
+              {editingId && (
+                <div className="banner info notes-editing">
+                  {t('notes.editingNote')}
+                  <button type="button" className="btn tiny" onClick={resetComposer}>
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              )}
+              <div className="scope-toggle">
+                <button
+                  type="button"
+                  className={scope === 'page' ? 'on' : ''}
+                  onClick={() => setScope('page')}
+                  disabled={editingId !== null}
+                >
+                  {t('notes.wholePage')}
+                </button>
+                <button
+                  type="button"
+                  className={scope === 'panel' ? 'on' : ''}
+                  onClick={() => setScope('panel')}
+                  disabled={!panel || editingId !== null}
+                  title={panel ? '' : t('notes.selectPanelHint')}
+                >
+                  {panel ? panelLabel : t('notes.thisPanel')}
+                </button>
+                <span className="spacer" />
+                <button
+                  type="button"
+                  className="btn tiny"
+                  onClick={() => setContextNotes({ notes: [panelNoteSource(panelNotes, pageNotes)] })}
+                  disabled={!notes.length}
+                >
+                  {t('notes.copyPageContext')}
+                </button>
+              </div>
+              <MarkdownEditor
+                value={text}
+                onChange={setText}
+                onSubmit={submit}
+                placeholder={scope === 'panel' ? t('notes.placeholderPanel') : t('notes.placeholderPage')}
+              />
+              {images.length > 0 && imageStrip(images, (id) => setImages((prev) => prev.filter((i) => i.id !== id)))}
+              <div className="note-image-row">
+                <span className="muted tiny note-image-hint">{t('notes.imageHint')}</span>
+                <label className="btn tiny note-image-pick">
+                  {t('notes.addImages')}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    hidden
+                    onChange={(e) => {
+                      const files = [...(e.target.files ?? [])];
+                      e.target.value = '';
+                      void appendComposerImages(files);
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="source-editor">
+                <button
+                  type="button"
+                  className={`link-btn ${sourceOpen ? 'on' : ''}`}
+                  onClick={() => setSourceOpen((v) => !v)}
+                >
+                  {sourceOpen
+                    ? t('notes.hideSource')
+                    : currentSource()
+                      ? t('notes.sourceWith', { domain: sourceDomain(currentSource()) })
+                      : t('notes.addSource')}
+                </button>
+                {sourceOpen && (
+                  <>
+                    <div className="row-inline">
+                      <input
+                        value={srcUrl}
+                        placeholder={t('notes.urlPlaceholder')}
+                        onChange={(e) => setSrcUrl(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn tiny"
+                        disabled={!srcUrl.trim() || titleBusy}
+                        onClick={() => void grabTitle()}
+                      >
+                        {titleBusy ? t('notes.grabbingTitle') : t('notes.grabTitle')}
+                      </button>
+                    </div>
+                    <input
+                      value={srcTitle}
+                      placeholder={t('notes.titlePlaceholder')}
+                      onChange={(e) => setSrcTitle(e.target.value)}
+                    />
+                    <input
+                      value={srcText}
+                      placeholder={t('notes.sourceTextPlaceholder')}
+                      onChange={(e) => setSrcText(e.target.value)}
+                    />
+                    {titleMsg && <span className="muted tiny">{titleMsg}</span>}
+                  </>
+                )}
+              </div>
+              <div className="tag-editor">
+                {tags.map((tag) => (
+                  <span className="tag on" key={tag}>
+                    {tag}
+                    <button type="button" onClick={() => setTags(tags.filter((x) => x !== tag))}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <input
+                  value={tagInput}
+                  placeholder={t('notes.tagPlaceholder')}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTag(tagInput);
+                    }
+                    if (e.key === 'Backspace' && !tagInput && tags.length) setTags(tags.slice(0, -1));
+                  }}
+                  list="tag-suggestions"
+                />
+                <datalist id="tag-suggestions">
+                  {allTags.map((tag) => (
+                    <option value={tag.tag} key={tag.tag} />
+                  ))}
+                </datalist>
+              </div>
+              {suggestions.length > 0 && (
+                <div className="tag-suggest">
+                  {suggestions.map((tag) => (
+                    <button type="button" key={tag.tag} className="tag ghost" onClick={() => addTag(tag.tag)}>
+                      {tag.tag}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                className="btn primary block"
+                onClick={submit}
+                disabled={!text.trim() && !images.length}
+              >
+                {editingId ? t('notes.saveNote') : t('notes.addNote')}
+              </button>
+              {scratchPanel}
+            </div>
+          )}
 
           <div className="notes-scroll">
             {(filterTag || filterSource) && (

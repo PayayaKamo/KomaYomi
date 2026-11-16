@@ -31,6 +31,9 @@ type Props = {
   onClose: () => void;
   onPrev?: () => void;
   onNext?: () => void;
+  /** Page turns that keep the detail open; undefined at the first/last page. */
+  onPrevPage?: () => void;
+  onNextPage?: () => void;
 };
 
 const MIN_ZOOM = 1;
@@ -64,6 +67,8 @@ export function PanelDetail({
   onClose,
   onPrev,
   onNext,
+  onPrevPage,
+  onNextPage,
 }: Props) {
   const { t, formatDate, formatNumber } = useI18n();
   const layout = useCompareLayout();
@@ -198,26 +203,6 @@ export function PanelDetail({
           </span>
         </div>
         <div className="pd-nav">
-          <button
-            type="button"
-            className="btn icon"
-            onClick={onPrev}
-            disabled={!onPrev}
-            title={t('detail.prev')}
-            aria-label={t('detail.prev')}
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            className="btn icon"
-            onClick={onNext}
-            disabled={!onNext}
-            title={t('detail.next')}
-            aria-label={t('detail.next')}
-          >
-            ›
-          </button>
           <div className="seg pd-zoom" role="group" aria-label={t('detail.zoomHint')}>
             <button
               type="button"
@@ -360,6 +345,55 @@ export function PanelDetail({
           )}
         </section>
       </div>
+
+      {/* Navigation sits in its own bar below the scroll area: always reachable and
+          never covering the panel image or the notes. */}
+      <footer className="pd-foot">
+        <div className="pd-foot-group">
+          <button
+            type="button"
+            className="btn tiny pd-page"
+            onClick={onPrevPage}
+            disabled={!onPrevPage}
+            title={t('app.prevPage')}
+            aria-label={t('app.prevPage')}
+          >
+            « <span className="pd-foot-label">{t('app.prevPage')}</span>
+          </button>
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={onPrev}
+            disabled={!onPrev}
+            title={t('detail.prev')}
+            aria-label={t('detail.prev')}
+          >
+            ‹ <span className="pd-foot-label">{t('detail.prev')}</span>
+          </button>
+        </div>
+        <div className="pd-foot-group pd-foot-right">
+          <button
+            type="button"
+            className="btn tiny"
+            onClick={onNext}
+            disabled={!onNext}
+            title={t('detail.next')}
+            aria-label={t('detail.next')}
+          >
+            <span className="pd-foot-label">{t('detail.next')}</span> ›
+          </button>
+          <button
+            type="button"
+            className="btn tiny pd-page"
+            onClick={onNextPage}
+            disabled={!onNextPage}
+            title={t('app.nextPage')}
+            aria-label={t('app.nextPage')}
+          >
+            <span className="pd-foot-label">{t('app.nextPage')}</span> »
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { Library } from '../types';
 import type { Selection } from '../hooks/usePage';
 import { formatDate, useI18n } from '../i18n';
 import { clearRecent, pushRecent, readRecent, removeRecent } from '../lib/recent';
+import { volumeLabel as volumeLabelOf } from '../lib/volumeLabel';
 import type { RecentPage } from '../lib/recent';
 import { AddVolumeDialog } from './LibraryDialogs';
 import { ProjectDialog } from './ProjectDialog';
@@ -19,6 +20,8 @@ type Props = {
   onReloadLibrary: () => void;
   onExport: () => void;
   onSave: () => void;
+  /** Read-only viewer: only open-project, recent and export stay available. */
+  readOnly?: boolean;
 };
 
 type AddState = { initialPath?: string } | null;
@@ -38,6 +41,7 @@ export function FileMenu({
   onReloadLibrary,
   onExport,
   onSave,
+  readOnly = false,
 }: Props) {
   const { t, formatNumber: fmt } = useI18n();
   const [open, setOpen] = useState(false);
@@ -97,6 +101,7 @@ export function FileMenu({
         setProjectOpen(true);
       } else if (key === 's') {
         e.preventDefault();
+        if (readOnly) return;
         setOpen(false);
         if (e.shiftKey) setProjectOpen(true);
         else if (hasDoc) onSave();
@@ -104,7 +109,7 @@ export function FileMenu({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [hasDoc, onSave]);
+  }, [hasDoc, onSave, readOnly]);
 
   const openLibrary = useCallback(async () => {
     setOpen(false);
@@ -122,7 +127,7 @@ export function FileMenu({
     const pageCount = chapter?.pages.length ?? 0;
     return {
       missing: !volume || !chapter || pageCount === 0,
-      title: volume?.title ?? entry.volume,
+      title: volume ? volumeLabelOf(volume) : entry.volume,
       pageIndex: Math.min(Math.max(0, entry.pageIndex), Math.max(0, pageCount - 1)),
       pageCount,
     };
@@ -220,23 +225,27 @@ export function FileMenu({
 
       {open && (
         <div className="file-pop" role="menu">
-          <div className="file-group">{t('file.groupNew')}</div>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setAddState({});
-            }}
-          >
-            {t('file.newLibrary')}
-          </button>
-          <button type="button" role="menuitem" className="file-item" onClick={() => void openLibrary()}>
-            {t('file.openLibrary')}
-          </button>
+          {!readOnly && (
+            <>
+              <div className="file-group">{t('file.groupNew')}</div>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setAddState({});
+                }}
+              >
+                {t('file.newLibrary')}
+              </button>
+              <button type="button" role="menuitem" className="file-item" onClick={() => void openLibrary()}>
+                {t('file.openLibrary')}
+              </button>
 
-          <div className="file-sep" />
+              <div className="file-sep" />
+            </>
+          )}
           <div className="file-group">{t('file.groupOpen')}</div>
           <button
             type="button"
@@ -250,30 +259,34 @@ export function FileMenu({
             {t('file.openProject')}
             <kbd className="file-kbd">Ctrl+O</kbd>
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setAddState({});
-            }}
-          >
-            {t('file.addManga')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setExchangeOpen(true);
-            }}
-          >
-            {t('file.openTemplates')}
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setAddState({});
+                }}
+              >
+                {t('file.addManga')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setExchangeOpen(true);
+                }}
+              >
+                {t('file.openTemplates')}
+              </button>
 
-          <div className="file-sep" />
+              <div className="file-sep" />
+            </>
+          )}
           <div className="file-sub-wrap" ref={recentWrapRef} onPointerEnter={() => !recentOpen && openSub()}>
             <button
               ref={recentBtnRef}
@@ -372,70 +385,74 @@ export function FileMenu({
           </div>
 
           <div className="file-sep" />
-          <div className="file-group">{t('file.groupSave')}</div>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            disabled={!hasDoc}
-            onClick={() => {
-              setOpen(false);
-              onSave();
-            }}
-          >
-            {t('file.savePage')}
-            <kbd className="file-kbd">Ctrl+S</kbd>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setProjectOpen(true);
-            }}
-          >
-            {t('file.saveAsProject')}
-            <kbd className="file-kbd">Ctrl+Shift+S</kbd>
-          </button>
+          {!readOnly && (
+            <>
+              <div className="file-group">{t('file.groupSave')}</div>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                disabled={!hasDoc}
+                onClick={() => {
+                  setOpen(false);
+                  onSave();
+                }}
+              >
+                {t('file.savePage')}
+                <kbd className="file-kbd">Ctrl+S</kbd>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setProjectOpen(true);
+                }}
+              >
+                {t('file.saveAsProject')}
+                <kbd className="file-kbd">Ctrl+Shift+S</kbd>
+              </button>
 
-          <div className="file-sep" />
-          <div className="file-group">{t('file.groupImport')}</div>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setProjectOpen(true);
-            }}
-          >
-            {t('file.importProject')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setExchangeOpen(true);
-            }}
-          >
-            {t('file.importExchange')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="file-item"
-            onClick={() => {
-              setOpen(false);
-              setBackupOpen(true);
-            }}
-          >
-            {t('file.restoreBackup')}
-          </button>
+              <div className="file-sep" />
+              <div className="file-group">{t('file.groupImport')}</div>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setProjectOpen(true);
+                }}
+              >
+                {t('file.importProject')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setExchangeOpen(true);
+                }}
+              >
+                {t('file.importExchange')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="file-item"
+                onClick={() => {
+                  setOpen(false);
+                  setBackupOpen(true);
+                }}
+              >
+                {t('file.restoreBackup')}
+              </button>
 
-          <div className="file-sep" />
+              <div className="file-sep" />
+            </>
+          )}
           <button
             type="button"
             role="menuitem"

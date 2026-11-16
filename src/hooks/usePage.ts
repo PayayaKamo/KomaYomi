@@ -50,8 +50,10 @@ const initial: State = {
 /**
  * Loading / auto panel detection / saving / undo-redo for a page document.
  * auto mode debounces writes by 700ms; confirm mode writes only on commit(), and discard() reverts to disk.
+ * `readOnly` keeps every in-memory view change (panning alignment, selection) working while
+ * disabling detection, saving and every disk write.
  */
-export function usePage(sel: Selection | null) {
+export function usePage(sel: Selection | null, readOnly = false) {
   const { locale } = useI18n();
   const [state, setState] = useState<State>(initial);
   const [reloadTick, setReloadTick] = useState(0);
@@ -69,6 +71,12 @@ export function usePage(sel: Selection | null) {
   const undoStack = useRef<PageDoc[]>([]);
   const redoStack = useRef<PageDoc[]>([]);
   const lastHistoryAt = useRef(0);
+  /** Read-only mode must never hand the document to a save path, including unload. */
+  const readOnlyRef = useRef(readOnly);
+
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
 
   useEffect(() => {
     saveModeRef.current = saveMode;
@@ -99,6 +107,11 @@ export function usePage(sel: Selection | null) {
 
   const flush = useCallback(async () => {
     clearTimer();
+    if (readOnlyRef.current) {
+      // Read mode never writes: nothing may reach the page file or the outbox.
+      pending.current = null;
+      return;
+    }
     const doc = pending.current;
     if (!doc) return;
     const source = pendingSource.current;
@@ -126,6 +139,7 @@ export function usePage(sel: Selection | null) {
 
   const scheduleSave = useCallback(
     (doc: PageDoc, source: HistorySource = 'auto') => {
+      if (readOnlyRef.current) return;
       pending.current = doc;
       pendingSource.current = source;
       clearTimer();
@@ -155,6 +169,11 @@ export function usePage(sel: Selection | null) {
       if (next === cur) return;
       if (opts?.history !== false) pushHistory(cur);
       docRef.current = next;
+      if (readOnlyRef.current) {
+        // View-only session: the change stays in memory and is never scheduled for saving.
+        setState((s) => ({ ...s, doc: next }));
+        return;
+      }
       setState((s) => ({ ...s, doc: next, dirty: true }));
       if (saveModeRef.current === 'auto') scheduleSave(next, opts?.source);
       else {
@@ -167,6 +186,7 @@ export function usePage(sel: Selection | null) {
 
   /** ✓ save (confirm mode); in auto mode this writes immediately. */
   const commit = useCallback(async () => {
+    if (readOnlyRef.current) return;
     const doc = docRef.current;
     if (!doc) return;
     pending.current = doc;
@@ -194,6 +214,11 @@ export function usePage(sel: Selection | null) {
     if (!cur || !prev) return;
     redoStack.current.push(cloneDoc(cur));
     docRef.current = prev;
+    if (readOnlyRef.current) {
+      setState((s) => ({ ...s, doc: prev }));
+      syncHistoryCounts();
+      return;
+    }
     setState((s) => ({ ...s, doc: prev, dirty: true }));
     if (saveModeRef.current === 'auto') scheduleSave(prev);
     else pending.current = prev;
@@ -206,6 +231,11 @@ export function usePage(sel: Selection | null) {
     if (!cur || !next) return;
     undoStack.current.push(cloneDoc(cur));
     docRef.current = next;
+    if (readOnlyRef.current) {
+      setState((s) => ({ ...s, doc: next }));
+      syncHistoryCounts();
+      return;
+    }
     setState((s) => ({ ...s, doc: next, dirty: true }));
     if (saveModeRef.current === 'auto') scheduleSave(next);
     else pending.current = next;
@@ -227,7 +257,7 @@ export function usePage(sel: Selection | null) {
 
   const detect = useCallback(
     async (lang?: string) => {
-      if (!sel) return;
+      if (!sel || readOnlyRef.current) return;
       setState((s) => ({ ...s, detecting: true, error: null }));
       try {
         const res = await api.detect(sel.volume, sel.chapter, sel.pageIndex, lang, docRef.current?.readingDirection);
@@ -299,7 +329,7 @@ export function usePage(sel: Selection | null) {
           saving: false,
         });
         const hasImage = Object.keys(res.page.files).length > 0;
-        if (!res.exists && res.doc.panels.length === 0 && hasImage) {
+        if (!res.exists && res.doc.panels.length === 0 && hasImage && !readOnlyRef.current) {
           // First open: auto-detect panels (the result is autosaved along with the next edit).
           void api
             .detect(sel.volume, sel.chapter, sel.pageIndex, undefined, res.doc.readingDirection)
@@ -341,12 +371,14 @@ export function usePage(sel: Selection | null) {
   useEffect(() => {
     if (localeRef.current === locale) return;
     localeRef.current = locale;
+    if (readOnlyRef.current) return;
     if (saveModeRef.current === 'confirm' && pending.current) return;
     void flush().then(() => reload());
   }, [locale, flush, reload]);
 
   useEffect(() => {
     const onUnload = () => {
+      if (readOnlyRef.current) return;
       const doc = pending.current;
       if (!doc) return;
       const body = JSON.stringify(doc);

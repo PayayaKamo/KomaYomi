@@ -5,7 +5,7 @@
  * refreshing the URL restores the same page and panel position.
  */
 
-export type AppView = 'panels' | 'compare';
+export type AppView = 'panels' | 'compare' | 'original';
 
 export type DeepLink = {
   volume: string;
@@ -23,7 +23,7 @@ export function parseDeepLink(hash: string): DeepLink | null {
   if (!raw) return null;
   const [volume, chapter, pageNo, mode, sub, panelId] = raw.split('/');
   if (!volume || !chapter) return null;
-  const view: AppView | null = mode === 'compare' || mode === 'panels' ? mode : null;
+  const view: AppView | null = mode === 'compare' || mode === 'panels' || mode === 'original' ? mode : null;
   return {
     volume,
     chapter,

@@ -16,10 +16,13 @@ import type {
   PanelRect,
   ReadingDirection,
   CacheStats,
+  CacheOverview,
+  DetectResetResult,
   StorageConfig,
   StorageStatus,
 } from './types';
 import { getLocale, t } from './i18n';
+import { isReadOnly } from './lib/appMode';
 
 /* ---- page version history (cross-session) ---- */
 export type HistorySource =
@@ -145,7 +148,19 @@ function withLang(url: string): string {
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('Accept-Language', getLocale());
-  const res = await fetch(withLang(url), { ...init, headers });
+  // Read mode asks the server to reject anything that would write project data, so a
+  // missed control in the UI can never modify someone else's project.
+  if (isReadOnly()) headers.set('X-KomaYomi-Mode', 'read');
+  const target = withLang(url);
+  let res: Response;
+  try {
+    res = await fetch(target, { ...init, headers });
+  } catch (err) {
+    // A dead server, a restarting dev plugin or an offline browser all surface as
+    // "Failed to fetch" with no status. Name the request so it can be diagnosed.
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(t('api.networkError', { path: target, detail }));
+  }
   const text = await res.text();
   let data: unknown = null;
   try {
@@ -154,9 +169,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(t('api.nonJson', { text: text.slice(0, 120) }));
   }
   if (!res.ok) {
-    // Server-provided messages stay as-is; only our own fallback is localized.
-    const message = (data as { error?: string } | null)?.error ?? t('api.requestFailed', { status: res.status });
-    throw new Error(message);
+    // Server-provided messages stay as-is; the code and status make the failure traceable.
+    const body = data as { error?: string; message?: string; code?: string } | null;
+    const message = body?.error ?? body?.message ?? t('api.requestFailed', { status: res.status });
+    throw new Error(`${message} [${body?.code ?? `HTTP ${res.status}`}]`);
   }
   return data as T;
 }
@@ -179,11 +195,25 @@ export const api = {
   addVolume: (input: { sourcePath?: string; name?: string }) =>
     request<{ added: string[]; warnings: string[]; library: Library }>('/api/library/add-volume', json(input)),
 
-  removeVolume: (volume: string) =>
-    request<{ removed: boolean; warnings: string[]; library: Library }>('/api/library/remove-volume', json({ volume })),
+  removeVolume: (volume: string, options?: { deleteFiles?: boolean }) =>
+    request<{ removed: boolean; warnings: string[]; deletedPath?: string; library: Library }>(
+      '/api/library/remove-volume',
+      json({ volume, deleteFiles: options?.deleteFiles === true }),
+    ),
+
+  /** Unlink a chapter from the library; `hidden` false restores it. */
+  removeChapter: (volume: string, chapter: string, hidden = true) =>
+    request<{ library: Library }>('/api/library/remove-chapter', json({ volume, chapter, hidden })),
 
   saveVolumeDirs: (volume: string, dirs: Partial<Record<Lang, string | null>>) =>
     request<{ library: Library }>('/api/library/volume-config', json({ volume, dirs })),
+
+  /** Align one language's page numbers when extra pages are inserted mid-chapter; null clears. */
+  saveChapterPageOffsets: (
+    volume: string,
+    chapter: string,
+    pageOffsets: Partial<Record<Lang, { from: number; to: number } | null>>,
+  ) => request<{ library: Library }>('/api/library/volume-config', json({ volume, chapter, pageOffsets })),
 
   /** Persist the compare/export language order; null restores the default. */
   saveLangOrder: (order: Lang[] | null) => request<{ langOrder: Lang[] }>('/api/lang-order', json({ order })),
@@ -300,6 +330,16 @@ export const api = {
     ),
 
   clearStorageCache: () => request<{ removed: number; cache: CacheStats }>('/api/storage/cache/clear', json({})),
+
+  /* ---- Cache overview / cleanup (settings) ---- */
+  cacheOverview: () => request<CacheOverview>('/api/cache'),
+
+  clearCache: (target: 'thumbs' | 'remote' | 'staging') =>
+    request<{ removed: number; freed: number; cache: CacheOverview }>('/api/cache/clear', json({ target })),
+
+  /** Remove auto-detected panels; notes/annotations and hand-drawn panels are kept. */
+  resetDetect: (volume?: string) =>
+    request<DetectResetResult & { cache: CacheOverview }>('/api/cache/reset-detect', json({ volume })),
 
   backupToStorage: (targetId?: string) =>
     request<{ file: string; target?: string; url?: string; size: number; entries: number }>(

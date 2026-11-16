@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { CrumbNav } from './components/CrumbNav';
 import { PanelsTab } from './components/PanelsTab';
 import { CompareTab } from './components/CompareTab';
+import { OriginalTab } from './components/OriginalTab';
 import { NotesPanel } from './components/NotesPanel';
 import { ExportDialog } from './components/ExportDialog';
 import { FileMenu } from './components/FileMenu';
@@ -25,6 +26,8 @@ import { applyGroupOrder, sortPanels } from './lib/geometry';
 import { buildHash, parseDeepLink } from './lib/deepLink';
 import type { AppView } from './lib/deepLink';
 import { enqueueOutbox } from './lib/outbox';
+import { getAppMode, setAppMode } from './lib/appMode';
+import type { AppMode } from './lib/appMode';
 import { applyTheme, readThemeMode, saveThemeMode, watchSystemTheme } from './theme';
 import type { ThemeMode } from './theme';
 
@@ -76,6 +79,9 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(() => window.innerWidth > 1180);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
   const [readingMode, setReadingMode] = useState(readReadingMode);
+  /** Edit mode is the authoring workspace; read mode is the learner's viewer. */
+  const [appMode, setAppModeState] = useState<AppMode>(getAppMode);
+  const readOnly = appMode === 'read';
   const [readingHint, setReadingHint] = useState(false);
   const readingHintTimer = useRef<number | undefined>(undefined);
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() =>
@@ -90,6 +96,8 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingPanel, setPendingPanel] = useState<string | null>(null);
+  /** Panel to focus at the edge of the next page (cross-page ‹ › navigation). */
+  const [pendingEdge, setPendingEdge] = useState<{ sel: Selection; edge: 'first' | 'last' } | null>(null);
   const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
   /** Latest page state, read by the navigation guards declared below. */
   const pageRef = useRef<ReturnType<typeof usePage> | null>(null);
@@ -223,7 +231,7 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const pageState = usePage(sel);
+  const pageState = usePage(sel, readOnly);
   const outbox = useOutbox();
   const pwa = usePwaStatus();
   const { doc, page } = pageState;
@@ -280,16 +288,35 @@ export default function App() {
       .catch((err: unknown) => setLibError(err instanceof Error ? err.message : String(err)));
   }, []);
 
+  // After a series/chapter is removed from the library, drop a selection that no longer
+  // exists instead of leaving a ghost page on screen.
+  useEffect(() => {
+    if (!library || !sel) return;
+    const volume = library.volumes.find((v) => v.id === sel.volume);
+    const chapter = volume?.chapters.find((c) => c.chapter === sel.chapter);
+    if (chapter) return;
+    detailPushed.current = false;
+    setDetailPanel(null);
+    setSelected([]);
+    setSel(null);
+    setView('panels');
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+  }, [library, sel]);
+
   // Keep the persisted order in sync whenever the compare bar changes it.
-  const setLangs = useCallback((next: Lang[]) => {
-    setLangsState(next);
-    api.saveLangOrder(next).catch((err: unknown) => {
-      // Queue it instead of dropping the order silently; the pending chip shows it.
-      if (!enqueueOutbox({ kind: 'langOrder', order: next })) {
-        setLibError(err instanceof Error ? err.message : String(err));
-      }
-    });
-  }, []);
+  const setLangs = useCallback(
+    (next: Lang[]) => {
+      setLangsState(next);
+      if (readOnly) return;
+      api.saveLangOrder(next).catch((err: unknown) => {
+        // Queue it instead of dropping the order silently; the pending chip shows it.
+        if (!enqueueOutbox({ kind: 'langOrder', order: next })) {
+          setLibError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    },
+    [readOnly],
+  );
 
   const loadTags = useCallback(() => {
     api
@@ -334,6 +361,22 @@ export default function App() {
     pageRef.current = pageState;
     confirmLeaveRef.current = confirmLeave;
   }, [pageState, confirmLeave]);
+
+  /** Switching to read mode saves what was already edited, then turns the workspace into a viewer. */
+  const switchAppMode = useCallback(
+    async (next: AppMode) => {
+      if (next === appMode) return;
+      if (next === 'read') {
+        if (pageState.dirty) await pageState.commit();
+        setSelected([]);
+        setHistoryOpen(false);
+        setSettingsOpen(false);
+      }
+      setAppMode(next);
+      setAppModeState(next);
+    },
+    [appMode, pageState],
+  );
 
   // In confirm mode, warn before leaving with pending edits; autosave mode needs no guard.
   useEffect(() => {
@@ -422,46 +465,152 @@ export default function App() {
   }, [pageKey, detailPanel]);
 
   // A stale link (deleted or re-detected panel) must not leave an empty detail screen open.
+  // A cross-page step is exempt: its target panel is picked once the new page loads.
   useEffect(() => {
+    if (pendingEdge) return;
     if (doc && detailPanel && !doc.panels.some((p) => p.id === detailPanel)) setDetailPanel(null);
-  }, [doc, detailPanel]);
+  }, [doc, detailPanel, pendingEdge]);
 
   // Keep the compare view behind the detail on the same panel, including after a refresh.
   useEffect(() => {
     if (doc && detailPanel && doc.panels.some((p) => p.id === detailPanel)) setSelected([detailPanel]);
   }, [doc, detailPanel]);
 
-  const changeDirection = (dir: ReadingDirection) => pageState.mutate((d) => ({ ...d, readingDirection: dir }));
+  const changeDirection = (dir: ReadingDirection) => {
+    if (readOnly) return;
+    pageState.mutate((d) => ({ ...d, readingDirection: dir }));
+  };
 
-  const goPage = useCallback(
-    (delta: number) => {
-      if (!library || !sel) return;
+  /** Next page in reading order (crossing chapter boundaries), or null at the very start/end. */
+  const adjacentSelection = useCallback(
+    (delta: number): Selection | null => {
+      if (!library || !sel) return null;
       const vol = library.volumes.find((v) => v.id === sel.volume);
-      if (!vol) return;
+      if (!vol) return null;
       const ci = vol.chapters.findIndex((c) => c.chapter === sel.chapter);
       const chapter = vol.chapters[ci];
-      if (!chapter) return;
+      if (!chapter) return null;
       // Pages excluded by preprocessing are skipped in both directions.
       const body = chapter.pages.filter((p) => !p.excluded);
       const position = body.findIndex((p) => p.index === sel.pageIndex);
       const nextPosition = position + delta;
       if (position >= 0 && nextPosition >= 0 && nextPosition < body.length) {
-        const next = { ...sel, pageIndex: body[nextPosition].index };
-        void confirmLeave().then((ok) => ok && setSel(next));
-        return;
+        return { ...sel, pageIndex: body[nextPosition].index };
       }
       const nextChapter = vol.chapters[ci + (delta > 0 ? 1 : -1)];
       const nextBody = nextChapter?.pages.filter((p) => !p.excluded) ?? [];
-      if (!nextChapter || !nextBody.length) return;
-      const next = {
+      if (!nextChapter || !nextBody.length) return null;
+      return {
         volume: sel.volume,
         chapter: nextChapter.chapter,
         pageIndex: delta > 0 ? nextBody[0].index : nextBody[nextBody.length - 1].index,
       };
+    },
+    [library, sel],
+  );
+
+  const goPage = useCallback(
+    (delta: number) => {
+      const next = adjacentSelection(delta);
+      if (!next) return;
       void confirmLeave().then((ok) => ok && setSel(next));
     },
-    [library, sel, confirmLeave],
+    [adjacentSelection, confirmLeave],
   );
+
+  /**
+   * Panel navigation that runs past a page edge: landing on the first/last panel of the
+   * neighbouring page instead of doing nothing. The target panel is picked once its
+   * panels are loaded, so reading order (including group order) is respected.
+   */
+  const goPanelEdge = useCallback(
+    (dir: -1 | 1) => {
+      const next = adjacentSelection(dir);
+      if (!next) return;
+      void confirmLeave().then((ok) => {
+        if (!ok) return;
+        // The detail view follows the page turn instead of closing on the page change.
+        if (detailPanel) detailPageKey.current = selectionKey(next);
+        setPendingEdge({ sel: next, edge: dir > 0 ? 'first' : 'last' });
+        setSel(next);
+      });
+    },
+    [adjacentSelection, confirmLeave, detailPanel],
+  );
+
+  // Apply the pending edge as soon as the target page's panels are on screen.
+  // Layout effect: the detail view must swap to the new panel before paint, without
+  // a frame of the compare view flashing in between.
+  useLayoutEffect(() => {
+    if (!doc || !pendingEdge) return;
+    if (
+      doc.volume !== pendingEdge.sel.volume ||
+      doc.chapter !== pendingEdge.sel.chapter ||
+      doc.pageIndex !== pendingEdge.sel.pageIndex
+    ) {
+      return;
+    }
+    const target = pendingEdge.edge === 'first' ? ordered[0] : ordered[ordered.length - 1];
+    if (target) {
+      setPendingEdge(null);
+      setSelected([target.id]);
+      // Cross-page panel steps inside the detail view land on the edge panel of the new page.
+      if (detailPanel) setDetailPanel(target.id);
+      requestAnimationFrame(() => {
+        document.getElementById(`panel-${target.id}`)?.scrollIntoView({ block: 'center' });
+      });
+      return;
+    }
+    if (!detailPanel) {
+      setPendingEdge(null);
+      return;
+    }
+    // A page opened for the first time is detected in the background: wait for its
+    // panels instead of dropping the detail view on an empty page.
+    const timer = window.setTimeout(() => {
+      setPendingEdge(null);
+      setDetailPanel(null);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [doc, ordered, pendingEdge, detailPanel]);
+
+  // Detail-view navigation: step through this page first, then onto the neighbouring
+  // page's last/first panel. The callbacks are undefined only at the very start/end.
+  const detailIndex = detailPanel ? ordered.findIndex((p) => p.id === detailPanel) : -1;
+  const hasPrevPage = Boolean(adjacentSelection(-1));
+  const hasNextPage = Boolean(adjacentSelection(1));
+  const stepDetailPanel = useCallback(
+    (dir: -1 | 1) => {
+      if (detailIndex < 0) return;
+      const target = ordered[detailIndex + dir];
+      if (target) {
+        setDetailPanel(target.id);
+        return;
+      }
+      goPanelEdge(dir);
+    },
+    [detailIndex, ordered, goPanelEdge],
+  );
+  const detailPrevPanel = detailIndex >= 0 && (detailIndex > 0 || hasPrevPage) ? () => stepDetailPanel(-1) : undefined;
+  const detailNextPanel =
+    detailIndex >= 0 && (detailIndex < ordered.length - 1 || hasNextPage) ? () => stepDetailPanel(1) : undefined;
+  const detailPrevPage = hasPrevPage ? () => goPanelEdge(-1) : undefined;
+  const detailNextPage = hasNextPage ? () => goPanelEdge(1) : undefined;
+
+  // Reading mode leaves a single minimal dock on screen: page and panel steps stay
+  // reachable without bringing back the toolbar. Panel steps run onto the next page
+  // at the page edges, so a page-turn shortcut is never the only way forward.
+  const stepReadingPanel = (dir: -1 | 1) => {
+    const from = primaryIndex >= 0 ? primaryIndex : dir > 0 ? -1 : 0;
+    const target = ordered[from + dir];
+    if (target) {
+      setSelected([target.id]);
+      return;
+    }
+    goPanelEdge(dir);
+  };
+  const hasPrevPanel = ordered.length > 0 && (primaryIndex > 0 || hasPrevPage);
+  const hasNextPanel = ordered.length > 0 && (primaryIndex < ordered.length - 1 || hasNextPage);
 
   // Destructured so the shortcut effect depends on the callbacks themselves
   // instead of the whole pageState object (which changes on every keystroke of a note).
@@ -487,6 +636,8 @@ export default function App() {
         return;
       }
       if (e.ctrlKey || e.metaKey) {
+        // Undo/redo only exist for authoring; a read-only viewer has nothing to revert.
+        if (readOnly) return;
         const mod = e.key.toLowerCase();
         if (mod === 'z') {
           e.preventDefault();
@@ -499,6 +650,9 @@ export default function App() {
         return;
       }
       if (e.altKey) return;
+      // The detail view is a focused surface and handles its own panel navigation,
+      // so page-turn shortcuts must not also fire behind it.
+      if (detailPanel) return;
       // Arrows turn pages along the page's reading direction: RTL reads leftward,
       // TTB reads downward. Modals keep their own keyboard handling.
       if (e.key.startsWith('Arrow') && doc && !modalOpen) {
@@ -518,6 +672,7 @@ export default function App() {
         goPage(1);
       } else if (key === 'p') setView('panels');
       else if (key === 'c') setView('compare');
+      else if (key === 'o') setView('original');
       else if (key === 's') setSidebarOpen((v) => !v);
       else if (key === 'n') setNotesOpen((v) => !v);
       else if (key === 'r' && !modalOpen) setReadingModePersisted(!readingMode);
@@ -526,7 +681,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, goPage, undoPage, redoPage, detailPanel, readingMode, setReadingModePersisted]);
+  }, [doc, goPage, undoPage, redoPage, detailPanel, readingMode, setReadingModePersisted, readOnly]);
 
   // Library-wide language order; the runtime list grows with whatever the scan finds.
   const allLangs = useMemo<Lang[]>(
@@ -581,6 +736,7 @@ export default function App() {
             }}
             onExport={() => setExportOpen(true)}
             onSave={() => void pageState.commit()}
+            readOnly={readOnly}
           />
           <button
             type="button"
@@ -600,6 +756,11 @@ export default function App() {
             />
           )}
           {doc && <span className={`save-state ${pageState.dirty ? 'dirty' : ''}`}>{saveLabel}</span>}
+          {readOnly && (
+            <span className="ro-chip" title={t('mode.readOnlyHint')}>
+              {t('mode.readBadge')}
+            </span>
+          )}
           {!pwa.online && <span className="pwa-chip">{t('pwa.offline')}</span>}
           {outbox.count > 0 && (
             <button
@@ -615,12 +776,33 @@ export default function App() {
         </div>
 
         <div className="tb-center">
+          <div className="seg mode-seg" role="group" aria-label={t('mode.label')}>
+            <button
+              type="button"
+              className={!readOnly ? 'on' : ''}
+              title={t('mode.editHint')}
+              onClick={() => void switchAppMode('edit')}
+            >
+              {t('mode.editShort')}
+            </button>
+            <button
+              type="button"
+              className={readOnly ? 'on' : ''}
+              title={t('mode.readHint')}
+              onClick={() => void switchAppMode('read')}
+            >
+              {t('mode.readShort')}
+            </button>
+          </div>
           <div className="seg big">
             <button type="button" className={view === 'panels' ? 'on' : ''} onClick={() => setView('panels')}>
               {t('app.tabPanels')}
             </button>
             <button type="button" className={view === 'compare' ? 'on' : ''} onClick={() => setView('compare')}>
               {t('app.tabCompare')}
+            </button>
+            <button type="button" className={view === 'original' ? 'on' : ''} onClick={() => setView('original')}>
+              {t('app.tabOriginal')}
             </button>
           </div>
         </div>
@@ -631,7 +813,8 @@ export default function App() {
               className="tb-select wide"
               value={doc.readingDirection}
               onChange={(e) => changeDirection(e.target.value as ReadingDirection)}
-              title={t('app.readingOrderTitle')}
+              title={readOnly ? t('mode.readOnlyHint') : t('app.readingOrderTitle')}
+              disabled={readOnly}
             >
               {READING_DIRECTIONS.map((d) => (
                 <option key={d} value={d}>
@@ -688,15 +871,17 @@ export default function App() {
               >
                 ?
               </button>
-              <button
-                type="button"
-                className="btn icon settings-btn"
-                onClick={() => setSettingsOpen(true)}
-                title={t('settings.openTitle')}
-                aria-label={t('settings.title')}
-              >
-                ⚙
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="btn icon settings-btn"
+                  onClick={() => setSettingsOpen(true)}
+                  title={t('settings.openTitle')}
+                  aria-label={t('settings.title')}
+                >
+                  ⚙
+                </button>
+              )}
               <button
                 type="button"
                 className="btn icon"
@@ -719,10 +904,6 @@ export default function App() {
               ⋯
             </button>
           </div>
-          <button type="button" className="btn primary" disabled={!doc} onClick={() => setExportOpen(true)}>
-            {t('app.exportButton')}
-            <span className="tb-export-extra"> HTML</span>
-          </button>
         </div>
       </header>
 
@@ -743,6 +924,7 @@ export default function App() {
           onOpen={openSelection}
           onReload={loadLibrary}
           dirty={pageState.dirty}
+          readOnly={readOnly}
         />
         {sidebarOpen && (
           <div
@@ -821,8 +1003,9 @@ export default function App() {
                 onRedo={pageState.redo}
                 onHistory={() => setHistoryOpen(true)}
                 allLangs={allLangs}
+                readOnly={readOnly}
               />
-            ) : (
+            ) : view === 'compare' ? (
               <CompareTab
                 doc={doc}
                 page={page}
@@ -842,6 +1025,22 @@ export default function App() {
                 detailPanel={detailPanel}
                 onOpenDetail={openDetail}
                 onCloseDetail={closeDetail}
+                onStepPage={goPanelEdge}
+                onDetailPrevPanel={detailPrevPanel}
+                onDetailNextPanel={detailNextPanel}
+                onDetailPrevPage={detailPrevPage}
+                onDetailNextPage={detailNextPage}
+                readOnly={readOnly}
+              />
+            ) : (
+              <OriginalTab
+                doc={doc}
+                page={page}
+                langs={langs}
+                allLangs={allLangs}
+                onStepPage={goPage}
+                hasPrevPage={hasPrevPage}
+                hasNextPage={hasNextPage}
               />
             )
           ) : (
@@ -858,8 +1057,53 @@ export default function App() {
           library={library}
           onJump={jumpTo}
           onClose={() => setNotesOpen(false)}
+          readOnly={readOnly}
         />
       </div>
+
+      {/* Minimal reading dock: page and panel steps survive the hidden chrome.
+          Hidden while the panel detail owns the screen (it has its own nav bar). */}
+      {readingMode && doc && !detailPanel && (
+        <div className="reading-nav">
+          <button
+            type="button"
+            onClick={() => goPage(-1)}
+            disabled={!hasPrevPage}
+            title={t('app.prevPage')}
+            aria-label={t('app.prevPage')}
+          >
+            «
+          </button>
+          <button
+            type="button"
+            onClick={() => stepReadingPanel(-1)}
+            disabled={!hasPrevPanel}
+            title={t('compare.prevPanel')}
+            aria-label={t('compare.prevPanel')}
+          >
+            ‹
+          </button>
+          <span className="reading-nav-sep" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => stepReadingPanel(1)}
+            disabled={!hasNextPanel}
+            title={t('compare.nextPanel')}
+            aria-label={t('compare.nextPanel')}
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            onClick={() => goPage(1)}
+            disabled={!hasNextPage}
+            title={t('app.nextPage')}
+            aria-label={t('app.nextPage')}
+          >
+            »
+          </button>
+        </div>
+      )}
 
       {readingMode && readingHint && (
         <div className="reading-toast" role="status">
@@ -885,12 +1129,14 @@ export default function App() {
       />
 
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} onPageReload={() => pageRef.current?.reload()} />
+      )}
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
 
       <PageHistoryDialog
-        open={historyOpen && Boolean(sel)}
+        open={!readOnly && historyOpen && Boolean(sel)}
         sel={sel}
         onClose={() => setHistoryOpen(false)}
         onBeforeRestore={pageState.flush}
@@ -950,7 +1196,7 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
               </dt>
               <dd>{t('app.help.arrowNav')}</dd>
               <dt>
-                <Kbd>P</Kbd> <Kbd>C</Kbd>
+                <Kbd>P</Kbd> <Kbd>C</Kbd> <Kbd>O</Kbd>
               </dt>
               <dd>{t('app.help.switchViews')}</dd>
               <dt>

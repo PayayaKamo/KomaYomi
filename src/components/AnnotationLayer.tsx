@@ -104,6 +104,8 @@ type Props = {
   anchorTarget?: string | null;
   /** Receives the new locator, or null when the user clears it. */
   onAnchorChange?: (id: string, anchor: AnnotationAnchor | null) => void;
+  /** Viewer mode: draw, drag and anchor picking are disabled; existing marks stay visible. */
+  readOnly?: boolean;
 };
 
 function panelRect(panels: Panel[], id: string | null): PanelRect {
@@ -379,6 +381,7 @@ export function AnnotationLayer({
   imageUrl,
   anchorTarget = null,
   onAnchorChange,
+  readOnly = false,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState<Box>({ w: 0, h: 0 });
@@ -445,7 +448,7 @@ export function AnnotationLayer({
   };
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (!visible) return;
+    if (!visible || readOnly) return;
     if (anchorTarget) {
       if (e.button !== 0 || !e.isPrimary) return;
       e.preventDefault();
@@ -664,7 +667,7 @@ export function AnnotationLayer({
               key={annotation.id}
               className={`ann-item ${selected ? 'sel' : ''}`}
               style={{ pointerEvents: tool === 'select' ? 'all' : 'none' }}
-              onPointerDown={(e) => startMove(e, annotation)}
+              onPointerDown={readOnly ? undefined : (e) => startMove(e, annotation)}
             >
               {/* Invisible fat stroke widens the hit area of thin shapes. */}
               {tool === 'select' && annotation.kind !== 'mosaic' && (
