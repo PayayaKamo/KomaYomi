@@ -8,7 +8,83 @@ KomaYomi is a local-first reading and annotation app for people who study langua
 
 It is a study tool, not a manga host. Bring your own scans and read them on one machine.
 
-## Screenshots
+## Quick start
+
+### Install a build
+
+Prebuilt packages are attached to [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases): Windows (NSIS installer and portable exe), macOS (dmg and zip) and Linux (AppImage and deb), each for x64 and arm64.
+
+**The builds are unsigned.** No code-signing certificates are configured yet, so Windows SmartScreen shows "Windows protected your PC" (choose **More info → Run anyway**) and macOS Gatekeeper blocks the first launch (right-click the app → **Open**, or allow it under **System Settings → Privacy & Security → Open Anyway**). The workflow documents where the Windows and Apple certificate secrets plug in.
+
+### Run from source
+
+Requirement: Node.js 22 or newer with npm. The batch CLI relies on Node's TypeScript support (Node 26 runs the `.ts` entry directly).
+
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev` starts Vite on `http://127.0.0.1:5173`; if the port is busy it picks the next free one. The API is served by a Vite middleware plugin, so there is no second process to start.
+
+`npm run desktop` builds the frontend, bundles the server into `dist-server/`, and opens the Electron window. When run from source, it reuses the repository folder for `raw/`, `data/` and `exports/`. A packaged build keeps them in a `library` folder inside the Electron user data directory and asks for a folder on first launch. `Ctrl+Shift+D` switches the data directory (restart required); `MANGA_DATA_DIR` overrides it.
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds all six platform/architecture combinations and uploads them to the release.
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
+The container serves the same API on `http://127.0.0.1:3921`. It is meant to run on your own machine, not as a public service: there are no accounts and no authentication. Three bind mounts keep all state outside the image:
+
+| Mount       | Container path      | Contents                                        |
+| ----------- | ------------------- | ----------------------------------------------- |
+| `./raw`     | `/data/raw`         | manga pages (`<volume>/<language>/<chapter>/`)  |
+| `./data`    | `/data/annotations` | page JSON, presets, templates, library config   |
+| `./exports` | `/data/exports`     | HTML / PNG exports, backups, `.mnproj` projects |
+
+Configuration lives in `.env` (copy `.env.example`): `PORT`, `MANGA_LOCALE`, `LOG_LEVEL` and optional `WEBDAV_*` credentials, which are read at runtime and never baked into the image. Health is exposed at `/api/health`.
+
+### First run
+
+1. Put at least one volume under `raw/` (or point the desktop app at a folder):
+
+```text
+raw/
+  <volume>/
+    <language-dir>/       # ja / zh / en, or an alias listed below
+      <chapter>/
+        001.jpg
+        002.jpg
+```
+
+2. Open the app and pick a chapter in the sidebar. The first visit auto-detects panels; treat the result as a draft and fix the boxes in the workbench.
+3. Switch to the compare reader or the original view, then add notes and annotations. Panels, alignment, notes and annotations are saved to `data/` as you work.
+
+## The KomaYomi repositories
+
+KomaYomi is one project split across four repositories. This one is the reference implementation.
+
+| Repository                                                           | What it is                                                                                                                                                                                                |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [KomaYomi](https://github.com/PayayaKamo/KomaYomi) (this repository) | Full desktop edition: an Electron window around a local Node server. It scans folders, runs panel detection and plugins, talks to WebDAV, and provides every feature listed below.                        |
+| [KomaYomi-online](https://github.com/PayayaKamo/KomaYomi-online)     | Browser-only edition. Opens a `.mnproj` project, reads, annotates and exports static HTML or PNG entirely in the tab — no server, works offline. It cannot scan folders or run automatic panel detection. |
+| [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile)     | React Native app for Android and iOS. HarmonyOS NEXT currently has a placeholder only.                                                                                                                    |
+| [KomaYomi-docs](https://github.com/PayayaKamo/KomaYomi-docs)         | Build output of this documentation site, generated and pushed by CI. Do not edit it by hand.                                                                                                              |
+
+All three editions use the same page JSON and the same `.mnproj` project format, so a project can move between the desktop, browser and mobile builds. The mobile app is a separate client, not a wrapper around the desktop build.
+
+## What you can do
+
+- **Read one page in three languages** — side by side or overlaid, whole page or panel by panel, with a separate original-page view for anything outside the boxes.
+- **Turn a page into structure** — XY-cut detection gives you a draft; split, merge, renumber and apply templates until the boxes match the art.
+- **Annotate and take notes where the line is** — Markdown at page or panel scope, plus arrows, text, mosaic and other marks that can be baked into exports.
+- **Line up editions that do not line up** — four alignment modes, reusable as page or chapter presets.
+- **Run it your way** — Electron desktop, browser against the local server, Docker, or an installable PWA; the interface is available in English, Chinese and Japanese.
+
+### Screenshots
 
 ![Library sidebar with volumes, chapters and language badges](assets/screenshots/library-overview.png)
 
@@ -40,105 +116,64 @@ _Below 1024 px the library becomes a drawer and the compare panes stack. The web
 
 Sample manga is used for demonstration only; all rights belong to the original author.
 
-## Features
+## Library and folder rules
 
-**Reading**
+The directory tree is the configuration; there is no import step and no database.
 
-- Scans `raw/` as the library: `raw/<volume>/<language>/<chapter>/<pages>`, or `raw/<work>/<volume>/<language>/<chapter>/<pages>` when several works share one root, with one or more languages per volume.
-- Pairs pages across languages by sorted position and reports pages that are missing a language.
-- Compare reader: side-by-side or overlay, per-language mask, wheel zoom and pan, full page or one panel at a time, previous/next panel across page and chapter boundaries.
-- Original view: the uncropped page per language, with independent zoom and pan, for checking what sits outside the detected panels.
-- Panel detail views with `#/<volume>/<chapter>/<page>/panel/<id>` deep links, switchable panel by panel.
-- Alignment in four ways — whole-page offset, per-panel offset, two-anchor point-to-point, and grid/percentage snapping — savable as presets for a page or a chapter.
+- A **volume** is a top-level folder under `raw/`, or the folder inside a work folder when several works sit side by side (`raw/<work>/<volume>/<language>/<chapter>/<pages>`). The work name is shown as a series in the sidebar; same-named volumes in different works stay separate.
+- A **chapter** is any folder inside a language directory. Chapters are unioned across languages, so one language may be missing a chapter.
+- Pages are **paired by sorted position**, not by filename, using a natural sort (`2.jpg` before `10.jpg`).
+- Recognized language directories: `ja`, `jp`, `jpn`, `japanese`, `ja-jp`, `日`, `日本語`, `日文`; `zh`, `zh-cn`, `zh-hans`, `zh-sg`, `cn`, `chs`, `zh-tw`, `zh-hk`, `zh-hant`, `cht`, `tw`, `hk`, `中`, `中文`, `繁中`, `简中`; `en`, `en-us`, `en-gb`, `us`, `uk`, `eng`, `english`, `英`, `英文`.
+- An unrecognized directory can be mapped to a language in volume settings; the mapping is stored in `data/library.json` and nothing on disk is renamed. Volume settings also list the volume's chapters, hide or restore them, and set a per-language page offset when an extra page shifts later numbering.
+- The URL hash is deep-linkable: `#/<volume>/<chapter>/<page>/<panels|compare|original>` and `.../panel/<id>` for a single panel.
 
-**Panels**
+## Panels and the workbench
 
 - Automatic XY-cut detection that ignores the narrow strip at the page edge (the _あらすじ_ column) instead of turning it into a false panel.
 - Manual editing: drag to draw a panel with live preview and snapping, eight-direction resize, direct `X / Y / width / height` input, keyboard nudge, multi-select, merge, split and delete.
 - Manual numbering: insert a panel after the selected one and shift the rest, split a panel in place, or reorder everything in the order dialog.
 - Panel templates: capture the current page and apply it to other pages of the chapter. Declarative layout templates in `data/layouts/` are applied automatically during detection.
-- Annotation layer: arrows, boxes, ellipses, highlights, freehand pen, text, badges and a real mosaic, on the whole page or inside one panel. Annotations can be baked into PNG exports or left out.
+- Detection order is layout template → plugin → built-in detector; a plugin that throws, times out (2.5 s) or returns no panels falls back with a visible warning. See [Layout Templates & Plugins](https://payayakamo.github.io/KomaYomi-docs/extending).
 
-**Notes**
+## Compare and original reading
+
+- Compare reader: side-by-side or overlay, per-language mask, wheel zoom and pan, full page or one panel at a time, previous/next panel across page and chapter boundaries.
+- Original view: the uncropped page per language, with independent zoom and pan, for checking what sits outside the detected panels.
+- Panel detail views with `#/<volume>/<chapter>/<page>/panel/<id>` deep links, switchable panel by panel.
+- Alignment in four ways — whole-page offset, per-panel offset, two-anchor point-to-point, and grid/percentage snapping — savable as presets for a page or a chapter.
+
+## Notes and annotations
 
 - Markdown notes at page or panel scope, with edit / split / preview modes, a formatting toolbar and an auto-growing editor; editing an existing note reuses the same single editor.
 - Tags, sources with an optional page-title fetch, pasted or dropped screenshots, and a scratch pad.
 - Full-text search across pages, tags and sources, plus "copy context" to hand the page's notes to an LLM or a translation tool.
+- Annotation layer: arrows, boxes, ellipses, highlights, freehand pen, text, badges and a real mosaic, on the whole page or inside one panel.
+- A mark can carry an anchor point or box with an optional leader line, so a note in the margin still points at the right balloon. Annotations can be baked into PNG exports or left out.
 
-**Export and backup**
+## Export
 
 - HTML export in two modes: a `.html` file plus a sibling `<name>.files/` image folder (default), or a single file with images inlined.
 - Export a whole page or a whole chapter, choose which languages to include, and pick a layout template. Print styles avoid splitting panels and notes across pages.
 - PNG export: the whole page, the current panel, or a three-language collage.
 - PDF through the browser print dialog, and Word (`.docx`) export with page images and notes; annotations are baked into the `.docx` by default, with a warning and an un-baked fallback if a page cannot be composed.
-- Backup ZIP of `data/` with an inspection step before restore, scheduled automatic backups with a configurable interval and retention count, cache management, and `.mnproj` projects in reference mode (paths + SHA-1) or packaged mode (images embedded, with relink on import).
 
-**Desktop, offline and interface**
+## Backup, cache and remote sources
 
-- Runs in the browser against a local Node server, or in an Electron window.
-- Edit and read-only modes, focus mode (`R`), and a settings dialog for annotation-tool placement, cache clearing and the panel-detection cache.
-- WebDAV, network drives and local folders as remote image sources, with on-demand caching and a browser-side outbox that replays failed writes.
-- Light and dark palettes, English / Chinese / Japanese interface, drawer navigation and touch zoom on narrow screens.
-- Installable PWA; the web manifest ships with the web build.
+| Path                                                | What is there                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `raw/`                                              | Your page images. The largest folder and the only one you provide.                                        |
+| `data/pages/<volume>/<chapter>/<index>.json`        | Panels, notes, alignment offsets, annotations and reading direction, one file per page (0-based index).   |
+| `data/templates/`, `data/presets/`, `data/layouts/` | Panel templates, alignment presets and layout templates; each folder appears when you save the first one. |
+| `data/library.json`                                 | Manual language-directory mapping, chapter visibility, page offsets and language order.                   |
+| `data/cache/thumbs/`                                | Thumbnail cache; safe to delete.                                                                          |
+| `data/backups/`                                     | Snapshots taken before a restore or a project import.                                                     |
+| `exports/`                                          | Exported HTML / PNG, backup ZIPs and `.mnproj` projects.                                                  |
 
-**Extending**
+Backup ZIP covers `data/` (excluding the thumbnail cache) and asks you to inspect file and page counts before restoring; the current data is snapshotted first. Scheduled automatic backups run at a configurable interval with a retention count, and the settings dialog can clear thumbnails, remote cache and staging data or the panel-detection cache. `.mnproj` comes in reference mode (paths and SHA-1, small) and packaged mode (images embedded, portable, large). See [Remote Storage & Backup](https://payayakamo.github.io/KomaYomi-docs/guide/remote) for the full workflow.
 
-- Drop a small `.mjs` plugin into `plugins/` or `data/plugins/` to replace the built-in panel detector.
-- Batch CLI for detection, templates, layouts and alignment presets without opening the browser.
+WebDAV, network drives and local folders can all act as remote image sources, with on-demand caching and a browser-side outbox that replays failed writes. In the desktop app the data directory is remembered in `%APPDATA%/manga-memo/config.json`.
 
-## Quick start
-
-Requirement: Node.js 22 or newer with npm. The batch CLI relies on Node's TypeScript support (Node 26 runs the `.ts` entry directly).
-
-```bash
-npm install
-npm run dev
-```
-
-`npm run dev` starts Vite on `http://127.0.0.1:5173`; if the port is busy it picks the next free one. The API is served by a Vite middleware plugin, so there is no second process to start.
-
-Put at least one volume under `raw/` in this shape:
-
-```text
-raw/
-  <volume>/
-    <language-dir>/       # ja / zh / en, or an alias listed below
-      <chapter>/
-        001.jpg
-        002.jpg
-```
-
-Then open the app and pick a chapter in the sidebar.
-
-### Desktop app
-
-```bash
-npm run desktop
-```
-
-This builds the frontend, bundles the server into `dist-server/`, and opens the Electron window. When run from source, it reuses the repository folder for `raw/`, `data/` and `exports/`. A packaged build keeps them in a `library` folder inside the Electron user data directory and asks for a folder on first launch. `Ctrl+Shift+D` switches the data directory (restart required); `MANGA_DATA_DIR` overrides it.
-
-Prebuilt packages are attached to [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases): Windows (NSIS installer and portable exe), macOS (dmg and zip) and Linux (AppImage and deb), each for x64 and arm64. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds all six platform/architecture combinations and uploads them to the release.
-
-**The builds are unsigned.** No code-signing certificates are configured yet, so Windows SmartScreen shows "Windows protected your PC" (choose **More info → Run anyway**) and macOS Gatekeeper blocks the first launch (right-click the app → **Open**, or allow it under **System Settings → Privacy & Security → Open Anyway**). The workflow documents where the Windows and Apple certificate secrets plug in.
-
-### Docker
-
-```bash
-docker compose up --build
-```
-
-The container serves the same API on `http://127.0.0.1:3921`. It is meant to run on your own machine, not as a public service: there are no accounts and no authentication. Three bind mounts keep all state outside the image:
-
-| Mount       | Container path      | Contents                                        |
-| ----------- | ------------------- | ----------------------------------------------- |
-| `./raw`     | `/data/raw`         | manga pages (`<volume>/<language>/<chapter>/`)  |
-| `./data`    | `/data/annotations` | page JSON, presets, templates, library config   |
-| `./exports` | `/data/exports`     | HTML / PNG exports, backups, `.mnproj` projects |
-
-Configuration lives in `.env` (copy `.env.example`): `PORT`, `MANGA_LOCALE`, `LOG_LEVEL` and optional `WEBDAV_*` credentials, which are read at runtime and never baked into the image. Health is exposed at `/api/health`.
-
-### Batch CLI
+## Batch CLI
 
 The CLI works directly on `raw/` and `data/`; no browser or server is needed.
 
@@ -156,7 +191,7 @@ node scripts/manga-cli.ts plugins
 | `templates`, `layouts`, `align-presets`, `plugins` | List what is installed.                                                                               |
 | `regress [--update]`                               | Compare panel counts against `scripts/detect-baseline.json`.                                          |
 
-## Scripts
+## Development and build
 
 | Command                              | What it does                                                 |
 | ------------------------------------ | ------------------------------------------------------------ |
@@ -177,7 +212,7 @@ node scripts/manga-cli.ts plugins
 
 Packaging uses `electron-builder.yml` (app id `com.payayakamo.komayomi`, product name `KomaYomi`). `npm run dist:win` writes `KomaYomi-<version>-win-x64.exe`, `KomaYomi-<version>-win-portable-x64.exe` and `win-unpacked/` into `release/`; the release workflow passes `--win/--mac/--linux` and `--x64/--arm64`, so every published file carries its platform and architecture.
 
-## Project structure
+Drop a small `.mjs` plugin into `plugins/` or `data/plugins/` to replace the built-in panel detector. Plugins run in the server process with full Node access, so only install ones you trust.
 
 ```text
 src/                React frontend (library, panel workbench, compare reader, notes, export)
@@ -193,62 +228,6 @@ data/               Page JSON, templates, presets, library config
 exports/            Generated HTML, PNG, backups, projects (gitignored)
 ```
 
-## Library folder rules
-
-The directory tree is the configuration; there is no import step and no database.
-
-- A **volume** is a top-level folder under `raw/`, or the folder inside a work folder when several works sit side by side (`raw/<work>/<volume>/<language>/<chapter>/<pages>`). The work name is shown as a series in the sidebar; same-named volumes in different works stay separate.
-- A **chapter** is any folder inside a language directory. Chapters are unioned across languages, so one language may be missing a chapter.
-- Pages are **paired by sorted position**, not by filename, using a natural sort (`2.jpg` before `10.jpg`).
-- Recognized language directories: `ja`, `jp`, `jpn`, `japanese`, `ja-jp`, `日`, `日本語`, `日文`; `zh`, `zh-cn`, `zh-hans`, `zh-sg`, `cn`, `chs`, `zh-tw`, `zh-hk`, `zh-hant`, `cht`, `tw`, `hk`, `中`, `中文`, `繁中`, `简中`; `en`, `en-us`, `en-gb`, `us`, `uk`, `eng`, `english`, `英`, `英文`.
-- An unrecognized directory can be mapped to a language in volume settings; the mapping is stored in `data/library.json` and nothing on disk is renamed.
-- The URL hash is deep-linkable: `#/<volume>/<chapter>/<page>/<panels|compare>`.
-
-## Data and backups
-
-| Path                                                | What is there                                                                                             |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `raw/`                                              | Your page images. The largest folder and the only one you provide.                                        |
-| `data/pages/<volume>/<chapter>/<index>.json`        | Panels, notes, alignment offsets, annotations and reading direction, one file per page (0-based index).   |
-| `data/templates/`, `data/presets/`, `data/layouts/` | Panel templates, alignment presets and layout templates; each folder appears when you save the first one. |
-| `data/library.json`                                 | Manual language-directory mapping and language order.                                                     |
-| `data/cache/thumbs/`                                | Thumbnail cache; safe to delete.                                                                          |
-| `data/backups/`                                     | Snapshots taken before a restore or a project import.                                                     |
-| `exports/`                                          | Exported HTML / PNG, backup ZIPs and `.mnproj` projects.                                                  |
-
-Backup ZIP covers `data/` (excluding the thumbnail cache) and asks you to inspect file and page counts before restoring; the current data is snapshotted first. `.mnproj` comes in reference mode (paths and SHA-1, small) and packaged mode (images embedded, portable, large). See [Remote Storage & Backup](https://payayakamo.github.io/KomaYomi-docs/guide/remote) for the full workflow.
-
-In the desktop app the data directory is remembered in `%APPDATA%/manga-memo/config.json`.
-
-## Templates and plugins
-
-When a page is detected, the server tries a layout template bound to the page, chapter or volume first, then a matching plugin from `plugins/` or `data/plugins/`, then the built-in detector. A plugin that throws, times out (2.5 s) or returns no panels falls back to the built-in detector with a visible warning. Plugins run in the server process with full Node access, so only install ones you trust.
-
-See [Layout Templates & Plugins](https://payayakamo.github.io/KomaYomi-docs/extending) for the plugin interface, template contract and API endpoints.
-
-## Documentation
-
-The full user guide is published at **https://payayakamo.github.io/KomaYomi-docs/**:
-
-| Language | Entry point                                    |
-| -------- | ---------------------------------------------- |
-| English  | https://payayakamo.github.io/KomaYomi-docs/    |
-| 中文     | https://payayakamo.github.io/KomaYomi-docs/zh/ |
-| 日本語   | https://payayakamo.github.io/KomaYomi-docs/ja/ |
-
-## The KomaYomi repositories
-
-KomaYomi is one project split across four repositories. This one is the reference implementation.
-
-| Repository                                                           | What it is                                                                                                                                                                                                |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [KomaYomi](https://github.com/PayayaKamo/KomaYomi) (this repository) | Full desktop edition: an Electron window around a local Node server. It scans folders, runs panel detection and plugins, talks to WebDAV, and provides every feature listed above.                        |
-| [KomaYomi-online](https://github.com/PayayaKamo/KomaYomi-online)     | Browser-only edition. Opens a `.mnproj` project, reads, annotates and exports static HTML or PNG entirely in the tab — no server, works offline. It cannot scan folders or run automatic panel detection. |
-| [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile)     | React Native app for Android and iOS. HarmonyOS NEXT currently has a placeholder only.                                                                                                                    |
-| [KomaYomi-docs](https://github.com/PayayaKamo/KomaYomi-docs)         | Build output of this documentation site, generated and pushed by CI. Do not edit it by hand.                                                                                                              |
-
-All three editions use the same page JSON and the same `.mnproj` project format, so a project can move between the desktop, browser and mobile builds. The mobile app is a separate client, not a wrapper around the desktop build.
-
 ## Roadmap
 
 - Vocabulary-list export; PDF and Word are available in the export dialog today.
@@ -263,6 +242,16 @@ All three editions use the same page JSON and the same `.mnproj` project format,
 - Folder-mode HTML exports need the sibling `.files/` folder; moving the HTML away from it breaks the images. Single-file exports avoid this at the cost of size (a chapter can reach tens of megabytes).
 - Applying a panel template or re-detecting drops panel-scoped notes when the panel count changes; page-scoped notes are kept.
 - The interface is localized in English, Chinese and Japanese; documents and error strings from plugins are not translated.
+
+## Documentation
+
+The full user guide is published at **https://payayakamo.github.io/KomaYomi-docs/**:
+
+| Language | Entry point                                    |
+| -------- | ---------------------------------------------- |
+| English  | https://payayakamo.github.io/KomaYomi-docs/    |
+| 中文     | https://payayakamo.github.io/KomaYomi-docs/zh/ |
+| 日本語   | https://payayakamo.github.io/KomaYomi-docs/ja/ |
 
 ## Author and license
 
