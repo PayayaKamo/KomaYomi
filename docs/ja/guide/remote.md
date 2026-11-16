@@ -97,7 +97,7 @@ KomaYomi はこの2つを分けます。**画像は必要に応じてリモー�
 ## 手動のバックアップと復元
 
 <figure class="shot">
-  <img src="/assets/screenshots/backup-restore.png" alt="バックアップと復元のダイアログ。バックアップの生成、ファイルの選択、検査後の内容要約">
+  <img src="/assets/screenshots/backup-restore.webp" alt="バックアップと復元のダイアログ。バックアップの生成、ファイルの選択、検査後の内容要約">
   <figcaption>バックアップダイアログ。復元の前にアーカイブを検査するので、上書きする前にページ数、ノート数、テンプレート数を確認できます。</figcaption>
 </figure>
 

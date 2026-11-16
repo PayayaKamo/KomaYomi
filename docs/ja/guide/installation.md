@@ -109,7 +109,7 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 - Electron ウィンドウは一時的な localhost ポートと通信します。
 
 <figure class="shot">
-  <img src="/assets/screenshots/first-launch-empty.png" alt="初回起動の空のライブラリ。サイドバーに「＋ 漫画を追加」、中央に 4 ステップの案内">
+  <img src="/assets/screenshots/first-launch-empty.webp" alt="初回起動の空のライブラリ。サイドバーに「＋ 漫画を追加」、中央に 4 ステップの案内">
   <figcaption>初回起動でライブラリが空の状態。「＋ 漫画を追加」が入口で、中央の 4 枚のカードが流れを説明します。</figcaption>
 </figure>
 
@@ -122,7 +122,7 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 5. 上部バーの**バージョン情報**を押し、バージョンと現在のデータディレクトリを確認してから不具合を報告してください。
 
 <figure class="shot">
-  <img src="/assets/screenshots/about-dialog.png" alt="バージョン情報ダイアログ。KomaYomi のバージョン、ビルド情報、データディレクトリのパス">
+  <img src="/assets/screenshots/about-dialog.webp" alt="バージョン情報ダイアログ。KomaYomi のバージョン、ビルド情報、データディレクトリのパス">
   <figcaption>バージョン情報ダイアログ。不具合を報告するときは、まずバージョンとデータディレクトリを伝えてください。</figcaption>
 </figure>
 

@@ -17,7 +17,7 @@ KomaYomi は指定したフォルダの画像をその場で読み込みます�
 | 1 枚の画像が 1 ページです。 | 見開きは 1 ファイルのままにするか、前処理で全言語を同時に分割してください。 |
 
 <figure class="shot">
-  <img src="/assets/screenshots/library-overview.png" alt="整理後のライブラリサイドバー。巻、話、言語バッジが並んでいる">
+  <img src="/assets/screenshots/library-overview.webp" alt="整理後のライブラリサイドバー。巻、話、言語バッジが並んでいる">
   <figcaption>整理済みの巻。言語ごとに 1 フォルダ、話ごとに 1 フォルダ、ページ数がそろっているので言語バッジも一致します。</figcaption>
 </figure>
 

@@ -5432,6 +5432,11 @@ kbd {
 .field select {
   width: 100%;
 }
+/* Checkbox rows sit inline with their label; 100% width would centre the box on its own line. */
+.field input[type='checkbox'],
+.field input[type='radio'] {
+  width: auto;
+}
 .field .muted,
 .field .tiny {
   color: var(--muted);
@@ -5450,8 +5455,8 @@ kbd {
   gap: 8px;
   flex-wrap: wrap;
 }
-.row-inline input,
-.row-inline select {
+.row-inline > input,
+.row-inline > select {
   flex: 1 1 160px;
   min-width: 0;
 }
@@ -6171,6 +6176,9 @@ kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.5;
+}
+.modal textarea.dirrules-editor {
+  min-height: 240px;
 }
 .dirrules-editor:focus {
   outline: none;

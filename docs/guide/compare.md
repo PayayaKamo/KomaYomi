@@ -3,7 +3,7 @@
 The compare reader puts the same panel from two or more languages next to each other — or on top of each other — and lets you align the artwork so the comparison is actually honest.
 
 <figure class="shot">
-  <img src="/assets/screenshots/compare-reading.png" alt="Compare reader showing the same page in Japanese, Chinese and English side by side">
+  <img src="/assets/screenshots/compare-reading.webp" alt="Compare reader showing the same page in Japanese, Chinese and English side by side">
   <figcaption>Side-by-side mode with three languages. Each language is its own pane; alignment is stored per page and applied to exports.</figcaption>
 </figure>
 
@@ -40,7 +40,7 @@ Masking hides a language's artwork while you test your own comprehension — the
 Masks are a **reading preference only**. HTML and PNG exports never include masks. Mask defaults are stored in the browser, not in the page JSON.
 
 <figure class="shot">
-  <img src="/assets/screenshots/language-mask.png" alt="Compare reader with Chinese and English masked by a blur, the mask style selector and the default-mask checkboxes">
+  <img src="/assets/screenshots/language-mask.webp" alt="Compare reader with Chinese and English masked by a blur, the mask style selector and the default-mask checkboxes">
   <figcaption>Masking with Chinese and English hidden. Default masks remembers which languages start masked; clicking a masked pane reveals it temporarily.</figcaption>
 </figure>
 
@@ -54,6 +54,15 @@ Masks are a **reading preference only**. HTML and PNG exports never include mask
 - **Reset all** clears offsets in the current scope.
 
 Each language has `{ x, y, scale }`. `x` and `y` are fractions of the panel width and height; `scale` zooms the crop between 0.5× and 3×.
+
+### Auto-centring
+
+When the selected panel changes — previous / next, a keyboard shortcut, a jump from the sidebar or the notes overview, or a cross-page move — the compare reader scrolls the target panel into view.
+
+- If the panel fits, it is centred; if it is taller than the viewport, its top edge is brought in with a small margin so the first line of art is not clipped.
+- A panel that is already comfortably visible is left alone; the reader does not yank the page on every selection change, and it stops fighting you once you scroll by hand.
+- On a cross-page jump, the scroll waits for the new page to render before aligning.
+- The scroll respects the system **Reduce motion** setting and becomes an instant jump when that is on.
 
 ## Alignment modes
 
@@ -82,7 +91,7 @@ Anchor mode shows a prompt with the reference language. Click a feature point in
 Presets record the alignment mode, offsets, panel offsets and grid step. Applying a chapter preset is the fastest way to fix a uniformly shifted scan across a whole chapter.
 
 <figure class="shot">
-  <img src="/assets/screenshots/align-settings.png" alt="Alignment settings with target language, X, Y and scale inputs, reset buttons and preset controls">
+  <img src="/assets/screenshots/align-settings.webp" alt="Alignment settings with target language, X, Y and scale inputs, reset buttons and preset controls">
   <figcaption>Alignment settings: pick the target language, type exact values, or save the current alignment as a page or chapter preset.</figcaption>
 </figure>
 
@@ -97,6 +106,22 @@ The annotation toolbar works here too, and compare view is the fastest place to 
 - With a mark selected, **Anchor** in the toolbar turns the canvas into locator mode: click to drop a point, or drag a small box around an area. **Clear anchor** removes it.
 - **Leader** is on by default and draws the line from the mark to its locator. Text and badge callouts without an anchor fall back to the owning panel, so older annotations still get a sensible line. Turn the switch off to keep the mark alone.
 - Anchors are stored in page coordinates, so they stay glued to the artwork while you pan, zoom or switch languages. All three export paths — PNG, HTML and Word (baked annotations) — draw the locator marker and leader exactly as the editor shows them.
+
+### Marks belong to a language
+
+Each mark is tagged with the language lane it was drawn in. Drawing an arrow in the Japanese pane does not put it on the Chinese or English version; the same panel can carry a different mark for each edition. A single toggle shares one mark with all languages when the point is about the edition as a whole.
+
+The switch is deliberate: a note about a translator's word choice usually makes sense in one lane only, while a box around a sound effect belongs everywhere.
+
+### Right-click menus
+
+Right-click a mark for its own menu:
+
+- **Delete** the mark.
+- **Colour** — pick another colour without redrawing.
+- **Copy to language** — duplicate the mark into another lane, keeping its geometry.
+
+Right-click empty artwork for the pane menu: **view the image enlarged**, hide this language, mask it, show only this language, show all languages, reset the pane zoom, export this panel as PNG, copy panel coordinates, set the panel number, toggle panel numbers, and insert a link. The same menu is available in read-only mode where it does not write anything.
 
 ## A practical comparison loop
 
@@ -117,7 +142,7 @@ The annotation toolbar works here too, and compare view is the fastest place to 
 - Missing languages show placeholders rather than empty panes.
 
 <figure class="shot">
-  <img src="/assets/screenshots/compare-toolbar.png" alt="Compare toolbar with language chips, mask mode, side-by-side and overlay, alignment scope and the drag switch for the current panel">
+  <img src="/assets/screenshots/compare-toolbar.webp" alt="Compare toolbar with language chips, mask mode, side-by-side and overlay, alignment scope and the drag switch for the current panel">
   <figcaption>The compare toolbar: language chips, mask mode, side-by-side / overlay, alignment scope and the drag switch for the current panel.</figcaption>
 </figure>
 
@@ -125,10 +150,26 @@ The annotation toolbar works here too, and compare view is the fastest place to 
 
 Double-click a panel row to open it full-size. The whole row is the target — the language panes, the head with the panel number, and the blank margins around a crop all open the same panel. Clicks inside editors, drag handles, buttons and links are excluded, and on touch layouts a double-tap on the row does the same thing.
 
-- **Per-language alignment** — the alignment drawer gives every language its own `Δx` / `Δy` readout, arrow nudges in 1% steps, zoom − / +, and a reset for that column.
-- **All languages** — the same arrow pad moves every column together, and **Reset all** clears them in one go.
+- **Page layout** — **Auto**, **Side by side** (artwork left, notes right) or **Stacked** (artwork on top, notes below). Auto follows the window width; when the window is too narrow for two columns the view says so and stacks, instead of squeezing both.
+- **Draggable splitter** — in the two-column layout the divider between artwork and notes can be dragged, or moved with the arrow keys when focused. The chosen ratio is remembered across panels, pages and reloads.
+- **Language panes** — **Horizontal** keeps the languages side by side; **Vertical** stacks them full-width, which is what you want in a narrow window or on a tall screen. The choice is remembered, and a narrow window falls back to vertical automatically.
+- **Alignment by dragging** — drag the artwork itself to nudge that language's offset. With **Sync move** off, only the lane you touch moves; with it on, dragging one language moves every language together. Zoom follows the same switch, so "make them all 10% bigger" is one drag or one click.
+- **Exact values** — the Align drawer still exposes each language's `Δx` / `Δy`, 1% arrow nudges, zoom − / + and a per-language reset, plus **Reset all**.
 - These detail-view adjustments last for the current session only; they do not write back to the page or the saved alignment.
-- The notes column below the panes writes directly to this panel; changing panels, paging or going back flushes the draft first.
+- **Zoom** — the wheel or a pinch over an image zooms the lane under the pointer; the header has zoom buttons and **Fit width**. **Reset** clears the zoom and every Δ at once.
+- The notes column uses the same editor as the sidebar and writes directly to this panel; changing panels, paging or going back flushes the draft first.
+- **Navigation bar** — the detail view's footer sits outside the scrolling area, so it never covers the art or the notes: previous page and previous panel on the left, next panel and next page on the right. On desktop the buttons show words; on narrow screens they collapse to icons with tooltips. At a page edge, previous panel jumps to the last panel of the previous page and next panel to the first panel of the next page — the detail view stays open, and the URL follows the new page and panel.
+- **Leaving** — `Esc`, the **Back** button and the browser back button all return to the same page and panel you came from. The URL is a deep link (`…/compare/panel/<id>`), so a reload or a shared link reopens the same panel; `Alt`/`Cmd`-clicking a row opens it in a new tab.
+
+## Enlarged image viewer
+
+Right-click a pane and choose **View image enlarged** (the same command is in the detail view's pane menu) to inspect the artwork without leaving the reader.
+
+- The image is shown at its original resolution, with wheel zoom and drag to pan — useful for checking a glyph, a dotted screentone or a retouch seam.
+- **Switch language** inside the viewer to compare the same moment across editions without closing it.
+- **Previous / next** move through panels in reading order, so you can inspect a whole page of small art quickly.
+- `Esc` or a click on the backdrop closes it. The page keeps its previous zoom, scroll position and any note draft; nothing is saved or changed by looking.
+- It is available in read-only mode too, because it never writes.
 
 ## Original view
 

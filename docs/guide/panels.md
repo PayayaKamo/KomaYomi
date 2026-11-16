@@ -3,7 +3,7 @@
 The panel workbench is where a page becomes structured data. Automatic detection is only the first pass; the workbench exists so you can argue with it — quickly, and without breaking anything permanently.
 
 <figure class="shot">
-  <img src="/assets/screenshots/panel-workspace.png" alt="Panel workbench with four detected panels, resize handles and the annotation toolbar">
+  <img src="/assets/screenshots/panel-workspace.webp" alt="Panel workbench with four detected panels, resize handles and the annotation toolbar">
   <figcaption>Detected panels are drawn as numbered boxes over the base image. The selected box shows eight resize handles. The annotation toolbar sits below the panel tools.</figcaption>
 </figure>
 
@@ -14,7 +14,7 @@ Every later feature stands on panels: compare reading, panel-scoped notes, PNG p
 ## The toolbar, control by control
 
 <figure class="shot">
-  <img src="/assets/screenshots/panel-toolbar.png" alt="Panel workbench toolbar with base image, detection status, split controls, save mode, grid and templates">
+  <img src="/assets/screenshots/panel-toolbar.webp" alt="Panel workbench toolbar with base image, detection status, split controls, save mode, grid and templates">
   <figcaption>The two toolbar rows: detection and saving on top, the rectangle fields, grid generator and panel templates below. The annotation toolbar follows underneath.</figcaption>
 </figure>
 
@@ -31,7 +31,7 @@ Every later feature stands on panels: compare reading, panel-scoped notes, PNG p
 | **Split…** | Cuts the selected panel into 2–12 pieces. | Enabled once the base image is loaded; also in the panel context menu. |
 | **Order…** | Opens the numbering dialog to change reading order by hand. | Enabled with two or more panels. |
 | **Group (n)** | Creates a group from the selected panels. | Enabled with at least one selected panel. See [Groups](#groups). |
-| **Delete** | Deletes the selected panels and their panel-scoped notes. | Same as `Delete` / `Backspace`. |
+| **Delete** | Deletes the selected panels. Their panel-scoped notes become page notes and their marks are re-expressed in page coordinates, so nothing you wrote disappears with the box. | Same as `Delete` / `Backspace`. |
 
 ### Row 1 — saving
 
@@ -85,7 +85,7 @@ Use the grid for a chapter with a fixed magazine layout; use **Panel templates**
 
 Each old panel is matched to the template panel covering the same artwork, so panel-scoped notes and marks stay on the drawing they were written for even when the panel count changes. Notes whose panel no longer exists are kept as page notes, and per-panel alignment offsets follow their panels. Templates live in `data/templates/panel.json`.
 
-**Copy JSON path** copies `data/pages/<volume>/<chapter>/<index>.json`. Editing that file by hand is supported; the server normalizes rectangles, repairs missing ids and drops dangling references on read.
+**Copy JSON path** copies `data/pages/<volume>/<chapter>/<index>.json`. Editing that file by hand is supported; the server normalizes rectangles, repairs missing ids and dangling references on read, and preserves fields it does not recognize.
 
 ## Mouse and keyboard on the canvas
 
@@ -122,7 +122,7 @@ If the numbers look wrong before you have touched anything, fix the reading-dire
 The annotation layer draws on top of the artwork and lives separately from panels — think of it as your red pen, not part of the page geometry.
 
 <figure class="shot">
-  <img src="/assets/screenshots/annotation-tools.png" alt="Annotation toolbar with visibility, select, shapes, highlighter, freehand, text, badge, mosaic, colour swatches and clear-all">
+  <img src="/assets/screenshots/annotation-tools.webp" alt="Annotation toolbar with visibility, select, shapes, highlighter, freehand, text, badge, mosaic, colour swatches and clear-all">
   <figcaption>The annotation toolbar. The hint on the right names the current scope — here, new marks cover the whole page. The same toolbar appears in the compare reader.</figcaption>
 </figure>
 
@@ -144,6 +144,8 @@ The annotation layer draws on top of the artwork and lives separately from panel
 | **Clear all** | Deletes every mark on the page after confirmation. |
 
 Scope follows the selection: with one panel selected, the hint reads *New marks go inside panel N*; with nothing selected, *New marks cover the whole page*. `Esc` leaves the current tool or deselects a mark.
+
+Each mark is tagged with the language it was drawn on, so the same panel can carry a different mark per edition; a toggle shares one mark across all languages. Right-click a mark to delete it, change its colour, or copy it to another language. Right-click empty artwork for the pane menu (enlarged view, masking, single-panel PNG, panel number, links).
 
 Exported HTML and PNG include annotations only when the layer is shown. The HTML export also has a **Draw panel borders on the original image** option, which is separate from annotations.
 
@@ -206,7 +208,7 @@ Every save also appends a version to `data/history/<volume>/<chapter>/<page>.jso
 3. Pick a version to inspect it, then **Restore this version** if it is the one you want.
 
 <figure class="shot">
-  <img src="/assets/screenshots/history-panel.png" alt="Page version history dialog with version entries, source labels, panel and annotation counts and restore buttons">
+  <img src="/assets/screenshots/history-panel.webp" alt="Page version history dialog with version entries, source labels, panel and annotation counts and restore buttons">
   <figcaption>Page version history. Each row records why the version was created and the structural change; the current version is marked and cannot be restored over itself.</figcaption>
 </figure>
 
@@ -221,6 +223,15 @@ Every save also appends a version to `data/history/<volume>/<chapter>/<page>.jso
 | **Undo restore** | Puts back the state from before the last restore. |
 
 Restoring is not the same as undo: it writes a new version, so the state you restored *from* is still in the list. History files are included in backups and project packages; they are not removed by clearing the thumbnail cache.
+
+## Operation history
+
+The **↺** button in the top bar opens **Operation history**. It lists the undoable edits on this page newest first, each with a kind (Note, Annotation, Panels or Edit), the page and panel it touched, and a **Current** marker.
+
+- It is a window onto the same undo stack as `Ctrl+Z`, not a second log: pick an entry and the page returns to exactly that state. Steps above the chosen entry remain redoable, and the dialog reports how many.
+- When nothing has been edited it says so instead of showing an empty list.
+- In read-only mode the list is still visible for orientation, but it explains that reverting is disabled — the viewer never changes the page.
+- Page history (above) survives reloads; operation history covers the current editing session. Use page history to go back a day, operation history to go back one arrow.
 
 ## A safe correction workflow
 

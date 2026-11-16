@@ -5,7 +5,7 @@ One app, several shapes. KomaYomi reflows instead of hiding features behind a se
 ## PC, landscape — 1440 px
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-pc-landscape.png" alt="1440 px wide window with the library sidebar, three compare panes and the notes column">
+  <img src="/assets/screenshots/device-pc-landscape.webp" alt="1440 px wide window with the library sidebar, three compare panes and the notes column">
   <figcaption>1440 px: sidebar on the left, three language panes in the middle, notes column on the right.</figcaption>
 </figure>
 
@@ -14,7 +14,7 @@ At 1440 px the sidebar (around 270 px), the compare stage and the notes column a
 ## PC, portrait — 900 × 1200
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-pc-portrait.png" alt="900 by 1200 narrow desktop window with the library collapsed into a drawer and the compare panes stacked">
+  <img src="/assets/screenshots/device-pc-portrait.webp" alt="900 by 1200 narrow desktop window with the library collapsed into a drawer and the compare panes stacked">
   <figcaption>900 × 1200: sidebar folded into a drawer, one compare column, notes closed until you ask for them.</figcaption>
 </figure>
 
@@ -23,7 +23,7 @@ At 900 px the layout switches to its narrow mode: the library folds into a drawe
 ## Phone, portrait — 390 × 844
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-phone-portrait.png" alt="390 by 844 window with the top bar and toolbar wrapped over several rows">
+  <img src="/assets/screenshots/device-phone-portrait.webp" alt="390 by 844 window with the top bar and toolbar wrapped over several rows">
   <figcaption>390 × 844: the top bar wraps onto three rows and the toolbar onto several more; the touch layout shows one language lane at a time.</figcaption>
 </figure>
 
@@ -32,7 +32,7 @@ On a 390 px touch phone the top bar wraps into three rows — navigation and pag
 ## Tablet, portrait — 820 × 1180
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-portrait.png" alt="820 by 1180 window with the top bar on one row and the compare panes stacked">
+  <img src="/assets/screenshots/device-tablet-portrait.webp" alt="820 by 1180 window with the top bar on one row and the compare panes stacked">
   <figcaption>820 × 1180: top bar on one row, sidebar in a drawer; a mouse-driven window stacks the panes, while a touch tablet pairs them two per row.</figcaption>
 </figure>
 
@@ -41,7 +41,7 @@ KomaYomi picks the compare layout from the pointer type and the aspect ratio, no
 ## Tablet, landscape — 1180 × 820
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-landscape.png" alt="1180 by 820 tablet window with the sidebar open and three language panes side by side">
+  <img src="/assets/screenshots/device-tablet-landscape.webp" alt="1180 by 820 tablet window with the sidebar open and three language panes side by side">
   <figcaption>1180 × 820: sidebar open, three language panes side by side, notes as a drawer.</figcaption>
 </figure>
 
@@ -54,3 +54,20 @@ The 390 × 844 and 820 × 1180 captures above were taken in a mouse-driven brows
 ::: tip Capturing your own layouts
 Resize the browser window rather than zooming the page: the breakpoints follow the viewport width, and the notes column and sidebar only change places when the window itself crosses them.
 :::
+
+## The native mobile app
+
+The responsive layout above is the browser build. There is also a separate native app, [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile), for Android and iOS. It opens the same `.mnproj` projects and writes changes back into them.
+
+### Faster project import in 0.2.1
+
+Opening a large `.mnproj` on a phone used to spend its time in JavaScript: the archive was unpacked in memory and the interface could freeze while thousands of page images were extracted. In **0.2.1** the Android app hands the archive to a native Kotlin unpacker instead — only the small JSON files are read in JavaScript, and images are moved on disk rather than copied through the JS bridge. The import screen shows a phase (reading, extracting, images, saving), so a long import looks like progress rather than a hang.
+
+The iOS build still unpacks in memory, so it behaves like the earlier Android releases on very large projects. If an import is interrupted, nothing is linked: open the project again rather than editing a half-extracted copy.
+
+### What to expect
+
+- **Android** — universal APK, per-ABI APKs and an AAB are published; the public builds use the debug keystore, so they are fine for sideloading but not for store upload and cannot be upgraded over a build signed with a different key.
+- **iOS** — build and sign locally; no pre-signed IPA is published.
+- **HarmonyOS NEXT** — a placeholder, not a working target yet.
+- The mobile app is a viewer/editor for existing projects, not a scanner: prepare the folder or `.mnproj` on a computer first.

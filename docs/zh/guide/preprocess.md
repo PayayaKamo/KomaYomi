@@ -17,7 +17,7 @@ KomaYomi 直接在你现有的图片文件夹里读取，不会复制或转换�
 | 一个图片文件就是一页。 | 跨页扫描要么保持为一个文件，要么用预处理对每种语言同时拆分。 |
 
 <figure class="shot">
-  <img src="/assets/screenshots/library-overview.png" alt="整理好之后，图库侧栏中的卷、话与语言标记">
+  <img src="/assets/screenshots/library-overview.webp" alt="整理好之后，图库侧栏中的卷、话与语言标记">
   <figcaption>整理好的一卷：每种语言一个文件夹，每一话一个文件夹，页数互相对齐，语言标记才会一致。</figcaption>
 </figure>
 

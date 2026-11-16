@@ -74,7 +74,7 @@ Current limitations:
 - There is no auto-update channel.
 
 <figure class="shot">
-  <img src="/assets/screenshots/first-launch-empty.png" alt="First launch with an empty library: the sidebar shows Add manga and the main area shows a four-step tour">
+  <img src="/assets/screenshots/first-launch-empty.webp" alt="First launch with an empty library: the sidebar shows Add manga and the main area shows a four-step tour">
   <figcaption>First launch with an empty library. ＋ Add manga is the way in; the four cards outline the workflow.</figcaption>
 </figure>
 
@@ -122,7 +122,7 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 5. Click the **About** button in the top bar to confirm the version and the active data directory before reporting a problem.
 
 <figure class="shot">
-  <img src="/assets/screenshots/about-dialog.png" alt="About dialog with the KomaYomi version, build information and data directory path">
+  <img src="/assets/screenshots/about-dialog.webp" alt="About dialog with the KomaYomi version, build information and data directory path">
   <figcaption>The About dialog. The version and data directory are the first two facts to include in a bug report.</figcaption>
 </figure>
 

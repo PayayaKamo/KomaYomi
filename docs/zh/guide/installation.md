@@ -109,7 +109,7 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 - Electron 窗口连接一个临时的 localhost 端口。
 
 <figure class="shot">
-  <img src="/assets/screenshots/first-launch-empty.png" alt="首次启动的空图库：侧栏显示“＋ 添加漫画”，主区域显示四步导览">
+  <img src="/assets/screenshots/first-launch-empty.webp" alt="首次启动的空图库：侧栏显示“＋ 添加漫画”，主区域显示四步导览">
   <figcaption>首次启动时图库为空：左侧的“＋ 添加漫画”是入口，中间四张卡片概述了使用流程。</figcaption>
 </figure>
 
@@ -122,7 +122,7 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 5. 点击顶栏的**关于**按钮，确认版本和当前数据目录，然后再去反馈问题。
 
 <figure class="shot">
-  <img src="/assets/screenshots/about-dialog.png" alt="关于对话框：KomaYomi 版本、构建信息与数据目录路径">
+  <img src="/assets/screenshots/about-dialog.webp" alt="关于对话框：KomaYomi 版本、构建信息与数据目录路径">
   <figcaption>关于对话框。反馈问题时，版本号和数据目录是首先需要说明的两项信息。</figcaption>
 </figure>
 

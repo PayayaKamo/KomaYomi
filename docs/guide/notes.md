@@ -3,7 +3,7 @@
 Notes are the reason the panels and alignment exist. A note can hang off a whole page or a single panel; it is written in Markdown and can carry tags, a source and attached screenshots.
 
 <figure class="shot">
-  <img src="/assets/screenshots/notes-markdown.png" alt="Notes panel with Markdown editor, live preview, tags and the overview tab">
+  <img src="/assets/screenshots/notes-markdown.webp" alt="Notes panel with Markdown editor, live preview, tags and the overview tab">
   <figcaption>The notes column sits to the right of the stage and can be collapsed. The toolbar above the editor inserts Markdown; the tab bar switches between this page and the global overview.</figcaption>
 </figure>
 
@@ -22,20 +22,38 @@ Selecting a panel in the workbench or in the compare reader scopes the next note
 
 ## Note types
 
-A page or a panel can hold any number of notes, and every note has a type. The built-in types are **Background**, **Vocabulary** and **Reaction**. When a project enables several languages, each enabled language also gets its own type (for example **Japanese** or **Chinese**); disabled languages do not appear.
+A page or a panel can hold any number of notes, and every note has a type. The built-in types are **Background** (blue), **Vocabulary** (amber) and **Reaction** (red). When a project enables several languages, each enabled language also gets its own type (for example **Japanese** or **Chinese**); disabled languages do not appear.
+
+Every note card uses the same visual grammar everywhere it appears — the notes column, the panel detail view and the in-panel blocks in the compare reader:
+
+- the type colour as a variable, with an 8% tint of it as the card surface;
+- a 3 px left bar in the full type colour;
+- a small type badge with the type name.
+
+Both light and dark themes keep the tint readable, and a custom colour applies to all three parts at once. Because the type is carried by colour *and* a label, the cards are still distinguishable without colour vision.
 
 The notes column is ordered as filter → list → editor. Notes are grouped by type, and the **All** filter shows every group. Choosing a type chip, or **Add note**, starts a note of that type and moves focus into the editor below the list; clicking a type while a draft is open only retags that draft.
 
-Custom types can be added, renamed, recolored and deleted from the type row. They are stored in `noteTypes` in `data/library.json`, so they travel with the library rather than a browser profile. Notes that still reference a deleted type fall back to Background.
+Custom types can be added, renamed, recolored and deleted from the type row; the picker offers a fixed palette plus the current colour. They are stored in `noteTypes` in `data/library.json`, so they travel with the library rather than a browser profile. Notes that still reference a deleted type fall back to Background.
 
-Notes saved before types existed are migrated to Background. Page documents move to `schemaVersion: 2`, and the original version-1 file is kept next to it as `<file>.v1.bak` (for example `3.json.v1.bak`).
+Notes saved before types existed are migrated to Background. When note types were introduced, page documents moved to `schemaVersion: 2`, and the original version-1 file was kept next to it as `<file>.v1.bak` (for example `3.json.v1.bak`). Current page documents are at `schemaVersion: 4`; older files are migrated on read.
 
 The panel detail view embeds the same editor, so a panel note can be written without leaving the page. Switching panels, paging or going back flushes the draft first.
+
+## Pins on the artwork
+
+A note can also point at a spot inside the drawing — the balloon that made you stop, a sign in the background, an onomatopoeia.
+
+1. Write the note text first; a pin without text is refused.
+2. Click **Pin on artwork**, then click the artwork. The pin belongs to the note's language, and the status line confirms it: *Pinned in Japanese*.
+3. **Remove pin** clears it. While placing, `Esc` cancels.
+
+A pin renders as a small dot in the compare reader and in the panel detail view, coloured by note type. Several notes at the same spot do not stack into an unreadable pile: they collapse into one dot with a count, and clicking it opens a popover listing every note there. Pins are stored in the page JSON with the note, so they survive export and import.
 
 ## Writing a note
 
 <figure class="shot">
-  <img src="/assets/screenshots/notes-editor.png" alt="Notes editor with Markdown toolbar, Edit / Split / Preview toggle, source and tag fields and the scratchpad">
+  <img src="/assets/screenshots/notes-editor.webp" alt="Notes editor with Markdown toolbar, Edit / Split / Preview toggle, source and tag fields and the scratchpad">
   <figcaption>The note editor: Markdown toolbar, Edit / Split / Preview, the source and tag fields, and the scratchpad underneath. The scope chip above the editor says whether the next note belongs to the page or a panel.</figcaption>
 </figure>
 
@@ -118,7 +136,9 @@ The scratchpad is for thoughts that arrive before you know where they belong —
 
 ## Editing and deleting
 
-Each saved note has **Edit**, **Copy context**, **Filter by tag** and delete actions. The **Rendered / Source** toggle on a note switches between the rendered Markdown and its raw text. Deleting a panel deletes its panel-scoped notes, so use page notes for anything you want to keep independent of the layout.
+Each saved note has **Edit**, **Copy context**, **Filter by tag** and delete actions. The **Rendered / Source** toggle on a note switches between the rendered Markdown and its raw text.
+
+Deleting, merging or splitting a panel does not throw its notes away: panel notes become page notes, and annotations keep their position by converting the old panel rectangle into page coordinates. When a page is loaded, notes, annotations and alignment offsets that point at a panel that no longer exists are repaired the same way, so editing the layout never silently deletes work.
 
 Editing reuses the single composer at the top of the notes panel; no second Markdown box opens inside the note card:
 

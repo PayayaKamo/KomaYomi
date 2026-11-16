@@ -1,6 +1,6 @@
 # Project Files & Formats
 
-Everything KomaYomi stores lives in plain files: images in `raw/`, annotations in `data/`, generated output in `exports/`. This page covers the three ways to move that work elsewhere — and the versioning rules that keep old files readable instead of turning them into archaeology.
+Everything KomaYomi stores lives in plain files: images in `raw/`, annotations in `data/`, generated output in `exports/`. A `.mnproj` is the working container: open one and saves go back into it. This page covers that link, the ways to move work elsewhere, and the versioning rules that keep old files readable instead of turning them into archaeology.
 
 ## The problem it solves
 
@@ -15,8 +15,8 @@ Annotations are the expensive part — hours of panel correction, alignment and 
 | **Backup ZIP** | `.zip` | The whole `data/` folder | Restoring after a mistake, or keeping a periodic safety copy. |
 
 <figure class="shot">
-  <img src="/assets/screenshots/file-menu.png" alt="File menu with open library, project files, recent volumes, save, import and restore entries">
-  <figcaption>The File menu gathers the same actions as the sidebar: save the current page, save as a project, import a project or a page, and restore a backup.</figcaption>
+  <img src="/assets/screenshots/file-menu.webp" alt="File menu with open library, project files, recent volumes, save, import and restore entries">
+  <figcaption>The File menu gathers opening, saving back to the linked project, saving a copy, importing and restoring a backup. The save indicator beside it opens the write-back status panel.</figcaption>
 </figure>
 
 ## Project packages (`.mnproj`)
@@ -42,11 +42,19 @@ Page version history travels with the project, so reopening it keeps the audit t
 | **Reference** | Only paths and SHA-1 hashes in the manifest. | Small. | Needs the original image folder. Supports relinking by hash or filename. |
 | **Packaged** | Deduplicated into `assets/<sha1>.<ext>`. | Large. | Self-contained; importing writes images into `raw/`. |
 
-### Exporting
+### Saving back to the opened file
 
-1. Open **Project file…** in the sidebar, or **File → Save as project…**.
-2. Choose the mode, a project name and an optional note.
-3. Click **Create and download .mnproj**.
+Opening a project does not take a copy. It links the current library to that `.mnproj`, and from then on every save is written back into the same file — images, page JSON, notes, annotations and templates. There is no separate "export the project again" step, and no risk of editing a stale copy.
+
+- **File → Save to project file** forces a write-back immediately and skips the save debounce. It is disabled when no project is linked (the menu says so) and in read-only mode.
+- The save indicator in the top bar is the status panel. Click it to see the linked path, the last write-back time, whether edits are queued, the current state (saved / writing / failed) and the failure reason. It offers **Write back now**, **Retry** and, when nothing is linked, a pointer to **Save as…**. In read-only mode it explains that nothing is written to disk.
+- Failed write-backs surface as a non-blocking notice; the panel keeps the reason and the retry button, so a temporary lock or a removed folder does not silently lose work.
+
+### Saving a copy
+
+**File → Save as…** packs the current library into a new `.mnproj` at a path you choose. It never overwrites the linked original: if you are working on `vol-01.mnproj`, the copy is a separate file.
+
+In the desktop app this opens a native save dialog. In the browser there is no file dialog, so the same command packs the library and hands it to the download manager instead — rename it while downloading if you like. Located at **File → Save as…**, the dialog shows whether you are in the desktop or browser fallback before it starts.
 
 The manifest records the app version, creation time, language mapping, an inventory of volumes / chapters / pages and image hashes, and note and annotation counts.
 
@@ -96,18 +104,18 @@ Every exchange format carries a schema envelope:
 ```json
 {
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
-  "schemaVersion": 1,
-  "appVersion": "0.1.0",
+  "schemaVersion": 4,
+  "appVersion": "1.1.0",
   "kind": "page"
 }
 ```
 
 | Kind | File | Current version |
 | --- | --- | --- |
-| `mnproj` | `.mnproj` manifest | **1** |
+| `mnproj` | `.mnproj` manifest | **2** |
 | `mntpl` | layout template | **1** |
 | `mnexp` | export template | **1** |
-| `page` | page document | **1** |
+| `page` | page document | **4** |
 | `mntp` | panel template (stored) | **1** |
 | `mnalign` | alignment preset (stored) | **1** |
 | `mnlayout` | declarative layout (stored) | **1** |
@@ -119,7 +127,7 @@ Version rules:
 - A file declaring a **higher** version than the app supports is rejected with a clear message: upgrade the app first. The app never guesses at a future format.
 - A missing version is treated as **v0** and migrated on import. Early experimental manifests (top-level `images`, a flat `langDirs` map) are converted to the current shape.
 - Missing optional fields are filled with defaults; invalid images are dropped rather than aborting the whole import.
-- On read, page JSON is **normalized**: rectangles are clamped, dangling group references removed, missing ids generated, unknown fields dropped.
+- On read, page JSON is **normalized**: rectangles are clamped, dangling group references removed, missing ids generated. Fields the app does not recognize are preserved instead of dropped, so a newer file survives an older build.
 - A page JSON that cannot be parsed is treated as absent; the app re-detects and recreates it.
 
 ## Backup ZIP

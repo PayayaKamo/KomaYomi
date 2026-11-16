@@ -5,7 +5,7 @@
 ## PC 横向き — 1440 px
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-pc-landscape.png" alt="幅 1440 px のウィンドウ：左にライブラリのサイドバー、中央に 3 つの比較ペイン、右にノート列">
+  <img src="/assets/screenshots/device-pc-landscape.webp" alt="幅 1440 px のウィンドウ：左にライブラリのサイドバー、中央に 3 つの比較ペイン、右にノート列">
   <figcaption>1440 px：左がサイドバー、中央が 3 言語の並列、右がノート列。</figcaption>
 </figure>
 
@@ -14,7 +14,7 @@
 ## PC 縦向き — 900 × 1200
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-pc-portrait.png" alt="900 × 1200 の狭いウィンドウ：ライブラリがドロワーに畳まれ、比較ペインが縦に積まれる">
+  <img src="/assets/screenshots/device-pc-portrait.webp" alt="900 × 1200 の狭いウィンドウ：ライブラリがドロワーに畳まれ、比較ペインが縦に積まれる">
   <figcaption>900 × 1200：サイドバーはドロワーへ、比較は 1 列、ノート列は既定で閉じています。</figcaption>
 </figure>
 
@@ -23,7 +23,7 @@
 ## スマートフォン縦向き — 390 × 844
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-phone-portrait.png" alt="390 × 844 のウィンドウ：トップバーとツールバーが複数行に折り返した様子">
+  <img src="/assets/screenshots/device-phone-portrait.webp" alt="390 × 844 のウィンドウ：トップバーとツールバーが複数行に折り返した様子">
   <figcaption>390 × 844：トップバーが 3 行、ツールバーも複数行に折り返し、タッチレイアウトでは言語レーンを 1 本ずつ表示します。</figcaption>
 </figure>
 
@@ -32,7 +32,7 @@
 ## タブレット縦向き — 820 × 1180
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-portrait.png" alt="820 × 1180 のウィンドウ：トップバーは 1 行、比較ペインは縦積み">
+  <img src="/assets/screenshots/device-tablet-portrait.webp" alt="820 × 1180 のウィンドウ：トップバーは 1 行、比較ペインは縦積み">
   <figcaption>820 × 1180：トップバーは 1 行、サイドバーはドロワー。マウス操作のウィンドウではペインが縦積みになり、タッチタブレットでは 2 列に並びます。</figcaption>
 </figure>
 
@@ -41,7 +41,7 @@ KomaYomi の比較レイアウトは、幅だけでなくポインターの種�
 ## タブレット横向き — 1180 × 820
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-landscape.png" alt="1180 × 820 のタブレット画面：サイドバーが開き、3 言語のペインが横に並ぶ">
+  <img src="/assets/screenshots/device-tablet-landscape.webp" alt="1180 × 820 のタブレット画面：サイドバーが開き、3 言語のペインが横に並ぶ">
   <figcaption>1180 × 820：サイドバーが開き、3 言語が横並び、ノートはドロワー。</figcaption>
 </figure>
 
@@ -54,3 +54,20 @@ KomaYomi の比較レイアウトは、幅だけでなくポインターの種�
 ::: tip 自分で撮るときは
 ページのズームではなくブラウザのウィンドウを直接リサイズしてください。ブレークポイントはビューポート幅を見ており、サイドバーとノート列はウィンドウ自体がブレークポイントを越えたときだけ入れ替わります。
 :::
+
+## ネイティブモバイルアプリ
+
+上で説明したのはブラウザー版のレスポンシブレイアウトです。別リポジトリにはネイティブアプリ [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile) があり、Android と iOS に対応しています。同じ `.mnproj` を開き、変更はプロジェクトファイルへ書き戻します。
+
+### 0.2.1：大きなプロジェクトの読み込みを高速化
+
+以前はスマートフォンで大きな `.mnproj` を開くと、時間のかかる処理がすべて JavaScript 側にありました。アーカイブをメモリ上で展開し、数千枚のページ画像を展開する間 UI が固まることがありました。**0.2.1** の Android 版はアーカイブをネイティブの Kotlin 展開処理に渡します。JavaScript が読むのは小さな JSON だけで、画像は JS ブリッジを通さずディスク上で移動します。読み込み画面には段階（読み取り、展開、画像、保存）が表示されるため、時間がかかっても固まったようには見えません。
+
+iOS 版は今もメモリ上で展開するため、非常に大きなプロジェクトでは以前の Android 版と同じ挙動になります。読み込みが中断された場合、リンクは残りません。中途半端に展開されたコピーを編集せず、もう一度プロジェクトを開いてください。
+
+### 期待できること
+
+- **Android** — ユニバーサル APK、ABI 別 APK、AAB を公開しています。公開ビルドは debug keystore を使うため、サイドロードには向きますがストア公開には使えず、別の鍵で署名したビルドの上から更新インストールもできません。
+- **iOS** — ローカルで署名してビルドしてください。署名済み IPA の配布はありません。
+- **HarmonyOS NEXT** — プレースホルダーで、まだ動作する対象ではありません。
+- モバイルアプリは既存プロジェクトの閲覧・編集用で、スキャナーではありません。フォルダーまたは `.mnproj` は先にパソコンで用意してください。

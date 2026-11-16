@@ -7,7 +7,7 @@
 真实的收藏很少整齐划一：有的系列多一层作者目录，有的出版社把语言放在最后，只有一种语言的合集干脆没有语言文件夹。为此重命名上千个文件是下策。规则让你直接描述现有的目录形状，而不必迁就默认结构。
 
 <figure class="shot">
-  <img src="/assets/screenshots/folder-rules.png" alt="目录识别规则对话框，左侧编辑规则数组，右侧实时预览，底部保存">
+  <img src="/assets/screenshots/folder-rules.webp" alt="目录识别规则对话框，左侧编辑规则数组，右侧实时预览，底部保存">
   <figcaption>规则对话框：左边编辑规则数组，右边预览某个子树，最后保存。底部会说明当前规则是否与正在运行的配置一致。</figcaption>
 </figure>
 

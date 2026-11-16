@@ -3,7 +3,7 @@
 Export turns a chapter of panels and notes into something you can actually carry: an HTML study document, PNG images for slides, a `.docx` for people who live in Word, or a print view for the PDF crowd.
 
 <figure class="shot">
-  <img src="/assets/screenshots/export-dialog.png" alt="Export dialog with layout templates, scope, languages, image mode and a live preview">
+  <img src="/assets/screenshots/export-dialog.webp" alt="Export dialog with layout templates, scope, languages, image mode and a live preview">
   <figcaption>The export dialog. The left column configures the document; the right side previews the layout and can be resized by dragging the divider.</figcaption>
 </figure>
 
@@ -96,9 +96,27 @@ Options:
 PNGs are generated in the browser and land in the browser's download folder. They paste straight into slides, documents or chat.
 
 <figure class="shot">
-  <img src="/assets/screenshots/export-options.png" alt="Export dialog with the scope, language chips, image mode, PNG modes and layout sliders">
+  <img src="/assets/screenshots/export-options.webp" alt="Export dialog with the scope, language chips, image mode, PNG modes and layout sliders">
   <figcaption>The export dialog with the PNG modes visible. Whole page and current panel use the primary language; the trilingual collage uses the selected languages.</figcaption>
 </figure>
+
+## Share images
+
+The **Share images** section of the export dialog renders ready-to-post images in the common social aspect ratios, so a finished page does not need a second trip through an image editor.
+
+| Preset | Output |
+| --- | --- |
+| **Cover · 1080×1440 JPEG** | Standard feed cover, JPEG quality 88. |
+| **Cover HD · 1242×1656 JPEG** | Slightly larger cover, JPEG quality 90. |
+| **Single panel · 1080×1440 JPEG** | One image per detected panel, in reading order, quality 85. |
+| **Language compare · 1080×1440 PNG** | Every enabled language side by side in one PNG. |
+| **Long page · 1080×3240 max JPEG** | Tall pages are split into strips; the top 1080×1440 is also saved as a cover. |
+
+- **Scope** follows the dialog: the current page or the whole chapter. Progress is reported as `n / total pages`, and skipped pages are listed with a reason (no image in the selected language, no detected panels) rather than failing silently.
+- **Language** picks the artwork for the single-panel and cover presets; the compare preset uses all enabled languages.
+- **Add page / language bar** draws a small label inside the bottom safe area, never at the edge, so the image still reads correctly when a platform crops it.
+- **Bake in annotations** composites the annotation layer, including anchors and leaders, before rendering. Turn it off for clean artwork.
+- Files are written to `exports/<batch>/` in the desktop app and to the browser download folder in the web build. Warnings appear when a batch exceeds the 18-image post limit or a single file is about to pass 20 MB.
 
 ## PDF and Word
 
@@ -140,7 +158,7 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
 - **The output folder is not writable.** In a packaged desktop build, `exports/` lives inside the chosen library folder.
 
 <figure class="shot">
-  <img src="/assets/screenshots/export-result.png" alt="Exported HTML opened in a browser: manga pages on the left and page and panel notes on the right">
+  <img src="/assets/screenshots/export-result.webp" alt="Exported HTML opened in a browser: manga pages on the left and page and panel notes on the right">
   <figcaption>The exported HTML opened in a browser: manga on the left, page and panel notes on the right.</figcaption>
 </figure>
 
@@ -154,5 +172,5 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
 ## Related
 
 - [Notes](/guide/notes) — what ends up in the document.
-- [Project Files & Formats](/guide/project-files) — exporting the whole project instead.
+- [Project Files & Formats](/guide/project-files) — writing back to the opened `.mnproj` or saving a copy.
 - [Keyboard Shortcuts](/guide/shortcuts) — `E` opens this dialog.

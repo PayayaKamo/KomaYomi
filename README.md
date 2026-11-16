@@ -1,14 +1,26 @@
-# KomaYomi
+# KomaYomi（格读）
 
-**A local-first manga panel reader for language study.**
+**Local-first, panel-by-panel manga intensive reading.**
 
 **日本語はすべて漫画から学んだ~**
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 
-KomaYomi — _Koma_ (コマ, a manga panel) + _Yomi_ (読み, reading) — is a local-first reading and annotation app for people who study languages with manga. Point it at a folder of pages; it pairs the same page across Japanese, Chinese and English, splits each page into panels, and lets you read, align and annotate them side by side while taking Markdown notes. The panel, not the page, is the unit of work: a note, a mark, a compare pane and an export can all be scoped to one box. There is no account and no upload: your images stay in your own folder, and your work stays in plain JSON next to them.
+Author homepages: [X · @payayakamo](https://x.com/payayakamo) · [note · @payayakamo](https://note.com/payayakamo). These are the author's pages, not a product site — KomaYomi has no separate product website.
+
+Reading a manga in a second language usually means three windows, a dictionary tab and a notes app that never quite line up. KomaYomi（格读） — _Koma_ (コマ, a manga panel) + _Yomi_ (読み, reading) — puts the same page in Japanese, Chinese and English in one window, cuts it into panels, and lets you pin Markdown notes and marks to the exact drawing. The panel, not the page, is the unit of work. Your images stay in your own folder, notes stay in plain JSON next to them: no account, no upload.
 
 It is a study tool, not a manga host. Bring your own scans and read them on one machine.
+
+## Run it in two minutes
+
+1. **Get the app.** Install a build from [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases) (Windows, macOS, Linux), or run `npm install && npm run dev` for the browser edition at `http://127.0.0.1:5173`.
+2. **Point it at your pages.** Drop a folder at `raw/<volume>/<language>/<chapter>/001.jpg`, or use **File → Open library folder…** / **Add manga…**.
+3. **Open a chapter.** Panels are detected on first open (treat them as a draft), then read in the compare view, write notes, and export.
+
+<!-- Screenshot placeholder: three-language compare reader with notes (image arrives in a later pass). -->
+
+Screenshots of the compare reader, the workbench and the notes panel follow under [What you can do](#what-you-can-do). Unsigned-build caveats, Docker, the full first-run folder layout and every other install path are [below](#quick-start).
 
 ## Quick start
 
@@ -80,11 +92,15 @@ All three editions use the same page JSON and the same `.mnproj` project format,
 
 ## What you can do
 
-- **Read one page in three languages** — side by side or overlaid, whole page or panel by panel, with a separate original-page view for anything outside the boxes.
-- **Turn a page into structure** — XY-cut detection gives you a draft; split, merge, renumber and apply templates until the boxes match the art.
-- **Annotate and take notes where the line is** — Markdown at page or panel scope, plus arrows, text, mosaic and other marks that can be baked into exports.
-- **Line up editions that do not line up** — four alignment modes, reusable as page or chapter presets.
-- **Run it your way** — Electron desktop, browser against the local server, Docker, or an installable PWA; the interface is available in English, Chinese and Japanese.
+- **Read one page in three languages** — side by side or overlaid, whole page or panel by panel, with a separate original-page view for anything outside the boxes. Right-click any pane for the enlarged 1:1 viewer.
+- **Turn a page into structure** — XY-cut detection gives you a draft; split, merge, renumber and apply templates until the boxes match the art. Double-click a panel for the detail view, with draggable artwork/notes layout and alignment by dragging the image.
+- **Take notes that stay on the drawing** — typed Markdown notes (Background, Vocabulary, Reaction, one per language, plus your own categories with colours), pinned to a spot on the artwork; page notes, panel notes and a scratch pad share one editor.
+- **Annotate where the line is** — arrows, text, highlighter, pen, mosaic and badges, scoped to a page or a panel and isolated per language; annotate and bake them into exports. Right-click a mark to recolour, delete or copy it to another language.
+- **Line up editions that do not line up** — four alignment modes, reusable as page or chapter presets; the detail view moves every language together with sync move.
+- **Never lose the thread** — operation history lists undoable edits newest first, and the compare view auto-centres the panel you jump to; read-only mode turns the workspace into a viewer with nothing written to disk.
+- **Keep the project file current** — open a `.mnproj` and every save writes back into that same file; **Save as…** packs a separate copy without touching the linked original.
+- **Share what you studied** — export HTML, PNG, Word or print-to-PDF, plus Xiaohongshu-ready share images (cover, single panel, language compare, long page).
+- **Run it your way** — Electron desktop, browser against the local server, Docker, an installable PWA, or the separate mobile app; the interface is available in English, Chinese and Japanese.
 
 ### What it is not
 
@@ -94,31 +110,31 @@ All three editions use the same page JSON and the same `.mnproj` project format,
 
 ### Screenshots
 
-![Library sidebar with volumes, chapters and language badges](assets/screenshots/library-overview.png)
+![Library sidebar with volumes, chapters and language badges](assets/screenshots/library-overview.webp)
 
 _The library is built from the folder tree. Each chapter shows how many pages it has and which languages are available._
 
-![Panel workbench with detected panels, resize handles and annotation tools](assets/screenshots/panel-workspace.png)
+![Panel workbench with detected panels, resize handles and annotation tools](assets/screenshots/panel-workspace.webp)
 
 _Panel workbench: detected panels with numbering, eight-direction resize handles, numeric rectangle inputs, panel templates and the annotation layer._
 
-![Compare reader showing the same page in Japanese, Chinese and English](assets/screenshots/compare-reading.png)
+![Compare reader showing the same page in Japanese, Chinese and English](assets/screenshots/compare-reading.webp)
 
 _Compare reader: the same page in Japanese, Chinese and English, aligned panel by panel._
 
-![Notes panel with Markdown editor and live preview](assets/screenshots/notes-markdown.png)
+![Notes panel with Markdown editor and live preview](assets/screenshots/notes-markdown.webp)
 
 _Notes are Markdown at page or panel scope, with a live preview and tags._
 
-![Export dialog with layout templates, scope, languages and image modes](assets/screenshots/export-dialog.png)
+![Export dialog with layout templates, scope, languages and image modes](assets/screenshots/export-dialog.webp)
 
 _Export: HTML for a page or a whole chapter, with an image folder or as a single file, plus PNG output._
 
-| Light                                                                    | Dark                                                                   |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| ![Compare reader in the light theme](assets/screenshots/theme-light.png) | ![Compare reader in the dark theme](assets/screenshots/theme-dark.png) |
+| Light                                                                     | Dark                                                                    |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![Compare reader in the light theme](assets/screenshots/theme-light.webp) | ![Compare reader in the dark theme](assets/screenshots/theme-dark.webp) |
 
-![Narrow viewport with a stacked compare reader](assets/screenshots/mobile-narrow.png)
+![Narrow viewport with a stacked compare reader](assets/screenshots/mobile-narrow.webp)
 
 _Below 1024 px the library becomes a drawer and the compare panes stack. The web build is installable as a PWA._
 
@@ -156,13 +172,18 @@ The directory tree is the configuration; there is no import step and no database
 - Tags, sources with an optional page-title fetch, pasted or dropped screenshots, and a scratch pad.
 - Full-text search across pages, tags and sources, plus "copy context" to hand the page's notes to an LLM or a translation tool.
 - Annotation layer: arrows, boxes, ellipses, highlights, freehand pen, text, badges and a real mosaic, on the whole page or inside one panel.
+- Marks belong to a language lane: drawing in the Japanese pane keeps the mark out of the Chinese and English panes, and one toggle shares it with all languages. Right-click a mark for colour, delete and "copy to language"; right-click empty artwork for the pane menu (view enlarged, mask, show only, panel PNG, panel number).
 - A mark can carry an anchor point or box with an optional leader line, so a note in the margin still points at the right balloon. Annotations can be baked into PNG exports or left out.
+- Note pins work the same way: **Pin on artwork** drops a dot in one language, and several notes at one spot collapse into a counted popover.
 
-## Export
+## Saving and export
 
+- Open a `.mnproj` and the editor is linked: every save is written back into that file, and the top-bar save state opens a panel with the target path, last write, queue and a retry. **File → Save to project file** forces a write-back; **File → Save as…** writes a separate copy and never touches the linked original.
+- In a plain browser there is no file dialog, so **Save as…** packs the library and hands it to the download manager instead.
 - HTML export in two modes: a `.html` file plus a sibling `<name>.files/` image folder (default), or a single file with images inlined.
 - Export a whole page or a whole chapter, choose which languages to include, and pick a layout template. Print styles avoid splitting panels and notes across pages.
 - PNG export: the whole page, the current panel, or a three-language collage.
+- Share images for social posts: 1080×1440 cover, single panel, language compare, or a long page split into strips, with an optional page/language bar and baked-in annotations; exports warn above 18 images or 20 MB per file.
 - PDF through the browser print dialog, and Word (`.docx`) export with page images and notes; annotations are baked into the `.docx` by default, with a warning and an un-baked fallback if a page cannot be composed.
 
 ## Backup, cache and remote sources
@@ -240,10 +261,9 @@ exports/            Generated HTML, PNG, backups, projects (gitignored)
 
 - Guided page/panel correspondence: suggest pairs across editions (reading order, panel geometry, later image similarity), confirm once and reuse the mapping instead of matching every page by hand.
 - Better panel detection for irregular layouts, so XY-cut drafts need fewer manual fixes.
-- Backup reminders and a one-click full-project export, for people who keep years of notes in `data/`.
-- Vocabulary-list export; PDF and Word are available in the export dialog today.
+- Backup reminders, for people who keep years of notes in `data/`.
+- Vocabulary-list export; PDF, Word and share images are available in the export dialog today.
 - An in-app image format converter; renaming and splitting live in preprocessing.
-- A full native mobile app; the responsive web UI already works in narrow windows.
 - Automated integration tests for the import / export round trip.
 
 ## Known limitations
@@ -270,12 +290,11 @@ The full user guide is published at https://payayakamo.github.io/KomaYomi-docs/:
 
 KomaYomi = **Koma** (コマ, a manga panel) + **Yomi** (読み, reading): reading, panel by panel. The name describes the workflow rather than the medium — structure the page first, then align editions, then anchor notes to the artwork.
 
-- The capitalization is fixed: **KomaYomi**, not `komayomi` or `Koma Yomi`. Search variants (`komayomi`, `koma-yomi`, `Koma Yomi`) all lead here.
-- In Chinese it is sometimes written **KomaYomi（格读）** — 格 for panel, 读 for read. That is an explanation, not a replacement for the name.
-- If the name alone is not obvious, the tagline is the translation: _a local-first manga panel reader for language study_.
+- The official name is **KomaYomi（格读）** — 格 for panel, 读 for read. Write the Latin part as **KomaYomi**, never `komayomi` or `Koma Yomi`; `komayomi`, `koma-yomi` and `Koma Yomi` are search variants that all lead here.
+- The tagline is the translation: _local-first, panel-by-panel manga intensive reading_.
 
 ## Author and license
 
-KomaYomi is built by **PayayaKamo** and released under the [MIT License](LICENSE).
+KomaYomi（格读） is built by **PayayaKamo** and released under the [MIT License](LICENSE). Author homepages: [X · @payayakamo](https://x.com/payayakamo) and [note · @payayakamo](https://note.com/payayakamo) — these are the author's pages, not a product site.
 
 KomaYomi is an independent project and is not affiliated with, endorsed by, or connected to any similarly named project, product or organization. The manga pages in the screenshots are used for demonstration only; all rights belong to the original author. The repository ships no third-party manga.

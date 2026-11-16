@@ -17,7 +17,7 @@ Panel detection is happiest with clean page scans. A volume with rotated pages, 
 | One image is one page. | A scanned spread must be split in every language, either in the wizard or before importing. |
 
 <figure class="shot">
-  <img src="/assets/screenshots/library-overview.png" alt="Library sidebar with volumes, chapters and language badges after a clean import">
+  <img src="/assets/screenshots/library-overview.webp" alt="Library sidebar with volumes, chapters and language badges after a clean import">
   <figcaption>A prepared volume: one folder per language, one folder per chapter, and matching page counts so the language badges line up.</figcaption>
 </figure>
 

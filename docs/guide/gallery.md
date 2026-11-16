@@ -35,7 +35,7 @@ raw/
 - **Pages pair by sorted position, not by filename.** Each language sorts naturally (digit runs compared as numbers), then pairs by index. `1.jpg`, `2.jpg`, `10.jpg` come out in the right order.
 
 <figure class="shot">
-  <img src="/assets/screenshots/library-overview.png" alt="Library sidebar with volumes, chapters and language badges">
+  <img src="/assets/screenshots/library-overview.webp" alt="Library sidebar with volumes, chapters and language badges">
   <figcaption>The sidebar lists volume → chapter → pages. Language badges show which editions exist for a volume; warnings appear inline.</figcaption>
 </figure>
 
@@ -90,7 +90,7 @@ The same dialog has a **Chapters** section listing every chapter of the volume:
 - **Page offset** handles pages inserted mid-chapter that shift every later page number: align this language from page N to page M of the reference edition, or leave it empty for no offset. Offsets are stored as `pageOffsets` in `data/library.json`; they affect display and pairing only, never file names on disk.
 
 <figure class="shot">
-  <img src="/assets/screenshots/volume-settings.png" alt="Volume settings dialog with one dropdown per language: ja, zh and en, plus Remove from library, Cancel and Save">
+  <img src="/assets/screenshots/volume-settings.webp" alt="Volume settings dialog with one dropdown per language: ja, zh and en, plus Remove from library, Cancel and Save">
   <figcaption>Volume settings. Each dropdown maps a language to its subfolder; Save rescans the volume, and Remove from library only deletes the link under raw/.</figcaption>
 </figure>
 
@@ -152,7 +152,7 @@ Four different entry points live in the sidebar. They do different things:
 | Entry | Use it for |
 | --- | --- |
 | **Add manga** | Link an existing image folder into the library. |
-| **Project file…** | Export or import a `.mnproj` package (images + annotations + templates + language settings). |
+| **Project file…** | Open a `.mnproj` package (images + annotations + templates + language settings); once open, saves are written back into it. Use **File → Save as…** for a separate copy. |
 | **Exchange files…** | Move `.mntpl` layout templates, `.mnexp` export templates or a single `.mnpage.json` page. |
 | **Backup / restore** | ZIP the `data/` folder, or restore a previous ZIP. |
 

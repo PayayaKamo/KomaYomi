@@ -1,15 +1,15 @@
 ---
 layout: home
 titleTemplate: false
-description: "KomaYomi (Koma = manga panel, Yomi = reading) documentation — a local-first manga panel reader for language study: compare Japanese, Chinese and English pages, detect panels, align artwork and take notes."
-title: KomaYomi — a local-first manga panel reader
+description: "KomaYomi（格读） documentation — local-first, panel-by-panel manga intensive reading. Compare Japanese, Chinese and English editions side by side, pin notes to the artwork, and export study pages; your files never leave your machine."
+title: KomaYomi（格读）— local-first manga intensive reading
 
 hero:
-  name: KomaYomi
-  text: Manga Panel Reader
-  tagline: 日本語はすべて漫画から学んだ~
+  name: KomaYomi（格读）
+  text: Read manga panel by panel
+  tagline: Japanese, Chinese and English on one page — notes and marks pinned to the drawing. Local-first, no account.
   image:
-    src: /assets/screenshots/hero-real-library.png
+    src: /assets/screenshots/hero-real-library.webp
     alt: Compare reader with three language panes from a real library; the manga artwork is blurred
   actions:
     - theme: brand
@@ -25,24 +25,36 @@ features:
   - title: Compare multiple languages
     details: Side-by-side or overlay views, per-language masks, wheel zoom and pan, plus page / panel / anchor / grid alignment with reusable presets.
   - title: Notes that travel
-    details: Markdown notes at page or panel scope, tags, sources, a scratch pad, full-text search and one-click "copy context" for pasting into an LLM.
+    details: Markdown notes at page or panel scope in typed cards, optional pins on the artwork, tags, sources, a scratch pad, full-text search and one-click "copy context" for pasting into an LLM.
   - title: Portable output
-    details: Export HTML with an image folder or as a single embedded file, render page / panel / collage PNGs, and move everything as a `.mnproj` project.
+    details: Export HTML with an image folder or as a single embedded file, render page / panel / collage PNGs, share images for social posts, and move everything as a `.mnproj` project.
 ---
 
-## What is KomaYomi?
+## Why KomaYomi exists
 
-KomaYomi — **Koma** (コマ, manga panel) + **Yomi** (読み, reading) — is a **local web application** for learning languages with manga: read the same pages in Japanese, Chinese and English, align them precisely, and take notes. Its unit of work is the panel, not the page: structure the page first, then align editions, then anchor notes to the artwork. Your page images stay in a `raw/` folder; every panel, note, tag, alignment offset and annotation lives in plain JSON under `data/`. Nothing leaves the machine unless you export it.
+Studying a manga in a second language usually means three windows — the original, a translation, and a dictionary — plus a notes app that never lines up with the page. KomaYomi（格读） puts the same page in Japanese, Chinese and English in one window, cuts it into panels, and lets you pin Markdown notes and marks to the exact drawing. The unit of work is the panel, not the page.
 
-It is designed for study and translation review rather than for hosting copyrighted material: bring your own scans, point the app at the folder, and work page by page.
+It is a local web application: page images stay in a `raw/` folder, and every panel, note, tag and annotation lives in plain JSON under `data/`. Nothing leaves the machine unless you export it. Bring your own scans; it is a study tool, not a manga host.
+
+Author homepages: [X · @payayakamo](https://x.com/payayakamo) · [note · @payayakamo](https://note.com/payayakamo). These are the author's personal pages, not a product site.
+
+## Try it in three steps
+
+1. **Install or run.** Download a build from [GitHub Releases](https://github.com/PayayaKamo/KomaYomi/releases), or run `npm install && npm run dev` and open `http://127.0.0.1:5173`.
+2. **Point it at pages.** Put images under `raw/<volume>/<language>/<chapter>/001.jpg`, or use **File → Open library folder…**.
+3. **Open a chapter.** Panels are detected on first open as a draft; read in the compare view, write notes, export.
+
+Full install options, first-run folder layout and panel correction are in [Install & Run](/guide/installation) and [Introduction](/guide/introduction).
 
 ## Status at a glance
 
-KomaYomi is at **1.1.0**. The documentation distinguishes what exists today from what is planned.
+KomaYomi（格读） is at **1.1.0**. This site separates what works today from what is planned.
 
 <div class="status-list">
-  <div><strong>Working today</strong> — library scanning including multi-work roots, XY-cut panel detection, manual panel editing, splitting a panel and reordering the numbering with quick 1–10 positions and right-click move-to, panel grouping and page history, three sidebar page-list layouts (two-column thumbnails, single-column thumbnails, and a list with languages and note counts), panel/layout templates, vector annotations with anchor leaders, compare reader with masks and four alignment modes, a third original-page view with per-language zoom and pan plus a linked/independent switch, panel detail views with per-panel deep links (double-click any compare row, including its margins, to open one), per-language session-only alignment in the detail view, previous/next panel across page and chapter boundaries, focus mode, edit and read-only modes, Markdown notes with search and single-editor editing, typed notes (Background, Vocabulary and Reaction at page or panel scope, one type per enabled language, custom types stored in `data/library.json`, with filtering, grouping and add-by-type), a start screen with six first-run steps and import / new-library / open-project / guide entries, HTML / PNG / PDF (print) / Word export with annotations baked by default, backup ZIP plus scheduled automatic backups, cache management, upload to a WebDAV/network target, a WebDAV/network image source with on-demand LRU caching and an offline write queue, atomic page saves with schema validation, `.bak` rotation and a concurrent-write lock, `.mnproj` project export/import, CLI batch tools.</div>
-  <div><strong>Planned</strong> — vocabulary-list export; an in-app image format converter (renaming and splitting live in preprocessing); a full native mobile app (the responsive web UI works in narrow browser windows); broader integration tests.</div>
+  <div><strong>Reading</strong> — library scanning including multi-work roots; three sidebar page-list layouts; panel detection and manual editing; splitting and renumbering; layout templates; compare reader with per-language masks; an original-page view; the enlarged 1:1 image viewer; previous/next panel across page and chapter boundaries with auto-centring; focus mode and read-only mode.</div>
+  <div><strong>Notes and marks</strong> — Markdown notes at page or panel scope; typed notes (Background, Vocabulary, Reaction, one type per enabled language, plus custom types and colours); pins on the artwork with grouped popovers; notes search; a single editor; vector annotations with anchor leaders, isolated per language, with a right-click menu; operation history wired to the undo stack.</div>
+  <div><strong>Projects and output</strong> — `.mnproj` projects that save back into the opened file; **Save as…** copies in the desktop app (download fallback in the browser); HTML, PNG, PDF (print) and Word export with annotations baked by default; Xiaohongshu-ready share images; backup ZIP and scheduled backups; cache management; WebDAV sources with an offline write queue; atomic page saves with schema validation, `.bak` rotation and a concurrent-write lock; CLI batch tools.</div>
+  <div><strong>Planned</strong> — vocabulary-list export; an in-app image format converter (renaming and splitting live in preprocessing); broader integration tests.</div>
 </div>
 
 Anything marked <Badge type="warning" text="Planned" /> in this site is **not implemented yet**. If a page describes behavior that is not in the code, treat this note as authoritative and the feature as unavailable.

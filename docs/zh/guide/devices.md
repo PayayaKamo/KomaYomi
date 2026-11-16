@@ -5,7 +5,7 @@
 ## PC 横屏 — 1440 px
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-pc-landscape.png" alt="1440 px 宽的窗口：左侧图库侧栏、中间三栏对照、右侧笔记栏">
+  <img src="/assets/screenshots/device-pc-landscape.webp" alt="1440 px 宽的窗口：左侧图库侧栏、中间三栏对照、右侧笔记栏">
   <figcaption>1440 px：左边侧栏，中间三语并排，右边笔记栏。</figcaption>
 </figure>
 
@@ -14,7 +14,7 @@
 ## PC 竖屏 — 900 × 1200
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-pc-portrait.png" alt="900 × 1200 的窄窗口：图库收成抽屉，对照栏纵向堆叠">
+  <img src="/assets/screenshots/device-pc-portrait.webp" alt="900 × 1200 的窄窗口：图库收成抽屉，对照栏纵向堆叠">
   <figcaption>900 × 1200：侧栏收进抽屉，对照只剩一栏，笔记栏默认收起。</figcaption>
 </figure>
 
@@ -23,7 +23,7 @@
 ## 手机竖屏 — 390 × 844
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-phone-portrait.png" alt="390 × 844 的窗口：顶栏与工具栏折成多行">
+  <img src="/assets/screenshots/device-phone-portrait.webp" alt="390 × 844 的窗口：顶栏与工具栏折成多行">
   <figcaption>390 × 844：顶栏折成三行，工具栏再折几行；触屏布局一次只显示一条语言栏。</figcaption>
 </figure>
 
@@ -32,7 +32,7 @@
 ## 平板竖屏 — 820 × 1180
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-portrait.png" alt="820 × 1180 的窗口：顶栏一行，对照栏纵向堆叠">
+  <img src="/assets/screenshots/device-tablet-portrait.webp" alt="820 × 1180 的窗口：顶栏一行，对照栏纵向堆叠">
   <figcaption>820 × 1180：顶栏一行，侧栏收在抽屉里；鼠标窗口里对照纵向堆叠，触屏平板则两栏并排。</figcaption>
 </figure>
 
@@ -41,7 +41,7 @@ KomaYomi 的对照布局由指针类型和宽高比共同决定，不只看宽�
 ## 平板横屏 — 1180 × 820
 
 <figure class="shot">
-  <img src="/assets/screenshots/device-tablet-landscape.png" alt="1180 × 820 的平板窗口：侧栏展开，三语并排">
+  <img src="/assets/screenshots/device-tablet-landscape.webp" alt="1180 × 820 的平板窗口：侧栏展开，三语并排">
   <figcaption>1180 × 820：侧栏展开，三语并排，笔记仍是抽屉。</figcaption>
 </figure>
 
@@ -54,3 +54,20 @@ KomaYomi 的对照布局由指针类型和宽高比共同决定，不只看宽�
 ::: tip 自己想截图的话
 请直接调整浏览器窗口大小，不要用页面缩放：断点跟的是视口宽度，侧栏和笔记栏只有窗口本身越过断点才会换位置。
 :::
+
+## 原生移动端应用
+
+上面说的是浏览器版。另有独立的原生应用 [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile)，支持 Android 与 iOS，打开的是同一批 `.mnproj` 工程，改动同样写回工程文件。
+
+### 0.2.1：导入大工程不再卡
+
+以前在手机上打开大 `.mnproj`，时间都耗在 JavaScript 里：压缩包在内存中解开，几千张页图解压时界面可能卡死。**0.2.1** 的 Android 版把压缩包交给原生 Kotlin 解包器——只有很小的 JSON 文件走 JavaScript，图片直接在磁盘上移动，不再通过 JS 桥拷贝。导入界面会显示阶段（读取、解包、图片、保存），耗时再长也看得出在推进，而不是像死机。
+
+iOS 版仍在内存中解包，所以在超大工程上的表现和早期 Android 版本类似。导入中途被打断时不会留下链接：重新打开工程，而不是去编辑一份只解了一半的副本。
+
+### 可以预期什么
+
+- **Android** —— 发布通用 APK、按 ABI 拆分的 APK 和 AAB；公开构建使用 debug keystore，适合侧载，但不能上架，也无法覆盖安装用其他签名构建的版本。
+- **iOS** —— 需要本地签名构建，不提供预签名 IPA。
+- **鸿蒙 NEXT** —— 占位状态，还不是可用的目标平台。
+- 移动端面向已有的工程，不是扫描工具：先在电脑上准备好文件夹或 `.mnproj`。

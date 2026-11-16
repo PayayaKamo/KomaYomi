@@ -38,9 +38,11 @@ Press `R` or click `⛶` in the top bar to enter: the top bar, stage toolbar, pa
 | --- | --- |
 | `Ctrl+O` | Open a project file (`.mnproj`). |
 | `Ctrl+S` | Save the current page. |
-| `Ctrl+Shift+S` | Save as a project. |
+| `Ctrl+Shift+S` | Save to the linked project file — writes the whole library back into the opened `.mnproj`. |
 
-These file shortcuts work even while typing, matching desktop apps.
+These file shortcuts work even while typing, matching desktop apps. In read-only mode, and when no project is linked, saving is refused with an explanation instead of writing.
+
+There is no shortcut for **File → Save as…**: it always asks for a destination, so it stays a deliberate menu action.
 
 ## Panel workbench
 
@@ -89,10 +91,13 @@ Panel navigation uses the **Previous panel** / **Next panel** buttons; they are 
 
 Some controls have no keyboard equivalent by design:
 
-- Pane splitters: drag to resize, double-click to reset.
+- Pane splitters and the detail-view divider: drag to resize; the divider also moves with the arrow keys when focused.
 - Language chip reordering in the compare reader: drag a chip.
 - Zoom buttons: `−` / `＋` in the panel toolbar.
 - Panel template and alignment preset pickers.
+- Right-click menus: a mark, a compare pane, or a panel in the detail view. The pane menu holds the enlarged viewer, masking, single-panel PNG, panel number and link commands.
+- Dragging the artwork in the detail view to align it, and the **Sync move** switch.
+- Clicking the save indicator to open the write-back status panel.
 
 ## Common pitfalls
 

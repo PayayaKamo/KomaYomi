@@ -1,8 +1,12 @@
 # Introduction
 
-KomaYomi — **Manga Learner** — is a local-first web app for reading manga in more than one language at once. Maybe you are learning Japanese with one eye on the translation, maybe you are doing scanlation and want to check your typesetting against the raw, maybe you just need to know how that one line was handled in the official release. KomaYomi splits a page into panels, lines up the same panel across Japanese, Chinese and English, and lets you pin Markdown notes — TL notes, typesetting questions, vocabulary — to the exact panel they belong to.
+KomaYomi（格读） is a local-first web app for reading manga in more than one language at once. The usual setup is three windows — the original, a translation and a dictionary — plus a notes app that never lines up with the page. KomaYomi splits a page into panels, lines up the same panel across Japanese, Chinese and English, and lets you pin Markdown notes and marks — TL notes, typesetting questions, vocabulary — to the exact panel and the exact spot they belong to. It is for people learning Japanese with one eye on the translation, for scanlation checks against the raw, and for anyone who wants to see how one line was handled in each edition.
 
 It is neither a general-purpose manga reader nor a distribution platform. Everything runs on your own machine, against your own image folders.
+
+Already installed? Jump to [The first ten minutes](#the-first-ten-minutes). Starting from zero? [Install & Run](/guide/installation) has every path — desktop build, `npm run dev`, Docker, PWA.
+
+Author homepages: [X · @payayakamo](https://x.com/payayakamo) · [note · @payayakamo](https://note.com/payayakamo). These are the author's personal pages, not a product site.
 
 ## The problem it solves
 
@@ -27,7 +31,7 @@ KomaYomi adds the missing middle layer:
 ## A tour of the screen
 
 <figure class="shot">
-  <img src="/assets/screenshots/panel-workspace.png" alt="Panel workbench with a manga page, detected panels, resize handles and the annotation toolbar">
+  <img src="/assets/screenshots/panel-workspace.webp" alt="Panel workbench with a manga page, detected panels, resize handles and the annotation toolbar">
   <figcaption>The panel workbench. Top bar: page navigation, Panels / Compare, reading order, theme, interface language, Notes and Export. Left: library. Right: notes. Middle: the page with panel boxes — where you will spend most of your time.</figcaption>
 </figure>
 
@@ -86,13 +90,14 @@ Focus mode (the `⛶` button in the top bar, or `R`) is a different thing: it on
 <div class="status-list">
   <div><strong>Library</strong> — scans volumes, including several works side by side under one root, recognizes language folder aliases, pairs pages by sorted position, warns about missing pages and naming mismatches; the sidebar lists pages as two-column thumbnails, single-column thumbnails or a list with languages and note counts, remembered per browser.</div>
   <div><strong>Panels</strong> — automatic XY-cut detection, add / move / eight-direction resize / merge / group / split / delete, manual reordering of the numbering with quick 1–10 positions and right-click move-to, percentage inputs, grid generator, panel templates, declarative layouts, plugins, cross-session page history.</div>
-  <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, optional anchor points with leader lines, page-level visibility switch, PNG export support.</div>
-  <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order, a third original-page view with a linked/independent switch for zoom and pan, previous/next panel across page and chapter boundaries, and panel detail views with per-panel deep links. Double-click any compare row — language panes, the head or its blank margins — to open that panel; the detail view adds per-language alignment that lasts only for the session.</div>
-  <div><strong>Notes</strong> — page/panel notes, any number per page or panel, Markdown with a toolbar and live preview, editing an existing note in the same single editor, tags, sources, attached images, overview search, copy-for-LLM, scratchpad, and note types: Background / Vocabulary / Reaction, one type per enabled language, and custom types kept in `data/library.json`. The notes column runs filter → list → editor with grouping and add-by-type, and the panel detail view embeds the same editor.</div>
-  <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), PDF via the browser print dialog, Word (`.docx`) with page images and notes and annotations baked by default, panel-border overlay, print styles, export templates.</div>
-  <div><strong>Modes</strong> — edit and read modes; switching to read saves first and then disables every write, and focus mode (`R`) clears the interface for immersive reading.</div>
+  <div><strong>Annotations</strong> — arrow, rectangle, ellipse, highlighter, freehand pen, text, number badge and mosaic, optional anchor points with leader lines, page-level visibility switch, per-language isolation with a right-click menu (delete, change colour, copy to another language), PNG export support.</div>
+  <div><strong>Compare</strong> — 2–3 languages, side-by-side or overlay, per-language blur/solid masks, wheel zoom, pan, page/panel/anchor/grid alignment, saved presets, custom language order, a third original-page view with a linked/independent switch for zoom and pan, an enlarged 1:1 image viewer from the pane context menu, previous/next panel across page and chapter boundaries with auto-centring, and panel detail views with per-panel deep links. Double-click any compare row — language panes, the head or its blank margins — to open that panel; the detail view lets you drag the artwork to align it, keeps alignment for the session, and can lay panes side by side or stacked, with the language bar horizontal or vertical.</div>
+  <div><strong>Notes</strong> — page/panel notes, any number per page or panel, Markdown with a toolbar and live preview, editing an existing note in the same single editor, tags, sources, attached images, overview search, copy-for-LLM, scratchpad, pins on the artwork (a pin belongs to one language; several notes at one spot group into a counted popover), and note types: Background / Vocabulary / Reaction, one type per enabled language, and custom types kept in `data/library.json`. Typed cards share one look — a tinted surface, a 3 px colour bar and a type badge — on every surface, in both themes. The notes column runs filter → list → editor with grouping and add-by-type, and the panel detail view embeds the same editor.</div>
+  <div><strong>Export</strong> — HTML (image folder or single file), PNG (whole page, current panel, trilingual collage), share images (1080×1440 cover, single panel, language compare, long page split into strips, 18-image / 20 MB warnings), PDF via the browser print dialog, Word (`.docx`) with page images and notes and annotations baked by default, panel-border overlay, print styles, export templates.</div>
+  <div><strong>History</strong> — the operation history lists undoable edits newest first, marks the current position and jumps back to any step; it is the same undo stack, not a second one, and read-only mode shows it without allowing a jump.</div>
+  <div><strong>Modes</strong> — edit and read modes; switching to read saves first and then disables every write, and focus mode (`R`) clears the interface for immersive reading while leaving a small page/panel capsule.</div>
   <div><strong>Storage</strong> — local folders, mounted network shares and WebDAV, with on-demand image fetching, a bounded LRU cache, scheduled automatic backups and cache management. Page writes are atomic and schema-checked, rotate `.bak` copies and take a per-page lock.</div>
-  <div><strong>Portability</strong> — `.mnproj` project packages, `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas (page and project documents at 2).</div>
+  <div><strong>Portability</strong> — `.mnproj` project packages that save back into the opened file, **Save to project file** / **Save as…** in the desktop file menu (the browser falls back to a download), `.mntpl` / `.mnexp` / `.mnpage.json` exchange files, backup and restore ZIPs, versioned schemas (page documents at 4, project manifests at 2).</div>
 </div>
 
 ## What is not implemented
@@ -101,12 +106,13 @@ These items are marked <Badge type="warning" text="Planned" /> wherever they app
 
 - Vocabulary-list export. PDF and Word are available as **PDF (print)** and **Word document** in the export dialog.
 - An in-app image format converter. Renaming and splitting images are part of [preprocessing](/guide/preprocess); converting between formats still has to happen outside the app.
-- A full native mobile app. The responsive web UI does work in a narrow browser window (see below).
 - Broader automated integration tests for the import / export round trip.
 
+There is a separate native app, [KomaYomi-mobile](https://github.com/PayayaKamo/KomaYomi-mobile), for Android and iOS; HarmonyOS NEXT is a placeholder. It opens `.mnproj` projects, and its 0.2.1 release imports large projects by unpacking the archive natively instead of in JavaScript, so the UI no longer freezes while images are extracted.
+
 <figure class="shot">
-  <img src="/assets/screenshots/mobile-narrow.png" alt="Compare reader in a narrow window with the language panes stacked vertically">
-  <figcaption>Narrow window: panes stack vertically, the library becomes a drawer. A responsive web layout, not a native app — but it still works on a phone-sized screen.</figcaption>
+  <img src="/assets/screenshots/mobile-narrow.webp" alt="Compare reader in a narrow window with the language panes stacked vertically">
+  <figcaption>Narrow window: panes stack vertically, the library becomes a drawer. The same responsive layout the desktop app uses on a phone-sized screen.</figcaption>
 </figure>
 
 ## Light and dark
@@ -114,12 +120,12 @@ These items are marked <Badge type="warning" text="Planned" /> wherever they app
 The UI theme follows the system by default and can be fixed to light or dark from the top bar. The exported HTML is light-only, so screenshots and printouts stay consistent.
 
 <figure class="shot">
-  <img src="/assets/screenshots/theme-light.png" alt="Compare reader in the light theme">
+  <img src="/assets/screenshots/theme-light.webp" alt="Compare reader in the light theme">
   <figcaption>Light theme.</figcaption>
 </figure>
 
 <figure class="shot">
-  <img src="/assets/screenshots/theme-dark.png" alt="Compare reader in the dark theme">
+  <img src="/assets/screenshots/theme-dark.webp" alt="Compare reader in the dark theme">
   <figcaption>Dark theme.</figcaption>
 </figure>
 

@@ -35,7 +35,7 @@ raw/
 - **页面按排序位置配对，不是按文件名。** 每种语言先做自然排序（连续数字按数值比较），再按索引配对。`1.jpg`、`2.jpg`、`10.jpg` 会乖乖排对。
 
 <figure class="shot">
-  <img src="/assets/screenshots/library-overview.png" alt="图库侧栏，含卷、话与语言标记">
+  <img src="/assets/screenshots/library-overview.webp" alt="图库侧栏，含卷、话与语言标记">
   <figcaption>侧栏按 卷 → 话 → 页 列出。语言标记显示这一卷有哪几个版本；警告会就地显示。</figcaption>
 </figure>
 
@@ -90,7 +90,7 @@ raw/
 - **页偏移** 用来处理“增页插在中间导致后续页号错位”：让本语言从第 N 页起对齐到参考版的第 M 页，留空表示不偏移。偏移保存在 `data/library.json` 的 `pageOffsets` 里，只影响显示与配对，不改动磁盘文件名。
 
 <figure class="shot">
-  <img src="/assets/screenshots/volume-settings.png" alt="卷设置对话框：ja、zh、en 各有一个下拉框，底部有“从图库移除”“取消”“保存”">
+  <img src="/assets/screenshots/volume-settings.webp" alt="卷设置对话框：ja、zh、en 各有一个下拉框，底部有“从图库移除”“取消”“保存”">
   <figcaption>卷设置：每种语言的下拉框指向对应的子目录。保存后会重新扫描本卷；“从图库移除”只删除 raw/ 下的链接。</figcaption>
 </figure>
 
@@ -152,7 +152,7 @@ raw/
 | 入口 | 用途 |
 | --- | --- |
 | **添加漫画** | 把已有图片文件夹链接进图库。 |
-| **工程文件…** | 导出或导入 `.mnproj` 包（图片 + 标注 + 模板 + 语言设置）。 |
+| **工程文件…** | 打开 `.mnproj` 包（图片 + 标注 + 模板 + 语言设置）；打开后保存会写回该文件。要另存一份副本，用 **文件 → 另存为…**。 |
 | **交换文件…** | 传递 `.mntpl` 版式模板、`.mnexp` 导出模板，或单个 `.mnpage.json` 页面。 |
 | **备份 / 恢复** | 把 `data/` 打包成 ZIP，或恢复之前的 ZIP。 |
 

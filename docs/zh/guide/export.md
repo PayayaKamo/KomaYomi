@@ -3,7 +3,7 @@
 导出把一话的分格与笔记变成真能带走的东西：HTML 学习文档、用于幻灯片的 PNG、Word 用户会喜欢的 `.docx`，以及给 PDF 党准备的打印视图。
 
 <figure class="shot">
-  <img src="/assets/screenshots/export-dialog.png" alt="导出对话框：版式模板、范围、语言、图片方式与实时预览">
+  <img src="/assets/screenshots/export-dialog.webp" alt="导出对话框：版式模板、范围、语言、图片方式与实时预览">
   <figcaption>导出对话框。左栏用于配置文档；右侧预览版式，拖动分隔线可以调整大小。</figcaption>
 </figure>
 
@@ -96,9 +96,27 @@
 PNG 在浏览器中生成，落在浏览器的下载目录。可以直接粘贴到幻灯片、文档或聊天窗口。
 
 <figure class="shot">
-  <img src="/assets/screenshots/export-options.png" alt="导出对话框：范围、语言选择、图片方式、PNG 模式与版式滑块">
+  <img src="/assets/screenshots/export-options.webp" alt="导出对话框：范围、语言选择、图片方式、PNG 模式与版式滑块">
   <figcaption>导出对话框中的 PNG 模式。整页和单格使用首选（基准）语言；三语拼图使用所选的对照语言。</figcaption>
 </figure>
+
+## 分享图
+
+导出对话框里的 **分享图** 区域直接产出适合发帖的尺寸，不必再开一次修图软件。
+
+| 预设 | 输出 |
+| --- | --- |
+| **封面 · 1080×1440 JPEG** | 常规信息流封面，JPEG 质量 88。 |
+| **高清封面 · 1242×1656 JPEG** | 稍大的封面，JPEG 质量 90。 |
+| **单格 · 1080×1440 JPEG** | 按阅读顺序每个分格一张，质量 85。 |
+| **三语对照 · 1080×1440 PNG** | 把所有启用语言并排放进一张 PNG。 |
+| **长页 · 最长 1080×3240 JPEG** | 长页切成条；顶部 1080×1440 另存一张封面。 |
+
+- **范围** 跟随对话框：当前页或整话。进度按 `n / 总页数` 显示，跳过的页面会连原因一起列出（所选语言没有图片、没有检测到分格），不会静默失败。
+- **语言** 决定单格和封面用哪一版画面；三语对照预设使用所有启用语言。
+- **添加页 / 语言信息条** 会在底部安全区内画一行小标签，不贴边，平台裁切后仍然可读。
+- **烘焙标注** 会把标注层（含锚点与引线）合成进去再渲染。想要干净的画面就关掉。
+- 文件在桌面端写入 `exports/<批次>/`，在 Web 版进入浏览器下载目录。一批超过 18 张或单张接近 20 MB 时会给出提示。
 
 ## PDF 与 Word
 
@@ -140,7 +158,7 @@ PNG 在浏览器中生成，落在浏览器的下载目录。可以直接粘贴�
 - **输出文件夹不可写。** 在打包的桌面版中，`exports/` 位于所选的图库文件夹内。
 
 <figure class="shot">
-  <img src="/assets/screenshots/export-result.png" alt="在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记">
+  <img src="/assets/screenshots/export-result.webp" alt="在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记">
   <figcaption>在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记。</figcaption>
 </figure>
 
@@ -154,5 +172,5 @@ PNG 在浏览器中生成，落在浏览器的下载目录。可以直接粘贴�
 ## 相关
 
 - [笔记](/zh/guide/notes) —— 最终进入文档的内容。
-- [工程文件与格式](/zh/guide/project-files) —— 想把整个工程连图片一起带走时看这里。
+- [工程文件与格式](/zh/guide/project-files) —— 想写回已打开的 `.mnproj` 或另存一份副本时看这里。
 - [键盘快捷键](/zh/guide/shortcuts) —— `E` 打开这个对话框。

@@ -97,7 +97,7 @@ KomaYomi 把两者分开：**图片按需从远端读取，标注写入本地。
 ## 手动备份与恢复
 
 <figure class="shot">
-  <img src="/assets/screenshots/backup-restore.png" alt="备份与恢复对话框：生成备份、选择备份文件以及检查后的归档摘要">
+  <img src="/assets/screenshots/backup-restore.webp" alt="备份与恢复对话框：生成备份、选择备份文件以及检查后的归档摘要">
   <figcaption>备份对话框。恢复前会先检查备份，因此在覆盖任何内容之前，就能看到它包含多少页、笔记和模板。</figcaption>
 </figure>
 

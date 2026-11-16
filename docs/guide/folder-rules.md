@@ -7,7 +7,7 @@ Folder rules teach the scanner where the volume, language, chapter and page sit 
 Real collections are not tidy. A series may sit under an author folder, a publisher may put the language last, and a single-language set may have no language folder at all. Renaming thousands of files is the wrong fix. Rules let the scanner understand the shape you already have.
 
 <figure class="shot">
-  <img src="/assets/screenshots/folder-rules.png" alt="Folder detection rules dialog with a rule array, a live preview and Save rules">
+  <img src="/assets/screenshots/folder-rules.webp" alt="Folder detection rules dialog with a rule array, a live preview and Save rules">
   <figcaption>The rules dialog: edit the rule array on the left, preview a subtree on the right, then save. The footer says whether the rules match the running configuration.</figcaption>
 </figure>
 

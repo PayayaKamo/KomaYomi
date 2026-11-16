@@ -97,7 +97,7 @@ Any configured source or target can be tested with **Test connection**; the ones
 ## Manual backup and restore
 
 <figure class="shot">
-  <img src="/assets/screenshots/backup-restore.png" alt="Backup and restore dialog with create backup, choose a backup file and the inspected archive summary">
+  <img src="/assets/screenshots/backup-restore.webp" alt="Backup and restore dialog with create backup, choose a backup file and the inspected archive summary">
   <figcaption>The backup dialog. A backup is inspected before restoring, so you can see how many pages, notes and templates it contains before anything is overwritten.</figcaption>
 </figure>
 
