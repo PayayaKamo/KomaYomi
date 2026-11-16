@@ -14,6 +14,7 @@ import {
   validateExchange,
 } from '../shared/format.ts';
 import { AppError } from './errors.ts';
+import { readAppMeta } from './appMeta.ts';
 import { t } from './messages/index.ts';
 
 /**
@@ -189,12 +190,8 @@ export function projectFileName(name: string): string {
 }
 
 function readAppVersion(rootDir: string): string {
-  try {
-    const raw = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as { version?: unknown };
-    return typeof raw.version === 'string' && raw.version ? raw.version : APP_FALLBACK_VERSION;
-  } catch {
-    return APP_FALLBACK_VERSION;
-  }
+  const { version } = readAppMeta(rootDir);
+  return version === '0.0.0' ? APP_FALLBACK_VERSION : version;
 }
 
 function walkDataFiles(dir: string, rel = ''): { rel: string; data: Buffer }[] {
@@ -595,9 +592,11 @@ function verifyReferenceImages(rootDir: string, manifest: ProjectManifest): Miss
   return missing;
 }
 
-export function inspectProject(opts: { rootDir: string; buffer: Buffer }): ProjectInspectResult {
+export function inspectProject(opts: { rootDir: string; dataRoot?: string; buffer: Buffer }): ProjectInspectResult {
   const { rootDir, buffer } = opts;
-  const dataRoot = path.join(rootDir, 'data');
+  // Conflict detection must look at the real data directory, which containers mount
+  // somewhere other than rootDir/data.
+  const dataRoot = opts.dataRoot ? path.resolve(opts.dataRoot) : path.join(rootDir, 'data');
   const parsed = parseProject(buffer);
   const warnings = [...parsed.warnings];
   const conflicts: ProjectConflict[] = [];
@@ -747,6 +746,10 @@ function findRelinkSource(candidates: string[], image: ProjectImage, cache: Map<
 
 export type ProjectImportOptions = {
   rootDir: string;
+  /** Overrides for containers that bind-mount data/, raw/ and exports/ separately. */
+  dataRoot?: string;
+  rawRoot?: string;
+  exportRoot?: string;
   buffer: Buffer;
   conflict?: ProjectConflictMode;
   /** Source for relinking missing images in reference mode: match by sha1 / filename and copy them into raw. */
@@ -761,9 +764,9 @@ export function importProject(opts: ProjectImportOptions): ProjectImportResult {
   const { rootDir, buffer } = opts;
   const conflict: ProjectConflictMode =
     opts.conflict === 'merge' || opts.conflict === 'skip' ? opts.conflict : 'overwrite';
-  const dataRoot = path.join(rootDir, 'data');
-  const rawRoot = path.join(rootDir, 'raw');
-  const exportRoot = path.join(rootDir, 'exports');
+  const dataRoot = opts.dataRoot ? path.resolve(opts.dataRoot) : path.join(rootDir, 'data');
+  const rawRoot = opts.rawRoot ? path.resolve(opts.rawRoot) : path.join(rootDir, 'raw');
+  const exportRoot = opts.exportRoot ? path.resolve(opts.exportRoot) : path.join(rootDir, 'exports');
   const parsed = parseProject(buffer);
   const manifest = parsed.manifest;
   const warnings = [...parsed.warnings];

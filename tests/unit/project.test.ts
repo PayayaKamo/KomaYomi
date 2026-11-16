@@ -183,6 +183,33 @@ describe('project packaging', () => {
     });
   });
 
+  it('unpacks into the mounted data/raw/exports dirs, never into the working directory', () => {
+    const source = seedProject();
+    const { buffer } = createProjectBuffer({ rootDir: source, storageMode: 'packaged' });
+    // Docker/standalone: cwd is unrelated to the bind-mounted folders.
+    const work = tempDir('project-cwd');
+    const dataRoot = tempDir('project-data');
+    const rawRoot = tempDir('project-raw');
+    const exportRoot = tempDir('project-exports');
+
+    const result = importProject({ rootDir: work, dataRoot, rawRoot, exportRoot, buffer });
+    expect(result.restored).toBe(2);
+    expect(result.imagesWritten).toBe(2);
+    expect(result.missing).toEqual([]);
+    expect(result.snapshot?.startsWith(exportRoot)).toBe(true);
+    expect(fs.existsSync(path.join(dataRoot, 'pages', 'Vol1', '172', '0.json'))).toBe(true);
+    expect(fs.existsSync(path.join(rawRoot, 'Vol1', 'ja', '172', '01.png'))).toBe(true);
+    // Not a single file may leak into the process working directory.
+    expect(fs.readdirSync(work)).toEqual([]);
+
+    const library = createLibrary(rawRoot, dataRoot);
+    expect(library.volumes.map((vol) => vol.id)).toEqual(['Vol1']);
+
+    // Conflict detection has to read the same mounted data dir as the import wrote to.
+    const inspected = inspectProject({ rootDir: work, dataRoot, buffer });
+    expect(inspected.conflictCount).toBe(0);
+  });
+
   it('reports reference-mode images that are no longer in place, then relinks them', () => {
     const source = seedProject();
     const { buffer } = createProjectBuffer({ rootDir: source, storageMode: 'reference' });

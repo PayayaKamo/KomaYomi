@@ -228,7 +228,9 @@ export function openBuiltInDemo(opts: {
   if (hadLink) fs.copyFileSync(linkPath, path.join(backup, PROJECT_LINK_FILE));
 
   const buffer = fs.readFileSync(copy);
-  importProject({ rootDir, buffer, conflict: 'overwrite', snapshot: false, keepProjectBackup: false });
+  // Forward the configured roots: deriving them from rootDir again would unpack the
+  // demo into the process working directory in Docker/standalone mode.
+  importProject({ rootDir, dataRoot, rawRoot, buffer, conflict: 'overwrite', snapshot: false, keepProjectBackup: false });
 
   // Write-backs go to the user-directory copy, never to the installed resource.
   linkProject(dataRoot, {

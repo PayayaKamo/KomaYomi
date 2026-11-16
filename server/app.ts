@@ -43,6 +43,7 @@ import {
 } from './autoBackup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
 import { closeBuiltInDemo, closeDemoIfActive, demoStatus, openBuiltInDemo } from './demoProject.ts';
+import { readAppMeta } from './appMeta.ts';
 import {
   clearProjectLink,
   createProjectSync,
@@ -264,23 +265,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
   const projectSync = createProjectSync({ rootDir, dataRoot, rawRoot });
 
   /** package.json is the single source for the metadata shown in the About dialog. */
-  const appMeta = (() => {
-    const fallback = { version: '0.0.0', author: '', license: '' };
-    try {
-      const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')) as {
-        version?: unknown;
-        author?: unknown;
-        license?: unknown;
-      };
-      return {
-        version: typeof pkg.version === 'string' && pkg.version ? pkg.version : fallback.version,
-        author: typeof pkg.author === 'string' ? pkg.author : fallback.author,
-        license: typeof pkg.license === 'string' ? pkg.license : fallback.license,
-      };
-    } catch {
-      return fallback;
-    }
-  })();
+  const appMeta = readAppMeta(rootDir);
   // Every exported/own file records which build produced it.
   setFormatAppVersion(appMeta.version);
 
@@ -1453,7 +1438,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         const buffer = isBinaryUpload(req)
           ? await readBodyBuffer(req, MAX_PROJECT_BYTES)
           : Buffer.from((JSON.parse(await readBody(req, 256 * 1024 * 1024)) as { data?: string }).data ?? '', 'base64');
-        sendJson(res, 200, inspectProject({ rootDir, buffer }));
+        sendJson(res, 200, inspectProject({ rootDir, dataRoot, buffer }));
         return true;
       }
 
@@ -1470,7 +1455,7 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         if (buffer.length > MAX_PROJECT_BYTES) {
           throw new AppError('ERR_BODY_TOO_LARGE', { limit: Math.round(MAX_PROJECT_BYTES / (1024 * 1024)) }, 413);
         }
-        sendJson(res, 200, { path: target, info: inspectProject({ rootDir, buffer }) });
+        sendJson(res, 200, { path: target, info: inspectProject({ rootDir, dataRoot, buffer }) });
         return true;
       }
 
@@ -1496,13 +1481,16 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         const body = JSON.parse(await readBody(req)) as { path?: string; conflict?: string; relinkDir?: string };
         const target = resolveProjectFilePath(body.path);
         const buffer = readProjectFile(target);
-        const info = inspectProject({ rootDir, buffer });
+        const info = inspectProject({ rootDir, dataRoot, buffer });
         // Opening a real project while the demo is active must unwind the demo first,
         // so its pages/images do not leak into the user's library. Do it after the file
         // has been validated, so a failed open leaves the demo untouched.
         closeDemoIfActive({ rootDir, dataRoot, rawRoot });
         const result = importProject({
           rootDir,
+          dataRoot,
+          rawRoot,
+          exportRoot,
           buffer,
           conflict: body.conflict === 'merge' || body.conflict === 'skip' ? body.conflict : 'overwrite',
           relinkDir: body.relinkDir,
@@ -1572,6 +1560,9 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         closeDemoIfActive({ rootDir, dataRoot, rawRoot });
         const result = importProject({
           rootDir,
+          dataRoot,
+          rawRoot,
+          exportRoot,
           buffer,
           conflict: conflictRaw === 'merge' || conflictRaw === 'skip' ? conflictRaw : 'overwrite',
           relinkDir,
