@@ -59,9 +59,9 @@ describe('schema versioning', () => {
   });
 
   it('is idempotent for already-versioned input', () => {
-    const prepared = prepareExchange('page', { ...legacyPage(), schemaVersion: 1 });
+    const prepared = prepareExchange('page', { ...legacyPage(), schemaVersion: 2 });
     expect(prepared.migratedFrom).toBeUndefined();
-    expect(prepared.value.schemaVersion).toBe(1);
+    expect(prepared.value.schemaVersion).toBe(2);
   });
 
   it('reads the removed continuous-vertical direction as rtl', () => {
@@ -124,14 +124,14 @@ describe('schema versioning', () => {
 
     const doc = readPageDoc(dataRoot, 'v1', 'c1', 0);
     expect(doc).toBeTruthy();
-    expect(doc!.schemaVersion).toBe(1);
+    expect(doc!.schemaVersion).toBe(2);
     expect((doc as unknown as Record<string, unknown>).experimentFlag).toEqual({ enabled: true });
     expect(fs.existsSync(`${file}.v0.bak`)).toBe(true);
 
     const saved = writePageDoc(dataRoot, { ...(doc as PageDoc), readingDirection: 'ltr' });
     expect(saved.readingDirection).toBe('ltr');
     const onDisk = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
-    expect(onDisk.schemaVersion).toBe(1);
+    expect(onDisk.schemaVersion).toBe(2);
     expect(onDisk.experimentFlag).toEqual({ enabled: true });
     expect('version' in onDisk).toBe(false);
   });

@@ -3,7 +3,9 @@ import {
   migrateExportTemplateV0,
   migrateLayoutTemplateV0,
   migrateManifestV0,
+  migrateManifestV1,
   migratePageV0,
+  migratePageV1,
 } from '../../shared/migrations.ts';
 
 type MigratedImage = {
@@ -349,5 +351,38 @@ describe('migratePageV0', () => {
     const out = migratePageV0({ volume: 'v' });
     expect(out.schemaVersion).toBe(1);
     expect(out.volume).toBe('v');
+  });
+});
+
+describe('migratePageV1 note categories', () => {
+  it('moves legacy notes to the default category and keeps explicit ones', () => {
+    const out = migratePageV1({
+      schemaVersion: 1,
+      volume: 'v1',
+      notes: [
+        { id: 'n1', text: 'old' },
+        { id: 'n2', text: 'typed', type: 'vocab' },
+        { id: 'n3', text: 'blank', type: '   ' },
+      ],
+    });
+    expect(out.schemaVersion).toBe(2);
+    const notes = out.notes as Record<string, unknown>[];
+    expect(notes[0].type).toBe('background');
+    expect(notes[1].type).toBe('vocab');
+    expect(notes[2].type).toBe('background');
+    expect(notes[1].text).toBe('typed');
+  });
+
+  it('leaves pages without a notes array alone', () => {
+    const out = migratePageV1({ schemaVersion: 1, volume: 'v1' });
+    expect(out.schemaVersion).toBe(2);
+    expect(out.notes).toBeUndefined();
+  });
+});
+
+describe('migrateManifestV1', () => {
+  it('bumps the manifest envelope without touching its payload', () => {
+    const out = migrateManifestV1({ schemaVersion: 1, inventory: { pageCount: 3 }, custom: true });
+    expect(out).toMatchObject({ schemaVersion: 2, inventory: { pageCount: 3 }, custom: true });
   });
 });

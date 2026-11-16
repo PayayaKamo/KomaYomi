@@ -57,7 +57,12 @@ describe('damaged page files', () => {
     const file = path.join(root, 'pages', 'Vol1', 'ch1', '0.json');
     writeFile(file, '{ this is not json');
     expectCode(() => readPageDoc(root, 'Vol1', 'ch1', 0), 'ERR_PAGE_CORRUPT', 422);
-    expect(fs.readFileSync(file, 'utf8')).toBe('{ this is not json');
+
+    // Damaged bytes are archived automatically instead of waiting for the user to delete them.
+    expect(fs.existsSync(file)).toBe(false);
+    const archived = fs.readdirSync(path.dirname(file)).filter((name) => name.startsWith('0.json.corrupt-'));
+    expect(archived).toHaveLength(1);
+    expect(fs.readFileSync(path.join(path.dirname(file), archived[0]), 'utf8')).toBe('{ this is not json');
   });
 
   it('keeps a .corrupt.bak copy when a write replaces the damaged file', () => {
@@ -74,6 +79,14 @@ describe('damaged page files', () => {
     writeFile(file, '{ broken again');
     writePageDoc(root, page('Vol1', 'ch1'), { source: 'manual' });
     expect(fs.readFileSync(`${file}.corrupt.bak`, 'utf8')).toBe('{ broken');
+  });
+
+  it('reads a page file that an editor saved with a UTF-8 BOM', () => {
+    const root = tempRoot();
+    const file = path.join(root, 'pages', 'Vol1', 'ch1', '0.json');
+    writeFile(file, `\ufeff${JSON.stringify(page('Vol1', 'ch1'))}`);
+
+    expect(readPageDoc(root, 'Vol1', 'ch1', 0)?.volume).toBe('Vol1');
   });
 });
 
@@ -133,7 +146,14 @@ describe('live HTTP behaviour', () => {
     const body = (await resp.json()) as { code: string; error: string };
     expect(body.code).toBe('ERR_PAGE_CORRUPT');
     expect(body.error).toMatch(/backup|备份|バックアップ/i);
-    expect(fs.readFileSync(pageFile, 'utf8')).toBe('{ damaged');
+    // The damaged file was archived automatically and the response named the archive.
+    expect(fs.existsSync(pageFile)).toBe(false);
+    const archived = fs
+      .readdirSync(path.dirname(pageFile))
+      .filter((name) => name.startsWith(`${path.basename(pageFile)}.corrupt-`));
+    expect(archived).toHaveLength(1);
+    expect(body.error).toContain(archived[0]);
+    expect(fs.readFileSync(path.join(path.dirname(pageFile), archived[0]), 'utf8')).toBe('{ damaged');
 
     const save = await fetch(`http://127.0.0.1:${port}/api/page`, {
       method: 'PUT',
@@ -141,6 +161,7 @@ describe('live HTTP behaviour', () => {
       body: JSON.stringify({ volume: 'Vol1', chapter: 'ch1', pageIndex: 0, panels: [], notes: [] }),
     });
     expect(save.status).toBe(200);
-    expect(fs.readFileSync(`${pageFile}.corrupt.bak`, 'utf8')).toBe('{ damaged');
+    expect(readPageDoc(path.join(root, 'data'), 'Vol1', 'ch1', 0)?.volume).toBe('Vol1');
+    expect(fs.readdirSync(path.dirname(pageFile))).toContain(archived[0]);
   });
 });

@@ -6,6 +6,7 @@ import {
   guessLang,
   naturalCompare,
   normalizeLangOrder,
+  normalizeNoteTypes,
   writeLibraryConfig,
 } from '../../server/library.ts';
 import { makeTempDir, removeDir, writeFile, writeFiles } from '../helpers/tmp.ts';
@@ -62,6 +63,33 @@ describe('normalizeLangOrder', () => {
 describe('encodePath', () => {
   it('percent-encodes every segment', () => {
     expect(encodePath('raw', '点兔 14', '01.png')).toBe('/raw/%E7%82%B9%E5%85%94%2014/01.png');
+  });
+});
+
+describe('note categories', () => {
+  it('drops invalid, built-in and language-reserved ids', () => {
+    expect(
+      normalizeNoteTypes([
+        { id: 'custom-1', name: 'Custom', color: '#3f9e7a' },
+        { id: 'background', name: 'Built-in', color: '#000000' },
+        { id: 'lang:ja', name: 'Language', color: '#000000' },
+        { id: 'bad id', name: 'Space', color: '#000000' },
+        { id: 'colorless', name: 'No colour', color: 'green' },
+        { id: 'custom-1', name: 'Duplicate', color: '#ffffff' },
+      ]),
+    ).toEqual([{ id: 'custom-1', name: 'Custom', color: '#3f9e7a' }]);
+  });
+
+  it('persists custom categories and clears them when the list becomes empty', () => {
+    const root = tempRoot(['raw/Vol1/ja/172/01.png']);
+    const dataRoot = path.join(root, 'data');
+    const noteTypes = [{ id: 'custom-1', name: 'Custom', color: '#3f9e7a' }];
+    writeLibraryConfig(dataRoot, { noteTypes });
+    expect(runWithLang('en', () => createLibrary(path.join(root, 'raw'), dataRoot)).noteTypes).toEqual(noteTypes);
+
+    // Deleting the last custom category must survive the save (no resurrection from the old file).
+    writeLibraryConfig(dataRoot, {});
+    expect(runWithLang('en', () => createLibrary(path.join(root, 'raw'), dataRoot)).noteTypes).toEqual([]);
   });
 });
 
