@@ -85,6 +85,7 @@ export default function App() {
     loadPaneWidth(NOTES_PANE.key, NOTES_PANE.min, NOTES_PANE.max),
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [topMoreOpen, setTopMoreOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -185,6 +186,24 @@ export default function App() {
       window.removeEventListener('dblclick', onDoubleClick);
     };
   }, [readingMode, setReadingModePersisted]);
+
+  // The top-bar overflow menu closes on outside clicks or Escape.
+  useEffect(() => {
+    if (!topMoreOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el?.closest('.tb-more-wrap')) setTopMoreOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTopMoreOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [topMoreOpen]);
 
   // Keep the palette in sync with the stored preference and with OS changes when the
   // user picked "system". index.html already applied it before paint, so this only
@@ -571,32 +590,6 @@ export default function App() {
           >
             ☰
           </button>
-          <button
-            type="button"
-            className="btn icon help-btn"
-            onClick={() => setHelpOpen(true)}
-            title={t('app.helpTitle')}
-          >
-            ?
-          </button>
-          <button
-            type="button"
-            className="btn icon settings-btn"
-            onClick={() => setSettingsOpen(true)}
-            title={t('settings.openTitle')}
-            aria-label={t('settings.title')}
-          >
-            ⚙
-          </button>
-          <button
-            type="button"
-            className="btn icon"
-            onClick={() => setAboutOpen(true)}
-            title={t('about.openTitle')}
-            aria-label={t('about.title')}
-          >
-            ⓘ
-          </button>
           {sel && (
             <CrumbNav
               library={library}
@@ -647,44 +640,85 @@ export default function App() {
               ))}
             </select>
           )}
-          <select
-            className="tb-select"
-            value={theme}
-            onChange={(e) => {
-              const next = e.target.value as ThemeMode;
-              setTheme(next);
-              saveThemeMode(next);
-            }}
-            title={t('app.themeTitle')}
-            aria-label={t('app.themeAria')}
-          >
-            <option value="system">{t('app.themeSystem')}</option>
-            <option value="light">{t('app.themeLight')}</option>
-            <option value="dark">{t('app.themeDark')}</option>
-          </select>
-          <select
-            className="tb-select"
-            value={locale}
-            onChange={(e) => setLocale(e.target.value as Locale)}
-            title={t('app.languageTitle')}
-            aria-label={t('app.languageAria')}
-          >
-            <option value="en">{t('locale.en')}</option>
-            <option value="zh">{t('locale.zh')}</option>
-            <option value="ja">{t('locale.ja')}</option>
-          </select>
-          <button
-            type="button"
-            className="btn icon reading-btn"
-            onClick={() => setReadingModePersisted(true)}
-            title={t('reading.enterTitle')}
-            aria-label={t('reading.enterTitle')}
-          >
-            ⛶
-          </button>
-          <button type="button" className={`btn ${notesOpen ? 'on' : ''}`} onClick={() => setNotesOpen((v) => !v)}>
-            {t('app.notesButton')}
-          </button>
+          <div className={`tb-more-wrap ${topMoreOpen ? 'open' : ''}`}>
+            <div className="tb-extra" id="topbar-extra">
+              <select
+                className="tb-select"
+                value={theme}
+                onChange={(e) => {
+                  const next = e.target.value as ThemeMode;
+                  setTheme(next);
+                  saveThemeMode(next);
+                }}
+                title={t('app.themeTitle')}
+                aria-label={t('app.themeAria')}
+              >
+                <option value="system">{t('app.themeSystem')}</option>
+                <option value="light">{t('app.themeLight')}</option>
+                <option value="dark">{t('app.themeDark')}</option>
+              </select>
+              <select
+                className="tb-select"
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as Locale)}
+                title={t('app.languageTitle')}
+                aria-label={t('app.languageAria')}
+              >
+                <option value="en">{t('locale.en')}</option>
+                <option value="zh">{t('locale.zh')}</option>
+                <option value="ja">{t('locale.ja')}</option>
+              </select>
+              <button
+                type="button"
+                className="btn icon reading-btn"
+                onClick={() => setReadingModePersisted(true)}
+                title={t('reading.enterTitle')}
+                aria-label={t('reading.enterTitle')}
+              >
+                ⛶
+              </button>
+              <button type="button" className={`btn ${notesOpen ? 'on' : ''}`} onClick={() => setNotesOpen((v) => !v)}>
+                {t('app.notesButton')}
+              </button>
+              <button
+                type="button"
+                className="btn icon help-btn"
+                onClick={() => setHelpOpen(true)}
+                title={t('app.helpTitle')}
+              >
+                ?
+              </button>
+              <button
+                type="button"
+                className="btn icon settings-btn"
+                onClick={() => setSettingsOpen(true)}
+                title={t('settings.openTitle')}
+                aria-label={t('settings.title')}
+              >
+                ⚙
+              </button>
+              <button
+                type="button"
+                className="btn icon"
+                onClick={() => setAboutOpen(true)}
+                title={t('about.openTitle')}
+                aria-label={t('about.title')}
+              >
+                ⓘ
+              </button>
+            </div>
+            <button
+              type="button"
+              className="btn icon tb-more-top"
+              onClick={() => setTopMoreOpen((v) => !v)}
+              title={t('toolbar.more')}
+              aria-label={t('toolbar.more')}
+              aria-expanded={topMoreOpen}
+              aria-controls="topbar-extra"
+            >
+              ⋯
+            </button>
+          </div>
           <button type="button" className="btn primary" disabled={!doc} onClick={() => setExportOpen(true)}>
             {t('app.exportButton')}
             <span className="tb-export-extra"> HTML</span>

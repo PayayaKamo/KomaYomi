@@ -170,7 +170,7 @@ code {
   flex: 0 0 var(--topbar-h);
   height: var(--topbar-h);
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.5fr) auto minmax(max-content, 1fr);
   align-items: center;
   gap: 16px;
   padding: 0 14px;
@@ -194,6 +194,83 @@ code {
 .tb-center {
   display: flex;
   justify-content: center;
+}
+
+/* Wider screens show the extra actions inline; narrower ones fold them into a menu. */
+.tb-extra,
+.tb-more-wrap {
+  display: contents;
+}
+
+.tb-right .tb-more-top {
+  display: none;
+}
+
+/* Below 1600 the extra actions fold into a menu, so every visible label keeps its full text. */
+@media (max-width: 1600px) {
+  .tb-more-wrap {
+    position: relative;
+    display: flex;
+  }
+
+  .tb-extra {
+    display: none;
+  }
+
+  .tb-right .tb-more-top {
+    display: inline-flex;
+  }
+
+  /* Let the crumb take the leftover width so labels never get cut mid-word. */
+  .tb-left .crumb {
+    flex: 1 1 auto;
+  }
+
+  .crumb .crumb-field {
+    min-width: 76px;
+  }
+
+  .tb-more-wrap.open .tb-extra {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: min(300px, calc(100vw - 24px));
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@media (max-width: 1280px) {
+  /* Not enough room left for the volume crumb; the chapter picker keeps the context. */
+  .crumb-vol,
+  .crumb-sep-vol {
+    display: none;
+  }
+
+  .crumb-ch {
+    max-width: 160px;
+  }
+}
+
+/* Phones wrap the top bar, so the menu is pinned to the viewport edges instead of the trigger. */
+@media (max-width: 720px) {
+  .tb-more-wrap.open .tb-extra {
+    position: fixed;
+    top: calc(var(--topbar-h) + 4px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100dvh - var(--topbar-h) - 14px);
+    overflow-y: auto;
+  }
 }
 
 /* Reading mode: hide the shell chrome so the page keeps the whole window. */
@@ -3391,6 +3468,27 @@ body.pane-resizing * {
   cursor: not-allowed;
 }
 
+/* Run out of room for words: medium screens keep the pager as compact chevrons. */
+@media (max-width: 1700px) {
+  .page-nav button {
+    padding: 0 6px;
+    font-size: 0;
+  }
+
+  .page-nav button::before {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .page-nav button:first-child::before {
+    content: '‹';
+  }
+
+  .page-nav button:last-child::before {
+    content: '›';
+  }
+}
+
 .btn.icon {
   width: 30px;
   min-width: 30px;
@@ -3731,6 +3829,16 @@ body.pane-resizing * {
     padding: 0 10px;
   }
 
+  /* Tablets: the file menu keeps its icon only so the crumb keeps full labels. */
+  .file-btn-label,
+  .file-caret {
+    display: none;
+  }
+
+  .file-menu-btn {
+    padding: 0 9px;
+  }
+
   /* Tablets: drop the volume picker, the chapter picker still switches books. */
   .crumb-vol,
   .crumb-sep-vol {
@@ -3854,8 +3962,12 @@ body.pane-resizing * {
   .crumb .page-nav button {
     min-width: 20px;
     height: 20px;
-    padding: 0 5px;
-    font-size: 10px;
+    padding: 0 4px;
+    font-size: 0;
+  }
+
+  .crumb .page-nav button::before {
+    font-size: 13px;
   }
 
   .tb-export-extra {
