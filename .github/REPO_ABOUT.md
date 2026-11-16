@@ -6,13 +6,23 @@ read them from a file, so this page is the source of truth to paste from.
 ## Description
 
 ```
-A local-first manga panel reader for language study. Compare Japanese, Chinese and English editions panel by panel, align the artwork, and anchor notes and marks to the page.
+KomaYomi（格读）— local-first, panel-by-panel manga intensive reading. Compare Japanese, Chinese and English editions panel by panel, align the artwork, pin notes to the drawing, and export clean study pages.
 ```
 
 ## Website
 
 ```
-https://payayakamo.github.io/KomaYomi/
+https://payayakamo.github.io/KomaYomi-docs/
+```
+
+## Author links (optional About links)
+
+These point at the author's homepages, not at a product site. The project has no separate
+product website, so label them as author pages if GitHub asks:
+
+```
+X (Twitter): https://x.com/payayakamo
+note:        https://note.com/payayakamo
 ```
 
 ## Topics
@@ -43,8 +53,9 @@ artwork) as the social preview image.
 
 ## Naming
 
-- Fixed capitalization: **KomaYomi**. Treat `komayomi`, `koma-yomi` and `Koma Yomi` as
-  search variants, and keep the repo name, docs title and release titles identical.
+- Official name: **KomaYomi（格读）**. The Latin part is always capitalized as **KomaYomi**
+  (`komayomi`, `koma-yomi` and `Koma Yomi` are search variants). 格读 is the Chinese name, not
+  a translation of a separate product.
+- Keep the repo name, docs title, release titles and package description identical.
 - Tagline used in the README, docs meta and package description:
-  _A local-first manga panel reader for language study._
-- Chinese explanation (not a replacement): **KomaYomi（格读）**.
+  _Local-first, panel-by-panel manga intensive reading for language learners._

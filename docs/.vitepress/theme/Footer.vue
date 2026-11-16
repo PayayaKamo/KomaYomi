@@ -7,18 +7,21 @@ const { page } = useData()
 
 const footerText = {
   en: {
-    tagline: 'Learn languages with manga, take notes.',
-    copyright: '© 2026 PayayaKamo · KomaYomi — Manga Learner',
+    tagline: 'Local-first, panel-by-panel manga intensive reading.',
+    author: 'Author homepages:',
+    copyright: '© 2026 PayayaKamo · KomaYomi（格读）',
     build: 'Build',
   },
   zh: {
-    tagline: '用漫画学语言，做笔记。',
-    copyright: '© 2026 PayayaKamo · KomaYomi — Manga Learner',
+    tagline: '本地优先，以格为单位的漫画精读。',
+    author: '作者主页：',
+    copyright: '© 2026 PayayaKamo · KomaYomi（格读）',
     build: '构建',
   },
   ja: {
-    tagline: '漫画で言語を学び、ノートを取る。',
-    copyright: '© 2026 PayayaKamo · KomaYomi — Manga Learner',
+    tagline: 'ローカル優先・コマ単位の漫画精読。',
+    author: '作者ページ：',
+    copyright: '© 2026 PayayaKamo · KomaYomi（格读）',
     build: 'ビルド',
   },
 } as const
@@ -45,6 +48,16 @@ const commitUrl = computed(() =>
     <div class="mm-footer__inner">
       <p class="mm-footer__tagline">{{ text.tagline }}</p>
       <p class="mm-footer__copy">{{ text.copyright }}</p>
+      <p class="mm-footer__author">
+        <span>{{ text.author }}</span>
+        <a href="https://x.com/payayakamo" target="_blank" rel="noopener noreferrer"
+          >X · @payayakamo</a
+        >
+        <span class="mm-footer__sep" aria-hidden="true">·</span>
+        <a href="https://note.com/payayakamo" target="_blank" rel="noopener noreferrer"
+          >note · @payayakamo</a
+        >
+      </p>
       <p class="mm-footer__build">
         <span>{{ text.build }}</span>
         <a v-if="commitUrl" :href="commitUrl">{{ buildInfo.shaShort }}</a>

@@ -12,19 +12,29 @@ const docsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
  */
 const BASE = process.env.DOCS_BASE === '/' ? '/' : '/KomaYomi-docs/'
 const SITE_URL = 'https://payayakamo.github.io/KomaYomi-docs'
-const SITE_NAME = 'KomaYomi'
-const SITE_SUBTITLE = 'Manga Learner'
+const SITE_NAME = 'KomaYomi（格读）'
+const SITE_SUBTITLE = 'Local-first manga intensive reading'
 const AUTHOR = 'PayayaKamo'
+const AUTHOR_X = 'https://x.com/payayakamo'
+const AUTHOR_NOTE = 'https://note.com/payayakamo'
 const SOCIAL_IMAGE = `${SITE_URL}/social-card.png`
 const MAIL_ADDRESS = 'PayayaKamo@gmail.com'
 
+/** Minimal X glyph and a note glyph, so no icon CDN is needed. */
+const X_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.9 2H22l-6.77 7.74L23 22h-6.23l-4.88-6.38L6.3 22H3.17l7.24-8.28L3 2h6.38l4.41 5.83L18.9 2zm-1.1 18h1.73L8.3 3.9H6.44L17.8 20z"/></svg>'
+const NOTE_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 3h16a2 2 0 0 1 2 2v9.2a2 2 0 0 1-.6 1.42l-5.78 5.78a2 2 0 0 1-1.42.6H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h9v-4a2 2 0 0 1 2-2h4V5H4zm11 14 3-3h-3v3z"/></svg>'
+
 /**
- * Social icons in the top navigation. The mail icon is inlined so the site
- * does not depend on an external icon CDN, and its tooltip follows the locale.
+ * Social icons in the top navigation. These link to the author's homepages on X
+ * and note, not to a product site — the aria labels say so explicitly.
  */
-function socialLinks(mailLabel: string) {
+function socialLinks(xLabel: string, noteLabel: string, mailLabel: string) {
   return [
     { icon: 'github', link: 'https://github.com/payayakamo', ariaLabel: 'GitHub: PayayaKamo' },
+    { icon: { svg: X_ICON }, link: AUTHOR_X, ariaLabel: xLabel },
+    { icon: { svg: NOTE_ICON }, link: AUTHOR_NOTE, ariaLabel: noteLabel },
     {
       icon: {
         svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>',
@@ -76,11 +86,11 @@ const localeMeta: Record<
     homePath: '/',
     homeLabel: 'Home',
     guideLabel: 'Guide',
-    tagline: 'A local-first manga panel reader for language study.',
+    tagline: 'Local-first, panel-by-panel manga intensive reading.',
     defaultDescription:
-      'KomaYomi (Koma = manga panel, Yomi = reading) documentation — a local-first manga panel reader for language study: compare Japanese, Chinese and English editions, detect panels, align artwork and take notes.',
+      'KomaYomi（格读）documentation — local-first, panel-by-panel manga intensive reading. Compare Japanese, Chinese and English editions side by side, pin notes to the artwork, and export study pages; your files never leave your machine.',
     keywords:
-      'KomaYomi, Koma Yomi, 格读, manga panel reader, manga reader, language learning, multilingual manga, Japanese, Chinese, English, panel detection, annotation, notes, compare manga translations, local-first',
+      'KomaYomi, Koma Yomi, 格读, manga panel reader, manga intensive reading, language learning, multilingual manga, Japanese, Chinese, English, panel detection, annotation, notes, compare manga translations, local-first',
     docFooter: { prev: 'Previous', next: 'Next' },
     outlineLabel: 'On this page',
     lastUpdatedText: 'Last updated',
@@ -95,11 +105,11 @@ const localeMeta: Record<
     homePath: '/zh/',
     homeLabel: '首页',
     guideLabel: '使用指南',
-    tagline: '本地优先的漫画分格精读工具。',
+    tagline: '本地优先，以格为单位的漫画精读。',
     defaultDescription:
-      'KomaYomi（Koma＝漫画分格，Yomi＝读，中文也称“格读”）文档：本地优先的漫画分格精读工具，支持日/中/英对照阅读、分格检测、对齐、批注与导出。',
+      'KomaYomi（格读）文档：本地优先、以格为单位的漫画精读工具。日/中/英三语对照，把笔记与批注钉在画面上，导出干净的学习页；所有文件都留在你自己的电脑里。',
     keywords:
-      'KomaYomi, Koma Yomi, 格读, 漫画分格, 漫画阅读器, 语言学习, 多语言漫画, 日语, 中文, 英语, 日语学习, 分格检测, 批注, 笔记, 对照阅读',
+      'KomaYomi, Koma Yomi, 格读, 漫画分格, 漫画精读, 漫画阅读器, 语言学习, 多语言漫画, 日语, 中文, 英语, 日语学习, 分格检测, 批注, 笔记, 对照阅读',
     docFooter: { prev: '上一篇', next: '下一篇' },
     outlineLabel: '本页目录',
     lastUpdatedText: '最后更新',
@@ -114,11 +124,11 @@ const localeMeta: Record<
     homePath: '/ja/',
     homeLabel: 'ホーム',
     guideLabel: 'ガイド',
-    tagline: 'ローカル優先のコマ読みツール。言語学習のための漫画精読アプリ。',
+    tagline: 'ローカル優先・コマ単位の漫画精読。',
     defaultDescription:
-      'KomaYomi（Koma＝コマ、Yomi＝読み）ドキュメント：ローカル優先のコマ読みツール。日中英の比較リーディング、コマ検出、位置合わせ、注釈、エクスポートに対応。',
+      'KomaYomi（格读）ドキュメント：ローカル優先、コマ単位の漫画精読ツール。日・中・英の3言語を並べて読み、ノートと注釈を絵に貼り、学習ページとして書き出せます。ファイルはすべて手元に残ります。',
     keywords:
-      'KomaYomi, Koma Yomi, コマ読み, 漫画, 漫画リーダー, 言語学習, 多言語漫画, 日本語, 中国語, 英語, コマ検出, 注釈, ノート, 比較リーディング',
+      'KomaYomi, Koma Yomi, 格读, コマ読み, 漫画精読, 漫画, 漫画リーダー, 言語学習, 多言語漫画, 日本語, 中国語, 英語, コマ検出, 注釈, ノート, 比較リーディング',
     docFooter: { prev: '前へ', next: '次へ' },
     outlineLabel: 'このページ',
     lastUpdatedText: '最終更新',
@@ -474,7 +484,7 @@ const jaSidebar = [
 
 const enTheme = {
   selectText: 'Languages',
-  siteTitle: 'KomaYomi Docs',
+  siteTitle: 'KomaYomi（格读） Docs',
   nav: [
     {
       text: 'Guide',
@@ -544,7 +554,11 @@ const enTheme = {
     },
   },
   sidebar: enSidebar,
-  socialLinks: socialLinks('Email'),
+  socialLinks: socialLinks(
+    'Author homepage on X: @payayakamo',
+    'Author homepage on note: @payayakamo',
+    'Email',
+  ),
   outline: { level: [2, 3], label: localeMeta.en.outlineLabel },
   docFooter: localeMeta.en.docFooter,
   lastUpdated: { text: localeMeta.en.lastUpdatedText },
@@ -556,7 +570,7 @@ const enTheme = {
 
 const zhTheme = {
   selectText: '选择语言',
-  siteTitle: 'KomaYomi 文档',
+  siteTitle: 'KomaYomi（格读）文档',
   nav: [
     {
       text: '使用指南',
@@ -626,7 +640,11 @@ const zhTheme = {
     },
   },
   sidebar: zhSidebar,
-  socialLinks: socialLinks('邮件'),
+  socialLinks: socialLinks(
+    '作者的 X 主页：@payayakamo',
+    '作者的 note 主页：@payayakamo',
+    '邮件',
+  ),
   outline: { level: [2, 3], label: localeMeta.zh.outlineLabel },
   docFooter: localeMeta.zh.docFooter,
   lastUpdated: { text: localeMeta.zh.lastUpdatedText },
@@ -638,7 +656,7 @@ const zhTheme = {
 
 const jaTheme = {
   selectText: '言語',
-  siteTitle: 'KomaYomi ドキュメント',
+  siteTitle: 'KomaYomi（格读）ドキュメント',
   nav: [
     {
       text: 'ガイド',
@@ -708,7 +726,11 @@ const jaTheme = {
     },
   },
   sidebar: jaSidebar,
-  socialLinks: socialLinks('メール'),
+  socialLinks: socialLinks(
+    '作者の X ページ：@payayakamo',
+    '作者の note ページ：@payayakamo',
+    'メール',
+  ),
   outline: { level: [2, 3], label: localeMeta.ja.outlineLabel },
   docFooter: localeMeta.ja.docFooter,
   lastUpdated: { text: localeMeta.ja.lastUpdatedText },
@@ -721,7 +743,7 @@ const jaTheme = {
 export default defineConfig({
   lang: 'en-US',
   title: SITE_NAME,
-  titleTemplate: ':title | KomaYomi',
+  titleTemplate: ':title | KomaYomi（格读）',
   description: localeMeta.en.defaultDescription,
   base: BASE,
   cleanUrls: true,
