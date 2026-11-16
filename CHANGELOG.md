@@ -5,9 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-16
 
 ### Added
+
+- Usage modes: an edit workspace and a read-only viewer. Read mode hides authoring tools and the
+  server rejects every write outside the export/preview allowlist.
+- Original reading view (`O`): the untouched scans per language, with pan and zoom, alongside the
+  panel and compare views.
+- Panel detail navigation across page boundaries: previous/next panel and previous/next page in a
+  footer bar, deep links that survive a refresh, and edge steps that load the neighbouring page.
+- Quick panel-order actions in the workbench: swap with previous/next panel, move to first/last and
+  swap the two selected panels.
+- Chapter unlinking from volume settings with restore, and per-language page offsets for editions
+  that insert bonus pages mid-chapter.
+- Multi-work raw roots: `raw/<work>/<volume>/<language>/<chapter>/<pages>` is scanned alongside the
+  flat layout, volumes keep their series name in the sidebar and same-named volumes stay separate.
+- Storage & cache panel: thumbnail, remote-image and export-staging sizes with separate clearing,
+  plus an auto-detection reset that keeps hand-drawn panels, notes and annotations.
+- WebP decoding for thumbnails, panel detection, page splitting and exports; the decoder and its
+  WASM binary are bundled into the packed server.
+- English/Chinese/Japanese labels for previous/next page in the compare toolbar, and a compact
+  page/panel dock that stays reachable in reading mode.
+- Unit tests for directory rules, library admin, cache admin, WebP decoding, PNG export, annotation
+  surfaces, panel toolbar folding and recent pages.
+
+### Changed
+
+- Editing an existing note reuses the single top editor; the button reads "Save changes" instead of
+  adding a second Markdown box.
+- Removing a volume keeps the original images by default; deleting files on disk is an explicit
+  opt-in and real directories under `raw/` are never removed automatically.
+- Export is reached from the File menu instead of a separate top-bar button.
+- Pages are paired across languages by the number in the filename when every language has unique
+  numbers, falling back to sorted position otherwise; missing languages keep a placeholder column.
+- Reading mode's exit hint refers to focus mode, and `Esc`/`R` remain the only exit/toggle controls.
+
+### Tooling
 
 - ESLint 9 flat config and Prettier, with `lint`, `lint:fix`, `format`, and `format:check` scripts.
 - Conventional Commits enforcement via commitlint, Husky hooks, and lint-staged.
