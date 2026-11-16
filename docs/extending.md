@@ -175,7 +175,7 @@ node scripts/manga-cli.ts <command> [options]
 | `align-presets` | List alignment presets. |
 | `plugins` | List installed panel plugins. |
 
-`detect` remaps panel-scoped notes by reading order when the panel count is unchanged, and otherwise keeps only page-scoped notes — the same rule the UI uses when a template is applied.
+`detect` matches old panels to new ones by rectangle overlap and remaps panel-scoped notes, marks, groups and per-panel offsets. A note whose panel is gone is kept as a page-scoped note — the same rule the UI uses when a template is applied.
 
 Example:
 

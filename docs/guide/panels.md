@@ -83,7 +83,7 @@ Use the grid for a chapter with a fixed magazine layout; use **Panel templates**
 2. Select the template, then **Apply to this page** or **Apply to chapter**.
 3. Applying to a chapter asks for confirmation because existing panels are overwritten.
 
-When the new page has the same number of panels as the template, panel-scoped notes are remapped by reading order. When the count differs, panel notes are dropped rather than silently attached to the wrong panel; page notes are always kept. Templates live in `data/templates/panel.json`.
+Each old panel is matched to the template panel covering the same artwork, so panel-scoped notes and marks stay on the drawing they were written for even when the panel count changes. Notes whose panel no longer exists are kept as page notes, and per-panel alignment offsets follow their panels. Templates live in `data/templates/panel.json`.
 
 **Copy JSON path** copies `data/pages/<volume>/<chapter>/<index>.json`. Editing that file by hand is supported; the server normalizes rectangles, repairs missing ids and drops dangling references on read.
 
@@ -239,7 +239,7 @@ Avoid re-running **Auto split** after hand edits unless you are willing to lose 
 - **Auto split replaced my boxes.** Detection overwrites. Use a panel template or edit by hand after the first successful split.
 - **A page has no image.** Detection is disabled and the stage shows an empty state. Add the missing language folder or map it in volume settings.
 - **AVIF, HEIC, GIF and BMP pages do not detect.** They are displayed but not decoded for detection; WebP pages are decoded. Convert the other formats to JPEG or PNG.
-- **Panel notes disappeared after applying a template.** The template had a different panel count, so panel notes were dropped; page notes were kept. Restore from a backup if needed.
+- **Panel notes moved after applying a template.** Notes follow the artwork by rectangle overlap, so one can land on a neighbouring panel when the template re-draws that area. A note whose panel is gone becomes a page note; restore from a backup if you want the old grid numbering back.
 - **“Unsaved changes” will not go away.** You are in Confirm mode. Press `✓` or `Enter`; `×` discards.
 - **Marks are invisible.** The annotation layer is hidden, or a panel filter is active. Check **Annotations: Shown**.
 - **Grouping changed the numbering.** **Sort by group** rewrites reading order. Undo it, or create the groups before writing panel notes.

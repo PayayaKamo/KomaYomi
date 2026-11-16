@@ -168,6 +168,64 @@ describe('damaged page recovery', () => {
   });
 });
 
+describe('panel references', () => {
+  it('keeps notes and marks whose panel no longer exists by moving them to the page', () => {
+    const root = tempRoot();
+    const doc = {
+      ...page('Vol1', 'ch1'),
+      panels: [{ id: 'p1', rect: { x: 0, y: 0, w: 0.5, h: 0.5 }, source: 'manual' }],
+      notes: [
+        {
+          id: 'kept',
+          scope: 'panel',
+          panelId: 'p1',
+          text: 'still attached',
+          tags: [],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'orphan',
+          scope: 'panel',
+          panelId: 'deleted',
+          text: 'panel was deleted',
+          tags: [],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
+      ],
+      annotations: [
+        {
+          id: 'mark',
+          kind: 'arrow',
+          scope: 'panel',
+          panelId: 'deleted',
+          points: [
+            { x: 0.2, y: 0.2 },
+            { x: 0.6, y: 0.6 },
+          ],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
+      ],
+      panelOffsets: { deleted: { ja: { x: 0.1, y: 0, scale: 1 } } },
+    } as PageDoc;
+
+    writePageDoc(root, doc);
+    const next = readPageDoc(root, 'Vol1', 'ch1', 0)!;
+
+    const notes = new Map(next.notes.map((note) => [note.id, note]));
+    expect(notes.get('kept')!.scope).toBe('panel');
+    expect(notes.get('kept')!.panelId).toBe('p1');
+    expect(notes.get('orphan')!.scope).toBe('page');
+    expect(notes.get('orphan')!.panelId).toBeNull();
+
+    expect(next.annotations![0].scope).toBe('page');
+    expect(next.annotations![0].panelId).toBeNull();
+    expect(next.panelOffsets).toEqual({});
+  });
+});
+
 describe('concurrent writes', () => {
   it('refuses to write while another process holds the lock', () => {
     const root = tempRoot();

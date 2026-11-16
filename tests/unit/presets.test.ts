@@ -109,7 +109,7 @@ describe('panel templates', () => {
     expect(deletePanelTemplate(dataRoot, saved.id)).toBe(false);
   });
 
-  it('migrates panel notes in reading order when the panel count matches', () => {
+  it('keeps panel notes on the same artwork when the panel count matches', () => {
     const dataRoot = tempData('panel-apply-same');
     const doc: PageDoc = {
       ...createEmptyDoc('Vol1', '172', 0),
@@ -133,18 +133,18 @@ describe('panel templates', () => {
 
     const result = applyPanelTemplate(dataRoot, doc, template.id);
     expect(result).not.toBeNull();
-    expect(result!.droppedNotes).toBe(0);
+    expect(result!.movedNotes).toBe(0);
     expect(result!.doc.panels.map((panel) => panel.id)).toEqual(['p1', 'p2']);
     expect(result!.doc.readingDirection).toBe('ltr');
 
-    // The old direction is rtl, so the right panel is first in reading order.
+    // Notes follow the rectangle, not the reading rank: the left drawing keeps its note.
     const byId = new Map(result!.doc.notes.map((item) => [item.id, item]));
     expect(byId.get('page')!.panelId).toBeNull();
-    expect(byId.get('nr')!.panelId).toBe('p1');
-    expect(byId.get('nl')!.panelId).toBe('p2');
+    expect(byId.get('nl')!.panelId).toBe('p1');
+    expect(byId.get('nr')!.panelId).toBe('p2');
   });
 
-  it('drops panel notes and counts them when the panel count differs', () => {
+  it('keeps panel notes when the panel count differs', () => {
     const dataRoot = tempData('panel-apply-drop');
     const doc: PageDoc = {
       ...createEmptyDoc('Vol1', '172', 0),
@@ -163,8 +163,10 @@ describe('panel templates', () => {
     });
 
     const result = applyPanelTemplate(dataRoot, doc, template.id)!;
-    expect(result.droppedNotes).toBe(2);
-    expect(result.doc.notes.map((item) => item.id)).toEqual(['page']);
+    expect(result.movedNotes).toBe(0);
+    expect(result.doc.notes.map((item) => item.id)).toEqual(['page', 'na', 'nb']);
+    expect(result.doc.notes.find((item) => item.id === 'na')!.panelId).toBe('p1');
+    expect(result.doc.notes.find((item) => item.id === 'nb')!.panelId).toBe('p2');
     expect(result.doc.panels).toHaveLength(3);
   });
 

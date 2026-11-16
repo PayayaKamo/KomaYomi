@@ -1,10 +1,12 @@
 # KomaYomi
 
+**A local-first manga panel reader for language study.**
+
 **日本語はすべて漫画から学んだ~**
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 
-KomaYomi is a local-first reading and annotation app for people who study languages with manga. Point it at a folder of pages; it pairs the same page across Japanese, Chinese and English, splits each page into panels, and lets you read, align and annotate them side by side while taking Markdown notes. There is no account and no upload: your images stay in your own folder, and your work stays in plain JSON next to them.
+KomaYomi — _Koma_ (コマ, a manga panel) + _Yomi_ (読み, reading) — is a local-first reading and annotation app for people who study languages with manga. Point it at a folder of pages; it pairs the same page across Japanese, Chinese and English, splits each page into panels, and lets you read, align and annotate them side by side while taking Markdown notes. The panel, not the page, is the unit of work: a note, a mark, a compare pane and an export can all be scoped to one box. There is no account and no upload: your images stay in your own folder, and your work stays in plain JSON next to them.
 
 It is a study tool, not a manga host. Bring your own scans and read them on one machine.
 
@@ -83,6 +85,12 @@ All three editions use the same page JSON and the same `.mnproj` project format,
 - **Annotate and take notes where the line is** — Markdown at page or panel scope, plus arrows, text, mosaic and other marks that can be baked into exports.
 - **Line up editions that do not line up** — four alignment modes, reusable as page or chapter presets.
 - **Run it your way** — Electron desktop, browser against the local server, Docker, or an installable PWA; the interface is available in English, Chinese and Japanese.
+
+### What it is not
+
+- **Not a reader for casual reading.** Paging works, but the app assumes you stop on a page, cut it into panels and write something down.
+- **Not OCR or machine translation.** It never guesses the text for you; you supply the editions and the notes. Anything automatic is a draft you confirm.
+- **Not a cloud or multi-user service.** One person, one machine, plain files on disk.
 
 ### Screenshots
 
@@ -230,6 +238,9 @@ exports/            Generated HTML, PNG, backups, projects (gitignored)
 
 ## Roadmap
 
+- Guided page/panel correspondence: suggest pairs across editions (reading order, panel geometry, later image similarity), confirm once and reuse the mapping instead of matching every page by hand.
+- Better panel detection for irregular layouts, so XY-cut drafts need fewer manual fixes.
+- Backup reminders and a one-click full-project export, for people who keep years of notes in `data/`.
 - Vocabulary-list export; PDF and Word are available in the export dialog today.
 - An in-app image format converter; renaming and splitting live in preprocessing.
 - A full native mobile app; the responsive web UI already works in narrow windows.
@@ -240,8 +251,10 @@ exports/            Generated HTML, PNG, backups, projects (gitignored)
 - Single user, no authentication. Do not expose the server or the container to a network you do not control.
 - Automatic detection decodes WebP pages; AVIF, HEIC, GIF and BMP still need converting to JPEG or PNG.
 - Folder-mode HTML exports need the sibling `.files/` folder; moving the HTML away from it breaks the images. Single-file exports avoid this at the cost of size (a chapter can reach tens of megabytes).
-- Applying a panel template or re-detecting drops panel-scoped notes when the panel count changes; page-scoped notes are kept.
+- Applying a panel template or re-detecting matches old panels to new ones by rectangle overlap, so notes and marks stay on the drawing they belong to. Notes whose panel no longer exists are kept as page notes, and per-panel alignment offsets and groups follow their panels.
 - The interface is localized in English, Chinese and Japanese; documents and error strings from plugins are not translated.
+- There is no OCR, machine translation or semantic page matching. Pairing the same page across editions is manual, and panel boxes are a draft you confirm.
+- This repository is the desktop/reference implementation. The online, mobile and docs repositories share the project format but ship different feature sets.
 
 ## Documentation
 
@@ -252,6 +265,14 @@ The full user guide is published at https://payayakamo.github.io/KomaYomi-docs/:
 | English  | https://payayakamo.github.io/KomaYomi-docs/    |
 | 中文     | https://payayakamo.github.io/KomaYomi-docs/zh/ |
 | 日本語   | https://payayakamo.github.io/KomaYomi-docs/ja/ |
+
+## The name
+
+KomaYomi = **Koma** (コマ, a manga panel) + **Yomi** (読み, reading): reading, panel by panel. The name describes the workflow rather than the medium — structure the page first, then align editions, then anchor notes to the artwork.
+
+- The capitalization is fixed: **KomaYomi**, not `komayomi` or `Koma Yomi`. Search variants (`komayomi`, `koma-yomi`, `Koma Yomi`) all lead here.
+- In Chinese it is sometimes written **KomaYomi（格读）** — 格 for panel, 读 for read. That is an explanation, not a replacement for the name.
+- If the name alone is not obvious, the tagline is the translation: _a local-first manga panel reader for language study_.
 
 ## Author and license
 

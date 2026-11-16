@@ -532,7 +532,7 @@ export const api = {
     request<{ removed: boolean }>(`/api/panel-templates?id=${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   applyPanelTemplate: (templateId: string, volume: string, chapter: string, pageIndices?: number[]) =>
-    request<{ applied: number; droppedNotes: number }>(
+    request<{ applied: number; movedNotes: number; movedAnnotations: number }>(
       '/api/panel-templates/apply',
       json({ templateId, volume, chapter, pageIndices }),
     ),

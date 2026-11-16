@@ -67,11 +67,15 @@ Check the save mode in the toolbar:
 
 Also check that you are looking at the same page: the URL hash includes volume, chapter, page and view. Opening the app on another data directory shows a different library.
 
-## Panel notes vanished after applying a template
+## Panel notes moved after applying a template
 
-When a panel template (or a re-detect) changes the panel count, panel-scoped notes cannot be mapped reliably, so they are dropped. Page-scoped notes are always kept. If the count is unchanged, notes are remapped by reading order.
+They no longer disappear. Re-detecting or applying a template matches each old panel to the new panel covering the same artwork, so panel-scoped notes and marks stay on the drawing they were written for. A note whose panel no longer exists is kept as a page-scoped note, marks are converted to page coordinates, and page-scoped notes are always kept.
 
-To avoid this, export a backup before applying a template to a whole chapter.
+Applying a template to a whole chapter still rewrites panel numbering, so export a backup first if the numbering matters to you.
+
+## What happens to notes when I delete, merge or split panels
+
+They stay with the artwork. Deleting a panel keeps its notes as page notes and turns its marks into page marks; merging re-expresses marks in the merged box; splitting keeps each mark in the piece that contains it. Page data is repaired on load too, so a reference to a panel that no longer exists cannot hide work.
 
 ## Port 5173 is already in use
 

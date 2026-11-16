@@ -619,9 +619,10 @@ export const ja = {
   'panels.templateSaved': 'テンプレート「{name}」を保存しました',
   'panels.templateSaveFailed': 'テンプレートの保存に失敗しました',
   'panels.applyTemplateConfirm':
-    'このテンプレートを話全体に適用しますか？既存のコマは上書きされ、コマ数が同じページはコマ注釈を引き継ぎます。',
+    'このテンプレートを話全体に適用しますか？既存のコマは上書きされますが、ノートと注釈は絵の位置に合わせて引き継がれます。',
   'panels.templateApplied': '{pages} ページに適用しました',
-  'panels.templateAppliedWithDropped': '{pages} ページに適用し、コマ注釈 {notes} 件を削除しました',
+  'panels.templateAppliedWithMoved':
+    '{pages} ページに適用し、コマ単位のノート {notes} 件と注釈 {marks} 件をページ単位に移しました',
   'panels.templateApplyFailed': 'テンプレートの適用に失敗しました',
   'panels.templateDeleted': 'テンプレートを削除しました',
   'panels.copyPrompt': 'このパスをコピーしてエディタで開けば、直接編集できます：',

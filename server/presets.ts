@@ -20,7 +20,7 @@ import {
   prepareExchange,
   readReadingDirection,
 } from '../shared/format.ts';
-import { sortReadingOrder } from './detect.ts';
+import { remapPanelRefs } from '../shared/panelRemap.ts';
 import { writePageDoc } from './storage.ts';
 import {
   assertWritableFile,
@@ -144,40 +144,34 @@ export function deletePanelTemplate(dataRoot: string, id: string): boolean {
 
 /**
  * Apply a template to one page and write it.
- * When panel counts match, panel-scoped notes move with their panels in reading order; otherwise
- * panel notes are dropped (page-scoped notes are kept).
+ * Notes and marks follow the artwork: each old panel is matched to the template panel covering the
+ * same drawing, so a different panel count no longer drops panel-scoped work.
  */
 export function applyPanelTemplate(
   dataRoot: string,
   doc: PageDoc,
   templateId: string,
-): { doc: PageDoc; droppedNotes: number } | null {
+): { doc: PageDoc; movedNotes: number; movedAnnotations: number } | null {
   const template = readPanelTemplate(dataRoot, templateId);
   if (!template) return null;
 
-  const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
   const panels: Panel[] = template.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' }));
-  let droppedNotes = 0;
-  const notes =
-    oldOrder.length === panels.length
-      ? doc.notes.map((n) => {
-          if (n.scope !== 'panel' || !n.panelId) return n;
-          const pos = oldOrder.findIndex((p) => p.id === n.panelId);
-          return pos < 0 ? n : { ...n, panelId: panels[pos].id };
-        })
-      : doc.notes.filter((n) => {
-          if (n.scope !== 'panel') return true;
-          droppedNotes++;
-          return false;
-        });
+  const remap = remapPanelRefs(doc, panels);
 
   const next: PageDoc = {
     ...doc,
     panels,
-    notes,
+    notes: remap.notes,
+    annotations: remap.annotations,
+    groups: remap.groups,
+    panelOffsets: remap.panelOffsets,
     readingDirection: template.readingDirection,
   };
-  return { doc: writePageDoc(dataRoot, next, { source: 'template' }), droppedNotes };
+  return {
+    doc: writePageDoc(dataRoot, next, { source: 'template' }),
+    movedNotes: remap.movedNotes,
+    movedAnnotations: remap.movedAnnotations,
+  };
 }
 
 /* ---------------- Alignment presets ---------------- */

@@ -76,11 +76,11 @@ const localeMeta: Record<
     homePath: '/',
     homeLabel: 'Home',
     guideLabel: 'Guide',
-    tagline: 'Learn languages with manga, take notes.',
+    tagline: 'A local-first manga panel reader for language study.',
     defaultDescription:
-      'KomaYomi (Manga Learner) documentation — learn languages with manga, compare Japanese, Chinese and English pages, detect panels, align artwork and take notes.',
+      'KomaYomi (Koma = manga panel, Yomi = reading) documentation — a local-first manga panel reader for language study: compare Japanese, Chinese and English editions, detect panels, align artwork and take notes.',
     keywords:
-      'KomaYomi, Manga Learner, manga, language learning, multilingual manga, Japanese, Chinese, English, panel detection, annotation, notes, compare manga translations',
+      'KomaYomi, Koma Yomi, 格读, manga panel reader, manga reader, language learning, multilingual manga, Japanese, Chinese, English, panel detection, annotation, notes, compare manga translations, local-first',
     docFooter: { prev: 'Previous', next: 'Next' },
     outlineLabel: 'On this page',
     lastUpdatedText: 'Last updated',
@@ -95,11 +95,11 @@ const localeMeta: Record<
     homePath: '/zh/',
     homeLabel: '首页',
     guideLabel: '使用指南',
-    tagline: '用漫画学语言，做笔记。',
+    tagline: '本地优先的漫画分格精读工具。',
     defaultDescription:
-      'KomaYomi（Manga Learner）文档：用漫画学语言、做笔记的本地优先工具，支持日/中/英对照阅读、分格检测、对齐、批注与导出。',
+      'KomaYomi（Koma＝漫画分格，Yomi＝读，中文也称“格读”）文档：本地优先的漫画分格精读工具，支持日/中/英对照阅读、分格检测、对齐、批注与导出。',
     keywords:
-      'KomaYomi, Manga Learner, 漫画, 语言学习, 多语言漫画, 日语, 中文, 英语, 分格检测, 批注, 笔记, 对照阅读',
+      'KomaYomi, Koma Yomi, 格读, 漫画分格, 漫画阅读器, 语言学习, 多语言漫画, 日语, 中文, 英语, 日语学习, 分格检测, 批注, 笔记, 对照阅读',
     docFooter: { prev: '上一篇', next: '下一篇' },
     outlineLabel: '本页目录',
     lastUpdatedText: '最后更新',
@@ -114,11 +114,11 @@ const localeMeta: Record<
     homePath: '/ja/',
     homeLabel: 'ホーム',
     guideLabel: 'ガイド',
-    tagline: '漫画で言語を学び、ノートを取る。',
+    tagline: 'ローカル優先のコマ読みツール。言語学習のための漫画精読アプリ。',
     defaultDescription:
-      'KomaYomi（Manga Learner）ドキュメント：漫画で言語を学び、ノートを取るローカル優先ツール。日中英の比較リーディング、コマ検出、位置合わせ、注釈、エクスポートに対応。',
+      'KomaYomi（Koma＝コマ、Yomi＝読み）ドキュメント：ローカル優先のコマ読みツール。日中英の比較リーディング、コマ検出、位置合わせ、注釈、エクスポートに対応。',
     keywords:
-      'KomaYomi, Manga Learner, 漫画, 言語学習, 多言語漫画, 日本語, 中国語, 英語, コマ検出, 注釈, ノート, 比較リーディング',
+      'KomaYomi, Koma Yomi, コマ読み, 漫画, 漫画リーダー, 言語学習, 多言語漫画, 日本語, 中国語, 英語, コマ検出, 注釈, ノート, 比較リーディング',
     docFooter: { prev: '前へ', next: '次へ' },
     outlineLabel: 'このページ',
     lastUpdatedText: '最終更新',

@@ -1,7 +1,7 @@
 {
-  "name": "KomaYomi — Manga Learner",
+  "name": "KomaYomi — Manga Panel Reader",
   "short_name": "KomaYomi",
-  "description": "Local-first multilingual manga reading, panel annotation and study notes.",
+  "description": "A local-first manga panel reader for language study: multilingual reading, panel detection, alignment, notes and annotations.",
   "lang": "en",
   "start_url": "/",
   "scope": "/",

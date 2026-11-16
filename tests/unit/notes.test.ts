@@ -153,7 +153,7 @@ describe('collectNotes', () => {
     expect(byId['n-right'].panelNo).toBe(1);
     expect(byId['n-left'].panelNo).toBe(2);
     expect(byId['n-ghost'].panelNo).toBeNull();
-    expect(byId['n-ghost'].panelId).toBe('ghost');
+    expect(byId['n-ghost'].panelId).toBeNull();
     expect(byId['n-page'].panelNo).toBeNull();
 
     const chapterOne = collectNotes(dataRoot)

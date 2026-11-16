@@ -104,12 +104,16 @@ function normalizeDoc(input: PageDoc): PageDoc {
       },
     }));
 
+  // Panel ids are the link between notes/marks and the artwork. Ids that no longer exist are
+  // repaired below instead of leaving invisible panel-scoped work behind.
+  const panelRects = new Map(panels.map((panel) => [panel.id, panel.rect] as const));
+
   const notes: Note[] = (Array.isArray(input.notes) ? input.notes : [])
     .filter((n) => n && typeof n.text === 'string')
     .map((n, i) => ({
       id: typeof n.id === 'string' && n.id ? n.id : `n${Date.now()}${i}`,
-      scope: n.scope === 'panel' ? 'panel' : 'page',
-      panelId: n.scope === 'panel' && typeof n.panelId === 'string' ? n.panelId : null,
+      scope: n.scope === 'panel' && typeof n.panelId === 'string' && panelRects.has(n.panelId) ? 'panel' : 'page',
+      panelId: n.scope === 'panel' && typeof n.panelId === 'string' && panelRects.has(n.panelId) ? n.panelId : null,
       type: typeof n.type === 'string' && n.type.trim() ? n.type.trim() : DEFAULT_NOTE_TYPE,
       anchor:
         n.anchor &&
@@ -166,6 +170,7 @@ function normalizeDoc(input: PageDoc): PageDoc {
 
   const panelOffsets: Record<string, Partial<Record<Lang, AlignOffset>>> = {};
   for (const [panelId, byLang] of Object.entries(input.panelOffsets ?? {})) {
+    if (!panelRects.has(panelId)) continue;
     if (!byLang || typeof byLang !== 'object') continue;
     const clean: Partial<Record<Lang, AlignOffset>> = {};
     for (const [lang, off] of Object.entries(byLang)) {
@@ -204,27 +209,31 @@ function normalizeDoc(input: PageDoc): PageDoc {
 
   const annotations = (Array.isArray(input.annotations) ? input.annotations : [])
     .filter((a) => a && typeof a.id === 'string' && Array.isArray(a.points) && a.points.length)
-    .map((a) => ({
-      id: a.id,
-      kind: a.kind,
-      scope: a.scope === 'panel' ? ('panel' as const) : ('page' as const),
-      panelId: a.scope === 'panel' && typeof a.panelId === 'string' ? a.panelId : null,
-      points: a.points
-        .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
-        .map((p) => ({ x: clamp(p.x), y: clamp(p.y) })),
-      color: typeof a.color === 'string' ? a.color : undefined,
-      width: Number.isFinite(a.width) ? Number(a.width) : undefined,
-      opacity: Number.isFinite(a.opacity) ? clamp(Number(a.opacity)) : undefined,
-      text: typeof a.text === 'string' ? a.text : undefined,
-      fontSize: Number.isFinite(a.fontSize) ? Number(a.fontSize) : undefined,
-      anchor: normalizeAnchor(a.anchor),
-      showLeader: a.showLeader === false ? false : undefined,
-      lang: typeof a.lang === 'string' && a.lang.trim() ? a.lang : undefined,
-      // Old marks have no lane at all: they stay shared instead of disappearing (see migratePageV2).
-      allLangs: a.allLangs === true || !(typeof a.lang === 'string' && a.lang.trim()) ? true : undefined,
-      createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString(),
-      updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : new Date().toISOString(),
-    }))
+    .map((a) => {
+      const panelId = a.scope === 'panel' && typeof a.panelId === 'string' ? a.panelId : null;
+      const staysInPanel = Boolean(panelId && panelRects.has(panelId));
+      return {
+        id: a.id,
+        kind: a.kind,
+        scope: staysInPanel ? ('panel' as const) : ('page' as const),
+        panelId: staysInPanel ? panelId : null,
+        points: a.points
+          .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+          .map((p) => ({ x: clamp(p.x), y: clamp(p.y) })),
+        color: typeof a.color === 'string' ? a.color : undefined,
+        width: Number.isFinite(a.width) ? Number(a.width) : undefined,
+        opacity: Number.isFinite(a.opacity) ? clamp(Number(a.opacity)) : undefined,
+        text: typeof a.text === 'string' ? a.text : undefined,
+        fontSize: Number.isFinite(a.fontSize) ? Number(a.fontSize) : undefined,
+        anchor: normalizeAnchor(a.anchor),
+        showLeader: a.showLeader === false ? false : undefined,
+        lang: typeof a.lang === 'string' && a.lang.trim() ? a.lang : undefined,
+        // Old marks have no lane at all: they stay shared instead of disappearing (see migratePageV2).
+        allLangs: a.allLangs === true || !(typeof a.lang === 'string' && a.lang.trim()) ? true : undefined,
+        createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString(),
+        updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : new Date().toISOString(),
+      };
+    })
     .filter((a) => a.points.length > 0);
 
   return {

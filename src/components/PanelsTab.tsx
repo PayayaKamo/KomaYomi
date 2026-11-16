@@ -33,6 +33,7 @@ import { isNativeTextTarget, useContextMenu } from './ContextMenu';
 import type { ContextMenuItem } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
 import { enqueueOutbox } from '../lib/outbox';
+import { annotationIntoPieces, annotationToPage, annotationToPanel } from '../../shared/panelRemap';
 
 type Props = {
   doc: PageDoc;
@@ -540,14 +541,31 @@ export function PanelsTab({
 
   const deletePanels = (ids: string[]) => {
     if (!ids.length) return;
-    mutate((d) => ({
-      ...d,
-      panels: d.panels.filter((p) => !ids.includes(p.id)),
-      notes: d.notes.filter((n) => !(n.scope === 'panel' && n.panelId && ids.includes(n.panelId))),
-      groups: (d.groups ?? [])
-        .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !ids.includes(id)) }))
-        .filter((g) => g.panelIds.length > 0),
-    }));
+    const removed = new Set(ids);
+    mutate((d) => {
+      const rects = new Map(d.panels.map((p) => [p.id, p.rect] as const));
+      return {
+        ...d,
+        panels: d.panels.filter((p) => !removed.has(p.id)),
+        // Deleting a box must not delete what was written in it: notes and marks fall back to the page.
+        notes: d.notes.map((n) =>
+          n.scope === 'panel' && n.panelId && removed.has(n.panelId)
+            ? { ...n, scope: 'page' as const, panelId: null }
+            : n,
+        ),
+        annotations: (d.annotations ?? []).map((a) => {
+          if (a.scope !== 'panel' || !a.panelId || !removed.has(a.panelId)) return a;
+          const rect = rects.get(a.panelId);
+          return rect ? annotationToPage(a, rect) : { ...a, scope: 'page' as const, panelId: null };
+        }),
+        groups: (d.groups ?? [])
+          .map((g) => ({ ...g, panelIds: g.panelIds.filter((id) => !removed.has(id)) }))
+          .filter((g) => g.panelIds.length > 0),
+        panelOffsets: Object.fromEntries(
+          Object.entries(d.panelOffsets ?? {}).filter(([panelId]) => !removed.has(panelId)),
+        ),
+      };
+    });
     setSelected([]);
   };
 
@@ -657,12 +675,20 @@ export function PanelsTab({
         ...d,
         panels,
         notes: d.notes.map((n) => (n.scope === 'panel' && n.panelId === base.id ? { ...n, panelId: first } : n)),
-        annotations: (d.annotations ?? []).map((a) => (a.panelId === base.id ? { ...a, panelId: first } : a)),
+        // Marks are stored in panel-local coordinates, so re-express them in the piece that holds them.
+        annotations: (d.annotations ?? []).map((a) =>
+          a.scope === 'panel' && a.panelId === base.id
+            ? { ...annotationIntoPieces(a, current.rect, pieces), panelId: first }
+            : a,
+        ),
         groups: (d.groups ?? []).map((g) =>
           g.panelIds.includes(base.id)
             ? { ...g, panelIds: g.panelIds.flatMap((id) => (id === base.id ? ids : [id])) }
             : g,
         ),
+        panelOffsets: d.panelOffsets?.[base.id]
+          ? { ...d.panelOffsets, [first]: d.panelOffsets[base.id] }
+          : d.panelOffsets,
       };
     });
     setSelected(ids);
@@ -674,16 +700,30 @@ export function PanelsTab({
     const chosen = doc.panels.filter((p) => ids.includes(p.id));
     const rect = unionRects(chosen.map((p) => p.rect));
     const id = uid('p');
-    mutate((d) => ({
-      ...d,
-      panels: [...d.panels.filter((p) => !ids.includes(p.id)), { id, rect, source: 'merged' }],
-      notes: d.notes.map((n) =>
-        n.scope === 'panel' && n.panelId && ids.includes(n.panelId) ? { ...n, panelId: id } : n,
-      ),
-      groups: (d.groups ?? [])
-        .map((g) => ({ ...g, panelIds: g.panelIds.filter((pid) => !ids.includes(pid)) }))
-        .filter((g) => g.panelIds.length > 0),
-    }));
+    const removed = new Set(ids);
+    mutate((d) => {
+      const rects = new Map(d.panels.map((p) => [p.id, p.rect] as const));
+      const offsets = ids.map((panelId) => d.panelOffsets?.[panelId]).find(Boolean);
+      return {
+        ...d,
+        panels: [...d.panels.filter((p) => !removed.has(p.id)), { id, rect, source: 'merged' as const }],
+        notes: d.notes.map((n) =>
+          n.scope === 'panel' && n.panelId && removed.has(n.panelId) ? { ...n, panelId: id } : n,
+        ),
+        annotations: (d.annotations ?? []).map((a) => {
+          if (a.scope !== 'panel' || !a.panelId || !removed.has(a.panelId)) return a;
+          const from = rects.get(a.panelId);
+          return from ? { ...annotationToPanel(a, from, rect), panelId: id } : { ...a, panelId: id };
+        }),
+        groups: (d.groups ?? [])
+          .map((g) => ({ ...g, panelIds: g.panelIds.filter((pid) => !removed.has(pid)) }))
+          .filter((g) => g.panelIds.length > 0),
+        panelOffsets: {
+          ...Object.fromEntries(Object.entries(d.panelOffsets ?? {}).filter(([panelId]) => !removed.has(panelId))),
+          ...(offsets ? { [id]: offsets } : {}),
+        },
+      };
+    });
     setSelected([id]);
   };
 
@@ -1033,10 +1073,11 @@ export function PanelsTab({
         scope === 'page' ? [doc.pageIndex] : undefined,
       );
       setTplMsg(
-        res.droppedNotes
-          ? t('panels.templateAppliedWithDropped', {
+        res.movedNotes || res.movedAnnotations
+          ? t('panels.templateAppliedWithMoved', {
               pages: formatNumber(res.applied),
-              notes: formatNumber(res.droppedNotes),
+              notes: formatNumber(res.movedNotes),
+              marks: formatNumber(res.movedAnnotations),
             })
           : t('panels.templateApplied', { pages: formatNumber(res.applied) }),
       );

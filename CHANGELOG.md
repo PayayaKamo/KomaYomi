@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Re-detecting a page or applying a panel template no longer drops panel-scoped notes when the
+  panel count changes. Old panels are matched to new ones by rectangle overlap, so notes, marks,
+  panel groups and per-panel alignment offsets follow the artwork; a note whose panel is gone is
+  kept as a page-scoped note and a mark on a removed panel is converted to page coordinates.
+- Deleting, merging or splitting panels no longer deletes or misplaces their notes and marks:
+  deletion moves them to the page, merge and split keep each mark on the same spot of the artwork.
+- Loading a page repairs references to panels that no longer exist (notes become page notes,
+  marks become page marks, stale per-panel offsets are dropped) instead of leaving invisible work
+  behind after a hand edit or an interrupted operation.
+
+### Documentation
+
+- READMEs, docs meta, homepage copy and package metadata lead with the fixed tagline _a local-first
+  manga panel reader for language study_ and explain the name (Koma + Yomi, Chinese alias 格读).
+- Added `.github/REPO_ABOUT.md` with the GitHub description, website, topics and naming rules.
+
 ## [1.0.1] - 2026-11-16
 
 ### Added

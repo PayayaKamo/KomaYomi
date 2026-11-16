@@ -623,9 +623,9 @@ export const en = {
   'panels.templateSaved': 'Saved template “{name}”',
   'panels.templateSaveFailed': 'Failed to save the template',
   'panels.applyTemplateConfirm':
-    'Apply this template to the whole chapter? Existing panels will be replaced, and pages with the same panel count migrate their panel notes.',
+    'Apply this template to the whole chapter? Existing panels will be replaced; notes and marks follow the artwork by position.',
   'panels.templateApplied': 'Applied to {pages} pages',
-  'panels.templateAppliedWithDropped': 'Applied to {pages} pages; dropped {notes} panel notes',
+  'panels.templateAppliedWithMoved': 'Applied to {pages} pages; {notes} notes and {marks} marks moved to page scope',
   'panels.templateApplyFailed': 'Failed to apply the template',
   'panels.templateDeleted': 'Template deleted',
   'panels.copyPrompt': 'Copy this path and open it in an editor to edit by hand:',

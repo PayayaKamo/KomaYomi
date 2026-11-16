@@ -4,6 +4,7 @@ import type { HistorySource } from '../api';
 import { t, useI18n } from '../i18n';
 import { dropOutbox, enqueueOutbox, outboxKeyOf } from '../lib/outbox';
 import { keepaliveFits } from '../lib/keepalive';
+import { remapPanelRefs } from '../../shared/panelRemap';
 import type { PageDoc, PageEntry } from '../types';
 
 export type Selection = { volume: string; chapter: string; pageIndex: number };
@@ -263,13 +264,22 @@ export function usePage(sel: Selection | null, readOnly = false) {
         const res = await api.detect(sel.volume, sel.chapter, sel.pageIndex, lang, docRef.current?.readingDirection);
         const panels = res.panels.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
         mutate(
-          (doc) => ({
-            ...doc,
-            panels,
-            detectorVersion: res.version,
-            detectedAt: new Date().toISOString(),
-            detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
-          }),
+          (doc) => {
+            // Panel ids are rewritten on every detection; match by rectangle so notes and marks
+            // stay on the drawing they were written for instead of jumping to another cell.
+            const remap = remapPanelRefs(doc, panels);
+            return {
+              ...doc,
+              panels,
+              notes: remap.notes,
+              annotations: remap.annotations,
+              groups: remap.groups,
+              panelOffsets: remap.panelOffsets,
+              detectorVersion: res.version,
+              detectedAt: new Date().toISOString(),
+              detectSource: res.source === 'template' || res.source === 'plugin' ? res.source : 'auto',
+            };
+          },
           { source: 'detect' },
         );
         // Detector warnings come from the server in their own language; join them for display

@@ -1,12 +1,12 @@
 ---
 layout: home
 titleTemplate: false
-description: KomaYomi（Manga Learner）文档——用漫画学语言、做笔记，支持日/中/英对照阅读、分格检测、对齐与批注。
-title: KomaYomi — Manga Learner 文档
+description: KomaYomi（Koma＝漫画分格，Yomi＝读，中文也称“格读”）文档——本地优先的漫画分格精读工具，支持日/中/英对照阅读、分格检测、对齐与批注。
+title: KomaYomi（格读）— 本地优先的漫画分格精读工具
 
 hero:
   name: KomaYomi
-  text: Manga Learner
+  text: 漫画分格精读
   tagline: 日本語はすべて漫画から学んだ~
   image:
     src: /assets/screenshots/hero-real-library.png
@@ -21,7 +21,7 @@ hero:
 
 features:
   - title: 分格优先
-    details: 自动 XY-cut 检测，并支持手动绘制、合并、编号和可复用的布局模板。分格数量一致时，原有标注会重新映射。
+    details: 自动 XY-cut 检测，并支持手动绘制、合并、编号和可复用的布局模板。重新检测或套用模板时，笔记与标注会跟随画面重新映射，不再因为重排而丢失。
   - title: 多语言对照
     details: 并排或叠加视图，按语言独立遮罩，滚轮缩放与平移，以及页面 / 分格 / 锚点 / 网格四种对齐方式，可保存为预设。
   - title: 笔记随身走
@@ -32,7 +32,7 @@ features:
 
 ## 什么是 KomaYomi？
 
-KomaYomi（**Manga Learner**）是一个用漫画学语言、做笔记的**本地 Web 应用**：同一部漫画的日文、中文和英文版本并排对照，边读边记。你的页面图片保留在 `raw/` 文件夹中；每个分格、笔记、标签、对齐偏移和标注都存放在 `data/` 下的纯 JSON 里。除非你主动导出，否则任何内容都不会离开本机。
+KomaYomi（**格读**：Koma＝漫画分格，Yomi＝读）是一个用漫画学语言、做笔记的**本地 Web 应用**：同一部漫画的日文、中文和英文版本并排对照，边读边记。它的基本单位是“格”而不是“页”：先把画面解构成分格，再对齐不同版本，最后把笔记锚定到具体画面上。你的页面图片保留在 `raw/` 文件夹中；每个分格、笔记、标签、对齐偏移和标注都存放在 `data/` 下的纯 JSON 里。除非你主动导出，否则任何内容都不会离开本机。
 
 它的定位是学习与翻译校对，而不是托管受版权保护的内容：自备扫描件，把应用指向该文件夹，然后逐页处理。
 

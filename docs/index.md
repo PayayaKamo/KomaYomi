@@ -1,12 +1,12 @@
 ---
 layout: home
 titleTemplate: false
-description: KomaYomi (Manga Learner) documentation — learn languages with manga, compare Japanese, Chinese and English pages, detect panels, align artwork and take notes.
-title: KomaYomi — Manga Learner documentation
+description: KomaYomi (Koma = manga panel, Yomi = reading) documentation — a local-first manga panel reader for language study: compare Japanese, Chinese and English pages, detect panels, align artwork and take notes.
+title: KomaYomi — a local-first manga panel reader
 
 hero:
   name: KomaYomi
-  text: Manga Learner
+  text: Manga Panel Reader
   tagline: 日本語はすべて漫画から学んだ~
   image:
     src: /assets/screenshots/hero-real-library.png
@@ -21,7 +21,7 @@ hero:
 
 features:
   - title: Panels first
-    details: Automatic XY-cut detection with manual drawing, merging, numbering and reusable layout templates. Old annotations are remapped when panel counts match.
+    details: Automatic XY-cut detection with manual drawing, merging, numbering and reusable layout templates. Notes and marks follow the artwork when panels are re-detected or a template is applied, so a re-layout no longer loses work.
   - title: Compare multiple languages
     details: Side-by-side or overlay views, per-language masks, wheel zoom and pan, plus page / panel / anchor / grid alignment with reusable presets.
   - title: Notes that travel
@@ -32,7 +32,7 @@ features:
 
 ## What is KomaYomi?
 
-KomaYomi — **Manga Learner** — is a **local web application** for learning languages with manga: read the same pages in Japanese, Chinese and English, align them precisely, and take notes. Your page images stay in a `raw/` folder; every panel, note, tag, alignment offset and annotation lives in plain JSON under `data/`. Nothing leaves the machine unless you export it.
+KomaYomi — **Koma** (コマ, manga panel) + **Yomi** (読み, reading) — is a **local web application** for learning languages with manga: read the same pages in Japanese, Chinese and English, align them precisely, and take notes. Its unit of work is the panel, not the page: structure the page first, then align editions, then anchor notes to the artwork. Your page images stay in a `raw/` folder; every panel, note, tag, alignment offset and annotation lives in plain JSON under `data/`. Nothing leaves the machine unless you export it.
 
 It is designed for study and translation review rather than for hosting copyrighted material: bring your own scans, point the app at the folder, and work page by page.
 

@@ -23,7 +23,8 @@ import {
 import { cacheOverview, clearExportStaging, clearThumbCache, resetAutoPanels } from './cacheAdmin.ts';
 import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
 import { renameChapterFiles, splitPage } from './fileOps.ts';
-import { sniffFormat, sortReadingOrder } from './detect.ts';
+import { sniffFormat } from './detect.ts';
+import { remapPanelRefs } from '../shared/panelRemap.ts';
 import { detectPage } from './pageDetect.ts';
 import { captureLayout, deleteLayout, expandLayout, listLayouts, saveLayout } from './layouts.ts';
 import { listPlugins } from './plugins.ts';
@@ -694,17 +695,19 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         }
         const indices = pageRange(body.pageIndices, found.pages.length);
         let applied = 0;
-        let droppedNotes = 0;
+        let movedNotes = 0;
+        let movedAnnotations = 0;
         for (const index of indices) {
           const doc =
             readPageDoc(dataRoot, body.volume, body.chapter, index) ?? createEmptyDoc(body.volume, body.chapter, index);
           const result = applyPanelTemplate(dataRoot, doc, body.templateId);
           if (result) {
             applied++;
-            droppedNotes += result.droppedNotes;
+            movedNotes += result.movedNotes;
+            movedAnnotations += result.movedAnnotations;
           }
         }
-        sendJson(res, 200, { applied, droppedNotes });
+        sendJson(res, 200, { applied, movedNotes, movedAnnotations });
         return true;
       }
 
@@ -786,23 +789,19 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
           for (const index of pageRange(body.pageIndices, ch.pages.length)) {
             const doc = readPageDoc(dataRoot, volume, ch.chapter, index) ?? createEmptyDoc(volume, ch.chapter, index);
             const rects = expandLayout(layout, index);
-            const oldOrder = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
             const panels = rects.map((rect, i) => ({ id: `p${i + 1}`, rect, source: 'auto' as const }));
-            // When the panel count matches, migrate panel-level notes in reading order so applying a template does not drop them.
-            const notes =
-              oldOrder.length === panels.length
-                ? doc.notes.map((n) => {
-                    if (n.scope !== 'panel' || !n.panelId) return n;
-                    const pos = oldOrder.findIndex((p) => p.id === n.panelId);
-                    return pos < 0 ? n : { ...n, panelId: panels[pos].id };
-                  })
-                : doc.notes.filter((n) => n.scope !== 'panel');
+            // Match old panels to new ones by artwork overlap, so a different panel count keeps
+            // panel-level notes and marks instead of dropping or reshuffling them.
+            const remap = remapPanelRefs(doc, panels);
             writePageDoc(
               dataRoot,
               {
                 ...doc,
                 panels,
-                notes,
+                notes: remap.notes,
+                annotations: remap.annotations,
+                groups: remap.groups,
+                panelOffsets: remap.panelOffsets,
                 readingDirection: layout.readingDirection ?? doc.readingDirection,
                 detectorVersion: `layout:${layout.id}`,
                 detectedAt: new Date().toISOString(),
