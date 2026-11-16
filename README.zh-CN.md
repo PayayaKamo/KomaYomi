@@ -245,7 +245,7 @@ exports/            生成的 HTML / PNG、备份、工程包（已 gitignore）
 
 ## 文档
 
-完整用户手册发布在 **https://payayakamo.github.io/KomaYomi-docs/**：
+完整用户手册发布在 https://payayakamo.github.io/KomaYomi-docs/：
 
 | 语言    | 入口                                           |
 | ------- | ---------------------------------------------- |

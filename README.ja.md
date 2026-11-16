@@ -245,7 +245,7 @@ exports/            生成した HTML・PNG、バックアップ、プロジェ�
 
 ## ドキュメント
 
-完全なユーザーガイドは **https://payayakamo.github.io/KomaYomi-docs/** で公開されています。
+完全なユーザーガイドは https://payayakamo.github.io/KomaYomi-docs/ で公開されています。
 
 | 言語    | 入口                                           |
 | ------- | ---------------------------------------------- |

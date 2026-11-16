@@ -245,7 +245,7 @@ exports/            Generated HTML, PNG, backups, projects (gitignored)
 
 ## Documentation
 
-The full user guide is published at **https://payayakamo.github.io/KomaYomi-docs/**:
+The full user guide is published at https://payayakamo.github.io/KomaYomi-docs/:
 
 | Language | Entry point                                    |
 | -------- | ---------------------------------------------- |
