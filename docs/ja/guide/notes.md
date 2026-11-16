@@ -150,7 +150,7 @@
 - **テキストがコードのように見える。** コードブロックには、それぞれ独立した行に3つのバッククォートが必要です。
 
 <figure class="shot">
-  <img src="/assets/screenshots/notes-toolbar-tags.png" alt="ノートエディター。ページとコマの範囲切り替え、Markdown ツールバー、ライブプレビュー、添付画像、タグ入力欄">
+  <img src="/assets/screenshots/notes-toolbar-tags.webp" alt="ノートエディター。ページとコマの範囲切り替え、Markdown ツールバー、ライブプレビュー、添付画像、タグ入力欄">
   <figcaption>ノートエディター。ページ / コマの範囲、Markdown ツールバー、ライブプレビュー、添付画像、タグ入力欄。</figcaption>
 </figure>
 

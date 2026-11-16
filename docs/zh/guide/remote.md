@@ -115,7 +115,7 @@ KomaYomi 把两者分开：**图片按需从远端读取，标注写入本地。
 - 定时备份的自动上传：**定时备份**只在本机 `exports/` 里生成 `auto-backup-*.zip`，把它们送到远端目标仍需手动操作。
 
 <figure class="shot">
-  <img src="/assets/screenshots/remote-storage.png" alt="备份 / 恢复对话框中的远端存储：WebDAV 来源、缓存用量与一个备份目标">
+  <img src="/assets/screenshots/remote-storage.webp" alt="备份 / 恢复对话框中的远端存储：WebDAV 来源、缓存用量与一个备份目标">
   <figcaption>“备份 / 恢复”中的远端存储：WebDAV 来源、缓存用量与备份目标。</figcaption>
 </figure>
 

@@ -156,7 +156,7 @@ Editing reuses the single composer at the top of the notes panel; no second Mark
 - **Text looks like code.** Fenced blocks need three backticks on their own lines.
 
 <figure class="shot">
-  <img src="/assets/screenshots/notes-toolbar-tags.png" alt="Note editor with the page and panel scope switch, Markdown toolbar, live preview, an attached screenshot and the tag row">
+  <img src="/assets/screenshots/notes-toolbar-tags.webp" alt="Note editor with the page and panel scope switch, Markdown toolbar, live preview, an attached screenshot and the tag row">
   <figcaption>The note editor: page / panel scope, Markdown toolbar, live preview, an attached screenshot and the tag row.</figcaption>
 </figure>
 

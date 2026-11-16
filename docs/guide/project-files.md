@@ -170,7 +170,7 @@ The server checks once a minute (and five seconds after start) whether the inter
 - **A `.mnpage.json` import has no images.** Page data never contains images; those come from `raw/` or a packaged project.
 
 <figure class="shot">
-  <img src="/assets/screenshots/project-import.png" alt="Project import summary with storage mode, inventory counts, conflict policy, relink folder and the Import button">
+  <img src="/assets/screenshots/project-import.webp" alt="Project import summary with storage mode, inventory counts, conflict policy, relink folder and the Import button">
   <figcaption>Project import summary: storage mode, inventory counts, conflict policy, relink folder and the Import button.</figcaption>
 </figure>
 

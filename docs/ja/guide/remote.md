@@ -115,7 +115,7 @@ KomaYomi はこの2つを分けます。**画像は必要に応じてリモー�
 - 定期バックアップのリモート先への自動アップロード：**定期バックアップ** はローカルの `exports/` に `auto-backup-*.zip` を書き出すだけで、リモート先への移動は手動です。
 
 <figure class="shot">
-  <img src="/assets/screenshots/remote-storage.png" alt="バックアップ / 復元のリモートストレージ。WebDAV の取得元、キャッシュ使用量、バックアップ先">
+  <img src="/assets/screenshots/remote-storage.webp" alt="バックアップ / 復元のリモートストレージ。WebDAV の取得元、キャッシュ使用量、バックアップ先">
   <figcaption>「バックアップ / 復元」のリモートストレージ。WebDAV の取得元、キャッシュ使用量、バックアップ先。</figcaption>
 </figure>
 

@@ -170,7 +170,7 @@ data/.backup-meta.json
 - **`.mnpage.json` をインポートしても画像がない。** ページデータに画像は含まれません。画像は `raw/` またはパッケージ化したプロジェクトから来ます。
 
 <figure class="shot">
-  <img src="/assets/screenshots/project-import.png" alt="プロジェクトのインポート概要。保存形式、件数、競合ポリシー、再リンク先、読み込みボタン">
+  <img src="/assets/screenshots/project-import.webp" alt="プロジェクトのインポート概要。保存形式、件数、競合ポリシー、再リンク先、読み込みボタン">
   <figcaption>プロジェクトのインポート概要。保存形式、件数、競合ポリシー、再リンク先、読み込みボタン。</figcaption>
 </figure>
 

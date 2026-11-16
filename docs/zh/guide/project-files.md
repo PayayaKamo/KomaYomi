@@ -170,7 +170,7 @@ data/.backup-meta.json
 - **`.mnpage.json` 导入后没有图片。** 页面数据从不包含图片；图片来自 `raw/` 或打包工程。
 
 <figure class="shot">
-  <img src="/assets/screenshots/project-import.png" alt="工程导入摘要：存储方式、清单计数、冲突处理、重新关联目录与“导入”按钮">
+  <img src="/assets/screenshots/project-import.webp" alt="工程导入摘要：存储方式、清单计数、冲突处理、重新关联目录与“导入”按钮">
   <figcaption>工程导入摘要：存储方式、清单计数、冲突处理、重新关联目录与“导入”按钮。</figcaption>
 </figure>
 

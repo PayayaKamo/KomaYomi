@@ -115,7 +115,7 @@ The following remain <Badge type="warning" text="Planned" />:
 - Automatic upload of scheduled backups to a remote target: **Scheduled backups** write local `exports/auto-backup-*.zip` archives, and moving them to a remote target is still manual.
 
 <figure class="shot">
-  <img src="/assets/screenshots/remote-storage.png" alt="Remote storage section of the Backup / restore dialog: WebDAV source, cache usage and a backup target">
+  <img src="/assets/screenshots/remote-storage.webp" alt="Remote storage section of the Backup / restore dialog: WebDAV source, cache usage and a backup target">
   <figcaption>Remote storage in Backup / restore: a WebDAV source, cache usage and a backup target.</figcaption>
 </figure>
 

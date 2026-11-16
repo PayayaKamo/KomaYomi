@@ -150,7 +150,7 @@
 - **文字看起来像代码。** 围栏代码块的首尾两行各要三个反引号。
 
 <figure class="shot">
-  <img src="/assets/screenshots/notes-toolbar-tags.png" alt="笔记编辑器：整页与分格范围切换、Markdown 工具栏、实时预览、附件缩略图与标签输入行">
+  <img src="/assets/screenshots/notes-toolbar-tags.webp" alt="笔记编辑器：整页与分格范围切换、Markdown 工具栏、实时预览、附件缩略图与标签输入行">
   <figcaption>笔记编辑器：整页 / 分格范围、Markdown 工具栏、实时预览、附件缩略图与标签输入行。</figcaption>
 </figure>
 
