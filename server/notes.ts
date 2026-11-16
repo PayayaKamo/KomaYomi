@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readPageDoc } from './storage.ts';
 import { sortReadingOrder } from './detect.ts';
+import { AppError } from './errors.ts';
+import { t } from './messages/index.ts';
 import type { NoteSource, PageDoc } from '../shared/types.ts';
 import { markdownExcerpt } from '../shared/markdown.ts';
 
@@ -52,6 +54,8 @@ export type NotesIndex = {
   tags: { tag: string; count: number }[];
   sources: { domain: string; count: number }[];
   pages: number;
+  /** Pages that were skipped because their JSON could not be parsed. */
+  warnings: string[];
 };
 
 const pageDir = (dataRoot: string) => path.join(dataRoot, 'pages');
@@ -82,6 +86,7 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
   const sourceCounts = new Map<string, number>();
   let pageCount = 0;
   let total = 0;
+  const warnings: string[] = [];
 
   for (const volume of listDirSafe(pageDir(dataRoot))) {
     if (filter.volume && volume !== filter.volume) continue;
@@ -91,7 +96,17 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
       for (const file of files) {
         const pageIndex = Number(file.replace(/\.json$/, ''));
         if (filter.pageIndex != null && pageIndex !== filter.pageIndex) continue;
-        const doc: PageDoc | null = readPageDoc(dataRoot, volume, chapter, pageIndex);
+        let doc: PageDoc | null;
+        try {
+          doc = readPageDoc(dataRoot, volume, chapter, pageIndex);
+        } catch (err) {
+          // A single damaged page must not take down the whole notes index.
+          if (err instanceof AppError && err.code === 'ERR_PAGE_CORRUPT') {
+            warnings.push(t('WARN_PAGE_JSON_INVALID', { path: `pages/${volume}/${chapter}/${file}` }));
+            continue;
+          }
+          throw err;
+        }
         if (!doc || !doc.notes.length) continue;
         pageCount++;
         const order = sortReadingOrder(doc.panels, doc.readingDirection, (p) => p.rect);
@@ -152,5 +167,6 @@ export function collectNotes(dataRoot: string, filter: NotesFilter = {}): NotesI
       .map(([domain, count]) => ({ domain, count }))
       .sort((a, b) => b.count - a.count),
     pages: pageCount,
+    warnings,
   };
 }

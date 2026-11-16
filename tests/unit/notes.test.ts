@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { collectNotes } from '../../server/notes.ts';
 import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
 import type { Note, Panel } from '../../shared/types.ts';
-import { AppError } from '../../server/errors.ts';
+import { runWithLang, t } from '../../server/messages/index.ts';
 import { makeTempDir, removeDir, writeFile } from '../helpers/tmp.ts';
 
 const dirs: string[] = [];
@@ -231,21 +231,20 @@ describe('collectNotes', () => {
       tags: [],
       sources: [],
       pages: 0,
+      warnings: [],
     });
   });
 
-  it('throws on a corrupt page document instead of silently skipping it', () => {
+  it('skips a corrupt page, keeps indexing the rest and reports a warning', () => {
     const dataRoot = tempDataRoot();
     writePage(dataRoot, 'Vol1', '1', 0, [], [makeNote({ id: 'n1', text: 'ok' })]);
-    writeFile(path.join(dataRoot, 'pages', 'Vol1', '1', '0.json'), '{ not json');
+    writeFile(path.join(dataRoot, 'pages', 'Vol1', '1', '1.json'), '{ not json');
 
-    try {
-      collectNotes(dataRoot);
-      throw new Error('expected a corrupt page error');
-    } catch (err) {
-      expect(err).toBeInstanceOf(AppError);
-      expect((err as AppError).code).toBe('ERR_PAGE_CORRUPT');
-      expect((err as AppError).status).toBe(422);
-    }
+    const index = runWithLang('en', () => collectNotes(dataRoot));
+
+    expect(index.total).toBe(1);
+    expect(index.pages).toBe(1);
+    expect(index.notes.map((n) => n.id)).toEqual(['n1']);
+    expect(index.warnings).toEqual([t('WARN_PAGE_JSON_INVALID', { path: 'pages/Vol1/1/1.json' }, 'en')]);
   });
 });
