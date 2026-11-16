@@ -5,7 +5,15 @@ import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createLibrary, normalizeLangOrder, previewDirs, readLibraryConfig, writeLibraryConfig } from './library.ts';
 import { DEFAULT_RULES, validateRules } from './dirRules.ts';
-import { addVolume, removeVolume, setVolumeDefaultDirection, setVolumeDirs } from './libraryAdmin.ts';
+import {
+  addVolume,
+  removeVolume,
+  setChapterHidden,
+  setChapterPageOffsets,
+  setVolumeDefaultDirection,
+  setVolumeDirs,
+} from './libraryAdmin.ts';
+import { cacheOverview, clearExportStaging, clearThumbCache, resetAutoPanels } from './cacheAdmin.ts';
 import { applyPreprocess, readPreprocessBackup, restorePreprocess } from './preprocess.ts';
 import { renameChapterFiles, splitPage } from './fileOps.ts';
 import { sniffFormat, sortReadingOrder } from './detect.ts';
@@ -93,6 +101,21 @@ const MIME: Record<string, string> = {
 };
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * POST endpoints a read-only viewer may still call. They inspect, preview or export,
+ * but never write project data. Everything else is rejected before it can touch disk.
+ */
+const READ_ONLY_SAFE_POSTS = new Set([
+  '/api/project/inspect',
+  '/api/project/import',
+  '/api/library/preview',
+  '/api/link-title',
+  '/api/storage/test',
+  '/api/export',
+  '/api/export/docx',
+  '/api/export/annotation-image',
+]);
 
 function sendJson(res: ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data);
@@ -332,6 +355,13 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
       }
 
       if (!pathname.startsWith('/api/')) return false;
+
+      // Read mode never writes project data. The client sends the mode on every request,
+      // so even a control missed by the viewer UI cannot persist a change.
+      if (req.headers['x-komayomi-mode'] === 'read' && req.method !== 'GET' && !READ_ONLY_SAFE_POSTS.has(pathname)) {
+        fail(res, 403, 'ERR_READ_ONLY');
+        return true;
+      }
 
       // Container healthcheck: cheap, no filesystem walk, reports mounted folders
       // so a mis-mounted compose file is visible in `docker ps`/logs.
@@ -904,12 +934,18 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
           volume?: string;
           dirs?: Partial<Record<string, string | null>>;
           defaultDirection?: string | null;
+          chapter?: string;
+          pageOffsets?: Partial<Record<string, { from: number; to: number } | null>>;
         };
-        if (!body.volume || (!body.dirs && body.defaultDirection === undefined)) {
+        const hasOffsets = Boolean(body.chapter) && body.pageOffsets !== undefined;
+        if (!body.volume || (!body.dirs && body.defaultDirection === undefined && !hasOffsets)) {
           fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
           return true;
         }
         if (body.dirs) setVolumeDirs(rawRoot, dataRoot, body.volume, body.dirs);
+        if (hasOffsets) {
+          setChapterPageOffsets(rawRoot, dataRoot, body.volume, body.chapter as string, body.pageOffsets ?? {});
+        }
         if (body.defaultDirection !== undefined) {
           const direction = body.defaultDirection === null ? null : readReadingDirection(body.defaultDirection);
           if (body.defaultDirection !== null && !direction) {
@@ -1002,19 +1038,58 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
 
       if (pathname === '/api/library/add-volume' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req)) as { sourcePath?: string; name?: string };
-        const result = addVolume(rawRoot, body.sourcePath, body.name);
+        const result = addVolume(rawRoot, body.sourcePath, body.name, dataRoot);
         sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
         return true;
       }
 
       if (pathname === '/api/library/remove-volume' && req.method === 'POST') {
-        const body = JSON.parse(await readBody(req)) as { volume?: string };
+        const body = JSON.parse(await readBody(req)) as { volume?: string; deleteFiles?: boolean };
         if (!body.volume) {
           fail(res, 400, 'ERR_MISSING_VOLUME');
           return true;
         }
-        const result = removeVolume(rawRoot, dataRoot, body.volume);
+        const result = removeVolume(rawRoot, dataRoot, body.volume, { deleteFiles: body.deleteFiles === true });
         sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* Unlink a single chapter without touching its folder or page data. */
+      if (pathname === '/api/library/remove-chapter' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { volume?: string; chapter?: string; hidden?: boolean };
+        if (!body.volume || !body.chapter) {
+          fail(res, 400, 'ERR_MISSING_VOLUME_DIRS');
+          return true;
+        }
+        setChapterHidden(rawRoot, dataRoot, body.volume, body.chapter, body.hidden !== false);
+        sendJson(res, 200, { library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      /* ---------------- Cache overview and cleanup ---------------- */
+      if (pathname === '/api/cache' && req.method === 'GET') {
+        sendJson(res, 200, cacheOverview(dataRoot, exportRoot));
+        return true;
+      }
+
+      if (pathname === '/api/cache/clear' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { target?: string };
+        let cleared: { removed: number; freed: number };
+        if (body.target === 'thumbs') cleared = clearThumbCache(dataRoot);
+        else if (body.target === 'remote') cleared = { removed: clearRemoteCache(dataRoot), freed: 0 };
+        else if (body.target === 'staging') cleared = clearExportStaging(exportRoot);
+        else {
+          fail(res, 400, 'ERR_CACHE_TARGET_INVALID');
+          return true;
+        }
+        sendJson(res, 200, { ...cleared, cache: cacheOverview(dataRoot, exportRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/cache/reset-detect' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { volume?: string };
+        const result = resetAutoPanels(dataRoot, body.volume || undefined);
+        sendJson(res, 200, { ...result, cache: cacheOverview(dataRoot, exportRoot) });
         return true;
       }
 

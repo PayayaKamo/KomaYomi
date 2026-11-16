@@ -131,6 +131,11 @@ export const MESSAGES = {
     zh: '缺少卷名或语言目录配置',
     ja: '巻名または言語ディレクトリ設定が不足しています',
   },
+  ERR_CACHE_TARGET_INVALID: {
+    en: 'Unknown cache target',
+    zh: '未知的缓存类型',
+    ja: '不明なキャッシュ種別です',
+  },
   ERR_UNKNOWN_DIRECTION: {
     en: 'Unsupported reading direction',
     zh: '不支持的阅读方向',
@@ -231,15 +236,20 @@ export const MESSAGES = {
     zh: 'raw 下已存在同名目录「{name}」，请换个名字或先移除',
     ja: 'raw/ に同名のディレクトリ「{name}」が既にあります。別の名前を指定するか、先に削除してください',
   },
+  ERR_PAGE_OFFSET_INVALID: {
+    en: 'Invalid page offset for {lang}: "from" must be at least 1 and "to" cannot be smaller than "from"',
+    zh: '{lang} 的页偏移无效：「从第 N 页」至少为 1，且「对齐到第 M 页」不能小于 N',
+    ja: '{lang} のページオフセットが不正です。「開始ページ」は 1 以上、「対応先ページ」は開始ページ以上にしてください',
+  },
+  ERR_VOLUME_LAYOUT_UNRECOGNIZED: {
+    en: 'No language directory was found here. This looks like a series or multi-volume folder — point to one concrete volume, or assign a language directory in Volume settings.',
+    zh: '这里没有识别到语言目录。看起来是系列/多卷结构，请指向具体某一卷，或在「卷设置」中手动指定语言目录。',
+    ja: 'ここに言語ディレクトリが見つかりません。シリーズ／複数巻の構造に見えます。特定の巻を指定するか、「巻設定」で言語ディレクトリを手動指定してください。',
+  },
   ERR_LINK_CREATE_FAILED: {
     en: 'Failed to create the directory link: {detail}',
     zh: '创建目录链接失败：{detail}',
     ja: 'ディレクトリリンクの作成に失敗しました：{detail}',
-  },
-  ERR_REAL_DIRECTORY: {
-    en: 'This is a real directory — delete it under raw/ manually to avoid losing images',
-    zh: '这是一个真实目录，为避免误删图片，请手动在 raw 下删除',
-    ja: 'これは実ディレクトリです。画像を誤って消さないよう raw/ で手動削除してください',
   },
 
   /* --------------------------------- templates -------------------------------- */
@@ -470,6 +480,11 @@ export const MESSAGES = {
     en: 'This storage target is read-only: {name}',
     zh: '该存储为只读：{name}',
     ja: 'このストレージは読み取り専用です：{name}',
+  },
+  ERR_READ_ONLY: {
+    en: 'Read mode is on: this change was not written to the project.',
+    zh: '当前处于阅读模式：该改动不会写入项目。',
+    ja: '閲覧モードのため、この変更はプロジェクトに書き込まれません。',
   },
   ERR_NOT_A_DIRECTORY: {
     en: 'Not a directory: {path}',
@@ -705,9 +720,9 @@ export const MESSAGES = {
     ja: '認識できないディレクトリ：{dirs}（「巻の設定」で言語を指定できます）',
   },
   WARN_LANGUAGE_PAGE_COUNT: {
-    en: 'Language page counts differ: {counts} (pages are paired by index; missing pages are flagged)',
-    zh: '各语言页数不一致：{counts}（按序号配对，缺页会在页面上标注）',
-    ja: '言語ごとのページ数が異なります：{counts}（番号順に対応付け、欠けたページは表示時に示します）',
+    en: 'Language page counts differ: {counts} (pages are paired by page number; missing pages are flagged)',
+    zh: '各语言页数不一致：{counts}（按页号配对，缺页会在页面上标注）',
+    ja: '言語ごとのページ数が異なります：{counts}（ページ番号で対応付け、欠けたページは表示時に示します）',
   },
   WARN_MIXED_EXTENSIONS: {
     en: '{lang}: mixed file extensions in this chapter: {exts}',
@@ -753,6 +768,11 @@ export const MESSAGES = {
     en: 'The directory no longer exists and was removed from the library configuration',
     zh: '目录不存在，已从图库配置中移除',
     ja: 'ディレクトリが存在しないため、ライブラリ設定から削除しました',
+  },
+  WARN_REAL_DIRECTORY_KEPT: {
+    en: 'Removed from the library. The folder under raw/ was kept: {path} — delete it by hand only if you no longer need it.',
+    zh: '已从图库移除。raw 下的文件夹已保留：{path}，如不再需要请自行手动删除。',
+    ja: 'ライブラリから削除しました。raw/ のフォルダは残しています：{path}。不要な場合のみ手動で削除してください。',
   },
   WARN_IMAGE_PATH_INVALID: {
     en: 'Cannot resolve the image path: {path}',
@@ -942,6 +962,11 @@ export const MESSAGES = {
     en: 'panels detected by {version}',
     zh: '按 {version} 切格',
     ja: '{version} でコマ分割',
+  },
+  HISTORY_DETECT_RESET: {
+    en: 'cleared {count} auto-detected panel(s)',
+    zh: '已清除 {count} 个自动分格',
+    ja: '自動検出のコマを {count} 件削除',
   },
   HISTORY_BEFORE_RESTORE: {
     en: 'state before restore',

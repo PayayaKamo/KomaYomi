@@ -4,6 +4,7 @@ import { PNG } from 'pngjs';
 import type { DetectResult, PanelRect, ReadingDirection } from '../shared/types.ts';
 import { sortReadingOrder } from '../shared/panelOrder.ts';
 import { AppError } from './errors.ts';
+import { decodeWebpRgba } from './webp.ts';
 
 type Gray = { width: number; height: number; data: Uint8Array };
 export type RgbaImage = { width: number; height: number; data: Uint8Array | Buffer };
@@ -25,6 +26,10 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
   const format = sniffFormat(buf);
   if (format === 'png' && buf.length >= 24) {
     return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (format === 'webp') {
+    const size = webpSize(buf);
+    if (size) return size;
   }
   if (format === 'jpeg') {
     let i = 2;
@@ -50,6 +55,35 @@ export function imageSize(buf: Buffer, filename: string): { width: number; heigh
   return { width: decoded.width, height: decoded.height };
 }
 
+/** Read WebP dimensions from the VP8X/VP8/VP8L chunk header without decoding pixels. */
+function webpSize(buf: Buffer): { width: number; height: number } | null {
+  if (buf.length < 30) return null;
+  const kind = buf.toString('ascii', 12, 16);
+  if (kind === 'VP8X') {
+    return {
+      width: 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16)),
+      height: 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16)),
+    };
+  }
+  if (kind === 'VP8 ' && buf[23] === 0x9d && buf[24] === 0x01 && buf[25] === 0x2a) {
+    return {
+      width: (buf[26] | (buf[27] << 8)) & 0x3fff,
+      height: (buf[28] | (buf[29] << 8)) & 0x3fff,
+    };
+  }
+  if (kind === 'VP8L' && buf[20] === 0x2f) {
+    const b0 = buf[21];
+    const b1 = buf[22];
+    const b2 = buf[23];
+    const b3 = buf[24];
+    return {
+      width: 1 + (b0 | ((b1 & 0x3f) << 8)),
+      height: 1 + ((b1 >> 6) | (b2 << 2) | ((b3 & 0x0f) << 10)),
+    };
+  }
+  return null;
+}
+
 /** Decode an image to grayscale (RGBA -> luminance); throws on failure. */
 export function decodeGray(buf: Buffer, filename: string): Gray {
   const { width, height, data: rgba } = decodeRgba(buf, filename);
@@ -64,8 +98,12 @@ export function decodeGray(buf: Buffer, filename: string): Gray {
 export function decodeRgba(buf: Buffer, filename: string): RgbaImage {
   const ext = path.extname(filename).toLowerCase();
   const format = sniffFormat(buf);
-  const effective = format === 'unknown' ? (ext === '.png' ? 'png' : 'jpeg') : format;
+  const effective = format === 'unknown' ? (ext === '.png' ? 'png' : ext === '.webp' ? 'webp' : 'jpeg') : format;
 
+  if (effective === 'webp') {
+    const img = decodeWebpRgba(buf);
+    return { width: img.width, height: img.height, data: img.data };
+  }
   if (effective === 'png') {
     const png = PNG.sync.read(buf);
     return { width: png.width, height: png.height, data: png.data };

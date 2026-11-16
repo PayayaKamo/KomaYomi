@@ -4,6 +4,7 @@ import path from 'node:path';
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import { sniffFormat } from './detect.ts';
+import { decodeWebpRgba } from './webp.ts';
 import { AppError } from './errors.ts';
 
 type Decoded = { width: number; height: number; rgba: Uint8Array | Buffer };
@@ -17,6 +18,14 @@ function decode(buf: Buffer): Decoded {
   if (fmt === 'jpeg') {
     const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true });
     return { width: img.width, height: img.height, rgba: img.data as Uint8Array };
+  }
+  if (fmt === 'webp') {
+    try {
+      const img = decodeWebpRgba(buf);
+      return { width: img.width, height: img.height, rgba: img.data };
+    } catch {
+      throw new AppError('ERR_THUMB_UNSUPPORTED', {}, 415);
+    }
   }
   throw new AppError('ERR_THUMB_UNSUPPORTED', {}, 415);
 }

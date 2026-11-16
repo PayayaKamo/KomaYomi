@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AlignmentType, Document, HeadingLevel, ImageRun, Packer, Paragraph, TextRun } from 'docx';
-import { decodeGray, sortReadingOrder } from './detect.ts';
+import { PNG } from 'pngjs';
+import { imageSize, sortReadingOrder, sniffFormat } from './detect.ts';
+import { decodeWebpRgba } from './webp.ts';
 import { readPageDoc } from './storage.ts';
 import { applyGroupOrder } from '../shared/panelOrder.ts';
 import type { ExportConfig, Library, Note, PageDoc } from '../shared/types.ts';
@@ -65,6 +67,24 @@ function imageKind(head: Buffer, ext: string): ImageKind | null {
   if (head[0] === 0x42 && head[1] === 0x4d) return 'bmp';
   if (ext === '.png') return 'png';
   if (ext === '.jpg' || ext === '.jpeg') return 'jpg';
+  return null;
+}
+
+type WordImage = { type: ImageKind; data: Buffer; width: number; height: number };
+
+/** Word cannot embed WebP, so those pages are decoded and re-encoded as PNG first. */
+function wordImage(buffer: Buffer, ext: string): WordImage | null {
+  const kind = imageKind(buffer.subarray(0, 4), ext);
+  if (kind) {
+    const { width, height } = imageSize(buffer, ext || 'image.png');
+    return width && height ? { type: kind, data: buffer, width, height } : null;
+  }
+  if (sniffFormat(buffer) === 'webp') {
+    const image = decodeWebpRgba(buffer);
+    const png = new PNG({ width: image.width, height: image.height });
+    png.data = Buffer.from(image.data);
+    return { type: 'png', data: PNG.sync.write(png), width: image.width, height: image.height };
+  }
   return null;
 }
 
@@ -182,19 +202,20 @@ function noteParagraphs(notes: Note[], filterTags: string[]): Paragraph[] {
       if (comma < 0) continue;
       const buffer = Buffer.from(image.dataUrl.slice(comma + 1), 'base64');
       if (!buffer.length) continue;
-      const kind = imageKind(buffer.subarray(0, 4), '');
-      if (!kind) continue;
       try {
-        const { width, height } = decodeGray(buffer, 'note.png');
-        if (!width || !height) continue;
-        const scale = Math.min(320 / width, 240 / height, 1);
+        const image = wordImage(buffer, '');
+        if (!image) continue;
+        const scale = Math.min(320 / image.width, 240 / image.height, 1);
         out.push(
           new Paragraph({
             children: [
               new ImageRun({
-                type: kind,
-                data: buffer,
-                transformation: { width: Math.round(width * scale), height: Math.round(height * scale) },
+                type: image.type,
+                data: image.data,
+                transformation: {
+                  width: Math.round(image.width * scale),
+                  height: Math.round(image.height * scale),
+                },
               }),
             ],
             spacing: { before: 60, after: 60 },
@@ -317,12 +338,10 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
       try {
         const buffer = fs.readFileSync(file);
         if (staged) fs.rmSync(staged, { force: true });
-        const kind = staged ? 'png' : imageKind(buffer.subarray(0, 4), path.extname(file).toLowerCase());
-        if (!kind) continue;
-        const { width, height } = decodeGray(buffer, file);
-        if (!width || !height) continue;
+        const image = wordImage(buffer, staged ? '' : path.extname(file).toLowerCase());
+        if (!image) continue;
         if (staged) baked++;
-        const scale = Math.min(IMAGE_WIDTH / width, IMAGE_MAX_HEIGHT / height, 1);
+        const scale = Math.min(IMAGE_WIDTH / image.width, IMAGE_MAX_HEIGHT / image.height, 1);
         children.push(
           new Paragraph({
             children: [new TextRun({ text: langName(language), bold: true, size: 20, color: '6B7280' })],
@@ -333,9 +352,12 @@ export async function exportChapterDocx({ rootDir, dataRoot, exportRoot, config,
           new Paragraph({
             children: [
               new ImageRun({
-                type: kind,
-                data: buffer,
-                transformation: { width: Math.round(width * scale), height: Math.round(height * scale) },
+                type: image.type,
+                data: image.data,
+                transformation: {
+                  width: Math.round(image.width * scale),
+                  height: Math.round(image.height * scale),
+                },
               }),
             ],
             alignment: AlignmentType.CENTER,

@@ -21,6 +21,7 @@ import { requireChapter } from './pageTargets.ts';
 import { assertSafeSegment, resolveWithin } from './pathSafety.ts';
 import { AppError } from './errors.ts';
 import { sniffFormat } from './detect.ts';
+import { decodeWebpRgba } from './webp.ts';
 import { historyFilePath } from './pageHistory.ts';
 import { pageFilePath, readPageDoc, writePageDoc } from './storage.ts';
 import { writeJsonFile } from './schemaStore.ts';
@@ -404,6 +405,11 @@ function decodeImage(buffer: Buffer): DecodedImage | null {
     const image = jpeg.decode(buffer, { useTArray: true, formatAsRGBA: true });
     return { width: image.width, height: image.height, rgba: image.data as Uint8Array, format: 'jpeg' };
   }
+  if (format === 'webp') {
+    // WebP has no encoder here, so split halves are written as PNG.
+    const image = decodeWebpRgba(buffer);
+    return { width: image.width, height: image.height, rgba: image.data, format: 'png' };
+  }
   return null;
 }
 
@@ -551,11 +557,7 @@ export function splitPage(rawRoot: string, dataRoot: string, input: SplitInput):
     }
     const decoded = decodeImage(fs.readFileSync(source));
     if (!decoded) {
-      throw new AppError(
-        'ERR_UNSUPPORTED_IMAGE_FORMAT',
-        { format: 'webp/gif/avif/bmp', ext: path.extname(source) },
-        415,
-      );
+      throw new AppError('ERR_UNSUPPORTED_IMAGE_FORMAT', { format: 'gif/avif/bmp', ext: path.extname(source) }, 415);
     }
     const ext = decoded.format === 'png' ? '.png' : '.jpg';
     const base = path.basename(source, path.extname(source));

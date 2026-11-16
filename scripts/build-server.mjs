@@ -2,6 +2,7 @@
 // Two entries share the same output folder:
 //   app.mjs        loaded by electron/main.cjs
 //   standalone.mjs used by Docker and `npm start`
+import fs from 'node:fs';
 import { build } from 'esbuild';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,3 +25,11 @@ await build({
     js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
   },
 });
+
+// webp-wasm loads its WebAssembly binary relative to the decoder script, so the two files
+// are copied next to the bundle instead of being inlined. `server/webp.ts` looks for them
+// here first and falls back to node_modules when the server runs from source.
+const outDir = path.join(root, 'dist-server');
+const webpDir = path.join(root, 'node_modules', 'webp-wasm');
+fs.copyFileSync(path.join(webpDir, 'webp_node_dec.js'), path.join(outDir, 'webp_node_dec.cjs'));
+fs.copyFileSync(path.join(webpDir, 'webp_node_dec.wasm'), path.join(outDir, 'webp_node_dec.wasm'));

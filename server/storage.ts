@@ -249,6 +249,8 @@ export type WriteMeta = {
   source?: HistorySource;
   /** Used by restore, which snapshots the previous state itself. */
   skipHistory?: boolean;
+  /** Clear detection metadata (used when auto-detected panels are removed in bulk). */
+  clearDetect?: boolean;
 };
 
 const rectKey = (p: Panel) =>
@@ -313,7 +315,11 @@ export function writePageDoc(dataRoot: string, doc: PageDoc, meta?: WriteMeta): 
   const normalized = normalizeDoc(doc);
   const now = new Date().toISOString();
 
-  if (meta?.detect) {
+  if (meta?.clearDetect) {
+    delete normalized.detectorVersion;
+    delete normalized.detectedAt;
+    delete normalized.detectSource;
+  } else if (meta?.detect) {
     normalized.detectorVersion = meta.detect.version;
     normalized.detectedAt = now;
     normalized.detectSource = meta.detect.source;
