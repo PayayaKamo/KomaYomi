@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { applyPreprocess, restorePreprocess } from '../../server/preprocess.ts';
-import { readLibraryConfig } from '../../server/library.ts';
+import { createLibrary, readLibraryConfig } from '../../server/library.ts';
 import { makeTempDir, removeDir, writeFiles } from '../helpers/tmp.ts';
 
 const dirs: string[] = [];
@@ -44,6 +44,29 @@ describe('applyPreprocess', () => {
   it('rejects a volume that is not on disk', () => {
     const { rawRoot, dataRoot } = seed();
     expect(() => applyPreprocess(rawRoot, dataRoot, { volume: 'Missing' })).toThrow();
+  });
+
+  it('resolves a volume nested under a series folder', () => {
+    const root = makeTempDir('preprocess-nested');
+    dirs.push(root);
+    writeFiles(root, [
+      'raw/Series/Vol1/ja/199/01.png',
+      'raw/Series/Vol1/zh-hk/199/01.webp',
+      'raw/Series/Vol1/extras/199/01.png',
+    ]);
+    const rawRoot = path.join(root, 'raw');
+    const dataRoot = path.join(root, 'data');
+
+    applyPreprocess(rawRoot, dataRoot, { volume: 'Vol1', dirs: { ja: 'ja', zh: 'zh-hk' } });
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.dirs).toEqual({ ja: 'ja', zh: 'zh-hk' });
+    const volume = createLibrary(rawRoot, dataRoot).volumes.find((v) => v.id === 'Vol1');
+    expect(volume?.langDirs).toMatchObject({ ja: 'ja', zh: 'zh-hk' });
+
+    // Directory names are checked against the nested volume folder.
+    applyPreprocess(rawRoot, dataRoot, { volume: 'Vol1', dirs: { ja: 'extras' } });
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.dirs).toEqual({ ja: 'extras' });
+    expect(() => applyPreprocess(rawRoot, dataRoot, { volume: 'Vol1', dirs: { ja: 'nope' } })).not.toThrow();
+    expect(readLibraryConfig(dataRoot).volumes?.Vol1?.dirs).toBeUndefined();
   });
 });
 
