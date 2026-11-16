@@ -2,7 +2,7 @@
   "name": "koma-yomi",
   "productName": "KomaYomi",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "KomaYomi — a local-first manga panel reader for language study. Read, align and annotate Japanese, Chinese and English editions panel by panel.",
   "author": "PayayaKamo",

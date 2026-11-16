@@ -29,7 +29,7 @@ Every persisted or exchanged JSON file except the project manifest starts with t
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
   "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "1.0.1"
+  "appVersion": "1.1.0"
 }
 ```
 
@@ -51,7 +51,7 @@ Path: `data/pages/<volume>/<chapter>/<pageIndex>.json`
   "$schema": "https://manga-memo.dev/schemas/page.schema.json",
   "schemaVersion": 2,
   "kind": "page",
-  "appVersion": "1.0.1",
+  "appVersion": "1.1.0",
   "volume": "点兔第14卷",
   "chapter": "172",
   "pageIndex": 0,
@@ -225,7 +225,7 @@ assets/<sha1>.<ext>          (packaged mode only)
 {
   "$schema": "https://manga-memo.dev/schemas/mnproj.schema.json",
   "schemaVersion": 2,
-  "appVersion": "1.0.1",
+  "appVersion": "1.1.0",
   "createdAt": "2026-05-12T10:00:00.000Z",
   "updatedAt": "2026-05-12T10:00:00.000Z",
   "storageMode": "reference",
@@ -414,7 +414,7 @@ The thumbnail cache (`data/cache/`) and `.tmp` / `.log` files are excluded. Rest
   "$schema": "https://manga-memo.dev/schemas/mnconfig.schema.json",
   "schemaVersion": 1,
   "kind": "mnconfig",
-  "appVersion": "1.0.1",
+  "appVersion": "1.1.0",
   "noteTypes": [
     { "id": "proofread", "name": "Proofreading", "color": "#3f9e7a" }
   ],

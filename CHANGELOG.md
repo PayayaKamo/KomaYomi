@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-16
+
+### Added
+
+- Saving writes back to the `.mnproj` you opened: every page save is packed and written to that
+  exact file (atomic temp-file replace), and the top bar shows the linked project, the last
+  write-back time, queued edits and failures with a retry button.
+- File menu "Save to project file" and "Save as…": `Ctrl/Cmd+S` writes back immediately,
+  `Shift+Ctrl/Cmd+S` packs a standalone copy through the native save dialog. Saving over the file
+  that is currently open is refused with `ERR_PROJECT_SAVE_AS_LINKED`.
+- In-memory undo/redo for notes, annotations and panels (`Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`) plus an
+  operation-history dialog that lists every undoable step on the page and jumps back several
+  steps at once.
+- Full-screen image viewer: right-click a panel image in the compare, detail or original view to
+  open it enlarged, with drag-to-pan, scroll zoom, 1:1 reset, arrow keys to walk the images in
+  reading order and `Esc` to close.
+- Panel detail view: a draggable split between artwork and notes, side-by-side or stacked page
+  layout, horizontal or vertical language panes, per-language fine-tune alignment with a "sync
+  move" toggle, Fit width / reset view, and a zoom level remembered per language.
+- Annotations can be scoped per language (isolated) or shared across every language, and the
+  canvas right-click menu exposes scope, delete and enlarge; `Ctrl/Cmd+Enter` finishes a text
+  annotation.
+- Note editing is a single shared session: the sidebar composer, the detail composer and the
+  in-cell inline editor hand the live draft over instead of dropping it, and note-type chips use
+  their category colour in every list.
+- Notes can carry a pin on the artwork (page schema v4): the anchor is stored with the note,
+  removed pins stay removed, and old pages keep working through the migration chain.
+
+### Changed
+
+- Compare toolbar and annotation bar are regrouped (languages and view, alignment, mask, drag
+  scope, tools, brush) and fold secondary actions into overflow menus on narrow widths.
+- After a page or panel change the compare view centres the selected panel once the new page has
+  rendered.
+- Dialogs trap focus and hand it back to the trigger, and keyboard shortcuts (undo, export, view
+  switches, page turns) no longer fire behind an open dialog.
+- Annotation strokes snap to horizontal, vertical and 45° while `Shift` is held, and the brush
+  popover gained a line-width setting that is remembered locally.
+
 ### Fixed
 
 - Re-detecting a page or applying a panel template no longer drops panel-scoped notes when the
