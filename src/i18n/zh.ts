@@ -438,8 +438,8 @@ export const zh = {
 
   /* ---- reading directions ---- */
   'reading.enterTitle': '阅读模式（R）',
-  'reading.exit': '退出阅读模式',
-  'reading.exitTitle': '退出阅读模式（Esc）',
+  'reading.exitHint': '按 Esc 退出 · R 可切换',
+  'reading.exitHintTouch': '双击空白处退出',
   'reading.rtl': '从右到左 · 从上到下',
   'reading.ltr': '从左到右 · 从上到下',
   'reading.ttb': '从右到左 · 竖排',

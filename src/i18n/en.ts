@@ -450,8 +450,8 @@ export const en = {
 
   /* ---- reading directions ---- */
   'reading.enterTitle': 'Reading mode (R)',
-  'reading.exit': 'Exit reading mode',
-  'reading.exitTitle': 'Exit reading mode (Esc)',
+  'reading.exitHint': 'Press Esc to exit · R toggles',
+  'reading.exitHintTouch': 'Double-tap empty space to exit',
   'reading.rtl': 'Right to left · top to bottom',
   'reading.ltr': 'Left to right · top to bottom',
   'reading.ttb': 'Right to left · vertical',

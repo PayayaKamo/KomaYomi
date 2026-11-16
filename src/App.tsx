@@ -76,6 +76,8 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(() => window.innerWidth > 1180);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 1024);
   const [readingMode, setReadingMode] = useState(readReadingMode);
+  const [readingHint, setReadingHint] = useState(false);
+  const readingHintTimer = useRef<number | undefined>(undefined);
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() =>
     loadPaneWidth(SIDEBAR_PANE.key, SIDEBAR_PANE.min, SIDEBAR_PANE.max),
   );
@@ -136,12 +138,53 @@ export default function App() {
   /** Flip reading mode and remember it for the next visit. */
   const setReadingModePersisted = useCallback((next: boolean) => {
     setReadingMode(next);
+    window.clearTimeout(readingHintTimer.current);
+    if (next) {
+      // A short-lived tip instead of a permanent floating button.
+      setReadingHint(true);
+      readingHintTimer.current = window.setTimeout(() => setReadingHint(false), 2800);
+    } else {
+      setReadingHint(false);
+    }
     try {
       localStorage.setItem(READING_MODE_KEY, next ? '1' : '0');
     } catch {
       /* private mode: the choice just lasts for this session */
     }
   }, []);
+
+  useEffect(() => () => window.clearTimeout(readingHintTimer.current), []);
+
+  // No chrome is visible in reading mode, so double-click (or double-tap on touch) on
+  // empty stage space also leaves it; R and Esc remain the keyboard paths.
+  useEffect(() => {
+    if (!readingMode) return;
+    const isInteractive = (target: EventTarget | null) => {
+      const el = target instanceof Element ? target : null;
+      if (!el?.closest('.stage')) return true;
+      return Boolean(el.closest('button, a, input, textarea, select, .shot, .panel-card, .lang-grid, .panel-detail'));
+    };
+    let lastTap = 0;
+    const onTouchEnd = (e: TouchEvent) => {
+      if (isInteractive(e.target)) return;
+      const now = Date.now();
+      if (now - lastTap < 320) {
+        lastTap = 0;
+        setReadingModePersisted(false);
+      } else {
+        lastTap = now;
+      }
+    };
+    const onDoubleClick = (e: MouseEvent) => {
+      if (!isInteractive(e.target)) setReadingModePersisted(false);
+    };
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('dblclick', onDoubleClick);
+    return () => {
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('dblclick', onDoubleClick);
+    };
+  }, [readingMode, setReadingModePersisted]);
 
   // Keep the palette in sync with the stored preference and with OS changes when the
   // user picked "system". index.html already applied it before paint, so this only
@@ -784,15 +827,10 @@ export default function App() {
         />
       </div>
 
-      {readingMode && (
-        <button
-          type="button"
-          className="reading-exit"
-          onClick={() => setReadingModePersisted(false)}
-          title={t('reading.exitTitle')}
-        >
-          <span aria-hidden="true">×</span> {t('reading.exit')}
-        </button>
+      {readingMode && readingHint && (
+        <div className="reading-toast" role="status">
+          {t(navigator.maxTouchPoints > 0 ? 'reading.exitHintTouch' : 'reading.exitHint')}
+        </div>
       )}
 
       <ExportDialog

@@ -446,8 +446,8 @@ export const ja = {
 
   /* ---- reading directions ---- */
   'reading.enterTitle': '閲覧モード（R）',
-  'reading.exit': '閲覧モードを終了',
-  'reading.exitTitle': '閲覧モードを終了（Esc）',
+  'reading.exitHint': 'Esc で終了 · R で切り替え',
+  'reading.exitHintTouch': '空白部分をダブルタップで終了',
   'reading.rtl': '右から左 · 上から下',
   'reading.ltr': '左から右 · 上から下',
   'reading.ttb': '右から左 · 縦書き',
