@@ -3075,6 +3075,20 @@ body.pane-resizing * {
     min-height: 30px;
     padding-block: 4px;
   }
+
+  .note-hit-toggle {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .note-hit-type {
+    max-width: 38%;
+    padding: 0 6px;
+  }
+
+  .note-hit-where {
+    padding: 6px 6px 6px 2px;
+  }
 }
 
 .notes-compose {
@@ -4165,6 +4179,26 @@ body.pane-resizing * {
   background: var(--info-soft);
   border-bottom: 1px solid rgba(90, 169, 255, 0.25);
   color: var(--info-text);
+}
+
+/* Built-in demo: keep the exit action on the same row so it never wraps into the page. */
+.banner.demo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--info-soft);
+  border-bottom: 1px solid rgba(90, 169, 255, 0.25);
+  color: var(--info-text);
+}
+.banner.demo > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.banner.demo .btn {
+  flex-shrink: 0;
 }
 
 .banner.floating {
@@ -5693,61 +5727,117 @@ kbd {
 .notes-list {
   flex: 1;
   overflow: auto;
-  padding: 0 8px;
-  position: relative;
-}
-.virtual-space {
+  padding: 6px 8px 16px;
   position: relative;
 }
 .note-group-head {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  height: 30px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0 -8px;
+  padding: 6px 12px;
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--accent);
   border-bottom: 1px solid var(--line);
   background: var(--panel);
-  z-index: 1;
 }
 .note-group-head span {
   margin-left: auto;
   color: var(--muted);
 }
 .note-hit {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  height: 92px;
-  overflow: hidden;
-  padding: 6px 8px;
+  margin-top: 6px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--panel-2);
+  overflow: hidden;
 }
-.note-hit-jump {
+.note-hit.open {
+  border-color: var(--line);
+}
+.note-hit-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+.note-hit-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.note-hit-toggle:hover {
+  background: var(--panel-3);
+}
+.note-hit-type {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--type-color, var(--accent));
+  border: 1px solid color-mix(in srgb, var(--type-color, var(--accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--type-color, var(--accent)) 12%, transparent);
+}
+.note-hit-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+.note-hit-where {
+  flex: none;
+  padding: 7px 8px 7px 4px;
   border: 0;
   background: none;
   color: var(--blue);
-  padding: 0;
-  font-size: 11px;
+  font-size: 10.5px;
+  white-space: nowrap;
   cursor: pointer;
 }
-.note-hit-text {
-  margin-top: 3px;
-  color: var(--text);
+.note-hit-where:hover {
+  text-decoration: underline;
+}
+.note-hit-body {
+  padding: 7px 10px 9px;
+  border-top: 1px dashed var(--line-soft);
+}
+.note-hit-full {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.5;
+  color: var(--text);
 }
 .note-hit-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
+  margin-top: 6px;
+}
+.note-hit mark {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
 }
 .md-editor {
   border: 1px solid var(--line);
