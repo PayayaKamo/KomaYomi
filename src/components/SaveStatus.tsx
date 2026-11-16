@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { api } from '../api';
 import type { ProjectLinkStatus } from '../api';
 import { formatBytes, formatDate, useI18n } from '../i18n';
+import { saveProjectCopy } from '../lib/projectCopy';
 
 type Props = {
   dirty: boolean;
@@ -139,27 +140,18 @@ export function SaveStatus({ dirty, saving, saveMode, readOnly = false, onSavePa
 
   /** Guidance when nothing is linked: keep a standalone copy without touching any file. */
   const saveAs = useCallback(async () => {
-    const desktop = window.mangaDesktop;
-    if (!desktop) {
-      setNotice({ kind: 'error', text: t('file.saveAsBrowser') });
-      return;
-    }
     const suggested = link?.name || `komayomi-${new Date().toISOString().slice(0, 10)}`;
-    const target = await desktop.saveProjectFile(t('file.saveAsTitle'), suggested);
-    if (!target) return;
     setBusy('saveAs');
     setNotice(null);
-    try {
-      const name = (target.split(/[\\/]/).pop() ?? '').replace(/\.mnproj$/i, '') || undefined;
-      const res = await api.saveProjectAs({ path: target, mode: 'packaged', name });
-      setNotice({ kind: 'info', text: t('file.saveAsDone', { path: res.path, size: formatBytes(res.size) }) });
-    } catch (err) {
-      setNotice({
-        kind: 'error',
-        text: `${t('file.saveAsFailed')}: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    } finally {
-      setBusy(null);
+    const out = await saveProjectCopy({ title: t('file.saveAsTitle'), suggestedName: suggested });
+    setBusy(null);
+    if (out.kind === 'canceled') return;
+    if (out.kind === 'saved') {
+      setNotice({ kind: 'info', text: t('file.saveAsDone', { path: out.path, size: formatBytes(out.size) }) });
+    } else if (out.kind === 'downloaded') {
+      setNotice({ kind: 'info', text: t('file.saveAsDownloaded', { file: out.file }) });
+    } else {
+      setNotice({ kind: 'error', text: `${t('file.saveAsFailed')}: ${out.message}` });
     }
   }, [link?.name, t]);
 

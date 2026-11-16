@@ -6,6 +6,7 @@ import { formatBytes, formatDate, useI18n } from '../i18n';
 import { api } from '../api';
 import type { ProjectLinkStatus } from '../api';
 import { clearRecent, pushRecent, readRecent, removeRecent } from '../lib/recent';
+import { saveProjectCopy } from '../lib/projectCopy';
 import { volumeLabel as volumeLabelOf } from '../lib/volumeLabel';
 import type { RecentPage } from '../lib/recent';
 import { AddVolumeDialog } from './LibraryDialogs';
@@ -117,31 +118,24 @@ export function FileMenu({
     }
   }, [link?.linked, readOnly, refreshLink, t]);
 
-  /** Pack the whole library into a new .mnproj at a path the user picks — never the opened file. */
+  /**
+   * Pack the whole library into a new .mnproj — never the opened file.
+   * Desktop asks for a path, the browser downloads the packed copy instead.
+   */
   const saveAsCopy = useCallback(async () => {
     if (readOnly) return;
-    const desktop = window.mangaDesktop;
-    if (!desktop) {
-      setOpen(true);
-      setNotice({ kind: 'error', text: t('file.saveAsBrowser') });
-      return;
-    }
     const suggested = link?.name || `komayomi-${new Date().toISOString().slice(0, 10)}`;
-    const target = await desktop.saveProjectFile(t('file.saveAsTitle'), suggested);
-    if (!target) return;
     setFileBusy('saveAs');
     setNotice(null);
-    try {
-      const name = (target.split(/[\\/]/).pop() ?? '').replace(/\.mnproj$/i, '') || undefined;
-      const res = await api.saveProjectAs({ path: target, mode: 'packaged', name });
-      setNotice({ kind: 'info', text: t('file.saveAsDone', { path: res.path, size: formatBytes(res.size) }) });
-    } catch (err) {
-      setNotice({
-        kind: 'error',
-        text: `${t('file.saveAsFailed')}: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    } finally {
-      setFileBusy(null);
+    const out = await saveProjectCopy({ title: t('file.saveAsTitle'), suggestedName: suggested });
+    setFileBusy(null);
+    if (out.kind === 'canceled') return;
+    if (out.kind === 'saved') {
+      setNotice({ kind: 'info', text: t('file.saveAsDone', { path: out.path, size: formatBytes(out.size) }) });
+    } else if (out.kind === 'downloaded') {
+      setNotice({ kind: 'info', text: t('file.saveAsDownloaded', { file: out.file }) });
+    } else {
+      setNotice({ kind: 'error', text: `${t('file.saveAsFailed')}: ${out.message}` });
     }
   }, [link?.name, readOnly, t]);
 
