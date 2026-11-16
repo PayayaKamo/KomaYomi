@@ -11,7 +11,13 @@ import type {
   ReadingDirection,
 } from '../shared/types.ts';
 import { DEFAULT_NOTE_TYPE, DEFAULT_OFFSET } from '../shared/types.ts';
-import { preserveUnknown, prepareExchange, readReadingDirection, validateExchange } from '../shared/format.ts';
+import {
+  CURRENT_SCHEMA_VERSION,
+  preserveUnknown,
+  prepareExchange,
+  readReadingDirection,
+  validateExchange,
+} from '../shared/format.ts';
 import type { HistorySource } from '../shared/format.ts';
 import {
   archiveUnreadableFile,
@@ -42,7 +48,7 @@ export function pageFilePath(dataRoot: string, volume: string, chapter: string, 
 
 export function createEmptyDoc(volume: string, chapter: string, pageIndex: number): PageDoc {
   return {
-    schemaVersion: 2,
+    schemaVersion: CURRENT_SCHEMA_VERSION.page,
     volume,
     chapter,
     pageIndex,
@@ -200,13 +206,16 @@ function normalizeDoc(input: PageDoc): PageDoc {
       fontSize: Number.isFinite(a.fontSize) ? Number(a.fontSize) : undefined,
       anchor: normalizeAnchor(a.anchor),
       showLeader: a.showLeader === false ? false : undefined,
+      lang: typeof a.lang === 'string' && a.lang.trim() ? a.lang : undefined,
+      // Old marks have no lane at all: they stay shared instead of disappearing (see migratePageV2).
+      allLangs: a.allLangs === true || !(typeof a.lang === 'string' && a.lang.trim()) ? true : undefined,
       createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString(),
       updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : new Date().toISOString(),
     }))
     .filter((a) => a.points.length > 0);
 
   return {
-    schemaVersion: 2,
+    schemaVersion: CURRENT_SCHEMA_VERSION.page,
     volume: String(input.volume ?? ''),
     chapter: String(input.chapter ?? ''),
     pageIndex: Number(input.pageIndex) || 0,

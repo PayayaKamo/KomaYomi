@@ -97,6 +97,8 @@ export type ProjectInspect = {
   pages: number;
   notes: number;
   annotations: number;
+  /** Free-form note stored in the manifest. */
+  notesText?: string;
   volumes: string[];
   chapters: number;
   images: number;
@@ -123,6 +125,34 @@ export type ProjectImport = {
   migratedFrom?: number;
   warnings: string[];
   library: Library;
+  /** Present on import/open responses: whether saves now write back to a file. */
+  link?: ProjectLinkStatus;
+};
+
+/** The .mnproj the user opened; while linked, every save is written back into it. */
+export type ProjectLinkStatus = {
+  linked: boolean;
+  path?: string;
+  storageMode?: ProjectMode;
+  name?: string;
+  notes?: string;
+  createdAt?: string;
+  linkedAt?: string;
+  lastWriteAt?: string;
+  lastWriteSize?: number;
+  /** An edit has not been written back yet. */
+  pending: boolean;
+  /** Automatic write-back stopped after a failure; save manually to resume. */
+  paused: boolean;
+  lastError?: string;
+};
+
+export type ProjectWriteBack = {
+  path: string;
+  size: number;
+  sha1: string;
+  at: string;
+  backup: string | null;
 };
 
 /* ---- Scheduled local backups ---- */
@@ -390,6 +420,24 @@ export const api = {
     });
   },
 
+  /** Which .mnproj (if any) receives write-backs, plus pending/error state. */
+  projectLink: () => request<ProjectLinkStatus>('/api/project/link'),
+
+  /** Inspect a project file by absolute path (desktop picker) without importing it. */
+  inspectProjectPath: (path: string) =>
+    request<{ path: string; info: ProjectInspect }>('/api/project/open/inspect', json({ path })),
+
+  /** Open a project file by path; afterwards every save is written back into it. */
+  openProjectPath: (input: { path: string; conflict: ProjectConflict; relinkDir?: string }) =>
+    request<ProjectImport & { info: ProjectInspect }>('/api/project/open', json(input)),
+
+  /** Force a write-back now (also resumes automatic write-back after a failure). */
+  saveProjectFile: () =>
+    request<{ result: ProjectWriteBack | null; link: ProjectLinkStatus }>('/api/project/save', json({})),
+
+  /** Stop writing back to the opened file (the working copy in data/ is kept). */
+  unlinkProject: () => request<{ removed: boolean; link: ProjectLinkStatus }>('/api/project/unlink', json({})),
+
   page: (volume: string, chapter: string, index: number) =>
     request<PageResponse>(
       `/api/page?volume=${encodeURIComponent(volume)}&chapter=${encodeURIComponent(chapter)}&index=${index}`,
@@ -458,6 +506,16 @@ export const api = {
   /** Stage one browser-composited page PNG for the Word export. */
   stageExportImage: (input: { id: string; key: string; dataUrl: string }) =>
     request<{ ok: true; bytes: number }>('/api/export/annotation-image', json(input)),
+
+  /** Write one browser-rendered share image into `<exports>/<dir>/<name>`. */
+  saveShareImage: (input: { dir: string; name: string; data: Blob }) => {
+    const query = new URLSearchParams({ dir: input.dir, name: input.name });
+    return request<{ file: string; url: string; bytes: number }>(`/api/export/share-image?${query.toString()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: input.data,
+    });
+  },
 
   /* ---- Panel templates ---- */
   panelTemplates: () => request<{ templates: PanelTemplate[] }>('/api/panel-templates'),

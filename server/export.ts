@@ -7,7 +7,7 @@ import { readPageDoc } from './storage.ts';
 import { renderMarkdown } from '../shared/markdown.ts';
 import { applyGroupOrder } from '../shared/panelOrder.ts';
 import { mosaicBlockSize } from '../shared/mosaic.ts';
-import { annotationLeader } from '../shared/annotations.ts';
+import { annotationsForLang, annotationLeader } from '../shared/annotations.ts';
 import type {
   AlignOffset,
   Annotation,
@@ -219,8 +219,9 @@ function mosaicPatch(img: RgbaImage, region: PanelRect): Buffer | null {
  * Coordinates follow the UI convention: page scope is 0..1 of the whole page, panel scope is 0..1 inside that panel;
  * stroke widths scale with page width and font sizes with page height, so proportions stay correct when cropping at a larger scale.
  */
-function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number): string {
-  const annotations = doc.annotations ?? [];
+function annotationSvg(doc: PageDoc, view: PanelRect, pageAspect: number, lang: string): string {
+  // Marks are drawn per language, so a crop only carries its own lane (plus shared marks).
+  const annotations = annotationsForLang(doc.annotations ?? [], lang);
   // The visibility switch on the panel editor also controls exports.
   if (doc.annotationsVisible === false || !annotations.length) return '';
 
@@ -569,9 +570,9 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
       return src;
     };
 
-    /** Mosaic overlays positioned in page percentages, clipped by the parent. */
+    /** Mosaic overlays positioned in page percentages, clipped by the parent. One lane only. */
     const mosaicOverlay = (view: PanelRect, lang: string): string =>
-      mosaics
+      annotationsForLang(mosaics, lang)
         .map((a, order) => {
           const rect = annotationRegion(a, doc);
           const style = `left:${num(((rect.x - view.x) / view.w) * 100)}%;top:${num(
@@ -613,7 +614,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
                 <div class="crop lang-${lang}" style="${cropStyle(eff, langAspect)}">${mosaicOverlay(
                   eff,
                   lang,
-                )}${annotationSvg(doc, eff, langAspect)}</div>
+                )}${annotationSvg(doc, eff, langAspect, lang)}</div>
               </div>`;
             })
             .join('');
@@ -641,7 +642,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     } else if (config.template === 'stack') {
       const mainLang = config.languages[0];
       const mainImg = images[mainLang];
-      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height) : '';
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, mainLang) : '';
       const mosaicPage = mainImg ? mosaicOverlay(PAGE_RECT, mainLang) : '';
       const shot = mainImg
         ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(
@@ -655,7 +656,7 @@ export async function exportChapter({ rootDir, dataRoot, exportRoot, config, lib
     } else {
       const mainLang = config.languages[0];
       const mainImg = images[mainLang];
-      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height) : '';
+      const annPage = mainImg ? annotationSvg(doc, PAGE_RECT, mainImg.width / mainImg.height, mainLang) : '';
       const mosaicPage = mainImg ? mosaicOverlay(PAGE_RECT, mainLang) : '';
       const shot = mainImg
         ? `<div class="shot"><img src="${mainImg.url}" alt="${esc(

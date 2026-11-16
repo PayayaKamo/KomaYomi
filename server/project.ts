@@ -98,6 +98,8 @@ export type ProjectInspectResult = {
   pages: number;
   notes: number;
   annotations: number;
+  /** Free-form note stored in the manifest (kept when the file is written back). */
+  notesText?: string;
   volumes: string[];
   chapters: number;
   images: number;
@@ -216,6 +218,24 @@ const sameContent = (file: string, data: Buffer): boolean => {
   }
 };
 
+/**
+ * sha1 keyed by path + size + mtime. Write-back re-packs the whole project after every
+ * edit, so without this every save would re-read and re-hash every image.
+ */
+const imageHashCache = new Map<string, { size: number; mtimeMs: number; sha1: string }>();
+
+/** Read an image once and reuse its hash while the file is unchanged. */
+function readImageWithHash(file: string): { data: Buffer; sha1: string } {
+  const stat = fs.statSync(file);
+  const data = fs.readFileSync(file);
+  const cached = imageHashCache.get(file);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) return { data, sha1: cached.sha1 };
+  const sha1 = sha1Hex(data);
+  if (imageHashCache.size > 100_000) imageHashCache.clear();
+  imageHashCache.set(file, { size: stat.size, mtimeMs: stat.mtimeMs, sha1 });
+  return { data, sha1 };
+}
+
 function hashFileCached(file: string, cache: Map<string, string>): string | null {
   const cached = cache.get(file);
   if (cached) return cached;
@@ -318,9 +338,14 @@ function normalizeManifest(raw: unknown): { manifest: ProjectManifest; migratedF
 
 export type ProjectExportOptions = {
   rootDir: string;
+  /** Overrides for containers that bind-mount raw/ and data/ separately. */
+  rawRoot?: string;
+  dataRoot?: string;
   storageMode: ProjectStorageMode;
   name?: string;
   notes?: string;
+  /** manifest.createdAt of an existing project; write-back keeps the original creation time. */
+  createdAt?: string;
 };
 
 export type ProjectExportResult = {
@@ -333,8 +358,8 @@ export type ProjectExportResult = {
 export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportResult {
   const { rootDir } = opts;
   const storageMode: ProjectStorageMode = opts.storageMode === 'packaged' ? 'packaged' : 'reference';
-  const rawRoot = path.join(rootDir, 'raw');
-  const dataRoot = path.join(rootDir, 'data');
+  const rawRoot = opts.rawRoot ? path.resolve(opts.rawRoot) : path.join(rootDir, 'raw');
+  const dataRoot = opts.dataRoot ? path.resolve(opts.dataRoot) : path.join(rootDir, 'data');
   const warnings: string[] = [];
   const library = createLibrary(rawRoot, dataRoot);
   const config = readLibraryConfig(dataRoot);
@@ -360,7 +385,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
             warnings.push(t('WARN_IMAGE_MISSING', { path: rel }));
             continue;
           }
-          const data = fs.readFileSync(abs);
+          const { data, sha1 } = readImageWithHash(abs);
           const filename = page.filenames[lang] ?? path.basename(abs);
           const image: ProjectImage = {
             volume: vol.id,
@@ -368,7 +393,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
             pageIndex: page.index,
             lang,
             name: filename,
-            sha1: sha1Hex(data),
+            sha1,
             size: data.length,
           };
           if (storageMode === 'reference') {
@@ -415,7 +440,7 @@ export function createProjectBuffer(opts: ProjectExportOptions): ProjectExportRe
     $schema: SCHEMA_URLS.mnproj,
     schemaVersion: PROJECT_SCHEMA_VERSION,
     appVersion: readAppVersion(rootDir),
-    createdAt: now,
+    createdAt: opts.createdAt?.trim() || now,
     updatedAt: now,
     storageMode,
     name: opts.name?.trim() || undefined,
@@ -633,6 +658,7 @@ export function inspectProject(opts: { rootDir: string; buffer: Buffer }): Proje
     pages,
     notes,
     annotations,
+    notesText: parsed.manifest.notes?.text,
     volumes: [...volumes],
     chapters,
     images: parsed.manifest.inventory.images.length,

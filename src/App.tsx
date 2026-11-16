@@ -86,6 +86,9 @@ export default function App() {
   const readOnly = appMode === 'read';
   const [readingHint, setReadingHint] = useState(false);
   const readingHintTimer = useRef<number | undefined>(undefined);
+  /** Transient feedback for keyboard undo/redo so a no-op never looks like a broken shortcut. */
+  const [undoHint, setUndoHint] = useState<'undo' | 'redo' | 'readOnly' | null>(null);
+  const undoHintTimer = useRef<number | undefined>(undefined);
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(() =>
     loadPaneWidth(SIDEBAR_PANE.key, SIDEBAR_PANE.min, SIDEBAR_PANE.max),
   );
@@ -191,6 +194,13 @@ export default function App() {
   }, []);
 
   useEffect(() => () => window.clearTimeout(readingHintTimer.current), []);
+  useEffect(() => () => window.clearTimeout(undoHintTimer.current), []);
+
+  const flashUndoHint = useCallback((kind: 'undo' | 'redo' | 'readOnly') => {
+    setUndoHint(kind);
+    window.clearTimeout(undoHintTimer.current);
+    undoHintTimer.current = window.setTimeout(() => setUndoHint(null), 1800);
+  }, []);
 
   // No chrome is visible in reading mode, so double-click (or double-tap on touch) on
   // empty stage space also leaves it; R and Esc remain the keyboard paths.
@@ -657,6 +667,8 @@ export default function App() {
   // instead of the whole pageState object (which changes on every keystroke of a note).
   const undoPage = pageState.undo;
   const redoPage = pageState.redo;
+  const pageCanUndo = pageState.canUndo;
+  const pageCanRedo = pageState.canRedo;
 
   // Keyboard shortcuts (ignored while an input has focus): [ ] page, P panels, C compare,
   // S sidebar, N notes, R reading mode, E export.
@@ -678,16 +690,22 @@ export default function App() {
       }
       if (e.ctrlKey || e.metaKey) {
         // Undo/redo only exist for authoring; a read-only viewer has nothing to revert.
-        if (readOnly) return;
         const mod = e.key.toLowerCase();
-        if (mod === 'z') {
-          e.preventDefault();
-          if (e.shiftKey) redoPage();
-          else undoPage();
-        } else if (mod === 'y') {
-          e.preventDefault();
-          redoPage();
+        if (mod !== 'z' && mod !== 'y') return;
+        e.preventDefault();
+        if (readOnly) {
+          flashUndoHint('readOnly');
+          return;
         }
+        const wantRedo = mod === 'y' || e.shiftKey;
+        // The stacks are owned by the page hook and shared by both workspaces,
+        // so this never builds its own history.
+        if (wantRedo ? !pageCanRedo : !pageCanUndo) {
+          flashUndoHint(wantRedo ? 'redo' : 'undo');
+          return;
+        }
+        if (wantRedo) redoPage();
+        else undoPage();
         return;
       }
       if (e.altKey) return;
@@ -722,7 +740,19 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, goPage, undoPage, redoPage, detailPanel, readingMode, setReadingModePersisted, readOnly]);
+  }, [
+    doc,
+    goPage,
+    undoPage,
+    redoPage,
+    pageCanUndo,
+    pageCanRedo,
+    detailPanel,
+    readingMode,
+    setReadingModePersisted,
+    readOnly,
+    flashUndoHint,
+  ]);
 
   // Library-wide language order; the runtime list grows with whatever the scan finds.
   const allLangs = useMemo<Lang[]>(
@@ -1168,6 +1198,12 @@ export default function App() {
         </div>
       )}
 
+      {undoHint && (
+        <div className="reading-toast" role="status">
+          {t(undoHint === 'readOnly' ? 'undo.readOnly' : undoHint === 'redo' ? 'undo.nothingRedo' : 'undo.nothingUndo')}
+        </div>
+      )}
+
       <ExportDialog
         open={exportOpen}
         onClose={() => {
@@ -1272,6 +1308,14 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
                 <Kbd>E</Kbd>
               </dt>
               <dd>{t('app.help.openExport')}</dd>
+              <dt>
+                <Kbd>Ctrl</Kbd>/<Kbd>⌘</Kbd> + <Kbd>Z</Kbd>
+              </dt>
+              <dd>{t('app.help.undo')}</dd>
+              <dt>
+                <Kbd>Ctrl</Kbd>/<Kbd>⌘</Kbd> + <Kbd>Shift</Kbd> + <Kbd>Z</Kbd> / <Kbd>Y</Kbd>
+              </dt>
+              <dd>{t('app.help.redo')}</dd>
               <dt>
                 <Kbd>?</Kbd>
               </dt>

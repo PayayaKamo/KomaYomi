@@ -46,6 +46,7 @@ export type {
   LayoutTemplate,
   Library,
   Note,
+  NoteAnchor,
   NoteImage,
   NoteSource,
   NoteTypeDef,

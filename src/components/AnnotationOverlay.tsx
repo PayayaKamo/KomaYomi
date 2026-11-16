@@ -1,5 +1,5 @@
-import type { Annotation, Panel, PanelRect } from '../types';
-import { annotationLeader } from '../../shared/annotations';
+import type { Annotation, Lang, Panel, PanelRect } from '../types';
+import { annotationsForLang, annotationLeader } from '../../shared/annotations';
 import { mosaicRegion } from '../lib/mosaicPatch';
 import { MosaicPatch } from './MosaicPatch';
 
@@ -13,6 +13,8 @@ type Props = {
   visible?: boolean;
   /** Page image used to pixelate mosaics; without it mosaics render as flat blocks. */
   imageUrl?: string;
+  /** Language lane this crop belongs to; only that lane's marks (plus shared) are drawn. */
+  lang?: Lang | null;
 };
 
 const num = (n: number) => Math.round(n * 100) / 100;
@@ -22,8 +24,11 @@ const num = (n: number) => Math.round(n * 100) / 100;
  * Rendering rules mirror the editable layer (page/panel scope, width as a fraction of the
  * page width, font size as a fraction of the page height) so both views agree.
  */
-export function AnnotationOverlay({ annotations, panels, rect, visible = true, imageUrl }: Props) {
+export function AnnotationOverlay({ annotations, panels, rect, visible = true, imageUrl, lang = null }: Props) {
   if (!visible || !annotations.length) return null;
+
+  // Only this lane's marks render here; shared marks (legacy data or the explicit switch) appear in every lane.
+  const shown = annotationsForLang(annotations, lang);
 
   const vw = 1000;
   // Keep the viewBox aspect equal to the crop so strokes and text are not distorted.
@@ -36,7 +41,7 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true, i
   const fs = (fraction: number) => Math.max(3, (fraction * vh) / rect.h);
 
   // Leaders and locator markers are drawn under the marks, matching the editor and exports.
-  const guides = annotations.map((a) => {
+  const guides = shown.map((a) => {
     const scope = a.scope === 'panel' ? (panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
     const color = a.color || '#e0453a';
     const width = sw(a.width ?? 0.0035);
@@ -88,7 +93,7 @@ export function AnnotationOverlay({ annotations, panels, rect, visible = true, i
     );
   });
 
-  const shapes = annotations.map((a) => {
+  const shapes = shown.map((a) => {
     const scope = a.scope === 'panel' ? (panels.find((p) => p.id === a.panelId)?.rect ?? PAGE_RECT) : PAGE_RECT;
     const pts = a.points.map((p) => toView(p, scope));
     if (!pts.length) return null;

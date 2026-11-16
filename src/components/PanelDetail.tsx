@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Annotation, AlignOffset, Lang, NoteTypeDef, PageDoc, PageEntry, Panel } from '../types';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { Annotation, AlignOffset, Lang, NoteAnchor, NoteTypeDef, PageDoc, PageEntry, Panel } from '../types';
 import { langShort, DEFAULT_OFFSET } from '../types';
 import { langLabel, useI18n } from '../i18n';
 import { ANNOTATION_TOOLS } from './AnnotationLayer';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import { CropLayer } from './CropLayer';
+import { NoteAnchorLayer } from './NoteAnchorLayer';
 import { NotesPanel } from './NotesPanel';
 import type { NotesPanelHandle } from './NotesPanel';
+import { clampAnchorPoint, panePointToPage } from '../../shared/noteAnchors';
+import { pickNoteAnchor, useAnchorPicking } from '../lib/noteAnchorPick';
 import { useCompareLayout } from '../hooks/useCompareLayout';
 
 type MaskStyle = 'blur' | 'solid';
@@ -108,6 +112,30 @@ export function PanelDetail({
   const panelAnnotations = annotations.filter((a) => a.scope === 'panel' && a.panelId === panel.id);
 
   const alignOf = (lang: Lang): AlignOffset => sessionAlign[lang] ?? offsetOf(lang);
+
+  /** The embedded composer is placing a note pin: the next click on a pane becomes the anchor. */
+  const anchorPicking = useAnchorPicking();
+
+  const placeNoteAnchor = (e: ReactPointerEvent<HTMLDivElement>, lang: Lang, offset: AlignOffset) => {
+    if (!anchorPicking) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    const u = r.width ? (e.clientX - r.left) / r.width : 0.5;
+    const v = r.height ? (e.clientY - r.top) / r.height : 0.5;
+    // The .detail-zoom layer scales the artwork around the centre, so undo that zoom too.
+    const point = clampAnchorPoint(panePointToPage(u, v, panel.rect, offset, zoom), panel.rect);
+    pickNoteAnchor({ x: point.x, y: point.y, lang });
+  };
+
+  const moveNoteAnchors = (ids: string[], anchor: NoteAnchor) => {
+    const updatedAt = new Date().toISOString();
+    mutate((d) => ({
+      ...d,
+      notes: d.notes.map((n) => (ids.includes(n.id) ? { ...n, anchor, updatedAt } : n)),
+    }));
+  };
+
   const nudgeLang = (lang: Lang, dx: number, dy: number) =>
     setSessionAlign((prev) => {
       const base = prev[lang] ?? offsetOf(lang);
@@ -439,6 +467,8 @@ export function PanelDetail({
         </div>
       )}
 
+      {anchorPicking && <div className="anchor-pick-hint">{t('notes.anchorPicking')}</div>}
+
       <div className="pd-scroll" ref={scrollRef}>
         <div className={`pd-panes ${stacked ? 'column' : 'row'}`} ref={panesRef}>
           {langs.map((lang) => {
@@ -446,7 +476,12 @@ export function PanelDetail({
             const offset = alignOf(lang);
             const masked = Boolean(url) && isMasked(panel.id, lang);
             return (
-              <div key={lang} className={`detail-pane ${url ? '' : 'empty'}`} style={{ aspectRatio: aspectOf(lang) }}>
+              <div
+                key={lang}
+                className={`detail-pane ${url ? '' : 'empty'} ${anchorPicking ? 'anchor-pick' : ''}`}
+                style={{ aspectRatio: aspectOf(lang) }}
+                onPointerDown={(e) => placeNoteAnchor(e, lang, offset)}
+              >
                 {url ? (
                   <div className="detail-zoom" style={{ transform: `scale(${zoom})` }}>
                     <CropLayer url={url} rect={panel.rect} offset={offset} opacity={1} blend={false} />
@@ -462,8 +497,20 @@ export function PanelDetail({
                         rect={panel.rect}
                         visible={annotationsVisible}
                         imageUrl={url}
+                        lang={lang}
                       />
                     </div>
+                    <NoteAnchorLayer
+                      notes={doc.notes}
+                      panel={panel}
+                      lang={lang}
+                      offset={offset}
+                      noteTypes={noteTypes}
+                      langs={langs}
+                      readOnly={readOnly}
+                      hidden={anchorPicking}
+                      onMove={readOnly ? undefined : moveNoteAnchors}
+                    />
                   </div>
                 ) : (
                   <div className="pane-missing">{t('compare.missingLangImage', { lang: langLabel(lang) })}</div>
@@ -472,7 +519,9 @@ export function PanelDetail({
                   <div
                     className={`lang-mask detail-mask ${maskStyle}`}
                     title={t('compare.maskTitle', { lang: langLabel(lang) })}
-                    onClick={() => reveal(panel.id, lang)}
+                    onClick={() => {
+                      if (!anchorPicking) reveal(panel.id, lang);
+                    }}
                   >
                     <span>
                       {langShort(lang)} {t('compare.maskedBadge')}
@@ -518,6 +567,8 @@ export function PanelDetail({
                 <li className="pd-ann" key={a.id}>
                   <span className="pd-ann-swatch" style={{ background: a.color || '#e0453a' }} />
                   <span className="pd-ann-kind">{t(ANNOTATION_TOOLS[a.kind].labelKey)}</span>
+                  {/* Lane badge: the list also mentions marks that are hidden in some columns. */}
+                  {a.lang && !a.allLangs ? <span className="note-time">{langShort(a.lang)}</span> : null}
                   {a.text ? <span className="pd-ann-text">{a.text}</span> : null}
                   <span className="note-time">{formatDate(a.createdAt)}</span>
                 </li>

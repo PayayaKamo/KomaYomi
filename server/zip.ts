@@ -32,6 +32,12 @@ function dosDateTime(date: Date): { time: number; date: number } {
   };
 }
 
+/**
+ * Bundled project images are already compressed; deflating them wastes CPU without
+ * shrinking anything (a packaged project re-packs every image on each write-back).
+ */
+const STORE_ONLY_EXT = /\.(jpe?g|png|webp|gif|avif|heic|bmp)$/i;
+
 export function createZip(entries: ZipEntryInput[]): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
@@ -40,7 +46,7 @@ export function createZip(entries: ZipEntryInput[]): Buffer {
   for (const entry of entries) {
     const name = Buffer.from(entry.name.replace(/\\/g, '/'), 'utf8');
     const raw = entry.data;
-    const deflated = zlib.deflateRawSync(raw, { level: 6 });
+    const deflated = STORE_ONLY_EXT.test(entry.name) ? raw : zlib.deflateRawSync(raw, { level: 6 });
     const useDeflate = deflated.length < raw.length;
     const body = useDeflate ? deflated : raw;
     const crc = crc32(raw);

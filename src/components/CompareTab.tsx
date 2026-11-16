@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
-import type { AlignMode, AlignOffset, AlignPreset, Lang, Note, NoteTypeDef, PageDoc, PageEntry, Panel } from '../types';
+import type {
+  AlignMode,
+  AlignOffset,
+  AlignPreset,
+  Annotation,
+  Lang,
+  Note,
+  NoteAnchor,
+  NoteTypeDef,
+  PageDoc,
+  PageEntry,
+  Panel,
+} from '../types';
 import {
   BUILTIN_NOTE_TYPES,
   DEFAULT_NOTE_TYPE,
@@ -11,8 +23,15 @@ import {
   langShort,
   languageNoteTypeId,
 } from '../types';
-import { applyGroupOrder, sortPanels } from '../lib/geometry';
+import { applyGroupOrder, sortPanels, uid } from '../lib/geometry';
 import { renderMarkdown } from '../../shared/markdown';
+import {
+  annotationAtPoint,
+  annotationsForLang,
+  clearAnnotationsForLang,
+  recolorAnnotation,
+  removeAnnotation,
+} from '../../shared/annotations';
 import { api } from '../api';
 import type { HistorySource } from '../api';
 import { langLabel, readingLabel, useI18n } from '../i18n';
@@ -22,12 +41,22 @@ import { ANNOTATION_COLORS, ANNOTATION_TOOL_ORDER, ANNOTATION_TOOLS, AnnotationL
 import type { AnnotationTool } from './AnnotationLayer';
 import { CropLayer } from './CropLayer';
 import { PanelDetail } from './PanelDetail';
+import { NoteAnchorLayer } from './NoteAnchorLayer';
+import { clampAnchorPoint } from '../../shared/noteAnchors';
+import { pickNoteAnchor, useAnchorPicking } from '../lib/noteAnchorPick';
 import { useAnnSurface } from '../lib/annotationSurface';
 import { isNativeTextTarget, useContextMenu } from './ContextMenu';
+import type { ContextMenuEntry } from './ContextMenu';
 import { copyText } from '../lib/clipboard';
 import { exportPng } from '../lib/pngExport';
 import { enqueueOutbox } from '../lib/outbox';
 import { useCompareLayout } from '../hooks/useCompareLayout';
+
+/** Remembered stroke width for new marks; the middle value is the historical default. */
+const ANNOTATION_WIDTH_KEY = 'manga-memo.compare-ann-width';
+const ANNOTATION_WIDTHS = [0.002, 0.0035, 0.006];
+const DEFAULT_ANNOTATION_WIDTH = 0.0035;
+const ANNOTATION_WIDTH_LABELS: MessageKey[] = ['ann.widthThin', 'ann.widthNormal', 'ann.widthThick'];
 
 type Props = {
   doc: PageDoc;
@@ -303,8 +332,26 @@ export function CompareTab({
   }, [annOn]);
   const [annTool, setAnnTool] = useState<AnnotationTool>('select');
   const [annColor, setAnnColor] = useState(ANNOTATION_COLORS[0]);
+  /** Stroke width as a fraction of the page width; 0.0035 is the historical default. */
+  const [annWidth, setAnnWidth] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(ANNOTATION_WIDTH_KEY));
+      return ANNOTATION_WIDTHS.includes(saved) ? saved : DEFAULT_ANNOTATION_WIDTH;
+    } catch {
+      return DEFAULT_ANNOTATION_WIDTH;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANNOTATION_WIDTH_KEY, String(annWidth));
+    } catch {
+      /* private mode */
+    }
+  }, [annWidth]);
   const [annSelected, setAnnSelected] = useState<string | null>(null);
   const [annScope, setAnnScope] = useState<'page' | 'panel'>('page');
+  /** When on, new marks show in every language instead of only the lane they were drawn in. */
+  const [annShared, setAnnShared] = useState(false);
   /** Lane that receives new marks in side-by-side mode; highlighted in the grid. */
   const [annLang, setAnnLang] = useState<Lang>(langs[0] ?? 'ja');
   const [moreOpen, setMoreOpen] = useState(false);
@@ -331,10 +378,13 @@ export function CompareTab({
     applyAnnotations((list) => list.filter((a) => a.id !== annSelected));
     setAnnSelected(null);
   };
+  // Clearing is lane-scoped: marks drawn in other languages stay untouched.
   const clearAnnotations = () => {
-    if (!annotations.length) return;
-    if (!window.confirm(t('ann.clearConfirm', { count: formatNumber(annotations.length) }))) return;
-    applyAnnotations(() => []);
+    const lane = overlay ? dragLang : annLang;
+    const count = annotationsForLang(annotations, lane).length;
+    if (!count) return;
+    if (!window.confirm(t('ann.clearLaneConfirm', { count: formatNumber(count), lang: langShort(lane) }))) return;
+    applyAnnotations((list) => clearAnnotationsForLang(list, lane));
     setAnnSelected(null);
   };
 
@@ -1001,6 +1051,123 @@ export function CompareTab({
     return size ? (panel.rect.w * size.w) / (panel.rect.h * size.h) : 0.72;
   };
 
+  /** Height/width of the page image, used to weight distances when hit-testing marks. */
+  const pageAspect = (lang: Lang) => {
+    const size = sizes[lang];
+    return size && size.w ? size.h / size.w : 1.4;
+  };
+
+  /** Pane pixel → page fraction, undoing the alignment offset applied to the mark layer. */
+  const panePagePoint = (e: ReactMouseEvent, lang: Lang, panel: Panel) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const off = offsetsOf(lang, panel);
+    const scale = off.scale || 1;
+    const u = r.width ? (e.clientX - r.left) / r.width : 0;
+    const v = r.height ? (e.clientY - r.top) / r.height : 0;
+    // Matches the layer transform `translate(off%) scale(s)`: the scale is about the element
+    // centre, so the inverse has to remove that half-size term as well.
+    const localU = 0.5 + (u - 0.5 - off.x) / scale;
+    const localV = 0.5 + (v - 0.5 - off.y) / scale;
+    return {
+      x: panel.rect.x + localU * panel.rect.w,
+      y: panel.rect.y + localV * panel.rect.h,
+    };
+  };
+
+  /** The composer is placing a pin: the next click on a pane becomes the anchor. */
+  const anchorPicking = useAnchorPicking();
+
+  const placeNoteAnchor = (e: ReactMouseEvent, lang: Lang, panel: Panel) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const point = clampAnchorPoint(panePagePoint(e, lang, panel), panel.rect);
+    pickNoteAnchor({ x: point.x, y: point.y, lang });
+  };
+
+  /** Drag on a pin moves every note sharing that spot; no history entries while dragging. */
+  const moveNoteAnchors = (ids: string[], anchor: NoteAnchor) => {
+    const updatedAt = new Date().toISOString();
+    mutate(
+      (d) => ({
+        ...d,
+        notes: d.notes.map((n) => (ids.includes(n.id) ? { ...n, anchor, updatedAt } : n)),
+      }),
+      { history: false },
+    );
+  };
+
+  const openAnnotationMenu = (e: ReactMouseEvent, a: Annotation) => {
+    if (readOnly || !annAllowed) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setAnnSelected(a.id);
+    const entries: ContextMenuEntry[] = [
+      {
+        id: 'ann-delete',
+        label: t('ann.delete'),
+        danger: true,
+        onSelect: () => {
+          applyAnnotations((list) => removeAnnotation(list, a.id));
+          setAnnSelected(null);
+        },
+      },
+      {
+        type: 'submenu',
+        id: 'ann-color',
+        label: t('ann.color'),
+        items: ANNOTATION_COLORS.map((c) => ({
+          id: `ann-color-${c}`,
+          label: c,
+          onSelect: () => applyAnnotations((list) => recolorAnnotation(list, a.id, c)),
+        })),
+      },
+    ];
+    // Copying only makes sense for a mark that belongs to one lane.
+    const targets = a.lang ? activeLangs.filter((l) => l !== a.lang) : [];
+    if (a.lang && targets.length) {
+      entries.push({
+        type: 'submenu',
+        id: 'ann-copy',
+        label: t('ann.copyToLang'),
+        items: targets.map((l) => ({
+          id: `ann-copy-${l}`,
+          label: `${langShort(l)} · ${langLabel(l)}`,
+          onSelect: () => {
+            const now = new Date().toISOString();
+            // The copy belongs to the target lane, so it shows there only.
+            applyAnnotations((list) => [
+              ...list,
+              { ...a, id: uid('a'), lang: l, allLangs: undefined, createdAt: now, updatedAt: now },
+            ]);
+          },
+        })),
+      });
+    }
+    openMenu(e, entries);
+  };
+
+  /** Right-click on a mark (or its anchor/leader) wins; blank space keeps the pane menu. */
+  const openPaneMenu = (e: ReactMouseEvent, lang: Lang, panel: Panel) => {
+    // Hidden marks are not on screen, so they cannot be right-clicked either.
+    const lane = annAllowed && annOn && annotationsVisible ? annotationsForLang(annotations, lang) : [];
+    if (!lane.length) {
+      openPanelMenu(e, lang, panel);
+      return;
+    }
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const off = offsetsOf(lang, panel);
+    const hit = annotationAtPoint(lane, panePagePoint(e, lang, panel), {
+      panels: doc.panels,
+      aspect: pageAspect(lang),
+      tolerance: r.width ? ((14 / r.width) * panel.rect.w) / (off.scale || 1) : 0.01,
+    });
+    if (!hit) {
+      openPanelMenu(e, lang, panel);
+      return;
+    }
+    openAnnotationMenu(e, hit);
+  };
+
   const renderLangPane = (lang: Lang, panel: Panel) => {
     const url = page.files[lang];
     const aspect = paneAspect(lang, panel);
@@ -1018,7 +1185,7 @@ export function CompareTab({
         key={lang}
         className={`lang-pane ${dragging && dragLang === lang ? 'dragging' : ''} ${
           annAllowed && annOn && !overlay && lang === annLang ? 'ann-lane' : ''
-        } ${
+        } ${anchorPicking ? 'anchor-pick' : ''} ${
           activeDrag?.panelId === panel.id && activeDrag.lang === lang && activeDrag.scope === 'panel'
             ? 'scope-target'
             : ''
@@ -1027,14 +1194,19 @@ export function CompareTab({
         data-lang={lang}
         data-panel-id={panel.id}
         data-has-image="1"
-        onContextMenu={(e) => openPanelMenu(e, lang, panel)}
+        onContextMenu={(e) => openPaneMenu(e, lang, panel)}
         onPointerDown={(e) => {
+          if (anchorPicking) {
+            placeNoteAnchor(e, lang, panel);
+            return;
+          }
           if (annAllowed && annOn && lang !== annLang) setAnnLang(lang);
           // A drawing tool owns this pane, so it must not also start a pan.
           if (annAllowed && annOn && annTool !== 'select') return;
           startPan(e, lang, panel);
         }}
         onClick={() => {
+          if (anchorPicking) return;
           // Touch panning is disabled in compact layouts, so taps still toggle masking;
           // the row-level handler opens the detail on a double tap.
           if (layout.mode === 'desktop') return;
@@ -1056,7 +1228,7 @@ export function CompareTab({
               visible={annotationsVisible}
               tool={annTool}
               color={annColor}
-              width={0.0035}
+              width={annWidth}
               activePanel={annScope === 'panel' ? panel : null}
               panels={doc.panels}
               selectedId={annSelected}
@@ -1065,6 +1237,8 @@ export function CompareTab({
               viewport={panel.rect}
               imageUrl={url}
               readOnly={readOnly}
+              lang={lang}
+              shareLangs={annShared}
             />
           ) : (
             <AnnotationOverlay
@@ -1073,9 +1247,21 @@ export function CompareTab({
               rect={panel.rect}
               visible={annotationsVisible}
               imageUrl={url}
+              lang={lang}
             />
           )}
         </div>
+        <NoteAnchorLayer
+          notes={doc.notes}
+          panel={panel}
+          lang={lang}
+          offset={off}
+          noteTypes={noteTypes}
+          langs={activeLangs}
+          readOnly={readOnly}
+          hidden={anchorPicking}
+          onMove={readOnly ? undefined : moveNoteAnchors}
+        />
         {isHidden(panel.id, lang) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
@@ -1137,13 +1323,17 @@ export function CompareTab({
       <div
         className={`lang-pane overlay ${
           activeDrag?.panelId === panel.id && activeDrag.scope === 'panel' ? 'scope-target' : ''
-        }`}
+        } ${anchorPicking ? 'anchor-pick' : ''}`}
         style={{ aspectRatio: aspect }}
         data-lang={dragLang}
         data-panel-id={panel.id}
         data-has-image="1"
-        onContextMenu={(e) => openPanelMenu(e, dragLang, panel)}
+        onContextMenu={(e) => openPaneMenu(e, dragLang, panel)}
         onPointerDown={(e) => {
+          if (anchorPicking) {
+            placeNoteAnchor(e, dragLang, panel);
+            return;
+          }
           if (annAllowed && annOn && annTool !== 'select') return;
           startPan(e, dragLang, panel);
         }}
@@ -1178,7 +1368,7 @@ export function CompareTab({
               visible={annotationsVisible}
               tool={annTool}
               color={annColor}
-              width={0.0035}
+              width={annWidth}
               activePanel={annScope === 'panel' ? panel : null}
               panels={doc.panels}
               selectedId={annSelected}
@@ -1187,6 +1377,8 @@ export function CompareTab({
               viewport={panel.rect}
               imageUrl={page.files[dragLang]}
               readOnly={readOnly}
+              lang={dragLang}
+              shareLangs={annShared}
             />
           ) : (
             <AnnotationOverlay
@@ -1195,9 +1387,21 @@ export function CompareTab({
               rect={panel.rect}
               visible={annotationsVisible}
               imageUrl={page.files[dragLang]}
+              lang={dragLang}
             />
           )}
         </div>
+        <NoteAnchorLayer
+          notes={doc.notes}
+          panel={panel}
+          lang={dragLang}
+          offset={offsetsOf(dragLang, panel)}
+          noteTypes={noteTypes}
+          langs={activeLangs}
+          readOnly={readOnly}
+          hidden={anchorPicking}
+          onMove={readOnly ? undefined : moveNoteAnchors}
+        />
         {activeLangs.some((l) => isHidden(panel.id, l)) && (
           <div
             className={`lang-mask ${maskPrefs.style}`}
@@ -1542,6 +1746,21 @@ export function CompareTab({
                     />
                   ))}
                 </div>
+                <label className="ann-width-group" title={t('ann.width')}>
+                  <span className="tb-label">{t('ann.width')}</span>
+                  <select
+                    className="tb-select ann-width"
+                    value={annWidth}
+                    onChange={(e) => setAnnWidth(Number(e.target.value))}
+                    aria-label={t('ann.width')}
+                  >
+                    {ANNOTATION_WIDTHS.map((w, i) => (
+                      <option key={w} value={w}>
+                        {t(ANNOTATION_WIDTH_LABELS[i])}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="seg ann-scope-seg" title={t('ann.sharedHint')}>
                   <button
                     type="button"
@@ -1560,6 +1779,17 @@ export function CompareTab({
                     ▣
                   </button>
                 </div>
+                {/* Opt-in escape hatch: marks that genuinely belong to every edition stay visible everywhere. */}
+                <button
+                  type="button"
+                  className={`btn icon tiny ${annShared ? 'on' : ''}`}
+                  aria-pressed={annShared}
+                  onClick={() => setAnnShared(!annShared)}
+                  title={t('ann.allLangsHint')}
+                  aria-label={t('ann.allLangs')}
+                >
+                  ⧉
+                </button>
                 <button
                   type="button"
                   className="btn icon tiny"
@@ -1574,7 +1804,7 @@ export function CompareTab({
                   type="button"
                   className="btn icon tiny"
                   onClick={clearAnnotations}
-                  disabled={!annotations.length}
+                  disabled={!annotationsForLang(annotations, overlay ? dragLang : annLang).length}
                   title={t('ann.clear')}
                   aria-label={t('ann.clear')}
                 >
@@ -1601,7 +1831,9 @@ export function CompareTab({
                   ↷
                 </button>
                 <span className="muted tiny ann-hint">
-                  {t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
+                  {annShared
+                    ? t('ann.allLangsOn')
+                    : t('ann.laneHint', { lang: langShort(overlay ? dragLang : annLang) })}
                 </span>
               </div>
             )}
@@ -1860,6 +2092,8 @@ export function CompareTab({
           {layout.mode === 'phone' && <span className="lang-tabs-hint">{t('compare.swipeLangHint')}</span>}
         </div>
       )}
+
+      {anchorPicking && <div className="anchor-pick-hint">{t('notes.anchorPicking')}</div>}
 
       <div className="compare-scroll" ref={compareScrollRef}>
         {ordered.map((panel, idx) => {

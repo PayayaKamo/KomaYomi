@@ -102,6 +102,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSUPPORTED_IMAGE_FORMAT` | 415 | Detector cannot read the image           | Non-image file or unsupported codec         | Replace the file with a supported image.              |
 | `ERR_REMOTE_UNAVAILABLE`     | 503  | Remote source is temporarily unusable    | Network share offline, WebDAV down          | Cached pages remain readable; retry when online.      |
 | `ERR_ANNOTATION_IMAGE_INVALID` | 400 | Composited annotation image is invalid ({reason}) | Word export staged image has bad fields or format | Retry the export; report `reason` if it persists. |
+| `ERR_SHARE_IMAGE_INVALID`    | 400  | Share image upload is invalid ({reason})  | Bad folder/name, wrong extension or non-JPEG/PNG bytes | Retry the share export; report `reason` if it persists. |
 
 ### Library, pages and volumes
 
@@ -168,6 +169,10 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_EXPORT_EMPTY`                | 400  | Nothing to export                              | No panels and no notes in range       | Add panels/notes or widen the page range.        |
 | `ERR_PROJECT_EMPTY`               | 400  | Project upload is empty                        | Empty `.mnproj`                       | Re-export the project.                           |
 | `ERR_PROJECT_IMAGE_ENTRY`         | 400  | Image entry lacks volume/chapter/name          | Corrupted manifest                    | Re-export the project.                           |
+| `ERR_PROJECT_NOT_LINKED`          | 409  | No project file is open                        | Saving without opening a `.mnproj`    | Open a `.mnproj` first; saves are written back into it. |
+| `ERR_PROJECT_PATH_INVALID`        | 400  | Path is not absolute or not `.mnproj`/`.zip`   | Wrong file chosen in the picker       | Pick the project file itself.                    |
+| `ERR_PROJECT_FILE_MISSING`        | 404  | The linked project file is gone                | Moved, renamed or deleted             | Put the file back, or stop writing back and open it again. |
+| `ERR_PROJECT_WRITE_FAILED`        | 500  | Write-back failed, previous file kept         | Locked, read-only or full disk        | Fix the cause, then use “Save to project file”.  |
 | `ERR_MANIFEST_INVALID_JSON`       | 400  | `manifest.json` is not JSON                    | Not a `.mnproj`, or corrupted         | Check the archive contents.                      |
 | `ERR_MANIFEST_NOT_OBJECT`         | 400  | `manifest.json` is not an object               | Corrupted manifest                    | Re-export the project.                           |
 | `ERR_MANIFEST_NO_INVENTORY`       | 400  | Manifest has no `inventory`                    | Too old or corrupted export           | Re-export with the current version.              |

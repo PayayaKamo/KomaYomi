@@ -2011,6 +2011,21 @@ body.pane-resizing * {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+.ann-width-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.ann-width {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
 .ann-hint {
   margin-left: auto;
 }
@@ -2496,7 +2511,13 @@ body.pane-resizing * {
 .note-type-chip.on {
   color: var(--fg);
   border-color: var(--type-color, var(--accent));
-  background: color-mix(in srgb, var(--type-color, var(--accent)) 16%, transparent);
+  /* Mix against the panel surface, not `transparent`: a 16% tint over a dark panel is invisible. */
+  background: color-mix(in srgb, var(--type-color, var(--accent)) 26%, var(--panel-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type-color, var(--accent)) 50%, transparent);
+}
+
+.note-type-chip.on > i {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--type-color, var(--accent)) 35%, transparent);
 }
 
 .note-type-chip:focus-visible,
@@ -2793,11 +2814,22 @@ body.pane-resizing * {
 }
 
 .note {
+  position: relative;
+  overflow: hidden;
   padding: 10px 12px;
-  background: var(--panel);
+  /* A tinted surface plus a solid edge make the category readable at a glance in both themes. */
+  background: color-mix(in srgb, var(--type-color, var(--panel)) 8%, var(--panel));
   border: 1px solid var(--line-soft);
   border-radius: 9px;
   margin-bottom: 8px;
+}
+
+.note::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--type-color, var(--line));
 }
 
 .note-top {
@@ -3964,6 +3996,178 @@ body.pane-resizing * {
   z-index: 3;
 }
 
+/* ---------- Note anchors (pins on the artwork) ---------- */
+.note-anchor-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.note-anchor-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--note-color, #4c7dd8);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  z-index: 2;
+  transition: transform 0.12s ease;
+}
+
+.note-anchor-dot:hover,
+.note-anchor-dot:focus-visible,
+.note-anchor-dot.on {
+  transform: scale(1.18);
+}
+
+.note-anchor-dot.on {
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.7),
+    0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
+.note-anchor-count {
+  position: absolute;
+  right: -9px;
+  top: -9px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: #10151c;
+  color: #fff;
+  font-size: 9.5px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.note-anchor-pop {
+  position: absolute;
+  z-index: 4;
+  width: min(280px, calc(100% - 14px));
+  max-height: 62%;
+  overflow: auto;
+  pointer-events: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+}
+
+.note-anchor-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.note-anchor-pop-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.note-anchor-pop-title > i,
+.note-anchor-pop-type > i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--note-color, #4c7dd8);
+}
+
+.note-anchor-pop-lang {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.note-anchor-pop ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-anchor-pop li {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+
+.note-anchor-pop li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.note-anchor-pop-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.note-anchor-pop-type > i {
+  background: var(--type-color, #4c7dd8);
+}
+
+.note-anchor-pop-body {
+  overflow-wrap: anywhere;
+}
+
+.note-anchor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.note-anchor-badge > i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--note-color, #4c7dd8);
+}
+
+.lang-pane.anchor-pick {
+  cursor: crosshair;
+}
+
+.lang-pane.anchor-pick::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px rgba(240, 122, 77, 0.9);
+  pointer-events: none;
+}
+
+.anchor-pick-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(240, 122, 77, 0.55);
+  border-radius: 6px;
+  background: rgba(240, 122, 77, 0.12);
+  color: var(--text);
+  font-size: 12px;
+}
+
 .stage-toolbar.sub {
   padding-top: 6px;
   padding-bottom: 6px;
@@ -4460,6 +4664,39 @@ body.pane-resizing * {
 .png-size-row select {
   flex: 1;
   min-width: 0;
+}
+
+/* Share-image output list: filename left, dimensions and size right. */
+.share-files {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.share-files li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.share-files li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-files li em {
+  flex-shrink: 0;
+  font-style: normal;
+  color: var(--muted);
 }
 
 /* ---- Keyboard shortcut help ---- */
@@ -5003,6 +5240,18 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+/* Opened .mnproj path: long Windows paths must wrap instead of stretching the dialog. */
+.project-link-path {
+  display: block;
+  padding: 5px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 .banner.warn {
   background: rgba(224, 168, 60, 0.1);

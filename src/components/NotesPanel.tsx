@@ -1,16 +1,18 @@
 import type { CSSProperties } from 'react';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent, DragEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from 'react';
-import type { Lang, Note, NoteImage, NoteSource, NoteTypeDef, PageDoc, Panel } from '../types';
+import type { Lang, Note, NoteAnchor, NoteImage, NoteSource, NoteTypeDef, PageDoc, Panel } from '../types';
 import type { Library } from '../types';
 import {
   BUILTIN_NOTE_TYPES,
   DEFAULT_NOTE_TYPE,
   NOTE_TYPE_COLORS,
   NOTE_TYPE_PALETTE,
+  langShort,
   languageNoteTypeId,
 } from '../types';
 import { newNote, sourceDomain, uid } from '../lib/geometry';
+import { beginAnchorPick, cancelAnchorPick, useAnchorPicking } from '../lib/noteAnchorPick';
 import { renderMarkdown } from '../../shared/markdown';
 import { api } from '../api';
 import type { NotesIndex } from '../api';
@@ -714,6 +716,9 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   const [noteType, setNoteType] = useState<string>(DEFAULT_NOTE_TYPE);
   /** Id of the note loaded into the composer; editing reuses the one editor instead of nesting another. */
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Pin on the artwork saved with the note; kept in the composer until the note is submitted. */
+  const [anchor, setAnchor] = useState<NoteAnchor | null>(null);
+  const anchorPicking = useAnchorPicking();
   const [sourceIds, setSourceIds] = useState<Record<string, boolean>>({});
   const composeRef = useRef<HTMLDivElement>(null);
 
@@ -726,6 +731,20 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   useEffect(() => {
     setFilterType(focusType ?? null);
   }, [focusType]);
+
+  // Anchor picking is one-shot: Esc backs out, and unmounting never leaves the reader in pick mode.
+  useEffect(() => {
+    if (!anchorPicking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      cancelAnchorPick();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [anchorPicking]);
+  useEffect(() => () => cancelAnchorPick(), []);
 
   /** The list comes first; choosing a category or starting a note brings the editor into view. */
   const focusComposer = () => {
@@ -962,6 +981,8 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     setSrcTitle('');
     setSrcText('');
     setSourceOpen(false);
+    setAnchor(null);
+    cancelAnchorPick();
   };
 
   /** Load an existing note into the composer, so editing never spawns a second editor. */
@@ -973,6 +994,8 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     setImages(note.images ?? []);
     setTags(note.tags);
     setTagInput('');
+    setAnchor(note.anchor ?? null);
+    cancelAnchorPick();
     setSrcUrl(note.source?.url ?? '');
     setSrcTitle(note.source?.title ?? '');
     setSrcText(note.source?.text ?? '');
@@ -992,6 +1015,8 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     setSrcUrl('');
     setSrcTitle('');
     setSrcText('');
+    setAnchor(null);
+    cancelAnchorPick();
     focusComposer();
   };
 
@@ -1010,6 +1035,20 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
     else focusComposer();
   };
 
+  /** Start (or back out of) placing a pin on the artwork for the note being written. */
+  const toggleAnchorPick = () => {
+    if (anchorPicking) {
+      cancelAnchorPick();
+      return;
+    }
+    beginAnchorPick((next) => {
+      setAnchor(next);
+      focusComposer();
+    });
+  };
+
+  const canPickAnchor = scope === 'page' || Boolean(panel);
+
   const submit = () => {
     if (!doc) return;
     if (!text.trim() && !images.length) return;
@@ -1019,24 +1058,28 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
       const updatedAt = new Date().toISOString();
       mutate((d) => ({
         ...d,
-        notes: d.notes.map((n) =>
-          n.id === id
-            ? {
-                ...n,
-                type: noteType,
-                text: text.trim(),
-                images: images.length ? images : undefined,
-                tags,
-                source: currentSource(),
-                updatedAt,
-              }
-            : n,
-        ),
+        notes: d.notes.map((n) => {
+          if (n.id !== id) return n;
+          const next: Note = {
+            ...n,
+            type: noteType,
+            text: text.trim(),
+            images: images.length ? images : undefined,
+            tags,
+            source: currentSource(),
+            updatedAt,
+          };
+          // Clearing the pin must drop the field, not store an empty placeholder.
+          if (anchor) next.anchor = anchor;
+          else delete next.anchor;
+          return next;
+        }),
       }));
     } else {
       const note: Note = {
         ...newNote(scope, scope === 'panel' && panel ? panel.id : null, text.trim(), tags, currentSource(), images),
         type: noteType,
+        ...(anchor ? { anchor } : {}),
       };
       mutate((d) => ({ ...d, notes: [...d.notes, note] }));
     }
@@ -1181,7 +1224,12 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
   );
 
   const renderNote = (note: Note) => (
-    <div className={`note ${editingId === note.id ? 'editing' : ''}`} key={note.id}>
+    <div
+      className={`note ${editingId === note.id ? 'editing' : ''}`}
+      key={note.id}
+      // Type colour on the card itself, so a column of notes is scannable without reading the chip.
+      style={{ '--type-color': typeColor(typeKey(note)) } as CSSProperties}
+    >
       <div className="note-top">
         <div className="note-tags">
           <button
@@ -1205,6 +1253,16 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
               {tag}
             </button>
           ))}
+          {note.anchor && (
+            <span
+              className="note-anchor-badge"
+              style={{ '--note-color': typeColor(typeKey(note)) } as CSSProperties}
+              title={t('notes.anchorHint')}
+            >
+              <i aria-hidden="true" />
+              {t('notes.anchorBadge', { lang: langShort(note.anchor.lang) })}
+            </span>
+          )}
         </div>
         <span className="note-time">{formatDate(note.createdAt)}</span>
       </div>
@@ -1675,6 +1733,32 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
                 >
                   {panel ? panelLabel : t('notes.thisPanel')}
                 </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    className={`btn tiny note-anchor-btn ${anchorPicking ? 'on' : ''}`}
+                    onClick={toggleAnchorPick}
+                    disabled={!canPickAnchor}
+                    title={anchorPicking ? t('notes.anchorPicking') : t('notes.anchorAdd')}
+                    aria-pressed={anchorPicking}
+                  >
+                    {anchor ? t('notes.anchorPlaced', { lang: langShort(anchor.lang) }) : t('notes.anchorAdd')}
+                  </button>
+                )}
+                {!readOnly && anchor && (
+                  <button
+                    type="button"
+                    className="link-btn note-anchor-clear"
+                    onClick={() => {
+                      setAnchor(null);
+                      cancelAnchorPick();
+                    }}
+                    title={t('notes.anchorClear')}
+                    aria-label={t('notes.anchorClear')}
+                  >
+                    ×
+                  </button>
+                )}
                 <span className="spacer" />
                 <button
                   type="button"
@@ -1685,6 +1769,11 @@ export const NotesPanel = forwardRef<NotesPanelHandle, Props>(function NotesPane
                   {t('notes.copyPageContext')}
                 </button>
               </div>
+              {!readOnly && (anchorPicking || anchor) && (
+                <div className="anchor-pick-hint">
+                  {anchorPicking ? t('notes.anchorPicking') : t('notes.anchorHint')}
+                </div>
+              )}
               <MarkdownEditor
                 value={text}
                 onChange={setText}

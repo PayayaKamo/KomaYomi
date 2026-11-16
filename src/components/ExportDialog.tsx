@@ -6,6 +6,8 @@ import { applyGroupOrder, sortPanels } from '../lib/geometry';
 import { composeAnnotatedPage, exportPng } from '../lib/pngExport';
 import { DEFAULT_SHARE_SIZE, SHARE_SIZE_GROUPS, SHARE_SIZE_PRESETS, findShareSize } from '../lib/shareSizes';
 import type { ShareSizeId } from '../lib/shareSizes';
+import { DEFAULT_SHARE_PRESET, SHARE_PRESETS, exportShareImages, findSharePreset } from '../lib/shareImageExport';
+import type { ShareFile, SharePageInput, SharePresetId } from '../lib/shareImageExport';
 import { formatNumber, langLabel, useI18n } from '../i18n';
 import type { MessageKey } from '../i18n';
 import type { Selection } from '../hooks/usePage';
@@ -44,6 +46,28 @@ const TEMPLATE_IDS: { id: ExportConfig['template']; name: MessageKey; desc: Mess
 
 const LAYOUT_KEY = 'manga-memo.export-layout';
 const PNG_SIZE_KEY = 'komayomi.png-size';
+const SHARE_PRESET_KEY = 'komayomi.share-preset';
+
+/** Restore the last share preset; unknown values fall back to the standard cover. */
+function readSharePreset(): SharePresetId {
+  try {
+    return findSharePreset(localStorage.getItem(SHARE_PRESET_KEY))?.id ?? DEFAULT_SHARE_PRESET;
+  } catch {
+    return DEFAULT_SHARE_PRESET;
+  }
+}
+
+/** Folder stamp for one share export batch: 20261116-153045. */
+function shareStamp(): string {
+  const d = new Date();
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 /** Restore the last PNG output size; unknown values fall back to the original pixels. */
 function readPngSize(): ShareSizeId {
@@ -118,6 +142,18 @@ export function ExportDialog({
   const [pngIncludeAnn, setPngIncludeAnn] = useState(true);
   const [pngSize, setPngSize] = useState<ShareSizeId>(readPngSize);
 
+  // Share image state
+  const [sharePreset, setSharePreset] = useState<SharePresetId>(readSharePreset);
+  const [shareLang, setShareLang] = useState<Lang | null>(null);
+  const [shareInfoBar, setShareInfoBar] = useState(true);
+  const [shareIncludeAnn, setShareIncludeAnn] = useState(true);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareProgress, setShareProgress] = useState<{ done: number; total: number } | null>(null);
+  const [shareDir, setShareDir] = useState<string | null>(null);
+  const [shareFiles, setShareFiles] = useState<ShareFile[]>([]);
+  const [shareWarnings, setShareWarnings] = useState<string[]>([]);
+  const [shareErr, setShareErr] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open || !sel) return;
     setResult(null);
@@ -127,6 +163,12 @@ export function ExportDialog({
     setPngMsg(null);
     // Respect the page's annotation layer toggle so a hidden layer is not silently baked in.
     setPngIncludeAnn(doc?.annotationsVisible !== false);
+    setShareIncludeAnn(doc?.annotationsVisible !== false);
+    setShareErr(null);
+    setShareDir(null);
+    setShareFiles([]);
+    setShareWarnings([]);
+    setShareProgress(null);
     setTplMsg(null);
     setCfg({
       ...DEFAULT_EXPORT_CONFIG,
@@ -276,6 +318,58 @@ export function ExportDialog({
     }
   };
 
+  const runShare = async () => {
+    const preset = findSharePreset(sharePreset) ?? SHARE_PRESETS[0];
+    const lang = cfg.languages.includes(shareLang ?? '') ? (shareLang as Lang) : cfg.languages[0];
+    if (!preset || !lang) return;
+    setShareBusy(true);
+    setShareErr(null);
+    setShareDir(null);
+    setShareFiles([]);
+    setShareWarnings([]);
+    setShareProgress(null);
+    try {
+      const entries =
+        scope === 'page' ? (page ? [page] : []) : (chapterInfo?.pages ?? []).filter((entry) => !entry.excluded);
+      if (!entries.length) throw new Error(t('share.noPages'));
+
+      // Panels and annotations live in page documents, so fetch the ones not open right now.
+      const inputs: SharePageInput[] = [];
+      for (const entry of entries) {
+        let pageDoc: PageDoc | null = entry.index === sel.pageIndex ? doc : null;
+        if (!pageDoc) {
+          try {
+            pageDoc = (await api.page(sel.volume, sel.chapter, entry.index)).doc;
+          } catch {
+            pageDoc = null;
+          }
+        }
+        inputs.push({ page: entry, doc: pageDoc });
+      }
+
+      const dir = `share-${safeName(sel.volume)}-${safeName(sel.chapter)}-${shareStamp()}`;
+      const res = await exportShareImages({
+        preset,
+        mode: preset.id === 'compare' ? 'compare' : 'single',
+        lang,
+        languages: cfg.languages,
+        pages: inputs,
+        infoBar: shareInfoBar,
+        includeAnnotations: shareIncludeAnn,
+        dir,
+        onProgress: (done, total) => setShareProgress({ done, total }),
+      });
+      setShareDir(res.dir);
+      setShareFiles(res.files);
+      setShareWarnings(res.warnings);
+    } catch (err) {
+      setShareErr(t('share.failed', { error: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      setShareBusy(false);
+      setShareProgress(null);
+    }
+  };
+
   const saveTemplate = async () => {
     const name = tplName.trim() || t('export.defaultTemplateName', { template: cfg.template });
     try {
@@ -329,6 +423,7 @@ export function ExportDialog({
   };
 
   const previewUrl = page?.files[cfg.languages.find((l) => page?.files[l]) ?? 'ja'] ?? '';
+  const activeShareLang = cfg.languages.includes(shareLang ?? '') ? (shareLang as Lang) : cfg.languages[0];
   const ordered = doc ? applyGroupOrder(sortPanels(doc.panels, doc.readingDirection), doc.groups) : [];
   const pageNotes = doc?.notes.filter((n) => n.scope === 'page') ?? [];
 
@@ -608,6 +703,110 @@ export function ExportDialog({
               </label>
               <p className="hint">{t('export.pngHint')}</p>
               {pngMsg && <div className="tpl-msg">{pngMsg}</div>}
+            </section>
+
+            <section>
+              <h3>{t('share.section')}</h3>
+              <p className="hint">{t('share.hint')}</p>
+              <div className="template-list">
+                {SHARE_PRESETS.map((preset) => (
+                  <button
+                    type="button"
+                    key={preset.id}
+                    className={`template ${sharePreset === preset.id ? 'on' : ''}`}
+                    onClick={() => {
+                      setSharePreset(preset.id);
+                      setShareErr(null);
+                      setShareDir(null);
+                      setShareFiles([]);
+                      setShareWarnings([]);
+                      try {
+                        localStorage.setItem(SHARE_PRESET_KEY, preset.id);
+                      } catch {
+                        /* ignored in private mode */
+                      }
+                    }}
+                    disabled={shareBusy}
+                  >
+                    <b>{t(preset.label)}</b>
+                    <span>{t(preset.desc)}</span>
+                  </button>
+                ))}
+              </div>
+              {sharePreset !== 'compare' && (
+                <div className="png-size-row">
+                  <span>{t('share.languageLabel')}</span>
+                  <select
+                    className="input"
+                    value={activeShareLang ?? ''}
+                    onChange={(e) => setShareLang(e.target.value)}
+                    disabled={shareBusy}
+                  >
+                    {cfg.languages.map((l) => (
+                      <option key={l} value={l}>
+                        {langLabel(l)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <p className="hint">{t('share.scopeHint')}</p>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={shareInfoBar}
+                  onChange={(e) => setShareInfoBar(e.target.checked)}
+                  disabled={shareBusy}
+                />
+                {t('share.infoBar')}
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={shareIncludeAnn}
+                  onChange={(e) => setShareIncludeAnn(e.target.checked)}
+                  disabled={shareBusy}
+                />
+                {t('share.includeAnnotations')}
+              </label>
+              <p className="hint">{t('share.infoBarHint')}</p>
+              <div className="png-row">
+                <button type="button" className="btn" onClick={runShare} disabled={shareBusy || !page}>
+                  {shareBusy ? `${t('share.exporting')}` : t('share.export')}
+                </button>
+                {shareBusy && shareProgress && (
+                  <span className="tiny muted">
+                    {t('share.progress', {
+                      done: formatNumber(shareProgress.done),
+                      total: formatNumber(shareProgress.total),
+                    })}
+                  </span>
+                )}
+              </div>
+              {shareErr && <div className="tpl-msg">{shareErr}</div>}
+              {shareDir && shareFiles.length > 0 && (
+                <div className="tpl-msg">
+                  <div>{t('share.done', { count: formatNumber(shareFiles.length) })}</div>
+                  <div>
+                    <code>{`exports\\${shareDir}`}</code>
+                  </div>
+                  <ul className="share-files">
+                    {shareFiles.map((file) => (
+                      <li key={file.name}>
+                        <span>{file.name}</span>
+                        <em>
+                          {file.width}×{file.height} · {formatBytes(file.bytes)}
+                        </em>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {shareWarnings.map((warning) => (
+                <div key={warning} className="tpl-msg">
+                  {warning}
+                </div>
+              ))}
             </section>
 
             <section>

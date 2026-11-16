@@ -132,6 +132,31 @@ export function migratePageV1(raw: Record<string, unknown>): Record<string, unkn
   return out;
 }
 
+/**
+ * v2 → v3: annotations became language-scoped. Files from before this version stored marks
+ * in page coordinates without recording the lane they were drawn in, so there is no way to
+ * infer one; they are marked as shared and keep showing in every language instead of vanishing.
+ */
+export function migratePageV2(raw: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...raw, schemaVersion: 3 };
+  if (Array.isArray(out.annotations)) {
+    out.annotations = out.annotations.map((annotation) => {
+      if (!isRecord(annotation)) return annotation;
+      if (typeof annotation.lang === 'string' || annotation.allLangs === true) return annotation;
+      return { ...annotation, allLangs: true };
+    });
+  }
+  return out;
+}
+
+/**
+ * v3 → v4: notes may carry an anchor (point on the artwork plus its language lane).
+ * The field is optional, so existing notes stay valid without touching their content.
+ */
+export function migratePageV3(raw: Record<string, unknown>): Record<string, unknown> {
+  return { ...raw, schemaVersion: 4 };
+}
+
 /** v1 → v2: the manifest envelope only; note categories live in config/library.json. */
 export function migrateManifestV1(raw: Record<string, unknown>): Record<string, unknown> {
   return { ...raw, schemaVersion: 2 };

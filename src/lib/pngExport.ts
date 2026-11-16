@@ -1,6 +1,6 @@
 import type { Annotation, Lang, PageEntry, Panel, PanelRect } from '../types';
 import { langLabel, t } from '../i18n';
-import { annotationLeader } from '../../shared/annotations';
+import { annotationsForLang, annotationLeader } from '../../shared/annotations';
 import { mosaicBlockSize } from '../../shared/mosaic';
 import { DEFAULT_SHARE_SIZE, findShareSize, fitWithin, isResized, resolveShareSize } from './shareSizes';
 import type { ShareSizeId } from './shareSizes';
@@ -100,26 +100,28 @@ function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function renderPage(img: HTMLImageElement, draw?: AnnDraw): HTMLCanvasElement {
+function renderPage(img: HTMLImageElement, lang: Lang, draw?: AnnDraw): HTMLCanvasElement {
   const canvas = createCanvas(img.naturalWidth, img.naturalHeight);
   const ctx = get2d(canvas);
   ctx.drawImage(img, 0, 0);
-  if (draw?.annotations.length) {
-    drawAnnotations(ctx, draw, img, img.naturalWidth, img.naturalHeight);
+  const marks = draw ? annotationsForLang(draw.annotations, lang) : [];
+  if (draw && marks.length) {
+    drawAnnotations(ctx, { ...draw, annotations: marks }, img, img.naturalWidth, img.naturalHeight);
   }
   return canvas;
 }
 
-function renderPanel(img: HTMLImageElement, rect: PanelRect, draw?: AnnDraw): HTMLCanvasElement {
+function renderPanel(img: HTMLImageElement, rect: PanelRect, lang: Lang, draw?: AnnDraw): HTMLCanvasElement {
   const crop = cropRect(img, rect);
   const canvas = createCanvas(crop.sw, crop.sh);
   const ctx = get2d(canvas);
   ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
-  if (draw?.annotations.length) {
+  const marks = draw ? annotationsForLang(draw.annotations, lang) : [];
+  if (draw && marks.length) {
     // Annotations are authored in full-page pixels, so shift the origin to the crop.
     ctx.save();
     ctx.translate(-crop.sx, -crop.sy);
-    drawAnnotations(ctx, draw, img, img.naturalWidth, img.naturalHeight);
+    drawAnnotations(ctx, { ...draw, annotations: marks }, img, img.naturalWidth, img.naturalHeight);
     ctx.restore();
   }
   return canvas;
@@ -141,7 +143,9 @@ export async function composeAnnotatedPage(
   const src = page.files[lang];
   if (!src) return null;
   const img = await loadImage(src, lang);
-  return renderPage(img, annotations.length ? { annotations, panels } : undefined);
+  // One lane per image: marks drawn in another language never leak into this render.
+  const marks = annotationsForLang(annotations, lang);
+  return renderPage(img, lang, marks.length ? { annotations: marks, panels } : undefined);
 }
 
 /** Panel rect that owns an annotation's normalized coordinates. */
@@ -365,7 +369,8 @@ async function renderCollage(
   items.forEach((it, i) => {
     const w = widths[i];
     ctx.drawImage(it.img, it.crop.sx, it.crop.sy, it.crop.sw, it.crop.sh, x, PAD, w, targetH);
-    if (draw?.annotations.length) {
+    const marks = draw ? annotationsForLang(draw.annotations, it.lang) : [];
+    if (draw && marks.length) {
       // Map full-page pixel coordinates into this language's slot, then clip so marks
       // never bleed into the neighbouring column.
       ctx.save();
@@ -375,7 +380,7 @@ async function renderCollage(
       ctx.translate(x, PAD);
       ctx.scale(w / it.crop.sw, targetH / it.crop.sh);
       ctx.translate(-it.crop.sx, -it.crop.sy);
-      drawAnnotations(ctx, draw, it.img, it.img.naturalWidth, it.img.naturalHeight);
+      drawAnnotations(ctx, { ...draw, annotations: marks }, it.img, it.img.naturalWidth, it.img.naturalHeight);
       ctx.restore();
     }
     // Label strip along the bottom.
@@ -424,9 +429,9 @@ export async function exportPng(opts: PngExportOptions): Promise<void> {
     const img = await loadImage(src, lang);
     if (mode === 'panel') {
       if (!rect) throw new Error(t('png.panelRectRequired'));
-      canvas = renderPanel(img, rect, draw);
+      canvas = renderPanel(img, rect, lang, draw);
     } else {
-      canvas = renderPage(img, draw);
+      canvas = renderPage(img, lang, draw);
     }
   }
 

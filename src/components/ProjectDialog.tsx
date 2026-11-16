@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Library } from '../types';
 import { api } from '../api';
-import type { ProjectConflict, ProjectInspect, ProjectMode } from '../api';
+import type { ProjectConflict, ProjectInspect, ProjectLinkStatus, ProjectMode } from '../api';
 import { formatBytes, formatNumber, t, useI18n } from '../i18n';
 
 type Props = {
@@ -10,6 +10,10 @@ type Props = {
   /** Whether the current page has unsaved edits (pending content in confirm mode). */
   dirty: boolean;
 };
+
+type PendingOpen =
+  | { source: 'path'; path: string; label: string; info: ProjectInspect }
+  | { source: 'file'; data: ArrayBuffer; label: string; info: ProjectInspect };
 
 function readFileBytes(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
@@ -22,7 +26,19 @@ function readFileBytes(file: File): Promise<ArrayBuffer> {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Project file .mnproj: save as project (reference / bundled) and open project (inspect → import). */
+const formatTime = (iso?: string): string => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+};
+
+/**
+ * Project file .mnproj.
+ * - Open: a .mnproj opened from disk is linked, so later saves are written back into it
+ *   (desktop only — a browser cannot hand the server a real path).
+ * - Export: builds a separate copy in exports/ and downloads it; it never touches the
+ *   opened project file.
+ */
 export function ProjectDialog({ onClose, onImported, dirty }: Props) {
   const { t } = useI18n();
   const [mode, setMode] = useState<ProjectMode>('reference');
@@ -31,7 +47,7 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exported, setExported] = useState<{ file: string; url: string; size: number; images: number } | null>(null);
-  const [pending, setPending] = useState<{ data: ArrayBuffer; fileName: string; info: ProjectInspect } | null>(null);
+  const [pending, setPending] = useState<PendingOpen | null>(null);
   const [conflict, setConflict] = useState<ProjectConflict>('overwrite');
   const [relinkDir, setRelinkDir] = useState('');
   const [done, setDone] = useState<{
@@ -42,8 +58,24 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
     missing: { volume: string; chapter: string; name: string }[];
     snapshot: string | null;
     projectBackup: string;
+    linkedPath?: string;
   } | null>(null);
+  const [link, setLink] = useState<ProjectLinkStatus | null>(null);
+  const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const desktop = typeof window !== 'undefined' ? window.mangaDesktop : undefined;
+
+  const refreshLink = async () => {
+    try {
+      setLink(await api.projectLink());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  useEffect(() => {
+    void refreshLink();
+  }, []);
 
   const confirmDirty = (action: string) => {
     if (!dirty) return true;
@@ -77,8 +109,30 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
     try {
       const data = await readFileBytes(file);
       const info = await api.inspectProject(data);
-      setPending({ data, fileName: file.name, info });
+      setPending({ source: 'file', data, label: file.name, info });
       setConflict(info.conflictCount > 0 ? 'merge' : 'overwrite');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Desktop: choose a real file on disk, so the server can also write changes back to it. */
+  const pickByPath = async () => {
+    if (!desktop) {
+      setError(t('project.browserNoPicker'));
+      return;
+    }
+    const chosen = await desktop.pickProjectFile(t('project.openDesktopTitle'));
+    if (!chosen) return;
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      const res = await api.inspectProjectPath(chosen);
+      setPending({ source: 'path', path: res.path, label: res.path, info: res.info });
+      setConflict(res.info.conflictCount > 0 ? 'merge' : 'overwrite');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -92,11 +146,11 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.importProject({
-        data: pending.data,
-        conflict,
-        relinkDir: relinkDir.trim() || undefined,
-      });
+      const relink = relinkDir.trim() || undefined;
+      const res =
+        pending.source === 'path'
+          ? await api.openProjectPath({ path: pending.path, conflict, relinkDir: relink })
+          : await api.importProject({ data: pending.data, conflict, relinkDir: relink });
       setDone({
         restored: res.restored,
         merged: res.merged,
@@ -105,8 +159,10 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
         missing: res.missing,
         snapshot: res.snapshot,
         projectBackup: res.projectBackup,
+        linkedPath: pending.source === 'path' ? pending.path : undefined,
       });
       setPending(null);
+      setLink(res.link ?? null);
       onImported(res.library);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -115,12 +171,46 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
     }
   };
 
+  const saveNow = async () => {
+    setBusy(true);
+    setError(null);
+    setLinkMessage(null);
+    try {
+      const res = await api.saveProjectFile();
+      setLink(res.link);
+      if (res.result) {
+        setLinkMessage(t('project.linkSaved', { path: res.result.path, size: formatBytes(res.result.size) }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      await refreshLink();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async () => {
+    if (!window.confirm(t('project.linkUnlinkConfirm'))) return;
+    setBusy(true);
+    setError(null);
+    setLinkMessage(null);
+    try {
+      const res = await api.unlinkProject();
+      setLink(res.link);
+      setLinkMessage(t('project.linkUnlinked'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const pickRelink = async () => {
-    if (!window.mangaDesktop) {
+    if (!desktop) {
       setError(t('project.browserNoPicker'));
       return;
     }
-    const dir = await window.mangaDesktop.pickFolder(t('project.pickFolderTitle'));
+    const dir = await desktop.pickFolder(t('project.pickFolderTitle'));
     if (dir) setRelinkDir(dir);
   };
 
@@ -140,7 +230,39 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
           {dirty && <div className="banner warn">{t('project.dirtyBanner')}</div>}
 
           <section className="project-section">
+            <h3>{t('project.linkTitle')}</h3>
+            {link?.linked ? (
+              <>
+                <p className="muted tiny">{t('project.linkHint')}</p>
+                <code className="project-link-path">{link.path}</code>
+                <ul className="project-summary">
+                  <li>
+                    {link.storageMode === 'packaged' ? t('project.modePackaged') : t('project.modeReference')} ·{' '}
+                    {link.lastWriteAt
+                      ? t('project.linkLastWrite', { time: formatTime(link.lastWriteAt) })
+                      : t('project.linkNever')}
+                  </li>
+                  {link.pending && <li>{t('project.linkPending')}</li>}
+                  {link.paused && link.lastError && <li>{t('project.linkError', { detail: link.lastError })}</li>}
+                </ul>
+                <div className="row-inline">
+                  <button type="button" className="btn primary" disabled={busy} onClick={() => void saveNow()}>
+                    {busy ? t('project.linkSaving') : t('project.linkSaveNow')}
+                  </button>
+                  <button type="button" className="btn" disabled={busy} onClick={() => void unlink()}>
+                    {t('project.linkUnlink')}
+                  </button>
+                </div>
+                {linkMessage && <p className="muted tiny">{linkMessage}</p>}
+              </>
+            ) : (
+              <p className="muted tiny">{t('project.linkNone')}</p>
+            )}
+          </section>
+
+          <section className="project-section">
             <h3>{t('project.saveSection')}</h3>
+            <p className="muted tiny">{t('project.exportCopyHint')}</p>
             <div className="radio-row">
               <label>
                 <input
@@ -197,20 +319,31 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
           <section className="project-section">
             <h3>{t('project.openSection')}</h3>
             <p className="muted tiny">{t('project.openHint')}</p>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".mnproj,.zip,application/zip"
-              style={{ display: 'none' }}
-              onChange={(e) => void pick(e.target.files?.[0])}
-            />
-            <button type="button" className="btn" disabled={busy} onClick={() => inputRef.current?.click()}>
-              {t('project.chooseProject')}
-            </button>
+            {desktop ? (
+              <div className="row-inline">
+                <button type="button" className="btn" disabled={busy} onClick={() => void pickByPath()}>
+                  {t('project.openDesktop')}
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="muted tiny">{t('project.openBrowserHint')}</p>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept=".mnproj,.zip,application/zip"
+                  style={{ display: 'none' }}
+                  onChange={(e) => void pick(e.target.files?.[0])}
+                />
+                <button type="button" className="btn" disabled={busy} onClick={() => inputRef.current?.click()}>
+                  {t('project.chooseProject')}
+                </button>
+              </>
+            )}
 
             {pending && (
               <div className="banner info">
-                <b>{pending.fileName}</b>
+                <b>{pending.label}</b>
                 <ul className="project-summary">
                   <li>
                     {pending.info.storageMode === 'packaged' ? t('project.modePackaged') : t('project.modeReference')} ·
@@ -292,6 +425,8 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                   </div>
                 </label>
 
+                {pending.source === 'path' && <p className="muted tiny">{t('project.openDesktopHint')}</p>}
+
                 <div className="row-inline">
                   <button type="button" className="btn" disabled={busy} onClick={() => setPending(null)}>
                     {t('common.cancel')}
@@ -311,6 +446,12 @@ export function ProjectDialog({ onClose, onImported, dirty }: Props) {
                   skipped: formatNumber(done.skipped),
                 })}
                 {done.relinked > 0 && t('project.doneRelinked', { count: formatNumber(done.relinked) })}.
+                {done.linkedPath && (
+                  <>
+                    <br />
+                    {t('project.doneLinked', { path: done.linkedPath })}
+                  </>
+                )}
                 {done.missing.length > 0 && (
                   <>
                     <br />

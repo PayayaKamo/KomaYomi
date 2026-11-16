@@ -84,6 +84,13 @@ export function isLanguageNoteType(id: string | undefined): boolean {
 /** Palette offered when creating a custom category. */
 export const NOTE_TYPE_PALETTE = ['#4c7dd8', '#d9942c', '#d2574a', '#3f9e7a', '#8a63c9', '#c05a9a', '#6b7a8f'];
 
+/**
+ * Optional pin on the artwork, in whole-page fractions (0..1).
+ * `lang` is the language column the pin was placed in: note pins follow the same lane rule
+ * as annotations, so a pin only shows in that language's pane.
+ */
+export type NoteAnchor = { x: number; y: number; lang: Lang };
+
 export type Note = {
   id: string;
   /** page = note on the whole page; panel = note on a single panel. */
@@ -91,6 +98,8 @@ export type Note = {
   panelId: string | null;
   /** Category id: a built-in id, `lang:<code>`, or a custom type id. Missing means legacy. */
   type?: string;
+  /** Where the note is pinned on the page; absent when the note has no anchor. */
+  anchor?: NoteAnchor;
   text: string;
   tags: string[];
   /** Where the material came from: link, title or free-form text. */
@@ -261,6 +270,13 @@ export type Annotation = {
   anchor?: AnnotationAnchor;
   /** Draw the leader line between the annotation and its locator; defaults to true. */
   showLeader?: boolean;
+  /**
+   * Language lane the mark was drawn in. Marks are only rendered and exported for that
+   * language; absent means "every language" (legacy data and explicitly shared marks).
+   */
+  lang?: Lang;
+  /** Explicit "show in every language" choice; legacy marks without `lang` behave the same. */
+  allLangs?: boolean;
   createdAt: string;
   updatedAt: string;
 };

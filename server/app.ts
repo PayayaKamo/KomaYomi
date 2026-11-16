@@ -42,6 +42,13 @@ import {
 } from './autoBackup.ts';
 import { createProjectBuffer, importProject, inspectProject, projectFileName } from './project.ts';
 import {
+  clearProjectLink,
+  createProjectSync,
+  linkProject,
+  readProjectFile,
+  resolveProjectFilePath,
+} from './projectWriteBack.ts';
+import {
   exportExportTemplate,
   exportLayoutTemplate,
   exportPage,
@@ -122,6 +129,7 @@ const READ_ONLY_SAFE_POSTS = new Set([
   '/api/export',
   '/api/export/docx',
   '/api/export/annotation-image',
+  '/api/export/share-image',
 ]);
 
 function sendJson(res: ServerResponse, status: number, data: unknown) {
@@ -142,6 +150,22 @@ async function readBody(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<
   }
   return Buffer.concat(chunks).toString('utf8');
 }
+
+/**
+ * POST endpoints that inspect, export or talk to a remote and never change project data.
+ * Every other write is mirrored into the opened .mnproj.
+ */
+const NON_MUTATING_POSTS = new Set([
+  '/api/library/preview',
+  '/api/link-title',
+  '/api/storage/test',
+  '/api/backup',
+  '/api/backup/inspect',
+  '/api/export',
+  '/api/export/docx',
+  '/api/export/annotation-image',
+  '/api/export/share-image',
+]);
 
 /** Raw uploads skip base64 so multi-hundred-MB packaged projects fit in memory. */
 async function readBodyBuffer(req: IncomingMessage, limit = 8 * 1024 * 1024): Promise<Buffer> {
@@ -230,6 +254,10 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
 
   // Scheduled local backups run on their own timer; manual backups keep the `backup-` prefix.
   startAutoBackupScheduler({ dataRoot, exportRoot });
+
+  // Edits always land in data/; when the user opened a .mnproj, they are also written
+  // back to that exact file shortly afterwards (never to an exported copy).
+  const projectSync = createProjectSync({ rootDir, dataRoot, rawRoot });
 
   /** package.json is the single source for the metadata shown in the About dialog. */
   const appMeta = (() => {
@@ -935,6 +963,52 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         return true;
       }
 
+      // Share images for feed platforms. The client renders the 3:4 canvas (sRGB, JPEG or
+      // PNG) and uploads the finished bytes; the server only validates and stores them.
+      if (pathname === '/api/export/share-image' && req.method === 'POST') {
+        const dir = url.searchParams.get('dir') ?? '';
+        const name = url.searchParams.get('name') ?? '';
+        const unsafe = (value: string, max: number) => {
+          if (!value || value.length > max || value.startsWith('.') || value.includes('..')) return true;
+          return Array.from(value).some((ch) => '/\\:*?"<>|'.includes(ch) || ch.charCodeAt(0) < 32);
+        };
+        if (unsafe(dir, 80)) {
+          fail(res, 400, 'ERR_SHARE_IMAGE_INVALID', { reason: 'dir' });
+          return true;
+        }
+        if (unsafe(name, 120)) {
+          fail(res, 400, 'ERR_SHARE_IMAGE_INVALID', { reason: 'name' });
+          return true;
+        }
+        const ext = path.extname(name).toLowerCase();
+        if (ext !== '.jpg' && ext !== '.png') {
+          fail(res, 400, 'ERR_SHARE_IMAGE_INVALID', { reason: 'format' });
+          return true;
+        }
+        const buffer = await readBodyBuffer(req, 32 * 1024 * 1024);
+        const jpeg = buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+        const png =
+          buffer.length > 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+        if ((ext === '.jpg' && !jpeg) || (ext === '.png' && !png)) {
+          fail(res, 400, 'ERR_SHARE_IMAGE_INVALID', { reason: 'content' });
+          return true;
+        }
+        const folder = path.join(exportRoot, dir);
+        const target = safeResolve(exportRoot, path.join(dir, name));
+        if (!target) {
+          fail(res, 400, 'ERR_SHARE_IMAGE_INVALID', { reason: 'path' });
+          return true;
+        }
+        fs.mkdirSync(folder, { recursive: true });
+        fs.writeFileSync(target, buffer);
+        sendJson(res, 200, {
+          file: `${dir}/${name}`,
+          url: `/exports/${encodeURIComponent(dir)}/${encodeURIComponent(name)}`,
+          bytes: buffer.length,
+        });
+        return true;
+      }
+
       // Default download name for exported files
       if (pathname === '/api/export/download') {
         const file = url.searchParams.get('file') ?? '';
@@ -1194,8 +1268,11 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         const body = JSON.parse(await readBody(req, 256 * 1024 * 1024)) as { data?: string };
         const buffer = Buffer.from(body.data ?? '', 'base64');
         const result = restoreBackup(dataRoot, exportRoot, buffer);
+        // The library now comes from the backup, not from the opened project file.
+        clearProjectLink(dataRoot);
         sendJson(res, 200, {
           ...result,
+          link: projectSync.status(),
           library: createLibrary(rawRoot, dataRoot),
         });
         return true;
@@ -1378,6 +1455,56 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
         return true;
       }
 
+      /* ---- Open a project by path (desktop file picker) and write saves back to it ---- */
+      if (pathname === '/api/project/link' && req.method === 'GET') {
+        sendJson(res, 200, projectSync.status());
+        return true;
+      }
+
+      if (pathname === '/api/project/open/inspect' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { path?: string };
+        const target = resolveProjectFilePath(body.path);
+        const buffer = readProjectFile(target);
+        if (buffer.length > MAX_PROJECT_BYTES) {
+          throw new AppError('ERR_BODY_TOO_LARGE', { limit: Math.round(MAX_PROJECT_BYTES / (1024 * 1024)) }, 413);
+        }
+        sendJson(res, 200, { path: target, info: inspectProject({ rootDir, buffer }) });
+        return true;
+      }
+
+      if (pathname === '/api/project/open' && req.method === 'POST') {
+        const body = JSON.parse(await readBody(req)) as { path?: string; conflict?: string; relinkDir?: string };
+        const target = resolveProjectFilePath(body.path);
+        const buffer = readProjectFile(target);
+        const info = inspectProject({ rootDir, buffer });
+        const result = importProject({
+          rootDir,
+          buffer,
+          conflict: body.conflict === 'merge' || body.conflict === 'skip' ? body.conflict : 'overwrite',
+          relinkDir: body.relinkDir,
+        });
+        // From here on, every save is written back into this file.
+        const link = linkProject(dataRoot, {
+          path: target,
+          storageMode: info.storageMode,
+          name: info.name ?? path.basename(target, path.extname(target)),
+          notes: info.notesText,
+          createdAt: info.createdAt,
+        });
+        sendJson(res, 200, { ...result, info, link, library: createLibrary(rawRoot, dataRoot) });
+        return true;
+      }
+
+      if (pathname === '/api/project/save' && req.method === 'POST') {
+        sendJson(res, 200, { result: projectSync.flush(), link: projectSync.status() });
+        return true;
+      }
+
+      if (pathname === '/api/project/unlink' && req.method === 'POST') {
+        sendJson(res, 200, { removed: clearProjectLink(dataRoot), link: projectSync.status() });
+        return true;
+      }
+
       if (pathname === '/api/project/import' && req.method === 'POST') {
         const binary = isBinaryUpload(req);
         let buffer: Buffer;
@@ -1403,7 +1530,10 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
           conflict: conflictRaw === 'merge' || conflictRaw === 'skip' ? conflictRaw : 'overwrite',
           relinkDir,
         });
-        sendJson(res, 200, { ...result, library: createLibrary(rawRoot, dataRoot) });
+        // An uploaded project has no path on this machine, so the previous link must go:
+        // keeping it would write this unrelated data into the file opened earlier.
+        clearProjectLink(dataRoot);
+        sendJson(res, 200, { ...result, link: projectSync.status(), library: createLibrary(rawRoot, dataRoot) });
         return true;
       }
 
@@ -1524,11 +1654,24 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
   };
 
   /**
+   * Whether this request changed the working copy and must reach the opened .mnproj.
+   * Opening/saving projects is excluded (opening must not rewrite the file), and read
+   * mode never writes anything.
+   */
+  const isWorkingCopyWrite = (req: IncomingMessage, pathname: string): boolean => {
+    const method = req.method ?? 'GET';
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+    if (req.headers['x-komayomi-mode'] === 'read') return false;
+    if (pathname.startsWith('/api/project/')) return false;
+    return !NON_MUTATING_POSTS.has(pathname);
+  };
+
+  /**
    * Negotiate the response language once per request and keep it in an async context so
    * domain modules can render warnings without threading a language argument everywhere.
    */
-  return (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
-    if (!req.url) return Promise.resolve(false);
+  return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
+    if (!req.url) return false;
     const lang = resolveRequestLang(req, new URL(req.url, 'http://localhost'));
     res.setHeader('Vary', 'Accept-Language');
     res.setHeader('Content-Language', lang);
@@ -1538,9 +1681,14 @@ export function createMangaHandler({ rootDir, rawDir, dataDir, exportDir, allowL
     } catch (err) {
       const { status, body } = toErrorResponse(err, lang);
       sendJson(res, status, body);
-      return Promise.resolve(true);
+      return true;
     }
-    return runWithLang(lang, () => handleRequest(req, res));
+    const handled = await runWithLang(lang, () => handleRequest(req, res));
+    if (handled && req.url) {
+      const { pathname } = new URL(req.url, 'http://localhost');
+      if (isWorkingCopyWrite(req, pathname)) projectSync.markDirty();
+    }
+    return handled;
   };
 }
 

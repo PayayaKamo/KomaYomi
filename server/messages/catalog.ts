@@ -99,6 +99,11 @@ export const MESSAGES = {
     zh: '标注合成图上传无效：{reason}',
     ja: '注釈合成画像のアップロードが無効です：{reason}',
   },
+  ERR_SHARE_IMAGE_INVALID: {
+    en: 'Share image upload is invalid: {reason}',
+    zh: '分享图上传无效：{reason}',
+    ja: '共有画像のアップロードが無効です：{reason}',
+  },
 
   /* ------------------------------ library & pages ----------------------------- */
   ERR_VOLUME_NOT_FOUND: {
@@ -418,6 +423,26 @@ export const MESSAGES = {
     en: 'The archive has no manifest.json — this may not be a .mnproj project file',
     zh: '压缩包里没有 manifest.json，可能不是 .mnproj 工程文件',
     ja: 'アーカイブに manifest.json がありません。.mnproj プロジェクトファイルではない可能性があります',
+  },
+  ERR_PROJECT_NOT_LINKED: {
+    en: 'No project file is open — open a .mnproj first, saves are written back to it',
+    zh: '当前没有打开工程文件，请先打开 .mnproj，之后的保存会写回该文件',
+    ja: 'プロジェクトファイルを開いていません。先に .mnproj を開くと、保存内容がそのファイルに書き戻されます',
+  },
+  ERR_PROJECT_PATH_INVALID: {
+    en: 'The project path must be an absolute path to a .mnproj (or .zip) file',
+    zh: '工程路径无效：需要指向 .mnproj（或 .zip）文件的绝对路径',
+    ja: 'プロジェクトのパスが無効です。.mnproj（または .zip）ファイルへの絶対パスが必要です',
+  },
+  ERR_PROJECT_FILE_MISSING: {
+    en: 'Project file not found: {path} — it may have been moved or deleted',
+    zh: '找不到工程文件：{path}，可能已被移动或删除',
+    ja: 'プロジェクトファイルが見つかりません：{path}。移動または削除された可能性があります',
+  },
+  ERR_PROJECT_WRITE_FAILED: {
+    en: 'Could not write the project file: {detail}. The previous file is kept.',
+    zh: '写回工程文件失败：{detail}。原文件保持未改动。',
+    ja: 'プロジェクトファイルへの書き戻しに失敗しました：{detail}。元のファイルはそのまま残っています',
   },
   ERR_LIBRARY_NOT_OBJECT: {
     en: 'library.json is not a JSON object',

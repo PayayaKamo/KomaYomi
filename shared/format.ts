@@ -7,6 +7,8 @@ import {
   migrateManifestV1,
   migratePageV0,
   migratePageV1,
+  migratePageV2,
+  migratePageV3,
 } from './migrations.ts';
 
 /**
@@ -50,7 +52,7 @@ export const CURRENT_SCHEMA_VERSION: Record<ExchangeKind, number> = {
   mnproj: 2,
   mntpl: 1,
   mnexp: 1,
-  page: 2,
+  page: 4,
   mntp: 1,
   mnalign: 1,
   mnlayout: 1,
@@ -254,12 +256,14 @@ const panelSpec = object(
 
 const noteSourceSpec = object({ title: str(), url: str(), text: str() }, []);
 const noteImageSpec = object({ id: str({ minLength: 1 }), name: str(), dataUrl: str() });
+const noteAnchorSpec = object({ x: num(), y: num(), lang: str({ minLength: 1 }) });
 const noteSpec = object(
   {
     id: str({ minLength: 1 }),
     scope: str({ enum: ['page', 'panel'] }),
     panelId: nullable(str()),
     type: str(),
+    anchor: noteAnchorSpec,
     text: str(),
     tags: array(str()),
     source: noteSourceSpec,
@@ -293,6 +297,8 @@ const annotationSpec = object(
     opacity: num(),
     text: str(),
     fontSize: num(),
+    lang: str({ minLength: 1 }),
+    allLangs: bool(),
     createdAt: str(),
     updatedAt: str(),
   },
@@ -640,7 +646,7 @@ const MIGRATIONS: Record<ExchangeKind, Record<number, (value: Record<string, unk
   mnproj: { 0: migrateManifestV0, 1: migrateManifestV1 },
   mntpl: { 0: migrateLayoutTemplateV0 },
   mnexp: { 0: migrateExportTemplateV0 },
-  page: { 0: migratePageV0, 1: migratePageV1 },
+  page: { 0: migratePageV0, 1: migratePageV1, 2: migratePageV2, 3: migratePageV3 },
   /* Stored formats had no envelope before v1, so v0 only needs the fields added. */
   mntp: { 0: (value) => ({ ...value }) },
   mnalign: { 0: (value) => ({ ...value }) },

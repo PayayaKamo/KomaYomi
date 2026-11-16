@@ -92,6 +92,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSUPPORTED_IMAGE_FORMAT`| 415  | 未対応の画像形式です（{format} / {ext}）               | 画像でないファイル、未対応コーデック | 対応形式の画像に差し替える。         |
 | `ERR_REMOTE_UNAVAILABLE`      | 503  | リモート素材が一時的に利用できません（{detail}）。キャッシュ済みのページは閲覧できます | ネットワーク共有がオフライン、WebDAV 停止 | キャッシュ済みページは読める。オンラインに戻って再試行する。 |
 | `ERR_ANNOTATION_IMAGE_INVALID`| 400  | 注釈合成画像のアップロードが無効です：{reason} | Word 書き出し前の合成画像の項目や形式が不正 | 再試行する。続く場合は `reason` を添えて報告する。 |
+| `ERR_SHARE_IMAGE_INVALID`     | 400  | 共有画像のアップロードが無効です：{reason} | フォルダ名/ファイル名が不正、拡張子の不一致、JPEG/PNG 以外のバイト列 | 再試行する。続く場合は `reason` を添えて報告する。 |
 
 ### ライブラリ・ページ・巻
 
@@ -158,6 +159,10 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_EXPORT_EMPTY`                  | 400  | 書き出せるページがありません（先にコマ分割かノートを追加してください） | 範囲内にコマもノートもない | コマやノートを足すか、ページ範囲を広げる。               |
 | `ERR_PROJECT_EMPTY`                 | 400  | プロジェクトファイルの内容を受信できませんでした         | `.mnproj` が空             | プロジェクトを再エクスポートする。                       |
 | `ERR_PROJECT_IMAGE_ENTRY`           | 400  | プロジェクトファイル内の画像項目に巻 / 話 / ファイル名がありません | manifest の破損    | プロジェクトを再エクスポートする。                       |
+| `ERR_PROJECT_NOT_LINKED`            | 409  | プロジェクトファイルを開いていません                     | `.mnproj` を開かずに保存した | 先に `.mnproj` を開く。以降の保存はそのファイルに書き戻される。 |
+| `ERR_PROJECT_PATH_INVALID`          | 400  | プロジェクトのパスが無効です（絶対パスで .mnproj/.zip を指定） | 誤ったファイルを選択 | プロジェクトファイル自体を選ぶ。                       |
+| `ERR_PROJECT_FILE_MISSING`          | 404  | 関連付けたプロジェクトファイルが見つかりません：{path}   | 移動・名前変更・削除       | 元の場所に戻すか、書き戻しを停止して開き直す。           |
+| `ERR_PROJECT_WRITE_FAILED`          | 500  | プロジェクトファイルへの書き戻しに失敗しました：{detail}（元のファイルは保持） | ロック・読み取り専用・空き容量不足 | 原因を解消し、「プロジェクトファイルに保存」で再試行する。 |
 | `ERR_MANIFEST_INVALID_JSON`         | 400  | manifest.json が有効な JSON ではありません。.mnproj プロジェクトファイルではない可能性があります | `.mnproj` でない、または破損 | アーカイブの中身を確認する。               |
 | `ERR_MANIFEST_NOT_OBJECT`           | 400  | manifest.json の構造が正しくありません（JSON オブジェクトが必要です） | manifest の破損 | プロジェクトを再エクスポートする。                     |
 | `ERR_MANIFEST_NO_INVENTORY`         | 400  | プロジェクトファイルに inventory（巻・話の一覧）がありません | 古すぎる、または破損した書き出し | 現行バージョンで再エクスポートする。               |

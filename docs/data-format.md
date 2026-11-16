@@ -15,6 +15,7 @@ Everything KomaYomi stores is either plain JSON or plain image files. This page 
 | `data/library.json` | Manual language-directory mapping. |
 | `data/cache/thumbs/` | Thumbnail cache (safe to delete). |
 | `data/backups/` | Copies of imported `.mnproj` files. |
+| `data/project-link.json` | The `.mnproj` opened from disk that receives write-backs. Never packed into an archive. |
 | `exports/` | Generated HTML, PNG, backup ZIPs and project files. |
 
 Writes are atomic: the server writes `<file>.tmp` and renames it over the target. A crash leaves the old file intact.
@@ -273,6 +274,10 @@ Import checks conflicts per file and offers **overwrite**, **merge** or **skip**
 
 - **Merge** keeps existing panels/annotations when the incoming page lacks them, unions notes by id (incoming wins for the same id), and never deletes existing notes.
 - A snapshot of `data/` is written before any import; the original package is also kept under `data/backups/projects/`.
+
+### Writing back to the opened file
+
+Opening a `.mnproj` from disk (desktop app) records it in `data/project-link.json`, and every later save re-packs the working copy and replaces that file. The replacement is atomic — a sibling temp file is written, flushed and renamed over the target — so an interrupted save leaves the previous file intact. `<file>.mnproj.bak` keeps the previous state (refreshed at most every ten minutes for large archives), `manifest.createdAt` and the manifest note of the opened file are preserved, and read-only mode never writes. Ending the link (`Stop writing back`, importing another project, or restoring a backup) leaves the file untouched; exporting always produces a separate copy in `exports/` and never modifies the opened project.
 
 ## Layout template
 

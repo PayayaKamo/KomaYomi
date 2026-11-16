@@ -11,11 +11,11 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import type { Annotation, AnnotationAnchor, AnnotationKind, Panel, PanelRect } from '../types';
+import type { Annotation, AnnotationAnchor, AnnotationKind, Lang, Panel, PanelRect } from '../types';
 import { clamp01, uid } from '../lib/geometry';
 import { mosaicRegion } from '../lib/mosaicPatch';
 import { MosaicPatch } from './MosaicPatch';
-import { annotationLeader } from '../../shared/annotations';
+import { annotationsForLang, annotationLeader } from '../../shared/annotations';
 import { t } from '../i18n';
 import type { MessageKey } from '../i18n';
 
@@ -70,6 +70,27 @@ type TextEdit = {
   value: string;
 };
 
+/**
+ * Project the dragged end point onto the nearest 0°/45°/90° ray from the start.
+ * Angles are measured in rendered pixels, so a 45° line stays visually diagonal on any page aspect.
+ */
+export function snapLineEnd(start: Point, end: Point, pxPerX: number, pxPerY: number): Point {
+  if (!pxPerX || !pxPerY) return end;
+  const dx = (end.x - start.x) * pxPerX;
+  const dy = (end.y - start.y) * pxPerY;
+  if (!dx && !dy) return end;
+  const step = Math.PI / 4;
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  // Keep the cursor's projection instead of its radius, so the line follows the pointer.
+  const length = dx * ux + dy * uy;
+  return {
+    x: clamp01(start.x + (ux * length) / pxPerX),
+    y: clamp01(start.y + (uy * length) / pxPerY),
+  };
+}
+
 /** Minimal shape description accepted by the renderer, so drafts reuse it. */
 type Shape = {
   kind: AnnotationKind;
@@ -106,6 +127,13 @@ type Props = {
   onAnchorChange?: (id: string, anchor: AnnotationAnchor | null) => void;
   /** Viewer mode: draw, drag and anchor picking are disabled; existing marks stay visible. */
   readOnly?: boolean;
+  /**
+   * Language lane this layer belongs to. Only marks of this lane (plus shared marks) are
+   * shown, and new marks are tagged with it. Omit in language-agnostic views (panel editor).
+   */
+  lang?: Lang | null;
+  /** Tag new marks as visible in every language instead of the current lane. */
+  shareLangs?: boolean;
 };
 
 function panelRect(panels: Panel[], id: string | null): PanelRect {
@@ -382,6 +410,8 @@ export function AnnotationLayer({
   anchorTarget = null,
   onAnchorChange,
   readOnly = false,
+  lang = null,
+  shareLangs = false,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState<Box>({ w: 0, h: 0 });
@@ -440,6 +470,8 @@ export function AnnotationLayer({
       width: kind === 'text' || kind === 'badge' ? undefined : width,
       text,
       fontSize: kind === 'text' || kind === 'badge' ? DEFAULT_FONT : undefined,
+      // A lane-tagged mark only shows in the column it was drawn in; shared marks show in all.
+      ...(shareLangs ? { allLangs: true } : lang ? { lang } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -490,7 +522,7 @@ export function AnnotationLayer({
     }
     const current = draftRef.current;
     if (!current) return;
-    const point = toScope(pagePoint(e), current.rect);
+    let point = toScope(pagePoint(e), current.rect);
     if (current.kind === 'pen') {
       const last = current.points[current.points.length - 1];
       if (Math.hypot(point.x - last.x, point.y - last.y) < PEN_MIN_STEP) return;
@@ -498,6 +530,15 @@ export function AnnotationLayer({
       draftRef.current = next;
       setDraft(next);
       return;
+    }
+    // Shift turns a line tool into a straight ruler: 0°, 45° or 90°, snapped while dragging.
+    if (e.shiftKey && (current.kind === 'arrow' || current.kind === 'highlight')) {
+      point = snapLineEnd(
+        current.points[0],
+        point,
+        (box.w * current.rect.w) / viewport.w,
+        (box.h * current.rect.h) / viewport.h,
+      );
     }
     const next = { ...current, points: [current.points[0], point] };
     draftRef.current = next;
@@ -607,6 +648,7 @@ export function AnnotationLayer({
 
   if (!visible) return null;
 
+  const shown = annotationsForLang(annotations, lang);
   const interactive = tool !== 'select' || Boolean(anchorTarget);
   const anchorPreview = (() => {
     if (!anchorDraft) return null;
@@ -648,7 +690,7 @@ export function AnnotationLayer({
       >
         {/* Leaders and locator markers sit under the marks so they never hide them. */}
         <g className="ann-guides-layer" pointerEvents="none">
-          {annotations.map((annotation) => (
+          {shown.map((annotation) => (
             <g key={annotation.id}>
               {annotationGuides(
                 annotation,
@@ -659,7 +701,7 @@ export function AnnotationLayer({
             </g>
           ))}
         </g>
-        {annotations.map((annotation) => {
+        {shown.map((annotation) => {
           const rect = annotation.scope === 'panel' ? panelRect(panels, annotation.panelId ?? null) : PAGE_RECT;
           const selected = annotation.id === selectedId;
           return (

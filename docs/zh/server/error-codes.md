@@ -92,6 +92,7 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_UNSUPPORTED_IMAGE_FORMAT`| 415  | 暂不支持该图片格式（{format} / {ext}）           | 不是图片文件，或编码不受支持 | 换成受支持的图片。                       |
 | `ERR_REMOTE_UNAVAILABLE`      | 503  | 远端素材暂不可用（{detail}），已缓存的页仍可阅读 | 网络共享离线、WebDAV 挂了    | 缓存页还能看；恢复在线后重试。           |
 | `ERR_ANNOTATION_IMAGE_INVALID`| 400  | 标注合成图上传无效：{reason}                     | Word 导出前上传的合成图缺字段或格式不对 | 重试导出；仍失败请反馈 `reason`。        |
+| `ERR_SHARE_IMAGE_INVALID`     | 400  | 分享图上传无效：{reason}                         | 目录/文件名非法、扩展名不符或字节不是 JPEG/PNG | 重试导出；仍失败请反馈 `reason`。        |
 
 ### 图库、页面与卷
 
@@ -158,6 +159,10 @@ LANG=ja_JP.UTF-8 node scripts/manga-cli.ts report
 | `ERR_EXPORT_EMPTY`                  | 400  | 没有可导出的页面（请先给页面分格或写批注）               | 范围内既无分格也无笔记     | 补分格/笔记，或放宽页范围。                                |
 | `ERR_PROJECT_EMPTY`                 | 400  | 没有收到工程文件内容                                     | `.mnproj` 是空的           | 重新导出工程。                                             |
 | `ERR_PROJECT_IMAGE_ENTRY`           | 400  | 工程文件里的图片条目缺少卷 / 话 / 文件名                 | manifest 损坏              | 重新导出工程。                                             |
+| `ERR_PROJECT_NOT_LINKED`            | 409  | 当前没有打开工程文件                                     | 没打开 `.mnproj` 就保存    | 先打开 `.mnproj`，之后的保存会写回该文件。                 |
+| `ERR_PROJECT_PATH_INVALID`          | 400  | 工程路径无效（需要绝对路径且指向 .mnproj/.zip）           | 选错了文件                 | 选择工程文件本身。                                         |
+| `ERR_PROJECT_FILE_MISSING`          | 404  | 找不到已链接的工程文件：{path}                           | 文件被移动/改名/删除       | 把文件放回原处，或停止写回后重新打开。                     |
+| `ERR_PROJECT_WRITE_FAILED`          | 500  | 写回工程文件失败：{detail}（原文件保留）                 | 文件被占用、只读或磁盘满   | 排除原因后用「保存到工程文件」重试。                       |
 | `ERR_MANIFEST_INVALID_JSON`         | 400  | manifest.json 不是有效的 JSON，可能不是 .mnproj 工程文件  | 不是 `.mnproj`，或已损坏   | 检查压缩包内容。                                           |
 | `ERR_MANIFEST_NOT_OBJECT`           | 400  | manifest.json 结构不正确（应为 JSON 对象）               | manifest 损坏              | 重新导出工程。                                             |
 | `ERR_MANIFEST_NO_INVENTORY`         | 400  | 工程文件缺少 inventory（卷话清单）                       | 导出太旧或损坏             | 用当前版本重新导出。                                       |

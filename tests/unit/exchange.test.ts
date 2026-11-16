@@ -14,7 +14,7 @@ import { saveLayout } from '../../server/layouts.ts';
 import { runWithLang } from '../../server/messages/index.ts';
 import { saveExportTemplate } from '../../server/presets.ts';
 import { createEmptyDoc, writePageDoc } from '../../server/storage.ts';
-import { SCHEMA_URLS } from '../../shared/format.ts';
+import { CURRENT_SCHEMA_VERSION, SCHEMA_URLS } from '../../shared/format.ts';
 import type { Library, PageDoc } from '../../shared/types.ts';
 import { makeTempDir, removeDir, writeFile } from '../helpers/tmp.ts';
 
@@ -392,7 +392,11 @@ describe('single page exchange', () => {
     expect(result.file).toBe('Vol1-172-P1.mnpage.json');
     expect(result.url).toBe('/exports/Vol1-172-P1.mnpage.json');
     const value = JSON.parse(fs.readFileSync(path.join(exportRoot, result.file), 'utf8')) as Record<string, unknown>;
-    expect(value).toMatchObject({ $schema: SCHEMA_URLS.page, schemaVersion: 2, kind: 'page' });
+    expect(value).toMatchObject({
+      $schema: SCHEMA_URLS.page,
+      schemaVersion: CURRENT_SCHEMA_VERSION.page,
+      kind: 'page',
+    });
     expect(result.size).toBe(Buffer.byteLength(fs.readFileSync(path.join(exportRoot, result.file), 'utf8'), 'utf8'));
     expect((value.notes as Record<string, unknown>[])[0]).toMatchObject({ id: 'n1', text: 'hello' });
   });

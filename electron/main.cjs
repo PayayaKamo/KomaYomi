@@ -204,6 +204,20 @@ ipcMain.handle('pick-folder', async (_event, title) => {
   return res.canceled ? null : res.filePaths[0];
 });
 
+// Pick a .mnproj to open. The renderer only gets the path: the local server reads the
+// file and remembers it, so every later save is written back to that exact file.
+ipcMain.handle('pick-project-file', async (_event, title) => {
+  const res = await dialog.showOpenDialog({
+    title: typeof title === 'string' && title ? title : '打开工程文件',
+    properties: ['openFile'],
+    filters: [
+      { name: 'KomaYomi Project', extensions: ['mnproj'] },
+      { name: 'Zip archive', extensions: ['zip'] },
+    ],
+  });
+  return res.canceled ? null : res.filePaths[0];
+});
+
 app.on('window-all-closed', () => {
   server?.close();
   app.quit();
