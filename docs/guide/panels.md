@@ -233,6 +233,11 @@ The **↺** button in the top bar opens **Operation history**. It lists the undo
 - In read-only mode the list is still visible for orientation, but it explains that reverting is disabled — the viewer never changes the page.
 - Page history (above) survives reloads; operation history covers the current editing session. Use page history to go back a day, operation history to go back one arrow.
 
+<figure class="shot">
+  <img src="/assets/screenshots/operation-history.webp" alt="Operation history dialog listing edits newest first with kind, page and panel, and the current marker">
+  <figcaption>Operation history: it shares the same undo stack as `Ctrl+Z`; picking an entry returns the page to that step, and the dialog reports how many steps can still be redone.</figcaption>
+</figure>
+
 ## A safe correction workflow
 
 A rhythm that keeps you out of trouble:

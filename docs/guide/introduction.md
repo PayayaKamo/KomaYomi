@@ -72,6 +72,11 @@ What read mode turns off:
 
 These limits are not just hidden buttons: while read mode is on, write requests are rejected by the server (`ERR_READ_ONLY`). Export, preview and project inspection keep working.
 
+<figure class="shot">
+  <img src="/assets/screenshots/read-only.webp" alt="Compare reader in read mode: the top bar shows a read-only badge and the sidebar and toolbars keep only viewing actions">
+  <figcaption>Read mode: a Read-only badge appears in the top bar and the toolbars keep only viewing actions; write requests are rejected by the server while export and preview still work.</figcaption>
+</figure>
+
 ## Focus mode
 
 Focus mode (the `⛶` button in the top bar, or `R`) is a different thing: it only hides the top bar, the stage toolbar, the panel section rail and the status bar so the page fills the window. It does not change the edit/read mode. Press `Esc` or `R` again to leave, or double-click empty space on touch devices. A brief tip names the exit gesture when you enter; it fades away and never sits over the artwork.

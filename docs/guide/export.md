@@ -118,6 +118,11 @@ The **Share images** section of the export dialog renders ready-to-post images i
 - **Bake in annotations** composites the annotation layer, including anchors and leaders, before rendering. Turn it off for clean artwork.
 - Files are written to `exports/<batch>/` in the desktop app and to the browser download folder in the web build. Warnings appear when a batch exceeds the 18-image post limit or a single file is about to pass 20 MB.
 
+<figure class="shot">
+  <img src="/assets/screenshots/export-share.webp" alt="Share images section of the export dialog with cover, cover HD, single panel, language compare and long page presets">
+  <figcaption>Share images: platform-sized presets straight from the dialog — a 1080×1440 cover, one image per panel in reading order, a language compare image and long pages split into strips, with an optional page / language bar and baked annotations.</figcaption>
+</figure>
+
 ## PDF and Word
 
 The export dialog has three output formats: **HTML**, **Word document** and **PDF (print)**.

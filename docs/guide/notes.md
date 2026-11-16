@@ -50,6 +50,11 @@ A note can also point at a spot inside the drawing — the balloon that made you
 
 A pin renders as a small dot in the compare reader and in the panel detail view, coloured by note type. Several notes at the same spot do not stack into an unreadable pile: they collapse into one dot with a count, and clicking it opens a popover listing every note there. Pins are stored in the page JSON with the note, so they survive export and import.
 
+<figure class="shot">
+  <img src="/assets/screenshots/note-anchors.webp" alt="Pins on the artwork in the compare reader: small dots inside a panel and an expanded note popover">
+  <figcaption>Notes pinned to the artwork show as small dots coloured by note type; clicking one opens a popover listing every note at that spot.</figcaption>
+</figure>
+
 ## Writing a note
 
 <figure class="shot">
@@ -127,6 +132,11 @@ The **Overview / search** tab works across the whole library, not just the curre
 
 **Clear filters** resets the current query.
 
+<figure class="shot">
+  <img src="/assets/screenshots/notes-overview.webp" alt="Notes overview and search with filters for volume, chapter and tag, grouped results and a jump list">
+  <figcaption>Overview / search: search text, tags and sources across the whole library, group results by chapter or tag, and click a result to jump to the page and panel.</figcaption>
+</figure>
+
 ## Scratchpad
 
 The scratchpad is for thoughts that arrive before you know where they belong — the margin of your brain.
@@ -164,7 +174,6 @@ Editing reuses the single composer at the top of the notes panel; no second Mark
 
 | Figure | Needed for |
 | --- | --- |
-| overview search | Filters, grouping and jump-to-page |
 | copy-context dialog | Template prefix and preview |
 
 ## Related

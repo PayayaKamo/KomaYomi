@@ -94,6 +94,11 @@ KomaYomi 把两者分开：**图片按需从远端读取，标注写入本地。
 
 任何已配置的来源或目标都可以用 **测试连接** 测试；离线的会被报告出来。
 
+<figure class="shot">
+  <img src="/assets/screenshots/backup-targets.webp" alt="备份 / 恢复对话框的备份目标：NAS 目标的地址、备份到此目标与编辑按钮，以及添加备份目标">
+  <figcaption>备份目标：每个目标显示名称与地址；**备份到此目标** 把 `data/` 打成 ZIP 上传到目标的 `backups/`，**添加备份目标** 支持本机目录、网络盘与 WebDAV。</figcaption>
+</figure>
+
 ## 手动备份与恢复
 
 <figure class="shot">

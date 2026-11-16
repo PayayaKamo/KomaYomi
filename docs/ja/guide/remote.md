@@ -94,6 +94,11 @@ KomaYomi はこの2つを分けます。**画像は必要に応じてリモー�
 
 設定済みのソースとバックアップ先は **接続をテスト** で確認でき、オフラインのものは報告されます。
 
+<figure class="shot">
+  <img src="/assets/screenshots/backup-targets.webp" alt="バックアップ / 復元ダイアログのバックアップ先。NAS のアドレス、バックアップ実行と編集のボタン、バックアップ先の追加">
+  <figcaption>バックアップ先。各項目に名前とアドレスが表示されます。この保存先へバックアップ は `data/` を ZIP にして保存先の `backups/` へ送り、バックアップ先を追加 ではローカルフォルダ、ネットワークドライブ、WebDAV を選べます。</figcaption>
+</figure>
+
 ## 手動のバックアップと復元
 
 <figure class="shot">

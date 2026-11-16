@@ -107,6 +107,11 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 
 `npm run dev` serves images through `/raw/...` and generated files through `/exports/...`; neither folder is exposed as a static directory listing.
 
+<figure class="shot">
+  <img src="/assets/screenshots/settings.webp" alt="Settings dialog with the annotation tool display scope and cleanup buttons for thumbnails, export temporary files, the remote image cache and auto-split results">
+  <figcaption>Settings: clear thumbnails, export temporary files, the remote image cache and auto-split results. Clearing the cache leaves notes, annotations and alignment untouched; clearing panels keeps notes and marks as the notice explains.</figcaption>
+</figure>
+
 ## Ports and hosts
 
 - Development UI: `127.0.0.1:5173`.

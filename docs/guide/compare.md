@@ -121,6 +121,11 @@ Right-click a mark for its own menu:
 - **Colour** — pick another colour without redrawing.
 - **Copy to language** — duplicate the mark into another lane, keeping its geometry.
 
+<figure class="shot">
+  <img src="/assets/screenshots/annotation-menu.webp" alt="Annotation context menu with Delete, Colour and Copy to language, whose submenu lists Chinese and EN">
+  <figcaption>The annotation context menu: delete the mark, recolour it, or copy it to another language at the same coordinates. After copying, each lane holds its own independent mark.</figcaption>
+</figure>
+
 Right-click empty artwork for the pane menu: **view the image enlarged**, hide this language, mask it, show only this language, show all languages, reset the pane zoom, export this panel as PNG, copy panel coordinates, set the panel number, toggle panel numbers, and insert a link. The same menu is available in read-only mode where it does not write anything.
 
 ## A practical comparison loop
@@ -161,6 +166,16 @@ Double-click a panel row to open it full-size. The whole row is the target — t
 - **Navigation bar** — the detail view's footer sits outside the scrolling area, so it never covers the art or the notes: previous page and previous panel on the left, next panel and next page on the right. On desktop the buttons show words; on narrow screens they collapse to icons with tooltips. At a page edge, previous panel jumps to the last panel of the previous page and next panel to the first panel of the next page — the detail view stays open, and the URL follows the new page and panel.
 - **Leaving** — `Esc`, the **Back** button and the browser back button all return to the same page and panel you came from. The URL is a deep link (`…/compare/panel/<id>`), so a reload or a shared link reopens the same panel; `Alt`/`Cmd`-clicking a row opens it in a new tab.
 
+<figure class="shot">
+  <img src="/assets/screenshots/panel-detail.webp" alt="Panel detail view with three languages side by side on top, this panel's notes and editor below, layout and alignment controls in the header and previous / next panel navigation at the bottom">
+  <figcaption>The panel detail view: artwork and that panel's notes on one screen. The header switches the layout, opens the alignment drawer or resets the view; the footer navigation sits outside the scroll area and never covers the artwork.</figcaption>
+</figure>
+
+<figure class="shot">
+  <img src="/assets/screenshots/reading-mode.webp" alt="Trilingual compare reading in focus mode: the top bar, toolbars and sidebar are all collapsed, leaving only the canvas and panels">
+  <figcaption>Compare reading in focus mode (`R`): every control is tucked away, leaving just the canvas and panels. A brief hint names the way out; press `Esc` or `R` again to return.</figcaption>
+</figure>
+
 ## Enlarged image viewer
 
 Right-click a pane and choose **View image enlarged** (the same command is in the detail view's pane menu) to inspect the artwork without leaving the reader.
@@ -171,6 +186,11 @@ Right-click a pane and choose **View image enlarged** (the same command is in th
 - `Esc` or a click on the backdrop closes it. The page keeps its previous zoom, scroll position and any note draft; nothing is saved or changed by looking.
 - It is available in read-only mode too, because it never writes.
 
+<figure class="shot">
+  <img src="/assets/screenshots/image-viewer.webp" alt="Enlarged image viewer showing a panel at its original resolution, with zoom, language switch and previous / next panel buttons at the bottom">
+  <figcaption>The enlarged image viewer: inspect a glyph, a screentone or a retouch seam at original resolution, switch languages and step to the previous / next panel. It works in read-only mode too.</figcaption>
+</figure>
+
 ## Original view
 
 The **Original** view (`O`) shows the uncropped page for each active language side by side, with wheel zoom from 0.5× to 6×, drag to pan, and the same per-language masks. It is the place to check what sits outside the detected panels.
@@ -178,6 +198,11 @@ The **Original** view (`O`) shows the uncropped page for each active language si
 - **Linked / independent** — the toggle in the original-view toolbar decides whether pan and zoom are shared. In **Linked** mode, dragging or zooming one column applies the same relative position and scale to every column; each column resolves those fractions against its own displayed size, so pages of different dimensions stay aligned. **Independent** mode keeps a separate view per column.
 - Turning linking on adopts the first visible column's current view and applies it to the others.
 - The setting is remembered per browser in `localStorage` (`manga-memo.original-linked`), is on by default, and only matters when two or more languages are displayed.
+
+<figure class="shot">
+  <img src="/assets/screenshots/original-reading.webp" alt="Original view with the uncropped pages of three languages side by side and the linked / independent toggle in the toolbar">
+  <figcaption>The original view (`O`): uncropped pages side by side; the Linked / independent toggle in the toolbar decides whether pan and zoom are shared across every language column.</figcaption>
+</figure>
 
 ## Common pitfalls
 

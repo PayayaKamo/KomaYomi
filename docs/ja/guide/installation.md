@@ -102,6 +102,11 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 
 `npm run dev` は画像を `/raw/...`、生成ファイルを `/exports/...` 経由で配信します。どちらのフォルダも静的ディレクトリ一覧としては公開されません。
 
+<figure class="shot">
+  <img src="/assets/screenshots/settings.webp" alt="設定ダイアログ。注釈ツールの表示範囲と、サムネイル、エクスポート一時ファイル、リモート画像キャッシュ、自動分割結果のクリアボタン">
+  <figcaption>設定。サムネイル、エクスポートの一時ファイル、リモート画像キャッシュ、自動分割の結果を消去できます。キャッシュの消去はノート、注釈、位置合わせに影響しません。コマの消去は、表示される案内どおりノートと注釈を残します。</figcaption>
+</figure>
+
 ## ポートとホスト
 
 - 開発 UI: `127.0.0.1:5173`。

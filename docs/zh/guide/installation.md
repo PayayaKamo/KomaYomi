@@ -102,6 +102,11 @@ exports/                   # generated HTML, PNG, backups, .mnproj (gitignored)
 
 `npm run dev` 通过 `/raw/...` 提供图片，通过 `/exports/...` 提供生成的文件；这两个文件夹都不会被暴露为静态目录列表。
 
+<figure class="shot">
+  <img src="/assets/screenshots/settings.webp" alt="设置对话框：标注工具显示范围，以及缩略图、导出临时文件、远端图片缓存与自动分格结果的清理按钮">
+  <figcaption>设置：清理缩略图、导出临时文件、远端图片缓存和自动分格结果。清除缓存不影响笔记、标注和对齐；清除分格会按提示保留笔记与批注。</figcaption>
+</figure>
+
 ## 端口与主机
 
 - 开发界面：`127.0.0.1:5173`。

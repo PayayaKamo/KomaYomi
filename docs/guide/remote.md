@@ -94,6 +94,11 @@ The same dialog lists **Backup targets**. A target is where a backup ZIP is uplo
 
 Any configured source or target can be tested with **Test connection**; the ones that are offline are reported.
 
+<figure class="shot">
+  <img src="/assets/screenshots/backup-targets.webp" alt="Backup targets in the Backup / restore dialog: a NAS target with its address, the back-up and edit buttons, and Add a backup target">
+  <figcaption>Backup targets: each target shows its name and address; Back up to this target packs `data/` into a ZIP under the target's `backups/`, and Add a backup target accepts a local folder, network drive or WebDAV.</figcaption>
+</figure>
+
 ## Manual backup and restore
 
 <figure class="shot">
