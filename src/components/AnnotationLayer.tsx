@@ -426,16 +426,23 @@ export function AnnotationLayer({
   const activeRect = activePanel?.rect ?? PAGE_RECT;
   const activePanelId = activePanel?.id ?? null;
 
-  // Track the rendered size so pixel-space stroke widths follow zooming.
+  // Track the *layout* size so pixel-space stroke widths follow the CSS box.
+  // Never use getBoundingClientRect here: the layer sits inside the alignment
+  // translate/scale wrapper, so measuring the painted rect would bake that scale
+  // into `box` and the wrapper would scale the coordinates a second time.
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
-    const measure = () => {
-      const rect = el.getBoundingClientRect();
-      setBox({ w: rect.width, h: rect.height });
+    const apply = (w: number, h: number) => {
+      if (!w || !h) return;
+      setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     };
-    measure();
-    const observer = new ResizeObserver(measure);
+    apply(el.clientWidth, el.clientHeight);
+    const observer = new ResizeObserver((entries) => {
+      const content = entries[0]?.contentRect;
+      if (content) apply(content.width, content.height);
+      else apply(el.clientWidth, el.clientHeight);
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [visible]);
