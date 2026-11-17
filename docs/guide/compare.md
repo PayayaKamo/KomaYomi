@@ -77,6 +77,16 @@ Alignment is stored in the page JSON, never baked into the images.
 
 Anchor mode shows a prompt with the reference language. Click a feature point in any cell first, then the same spot in another cell. **Cancel anchor** clears the pending point. The pending anchor is not saved.
 
+<figure class="shot">
+  <img src="/assets/screenshots/compare-anchor-step1.webp" alt="Step 1 of anchor alignment: a feature point picked on the reference language, with the pending anchor and cancel action">
+  <figcaption>Step 1: after choosing **Anchor alignment**, click a feature point on the reference language; the prompt shows the pending anchor, and **Cancel anchor** clears it.</figcaption>
+</figure>
+
+<figure class="shot">
+  <img src="/assets/screenshots/compare-anchor-step2.webp" alt="Step 2 of anchor alignment: clicking the same spot on the target language computes X and Y in the alignment settings">
+  <figcaption>Step 2: click the same spot on the target language; X and Y are computed immediately (-1.62% / -1.69% here), ready to fine-tune or save as a preset.</figcaption>
+</figure>
+
 ### Alignment settings
 
 **Alignment settings** opens a panel with:
@@ -212,12 +222,6 @@ The **Original** view (`O`) shows the uncropped page for each active language si
 - **The pane jumps while scrolling.** The wheel is captured only inside a pane; move the pointer to the page margin to scroll normally.
 - **Masks appear in a screenshot.** Masks are a UI preference and are not part of exports, but a normal screen capture will show them.
 - **A chip is greyed out.** That language has no image on this page. Check the library warning or the volume language mapping.
-
-## Missing screenshots
-
-| Figure | Needed for |
-| --- | --- |
-| anchor mode step 1 / step 2 | Reference point and computed offset |
 
 ## Related
 

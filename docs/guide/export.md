@@ -59,6 +59,11 @@ Layout templates can be saved under a custom name, exported as JSON and imported
 
 The layout is remembered automatically. You can also drag the divider in the live preview to set the image width.
 
+<figure class="shot">
+  <img src="/assets/screenshots/export-template-custom.webp" alt="Template controls in the export dialog: save the current layout under a name, import JSON, and apply / export / delete saved templates">
+  <figcaption>Template controls: save the current layout under a name, import JSON, then apply, export or delete saved templates.</figcaption>
+</figure>
+
 ### Generating
 
 1. Choose scope, languages, image mode and layout.
@@ -98,6 +103,11 @@ PNGs are generated in the browser and land in the browser's download folder. The
 <figure class="shot">
   <img src="/assets/screenshots/export-options.webp" alt="Export dialog with the scope, language chips, image mode, PNG modes and layout sliders">
   <figcaption>The export dialog with the PNG modes visible. Whole page and current panel use the primary language; the trilingual collage uses the selected languages.</figcaption>
+</figure>
+
+<figure class="shot">
+  <img src="/assets/screenshots/export-png-modes.webp" alt="The three PNG outputs from one page: whole page, current panel and trilingual collage, with their pixel sizes">
+  <figcaption>The three PNG outputs from one page: whole page, current panel and trilingual collage (annotations unchecked for this run).</figcaption>
 </figure>
 
 ## Share images
@@ -166,13 +176,6 @@ An export template (`.mnexp`) stores the layout and style settings so the same l
   <img src="/assets/screenshots/export-result.webp" alt="Exported HTML opened in a browser: manga pages on the left and page and panel notes on the right">
   <figcaption>The exported HTML opened in a browser: manga on the left, page and panel notes on the right.</figcaption>
 </figure>
-
-## Missing screenshots
-
-| Figure | Needed for |
-| --- | --- |
-| PNG mode comparison | Whole page / panel / collage |
-| export template controls | Save, import and apply |
 
 ## Related
 

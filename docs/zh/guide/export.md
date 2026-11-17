@@ -59,6 +59,11 @@
 
 版式会自动记住。你也可以拖动实时预览中的分隔线来设置图片宽度。
 
+<figure class="shot">
+  <img src="/assets/screenshots/export-template-custom.webp" alt="导出对话框的模板控件：输入名称后保存当前版式、导入 JSON，以及已保存模板的套用 / 导出 / 删除">
+  <figcaption>模板控件：输入名称后保存当前版式，也可以导入 JSON；已保存的模板可套用、导出或删除。</figcaption>
+</figure>
+
 ### 生成
 
 1. 选择范围、语言、图片方式和版式。
@@ -98,6 +103,11 @@ PNG 在浏览器中生成，落在浏览器的下载目录。可以直接粘贴�
 <figure class="shot">
   <img src="/assets/screenshots/export-options.webp" alt="导出对话框：范围、语言选择、图片方式、PNG 模式与版式滑块">
   <figcaption>导出对话框中的 PNG 模式。整页和单格使用首选（基准）语言；三语拼图使用所选的对照语言。</figcaption>
+</figure>
+
+<figure class="shot">
+  <img src="/assets/screenshots/export-png-modes.webp" alt="同一次导出的三种 PNG 输出：整页、当前分格与三语拼图，并标注各自尺寸">
+  <figcaption>同一页的三种 PNG 输出：整页、当前分格和三语拼图（图中未勾选「包含标注」）。</figcaption>
 </figure>
 
 ## 分享图
@@ -166,13 +176,6 @@ PNG 在浏览器中生成，落在浏览器的下载目录。可以直接粘贴�
   <img src="/assets/screenshots/export-result.webp" alt="在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记">
   <figcaption>在浏览器中打开的导出 HTML：左侧是漫画页，右侧是整页与分格笔记。</figcaption>
 </figure>
-
-## 缺失的截图
-
-| 图 | 用于 |
-| --- | --- |
-| PNG 模式对比 | 整页 / 单格 / 拼图 |
-| 导出模板控件 | 保存、导入与套用 |
 
 ## 相关
 

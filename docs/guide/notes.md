@@ -120,6 +120,11 @@ The source is displayed under the note and can be toggled with **Hide source**.
 
 The default template asks the model to explain language points, tone and cultural background, and to point out misunderstandings. Adjust it once for your preferred tutor style and every later copy follows it.
 
+<figure class="shot">
+  <img src="/assets/screenshots/notes-copy-context.webp" alt="Copy-context dialog with an editable template prefix and a preview containing the page, note text, tags and sources">
+  <figcaption>The copy-context dialog: an editable template prefix on top, and a preview with the page, note text, tags and sources below.</figcaption>
+</figure>
+
 ## Overview and search
 
 The **Overview / search** tab works across the whole library, not just the current page:
@@ -169,12 +174,6 @@ Editing reuses the single composer at the top of the notes panel; no second Mark
   <img src="/assets/screenshots/notes-toolbar-tags.webp" alt="Note editor with the page and panel scope switch, Markdown toolbar, live preview, an attached screenshot and the tag row">
   <figcaption>The note editor: page / panel scope, Markdown toolbar, live preview, an attached screenshot and the tag row.</figcaption>
 </figure>
-
-## Missing screenshots
-
-| Figure | Needed for |
-| --- | --- |
-| copy-context dialog | Template prefix and preview |
 
 ## Related
 

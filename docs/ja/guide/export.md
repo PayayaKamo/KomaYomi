@@ -59,6 +59,11 @@
 
 レイアウトは自動で記憶されます。ライブプレビューの区切り線をドラッグして画像幅を設定することもできます。
 
+<figure class="shot">
+  <img src="/assets/screenshots/export-template-custom.webp" alt="エクスポートダイアログのテンプレート操作。名前を付けて現在のレイアウトを保存、JSON のインポート、保存済みテンプレートの適用 / 書き出し / 削除">
+  <figcaption>テンプレート操作。名前を付けて現在のレイアウトを保存し、JSON をインポートできます。保存済みテンプレートは適用・書き出し・削除ができます。</figcaption>
+</figure>
+
 ### 生成
 
 1. 範囲、言語、画像の扱い、レイアウトを選びます。
@@ -98,6 +103,11 @@ PNG はブラウザで生成され、ブラウザのダウンロードフォル�
 <figure class="shot">
   <img src="/assets/screenshots/export-options.webp" alt="エクスポートダイアログ。範囲、言語チップ、画像の扱い、PNG モード、レイアウトのスライダー">
   <figcaption>エクスポートダイアログで PNG モードを選んだ状態。ページ全体と現在のコマは優先言語（下地画像）、3 言語コラージュは選択した比較言語を使います。</figcaption>
+</figure>
+
+<figure class="shot">
+  <img src="/assets/screenshots/export-png-modes.webp" alt="同じページから書き出した 3 種類の PNG。ページ全体、現在のコマ、3 言語コラージュと各サイズ">
+  <figcaption>同じページから書き出した 3 種類の PNG。ページ全体、現在のコマ、3 言語コラージュ（この図では注釈を含めていません）。</figcaption>
 </figure>
 
 ## 共有画像
@@ -166,13 +176,6 @@ PNG はブラウザで生成され、ブラウザのダウンロードフォル�
   <img src="/assets/screenshots/export-result.webp" alt="ブラウザで開いた書き出し HTML。左に漫画ページ、右にページとコマのノート">
   <figcaption>ブラウザで開いた書き出し HTML。左に漫画ページ、右にページとコマのノート。</figcaption>
 </figure>
-
-## スクリーンショット未掲載
-
-| 図 | 必要な箇所 |
-| --- | --- |
-| PNG モードの比較 | ページ全体 / コマ / コラージュ |
-| エクスポートテンプレートのコントロール | 保存、インポート、適用 |
 
 ## 関連項目
 

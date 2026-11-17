@@ -114,6 +114,11 @@
 
 默认模板会要求模型解释语言点、语气和文化背景，并指出理解错误。按你偏好的讲解风格调整一次，之后每次复制都会沿用。
 
+<figure class="shot">
+  <img src="/assets/screenshots/notes-copy-context.webp" alt="复制上下文对话框：可编辑的模板前缀，以及包含页号、笔记正文、标签和来源的预览">
+  <figcaption>复制上下文对话框：上半部是可编辑的模板前缀，下半部是包含页号、正文、标签和来源的预览。</figcaption>
+</figure>
+
 ## 总览与搜索
 
 **总览 / 搜索** 标签页在整个图库范围内工作，而不只是当前页：
@@ -163,12 +168,6 @@
   <img src="/assets/screenshots/notes-toolbar-tags.webp" alt="笔记编辑器：整页与分格范围切换、Markdown 工具栏、实时预览、附件缩略图与标签输入行">
   <figcaption>笔记编辑器：整页 / 分格范围、Markdown 工具栏、实时预览、附件缩略图与标签输入行。</figcaption>
 </figure>
-
-## 缺失的截图
-
-| 图 | 用于 |
-| --- | --- |
-| 复制上下文对话框 | 模板前缀与预览 |
 
 ## 相关
 

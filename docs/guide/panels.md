@@ -87,6 +87,11 @@ Each old panel is matched to the template panel covering the same artwork, so pa
 
 **Copy JSON path** copies `data/pages/<volume>/<chapter>/<index>.json`. Editing that file by hand is supported; the server normalizes rectangles, repairs missing ids and dangling references on read, and preserves fields it does not recognize.
 
+<figure class="shot">
+  <img src="/assets/screenshots/panels-template-section.webp" alt="Panel template section with the template name, save-this-page action, template picker and apply / delete controls">
+  <figcaption>The panel template section: save the current page, pick a template, then apply it to this page or the whole chapter.</figcaption>
+</figure>
+
 ## Mouse and keyboard on the canvas
 
 | Action | Gesture |
@@ -177,6 +182,11 @@ Creating a group removes its panels from any earlier group, so groups never over
 
 Groups are stored in the page JSON as `groups: [{ id, name, panelIds, number, color }]` and travel with page exchange files, project packages and backups.
 
+<figure class="shot">
+  <img src="/assets/screenshots/panels-groups.webp" alt="Groups panel with the colour swatch, name, numbered chips and merge / split / delete actions, and matching group colours on the canvas">
+  <figcaption>The groups panel: colour swatch, name, numbered chips and merge / split / delete actions. Panels in the group share its colour on the canvas.</figcaption>
+</figure>
+
 ## Splitting a panel
 
 Splitting cuts a large box that contains several drawings (a spread, two scenes in one outline) into independent panels. Select a panel and click **Split…**, or pick the same item from the panel context menu:
@@ -260,13 +270,6 @@ Avoid re-running **Auto split** after hand edits unless you are willing to lose 
 - **Marks are invisible.** The annotation layer is hidden, or a panel filter is active. Check **Annotations: Shown**.
 - **Grouping changed the numbering.** **Sort by group** rewrites reading order. Undo it, or create the groups before writing panel notes.
 - **A restored version lost newer notes.** Restoring replaces the whole page. The state you restored from is kept as a version, so use **Undo restore** or restore that version again.
-
-## Missing screenshots
-
-| Figure | Needed for |
-| --- | --- |
-| groups panel close-up | Colour, name, chips and group actions |
-| panel template panel | Template save / apply controls |
 
 ## Related
 
